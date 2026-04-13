@@ -1,251 +1,257 @@
 <!DOCTYPE html>
 <html lang="tr">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Faturalar — İnokas CRM</title>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <link href="https://fonts.googleapis.com/css2?family=Geist+Mono:wght@400;600&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link
+    href="https://fonts.googleapis.com/css2?family=Geist+Mono:wght@400;600&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap"
+    rel="stylesheet">
   <link rel="stylesheet" href="faturalar.css">
 </head>
 
 <body>
 
-<nav class="topbar">
-  <div class="topbar-left">
-    <a href="/" class="brand">
-      <div class="brand-dot"></div>
-      İnokas <span>CRM</span>
-    </a>
-  </div>
-  <div class="topbar-right">
-    <button class="nav-link">📋 Siparişler</button>
-    <button class="nav-link">📄 Teklifler</button>
-    <button class="nav-link active">💰 Faturalar</button>
-    <button class="nav-link logout">🚪 Çıkış</button>
-  </div>
-</nav>
-
-<main class="main-container">
-
-  <div class="view-switcher">
-    <button class="tab-btn active" id="tabGelen" onclick="switchView('gelen')">
-      <span class="icon">📥</span> Gelen Faturalar
-    </button>
-    <button class="tab-btn" id="tabGiden" onclick="switchView('giden')">
-      <span class="icon">📤</span> Giden Faturalar
-    </button>
-  </div>
-
-  <section class="stats-grid">
-    <div class="stat-card">
-      <label>Toplam Borç</label>
-      <h2 id="stat-total-debt" class="text-danger">—</h2>
-      <small id="stat-supplier-count">0 Tedarikçi</small>
+  <nav class="topbar">
+    <div class="topbar-left">
+      <a href="/" class="brand">
+        <div class="brand-dot"></div>
+        İnokas <span>CRM</span>
+      </a>
     </div>
-    <div class="stat-card">
-      <label>Bu Ay Ödenecek</label>
-      <h2 id="stat-monthly-debt">—</h2>
-      <small>Vadeye göre</small>
+    <div class="topbar-right">
+      <button class="nav-link">📋 Siparişler</button>
+      <button class="nav-link">📄 Teklifler</button>
+      <button class="nav-link active">💰 Faturalar</button>
+      <button class="nav-link logout">🚪 Çıkış</button>
     </div>
-    <div class="stat-card highlight-warn">
-      <label>Vadesi Geçmiş</label>
-      <h2 id="stat-overdue" class="text-warn">—</h2>
-      <small id="stat-overdue-count">0 Fatura</small>
-    </div>
-    <div class="stat-card highlight-success">
-      <label>Toplam Ödenen</label>
-      <h2 id="stat-paid" class="text-success">—</h2>
-      <small id="stat-paid-count">0 Fatura</small>
-    </div>
-  </section>
+  </nav>
 
-  <section class="content-card">
-    <div class="toolbar">
-      <div class="search-group">
-        <input type="text" id="mainSearch" placeholder="Firma veya fatura no ara...">
-        <select id="filterCurrency">
-          <option value="">Tüm Dövizler</option>
-          <option value="TL">TRY</option>
-          <option value="USD">USD</option>
-          <option value="EUR">EUR</option>
-        </select>
+  <main class="main-container">
+
+    <div class="view-switcher">
+      <button class="tab-btn active" id="tabGelen" onclick="switchView('gelen')">
+        <span class="icon">📥</span> Gelen Faturalar
+      </button>
+      <button class="tab-btn" id="tabGiden" onclick="switchView('giden')">
+        <span class="icon">📤</span> Giden Faturalar
+      </button>
+    </div>
+
+    <section class="stats-grid">
+      <div class="stat-card">
+        <label>Toplam Borç</label>
+        <h2 id="stat-total-debt" class="text-danger">—</h2>
+        <small id="stat-supplier-count">0 Tedarikçi</small>
       </div>
-      <div class="action-group">
-        <button class="btn btn-secondary" onclick="refreshData()">🔄 Yenile</button>
-        <button class="btn btn-primary" onclick="openInvoiceModal()">＋ Yeni Fatura Ekle</button>
+      <div class="stat-card">
+        <label>Bu Ay Ödenecek</label>
+        <h2 id="stat-monthly-debt">—</h2>
+        <small>Vadeye göre</small>
       </div>
-    </div>
-
-    <div class="table-responsive">
-      <table class="modern-table">
-        <thead>
-          <tr>
-            <th>Fatura No</th>
-            <th>Firma / Ünvan</th>
-            <th>Tarih</th>
-            <th>Vade</th>
-            <th class="text-right">Matrah</th>
-            <th class="text-right">KDV</th>
-            <th class="text-right">Toplam</th>
-            <th>Durum</th>
-            <th class="text-center">İşlem</th>
-          </tr>
-        </thead>
-        <tbody id="invoiceTableBody">
-          </tbody>
-      </table>
-    </div>
-  </section>
-</main>
-
-<div id="invoiceModal" class="modal-overlay">
-  <div class="modal-content full-screen">
-
-    <div class="modal-preview-side" id="previewPane">
-      <div class="preview-empty-state">
-        <div class="upload-box" id="dropZone">
-          <input type="file" id="xmlInput" accept=".xml" hidden>
-          <span class="upload-icon">📄</span>
-          <h3>UBL-XML Dosyasını Yükle</h3>
-          <p>Verileri otomatik doldurmak için sürükleyin veya seçin</p>
-          <button class="btn btn-primary btn-sm" onclick="document.getElementById('xmlInput').click()">Dosya Seç</button>
-        </div>
+      <div class="stat-card highlight-warn">
+        <label>Vadesi Geçmiş</label>
+        <h2 id="stat-overdue" class="text-warn">—</h2>
+        <small id="stat-overdue-count">0 Fatura</small>
       </div>
-      <div id="xmlDataSummary" class="xml-data-view" style="display:none">
-        </div>
-    </div>
+      <div class="stat-card highlight-success">
+        <label>Toplam Ödenen</label>
+        <h2 id="stat-paid" class="text-success">—</h2>
+        <small id="stat-paid-count">0 Fatura</small>
+      </div>
+    </section>
 
-    <div class="modal-form-side">
-      <header class="modal-header">
-        <h2>Fatura Detayları</h2>
-        <button class="close-modal" onclick="closeInvoiceModal()">✕</button>
-      </header>
-
-      <form id="invoiceForm" class="grid-form">
-        <input type="hidden" id="f_vkn">
-
-        <div class="form-group span-2">
-          <label>Firma / Tedarikçi *</label>
-          <input type="text" id="f_firma" placeholder="VKN veya İsim ile arayın..." required>
-        </div>
-
-        <div class="form-group">
-          <label>Fatura No *</label>
-          <input type="text" id="f_no" required>
-        </div>
-
-        <div class="form-group">
-          <label>Fatura Türü</label>
-          <select id="f_type">
-            <option value="e-Fatura">e-Fatura</option>
-            <option value="e-Arşiv">e-Arşiv</option>
-            <option value="Temel">Temel</option>
-            <option value="Ticari">Ticari</option>
-          </select>
-        </div>
-
-        <div class="form-group">
-          <label>Fatura Tarihi</label>
-          <input type="date" id="f_date">
-        </div>
-
-        <div class="form-group">
-          <label>Vade Tarihi</label>
-          <input type="date" id="f_due_date">
-        </div>
-
-        <div class="form-group">
-          <label>Döviz</label>
-          <select id="f_currency">
+    <section class="content-card">
+      <div class="toolbar">
+        <div class="search-group">
+          <input type="text" id="mainSearch" placeholder="Firma veya fatura no ara...">
+          <select id="filterCurrency">
+            <option value="">Tüm Dövizler</option>
             <option value="TL">TRY</option>
             <option value="USD">USD</option>
             <option value="EUR">EUR</option>
           </select>
         </div>
-        <div class="form-group">
-          <label>Döviz Kuru (1 $ = ?)</label>
-          <input type="number" id="f_kur" step="0.0001" placeholder="0.0000" class="input-accent">
+        <div class="action-group">
+          <button class="btn btn-secondary" onclick="refreshData()">🔄 Yenile</button>
+          <button class="btn btn-primary" onclick="openInvoiceModal()">＋ Yeni Fatura Ekle</button>
         </div>
+      </div>
 
-        <div class="form-group">
-          <label>Ödeme Durumu</label>
-          <select id="f_status">
-            <option value="unpaid">Ödenmedi</option>
-            <option value="paid">Ödendi</option>
-            <option value="partial">Kısmi</option>
-          </select>
-        </div>
+      <div class="table-responsive">
+        <table class="modern-table">
+          <thead>
+            <tr>
+              <th>Fatura No</th>
+              <th>Firma / Ünvan</th>
+              <th>Tarih</th>
+              <th>Vade</th>
+              <th class="text-right">Matrah</th>
+              <th class="text-right">KDV</th>
+              <th class="text-right">Toplam</th>
+              <th>Durum</th>
+              <th class="text-center">İşlem</th>
+            </tr>
+          </thead>
+          <tbody id="invoiceTableBody">
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </main>
 
-        <div class="form-group">
-          <label>Matrah (Net)</label>
-          <input type="number" id="f_net" step="0.01">
-        </div>
+  <div id="invoiceModal" class="modal-overlay">
+    <div class="modal-content full-screen">
 
-        <div class="form-group">
-          <label>KDV Toplamı</label>
-          <input type="number" id="f_tax" step="0.01">
-        </div>
-
-        <div class="form-group span-2">
-          <label>Genel Toplam</label>
-          <input type="number" id="f_total" step="0.01" class="input-highlight">
-        </div>
-
-        <div class="form-section span-2">
-          <div class="section-header">
-            <h3>📦 Ürünler & Hizmetler</h3>
-            <button type="button" class="btn-text" onclick="addLineItem()">＋ Ürün Ekle</button>
+      <div class="modal-preview-side" id="previewPane">
+        <div class="preview-empty-state">
+          <div class="upload-box" id="dropZone">
+            <input type="file" id="xmlInput" accept=".xml" hidden>
+            <span class="upload-icon">📄</span>
+            <h3>UBL-XML Dosyasını Yükle</h3>
+            <p>Verileri otomatik doldurmak için sürükleyin veya seçin</p>
+            <button class="btn btn-primary btn-sm" onclick="document.getElementById('xmlInput').click()">Dosya
+              Seç</button>
           </div>
-          <div class="line-items-wrapper">
-            <table class="line-table">
-              <thead>
-                <tr>
-                  <th>Açıklama</th>
-                  <th width="80">Miktar</th>
-                  <th width="120">B.Fiyat</th>
-                  <th width="120">Toplam</th>
-                  <th width="40"></th>
-                </tr>
-              </thead>
-              <tbody id="lineItemsBody">
+        </div>
+        <div id="xmlDataSummary" class="xml-data-view" style="display:none">
+        </div>
+      </div>
+
+      <div class="modal-form-side">
+        <header class="modal-header">
+          <h2>Fatura Detayları</h2>
+          <button class="close-modal" onclick="closeInvoiceModal()">✕</button>
+        </header>
+
+        <form id="invoiceForm" class="grid-form">
+          <input type="hidden" id="f_vkn">
+
+          <div class="form-group span-2">
+            <label>Firma / Tedarikçi *</label>
+            <input type="text" id="f_firma" placeholder="VKN veya İsim ile arayın..." required>
+          </div>
+
+          <div class="form-group">
+            <label>Fatura No *</label>
+            <input type="text" id="f_no" required>
+          </div>
+
+          <div class="form-group">
+            <label>Fatura Türü</label>
+            <select id="f_type">
+              <option value="e-Fatura">e-Fatura</option>
+              <option value="e-Arşiv">e-Arşiv</option>
+              <option value="Temel">Temel</option>
+              <option value="Ticari">Ticari</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label>Fatura Tarihi</label>
+            <input type="date" id="f_date">
+          </div>
+
+          <div class="form-group">
+            <label>Vade Tarihi</label>
+            <input type="date" id="f_due_date">
+          </div>
+
+          <div class="form-group">
+            <label>Döviz</label>
+            <select id="f_currency">
+              <option value="TL">TRY</option>
+              <option value="USD">USD</option>
+              <option value="EUR">EUR</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Döviz Kuru (1 $ = ?)</label>
+            <input type="number" id="f_kur" step="0.0001" placeholder="0.0000" class="input-accent">
+          </div>
+
+          <div class="form-group">
+            <label>Ödeme Durumu</label>
+            <select id="f_status">
+              <option value="unpaid">Ödenmedi</option>
+              <option value="paid">Ödendi</option>
+              <option value="partial">Kısmi</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label>Matrah (Net)</label>
+            <input type="number" id="f_net" step="0.01">
+          </div>
+
+          <div class="form-group">
+            <label>KDV Toplamı</label>
+            <input type="number" id="f_tax" step="0.01">
+          </div>
+
+          <div class="form-group span-2">
+            <label>Genel Toplam</label>
+            <input type="number" id="f_total" step="0.01" class="input-highlight">
+          </div>
+
+          <div class="form-section span-2">
+            <div class="section-header">
+              <h3>📦 Ürünler & Hizmetler</h3>
+              <button type="button" class="btn-text" onclick="addLineItem()">＋ Ürün Ekle</button>
+            </div>
+            <div class="line-items-wrapper">
+              <table class="line-table">
+                <thead>
+                  <tr>
+                    <th>Açıklama</th>
+                    <th width="80">Miktar</th>
+                    <th width="120">B.Fiyat</th>
+                    <th width="120">Toplam</th>
+                    <th width="80">Ofis-İçin</th>
+                    <th width="40"></th>
+                  </tr>
+                </thead>
+                <tbody id="lineItemsBody">
                 </tbody>
-            </table>
+              </table>
+            </div>
           </div>
-        </div>
-        <div class="form-group">
-          <label>Telefon</label>
-          <input type="text" id="f_phone" placeholder="0212...">
-        </div>
-        <div class="form-group">
-          <label>E-Posta</label>
-          <input type="email" id="f_email" placeholder="info@firma.com">
-        </div>
-        <div class="form-group span-2">
-          <label>Web Sitesi</label>
-          <input type="text" id="f_website" placeholder="www.firma.com">
-        </div>
-        <div class="form-group span-2">
-          <label>Adres</label>
-          <textarea id="f_address" rows="2" placeholder="Mahalle, Sokak, No..."></textarea>
-        </div>
+          <div class="form-group">
+            <label>Telefon</label>
+            <input type="text" id="f_phone" placeholder="0212...">
+          </div>
+          <div class="form-group">
+            <label>E-Posta</label>
+            <input type="email" id="f_email" placeholder="info@firma.com">
+          </div>
+          <div class="form-group span-2">
+            <label>Web Sitesi</label>
+            <input type="text" id="f_website" placeholder="www.firma.com">
+          </div>
+          <div class="form-group span-2">
+            <label>Adres</label>
+            <textarea id="f_address" rows="2" placeholder="Mahalle, Sokak, No..."></textarea>
+          </div>
 
-        <div class="form-group span-2">
-          <label>Notlar</label>
-          <textarea id="f_notes" rows="2"></textarea>
-        </div>
+          <div class="form-group span-2">
+            <label>Notlar</label>
+            <textarea id="f_notes" rows="2"></textarea>
+          </div>
 
-        <div class="modal-footer span-2">
-          <button type="button" class="btn btn-secondary" onclick="closeInvoiceModal()">İptal</button>
-          <button type="submit" class="btn btn-success">💾 Faturayı Kaydet</button>
-        </div>
-      </form>
+          <div class="modal-footer span-2">
+            <button type="button" class="btn btn-secondary" onclick="closeInvoiceModal()">İptal</button>
+            <button type="submit" class="btn btn-success">💾 Faturayı Kaydet</button>
+          </div>
+        </form>
+      </div>
     </div>
   </div>
-</div>
 
-<div id="toast-container"></div>
+  <div id="toast-container"></div>
 
-<script src="faturalar.js"></script>
+  <script src="faturalar.js"></script>
 </body>
+
 </html>

@@ -7,7 +7,8 @@ const ns = {
 // --- CONFIG & STATE ---
 const { createClient } = supabase;
 const supabaseUrl = 'https://qvowjtswizirfxwiwxnw.supabase.co';
-const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InF2b3dqdHN3aXppcmZ4d2l3eG53Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYwOTQ0NjcsImV4cCI6MjA5MTY3MDQ2N30.9ELJamNBkUB-u8JLAyvWFwX0Aawa6dSCp5qre2Z6V5I';
+// const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InF2b3dqdHN3aXppcmZ4d2l3eG53Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYwOTQ0NjcsImV4cCI6MjA5MTY3MDQ2N30.9ELJamNBkUB-u8JLAyvWFwX0Aawa6dSCp5qre2Z6V5I';
+const supabaseKey = 'sb_publishable_225MxNegGoy8WVQY3Y68hQ_8NYnVjyk'
 const sb = createClient(supabaseUrl, supabaseKey);
 
 let currentParsedData = null; // XML'den gelen veriyi geçici olarak burada tutacağız
@@ -68,7 +69,7 @@ function handleFileUpload(e) {
     if (!file) return;
 
     const reader = new FileReader();
-    reader.onload = function(event) {
+    reader.onload = function (event) {
         const parser = new DOMParser();
         const xmlDoc = parser.parseFromString(event.target.result, "text/xml");
         parseUBL(xmlDoc);
@@ -117,8 +118,8 @@ function parseUBL(xml) {
 
         // A. Firm Name
         const firmaAdi = party.getElementsByTagNameNS(ns.cac, 'PartyName')[0]?.getElementsByTagNameNS(ns.cbc, 'Name')[0]?.textContent ||
-                         party.getElementsByTagNameNS(ns.cbc, 'RegistrationName')[0]?.textContent ||
-                         "Bilinmeyen Firma";
+            party.getElementsByTagNameNS(ns.cbc, 'RegistrationName')[0]?.textContent ||
+            "Bilinmeyen Firma";
 
         // B. VKN/TCKN (The Unique Identifier)
         let vkn = "";
@@ -186,20 +187,7 @@ function parseUBL(xml) {
         const lineItemsBody = document.getElementById('lineItemsBody');
         lineItemsBody.innerHTML = '';
 
-        Array.from(lines).forEach(line => {
-            const itemNode = line.getElementsByTagNameNS(ns.cac, 'Item')[0];
-            const desc = itemNode.getElementsByTagNameNS(ns.cbc, 'Description')[0]?.textContent ||
-                         itemNode.getElementsByTagNameNS(ns.cbc, 'Name')[0]?.textContent ||
-                         'İsimsiz Ürün';
-
-            const qty = getVal(line, 'InvoicedQuantity');
-            const priceNode = line.getElementsByTagNameNS(ns.cac, 'Price')[0];
-            const price = priceNode ? priceNode.getElementsByTagNameNS(ns.cbc, 'PriceAmount')[0]?.textContent : 0;
-            const lineTotal = getVal(line, 'LineExtensionAmount');
-
-            addLineItem(desc, qty, price, lineTotal);
-        });
-        // parseUBL fonksiyonunun sonuna (Show Success UI'dan hemen önce) ekleyin:
+        // ANA VERİ YAPISINI KURUYORUZ (Döngüden önce olması şart)
         currentParsedData = {
             company: {
                 vkn_tckn: vkn,
@@ -212,31 +200,54 @@ function parseUBL(xml) {
                 is_client: currentView === 'giden'
             },
             invoice: {
-                efatura_uuid: xml.getElementsByTagNameNS(ns.cbc, 'UUID')[0]?.textContent, // XML'deki asıl UUID
+                efatura_uuid: xml.getElementsByTagNameNS(ns.cbc, 'UUID')[0]?.textContent,
                 invoice_no: f_no,
                 direction: currentView === 'gelen' ? 'INCOMING' : 'OUTGOING',
                 invoice_date: f_date,
                 currency: currency === 'TRY' ? 'TL' : currency,
                 exchange_rate: parseFloat(kur) || 1.0,
                 total_currency: parseFloat(total),
-                // TL karşılıkları hesaplama (Döviz USD/EUR ise kurla çarpılır)
                 net_amount_tl: (parseFloat(net) * (parseFloat(kur) || 1)).toFixed(2),
                 tax_amount_tl: (parseFloat(exactTax) * (parseFloat(kur) || 1)).toFixed(2),
                 total_amount_tl: (parseFloat(total) * (parseFloat(kur) || 1)).toFixed(2),
                 notes: notesArray.join('\n')
             },
-            items: [] // Bu diziyi aşağıda dolduracağız
+            items: []
         };
 
-        // Ürün döngüsünün (lines.forEach) içine şunu ekleyin:
-        currentParsedData.items.push({
-            product_name: desc,
-            quantity: parseFloat(qty),
-            unit: 'Adet', // XML'deki unitCode'dan da çekilebilir
-            unit_price_cur: parseFloat(price),
-            total_price_cur: parseFloat(lineTotal),
-            tax_rate: 20 // Statik veya XML'den gelen vergi oranı
+        Array.from(lines).forEach(line => {
+            const itemNode = line.getElementsByTagNameNS(ns.cac, 'Item')[0];
+
+            // Name ve SKU'yu ayrı ayrı çekiyoruz
+            const name = itemNode.getElementsByTagNameNS(ns.cbc, 'Name')[0]?.textContent ||
+                itemNode.getElementsByTagNameNS(ns.cbc, 'Description')[0]?.textContent ||
+                'İsimsiz Ürün';
+
+            const sku = itemNode.getElementsByTagNameNS(ns.cac, 'SellersItemIdentification')[0]?.getElementsByTagNameNS(ns.cbc, 'ID')[0]?.textContent || '';
+
+            const qty = getVal(line, 'InvoicedQuantity');
+            const priceNode = line.getElementsByTagNameNS(ns.cac, 'Price')[0];
+            const price = priceNode ? priceNode.getElementsByTagNameNS(ns.cbc, 'PriceAmount')[0]?.textContent : 0;
+            const lineTotal = getVal(line, 'LineExtensionAmount');
+
+            const taxSubtotal = line.getElementsByTagNameNS(ns.cac, 'TaxTotal')[0]?.getElementsByTagNameNS(ns.cac, 'TaxSubtotal')[0];
+            const taxRate = taxSubtotal ? parseInt(taxSubtotal.getElementsByTagNameNS(ns.cbc, 'Percent')[0]?.textContent) : 20;
+
+            // Ekrana sadece isim basıyoruz (Hizalama bozulmasın diye)
+            addLineItem(name, qty, price, lineTotal, taxRate);
+
+            // Veritabanı listesine ikisini de şık bir şekilde ekliyoruz
+            currentParsedData.items.push({
+                product_name: name,
+                sku: sku,
+                quantity: parseFloat(qty),
+                unit: 'Adet',
+                unit_price_cur: parseFloat(price),
+                total_price_cur: parseFloat(lineTotal),
+                tax_rate: taxRate
+            });
         });
+
         // 7. SHOW SUCCESS UI
         showXmlSuccess(firmaAdi, vkn);
 
@@ -279,10 +290,16 @@ async function saveInvoiceToDatabase(e) {
         if (invoiceError) throw invoiceError;
 
         // 3. ADIM: Fatura Kalemlerini (Ürünleri) Kaydet
-        const itemsToSave = currentParsedData.items.map(item => ({
-            ...item,
-            invoice_id: invoiceData.id // Fatura ID'sini her ürüne ekle
-        }));
+        const lineRows = document.querySelectorAll('#lineItemsBody tr');
+        const itemsToSave = currentParsedData.items.map((item, index) => {
+            const row = lineRows[index];
+            return {
+                ...item,
+                invoice_id: invoiceData.id,
+                is_internal: row.querySelector('.internal-toggle').checked, // Kutucuk işaretli mi?
+                tax_rate: parseInt(row.querySelector('.tax-rate-val').value) // XML'den gelen KDV
+            };
+        });
 
         const { error: itemsError } = await sb
             .from('invoice_items')
@@ -300,13 +317,17 @@ async function saveInvoiceToDatabase(e) {
     }
 }
 
-function addLineItem(desc = '', qty = 1, price = 0, total = 0) {
+function addLineItem(desc = '', qty = 1, price = 0, total = 0, taxRate = 20) {
     const row = document.createElement('tr');
     row.innerHTML = `
         <td><input type="text" value="${desc}" placeholder="Ürün adı"></td>
         <td><input type="number" value="${qty}" class="text-center"></td>
         <td><input type="number" value="${price}" step="0.01"></td>
         <td><input type="number" value="${total}" step="0.01" readonly></td>
+        <td class="text-center">
+            <input type="checkbox" class="internal-toggle" title="Şirket İçi Kullanım (Sarf)">
+            <input type="hidden" class="tax-rate-val" value="${taxRate}">
+        </td>
         <td><button type="button" class="btn-text" onclick="this.closest('tr').remove()" style="color:var(--danger)">✕</button></td>
     `;
     document.getElementById('lineItemsBody').appendChild(row);

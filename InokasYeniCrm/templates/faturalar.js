@@ -1,13 +1,27 @@
 // --- CONFIG & STATE ---
-let currentView = 'gelen';
 const ns = {
     cbc: "urn:oasis:names:specification:ubl:schema:xsd:CommonBasicComponents-2",
     cac: "urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2"
 };
 
+// --- CONFIG & STATE ---
+const { createClient } = supabase;
+const supabaseUrl = 'https://qvowjtswizirfxwiwxnw.supabase.co';
+const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InF2b3dqdHN3aXppcmZ4d2l3eG53Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYwOTQ0NjcsImV4cCI6MjA5MTY3MDQ2N30.9ELJamNBkUB-u8JLAyvWFwX0Aawa6dSCp5qre2Z6V5I';
+const sb = createClient(supabaseUrl, supabaseKey);
+
+let currentParsedData = null; // XML'den gelen veriyi geçici olarak burada tutacağız
+let currentView = 'gelen'; // Varsayılan değer
+
 // --- INITIALIZATION ---
 document.addEventListener('DOMContentLoaded', () => {
     setupEventListeners();
+
+    // Formun submit olayını yakalayalım
+    const invoiceForm = document.getElementById('invoiceForm');
+    if (invoiceForm) {
+        invoiceForm.addEventListener('submit', saveInvoiceToDatabase);
+    }
 });
 
 function setupEventListeners() {
@@ -63,8 +77,23 @@ function handleFileUpload(e) {
 }
 
 function getVal(parent, tagName) {
-    const el = parent.getElementsByTagNameNS(ns.cbc, tagName)[0];
-    return el ? el.textContent : '';
+    if (!parent) return '';
+
+    // ns objesinin varlığını kontrol et, yoksa yerel olarak tanımla
+    const namespaces = typeof ns !== 'undefined' ? ns : {
+        cbc: "urn:oasis:names:specification:ubl:schema:xsd:CommonBasicComponents-2",
+        cac: "urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2"
+    };
+
+    try {
+        let el = parent.getElementsByTagNameNS(namespaces.cbc, tagName)[0];
+        if (!el) el = parent.getElementsByTagName('cbc:' + tagName)[0];
+        if (!el) el = parent.getElementsByTagName(tagName)[0];
+        return el ? el.textContent.trim() : '';
+    } catch (e) {
+        console.warn(`${tagName} okunurken hata oluştu:`, e);
+        return '';
+    }
 }
 
 function parseUBL(xml) {
@@ -170,7 +199,44 @@ function parseUBL(xml) {
 
             addLineItem(desc, qty, price, lineTotal);
         });
+        // parseUBL fonksiyonunun sonuna (Show Success UI'dan hemen önce) ekleyin:
+        currentParsedData = {
+            company: {
+                vkn_tckn: vkn,
+                name: firmaAdi,
+                address: fullAddress,
+                phone: phone,
+                email: email,
+                website: website,
+                is_supplier: currentView === 'gelen',
+                is_client: currentView === 'giden'
+            },
+            invoice: {
+                efatura_uuid: xml.getElementsByTagNameNS(ns.cbc, 'UUID')[0]?.textContent, // XML'deki asıl UUID
+                invoice_no: f_no,
+                direction: currentView === 'gelen' ? 'INCOMING' : 'OUTGOING',
+                invoice_date: f_date,
+                currency: currency === 'TRY' ? 'TL' : currency,
+                exchange_rate: parseFloat(kur) || 1.0,
+                total_currency: parseFloat(total),
+                // TL karşılıkları hesaplama (Döviz USD/EUR ise kurla çarpılır)
+                net_amount_tl: (parseFloat(net) * (parseFloat(kur) || 1)).toFixed(2),
+                tax_amount_tl: (parseFloat(exactTax) * (parseFloat(kur) || 1)).toFixed(2),
+                total_amount_tl: (parseFloat(total) * (parseFloat(kur) || 1)).toFixed(2),
+                notes: notesArray.join('\n')
+            },
+            items: [] // Bu diziyi aşağıda dolduracağız
+        };
 
+        // Ürün döngüsünün (lines.forEach) içine şunu ekleyin:
+        currentParsedData.items.push({
+            product_name: desc,
+            quantity: parseFloat(qty),
+            unit: 'Adet', // XML'deki unitCode'dan da çekilebilir
+            unit_price_cur: parseFloat(price),
+            total_price_cur: parseFloat(lineTotal),
+            tax_rate: 20 // Statik veya XML'den gelen vergi oranı
+        });
         // 7. SHOW SUCCESS UI
         showXmlSuccess(firmaAdi, vkn);
 
@@ -179,6 +245,61 @@ function parseUBL(xml) {
         alert("XML dosyası ayrıştırılamadı. Lütfen geçerli bir UBL-TR dosyası seçin.");
     }
 }
+
+async function saveInvoiceToDatabase(e) {
+    e.preventDefault(); // Sayfanın yenilenmesini engelle
+
+    if (!currentParsedData) {
+        alert("Lütfen önce bir XML yükleyin!");
+        return;
+    }
+
+    try {
+        // 1. ADIM: Şirketi Kaydet veya Güncelle (Upsert)
+        const { data: companyData, error: companyError } = await sb
+            .from('companies')
+            .upsert(currentParsedData.company, { onConflict: 'vkn_tckn' })
+            .select()
+            .single();
+
+        if (companyError) throw companyError;
+
+        // 2. ADIM: Faturayı Kaydet
+        const invoiceToSave = {
+            ...currentParsedData.invoice,
+            company_id: companyData.id // Üstte kaydettiğimiz şirketin ID'sini bağladık
+        };
+
+        const { data: invoiceData, error: invoiceError } = await sb
+            .from('invoices')
+            .insert(invoiceToSave)
+            .select()
+            .single();
+
+        if (invoiceError) throw invoiceError;
+
+        // 3. ADIM: Fatura Kalemlerini (Ürünleri) Kaydet
+        const itemsToSave = currentParsedData.items.map(item => ({
+            ...item,
+            invoice_id: invoiceData.id // Fatura ID'sini her ürüne ekle
+        }));
+
+        const { error: itemsError } = await sb
+            .from('invoice_items')
+            .insert(itemsToSave);
+
+        if (itemsError) throw itemsError;
+
+        alert("Fatura başarıyla kaydedildi!");
+        closeInvoiceModal();
+        refreshData(); // Tabloyu yenile
+
+    } catch (err) {
+        console.error("Kayıt Hatası:", err.message);
+        alert("Hata oluştu: " + err.message);
+    }
+}
+
 function addLineItem(desc = '', qty = 1, price = 0, total = 0) {
     const row = document.createElement('tr');
     row.innerHTML = `

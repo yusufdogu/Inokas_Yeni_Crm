@@ -90,10 +90,9 @@ app.get('/api/invoices', async (req, res) => {
     const direction = req.query.direction;
 
     // invoices tablosundan çekiyoruz, company_id üzerinden companies tablosuna bağlanıp firma adını alıyoruz
-    let query = supabase
-      .from('invoices')
-      .select('*, companies(name)')
-      .order('invoice_date', { ascending: false }); // En yeni tarihli en üstte
+    let query = supabase.from('invoices')
+      .select('*, companies(*), invoice_items(*)')
+      .order('invoice_date', { ascending: false });
 
     // Sadece istenen yöndeki (gelen/giden) faturaları filtrele
     if (direction) {
@@ -110,6 +109,86 @@ app.get('/api/invoices', async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
+
+
+
+
+
+// 4. PUT ROUTE: Faturanın hem Meta-Data hem de (kilidi açılırsa) Resmi alanlarını günceller
+app.put('/api/invoices/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    // Frontend'den gelen her şeyi alıyoruz
+    const {
+      status, paid_amount, due_date, exchange_rate, notes, invoice_type, // Serbest Alanlar
+      invoice_no, invoice_date, total_amount_tl, net_amount_tl, tax_amount_tl, currency // Normalde Kilitli Alanlar
+    } = req.body;
+
+    // Gönderilen (Boş olmayan) alanları dinamik olarak Supabase paketine ekliyoruz
+    const updatePayload = {};
+
+    if (status !== undefined) updatePayload.status = status;
+    if (paid_amount !== undefined) updatePayload.paid_amount = paid_amount;
+    if (due_date !== undefined) updatePayload.due_date = due_date;
+    if (exchange_rate !== undefined) updatePayload.exchange_rate = exchange_rate;
+    if (notes !== undefined) updatePayload.notes = notes;
+    if (invoice_type !== undefined) updatePayload.invoice_type = invoice_type;
+
+    // Kilitli alanlar da gelirse onları da faturaya işletiyoruz
+    if (invoice_no !== undefined) updatePayload.invoice_no = invoice_no;
+    if (invoice_date !== undefined) updatePayload.invoice_date = invoice_date;
+    if (total_amount_tl !== undefined) updatePayload.total_amount_tl = total_amount_tl;
+    if (net_amount_tl !== undefined) updatePayload.net_amount_tl = net_amount_tl;
+    if (tax_amount_tl !== undefined) updatePayload.tax_amount_tl = tax_amount_tl;
+    if (currency !== undefined) updatePayload.currency = currency;
+
+    // Supabase'e dinamik paketi yolluyoruz
+    const { data, error } = await supabase
+      .from('invoices')
+      .update(updatePayload)
+      .eq('id', id)
+      .select();
+
+    if (error) throw error;
+
+    res.json({ message: "Fatura başarıyla güncellendi", data: data });
+
+  } catch (error) {
+    console.error("PUT /api/invoices/:id hatası:", error);
+    res.status(500).json({ error: "Sunucu hatası oluştu" });
+  }
+});
+
+
+
+
+
+// DELETE ROUTE: Faturayı ve ona bağlı ürünleri veritabanından kalıcı siler
+app.delete('/api/invoices/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    // 1- Önce faturanın içindeki 'ürünleri' (invoice_items) temizleyelim ki askıda kalmasın
+    await supabase.from('invoice_items').delete().eq('invoice_id', id);
+
+    // 2- Sonra asıl faturayı siliyoruz
+    const { error } = await supabase.from('invoices').delete().eq('id', id);
+
+    if (error) throw error;
+    res.status(200).json({ message: "Fatura başarıyla silindi" });
+
+  } catch (error) {
+    console.error("Fatura silme hatası:", error);
+    res.status(500).json({ error: "Sunucu hatası oluştu" });
+  }
+});
+
+
+
+
+
+
 
 
 

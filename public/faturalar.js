@@ -1,3 +1,12 @@
+// Filtrelerin Sekmelere Özel Hafızası (Her sekme kendi seçimini yazar)
+const filterMemory = {
+    gelen: { search: '', company: '', currency: '', year: '', month: '', status: '' },
+    giden: { search: '', company: '', currency: '', year: '', month: '', status: '' }
+};
+
+
+
+
 // --- CONFIG & STATE ---
 const ns = {
     cbc: "urn:oasis:names:specification:ubl:schema:xsd:CommonBasicComponents-2",
@@ -65,11 +74,123 @@ function setupEventListeners() {
 
 
 // --- MODAL CONTROLS ---
+// 1- EKRANI "YENİ FATURA" İÇİN (KİLİTSİZ OLARAK) AÇ
 function openInvoiceModal() {
+    document.getElementById('invoiceForm').reset();
+    document.getElementById('f_id').value = '';
+
+    // Her şeyi açık (Kilitsiz) hale getir
+    const lockedInputs = document.querySelectorAll('.locked-input');
+    lockedInputs.forEach(el => {
+        el.removeAttribute('readonly');
+        if (el.tagName === 'SELECT') el.removeAttribute('disabled');
+        el.style.backgroundColor = '';
+    });
+
+    // Kilit Açma Uyarısını Gizle
+    document.getElementById('unlockWarningBox').style.display = 'none';
+
     document.getElementById('invoiceModal').style.display = 'flex';
 }
-// Opens an "Action Window" (Modal) over the current page to keep the user focused.
-// This is much faster than loading a new page and manages the UI lifecycle by revealing the entry form.
+
+// 2- EKRANI "GÜNCELLEME" İÇİN DOLDURARAK (KİLİTLİ OLARAK) AÇ
+function viewInvoice(id) {
+    const inv = allInvoicesCache.find(i => i.id === id);
+    if (!inv) return;
+
+    document.getElementById('invoiceForm').reset();
+    document.getElementById('f_id').value = inv.id;
+    document.getElementById('f_vkn').value = inv.companies?.vkn_tckn || '';
+
+    // Ekrana Verileri Dök
+    document.getElementById('f_firma').value = inv.companies?.name || '';
+    document.getElementById('f_no').value = inv.invoice_no || '';
+    document.getElementById('f_type').value = inv.invoice_type || 'Ticari';
+    document.getElementById('f_date').value = inv.invoice_date || '';
+    document.getElementById('f_due_date').value = inv.due_date || '';
+    document.getElementById('f_currency').value = inv.currency || 'TL';
+    document.getElementById('f_kur').value = inv.exchange_rate || '';
+
+    document.getElementById('f_status').value = (inv.status || 'unpaid').toLowerCase();
+    document.getElementById('f_paid').value = inv.paid_amount || '';
+
+    document.getElementById('f_net').value = inv.net_amount_tl || '';
+    document.getElementById('f_tax').value = inv.tax_amount_tl || '';
+    document.getElementById('f_total').value = inv.total_amount_tl || '';
+    document.getElementById('f_notes').value = inv.notes || '';
+
+    // Resmi kilitleri aktif et ve Label yanlarına Kapalı Kilit 🔒 ekle
+    const lockedInputs = document.querySelectorAll('.locked-input');
+    lockedInputs.forEach(el => {
+        el.setAttribute('readonly', 'true');
+        if (el.tagName === 'SELECT') el.setAttribute('disabled', 'true');
+        el.style.backgroundColor = '#f1f5f9';
+
+        // Güvenli bir şekilde üstteki Label'ı bulup içini güncelliyoruz
+        const label = el.parentElement.querySelector('label');
+        if (label) {
+            // Eğer daha önce ikon koymadıysak ekle, koyduysak sadece metnini 🔒 yap
+            let icon = label.querySelector('.dynamic-lock-icon');
+            if (!icon) {
+                label.innerHTML += ' <span class="dynamic-lock-icon" style="font-size:13px; margin-left:4px;" title="Bu alan resmi veridir, değiştirilmesi kilitlenmiştir.">🔒</span>';
+            } else {
+                icon.innerText = '🔒';
+            }
+        }
+    });
+
+    document.getElementById('unlockWarningBox').style.display = 'block';
+
+    // XML'den okunmamış ve düzenleme (Düzenle butonuyla) formuna aktarılmış fatura ürünleri yüklenir
+    document.getElementById('lineItemsBody').innerHTML = '';
+    if (inv.invoice_items && inv.invoice_items.length > 0) {
+        inv.invoice_items.forEach(item => {
+            addLineItem(
+                item.product_name || '', 
+                item.quantity || 1, 
+                item.unit_price_cur || 0, 
+                item.total_price_cur || 0, 
+                item.tax_rate || 20
+            );
+        });
+    } else {
+        // Gösterecek ürün yoksa bile boş bir satır açık tutmak iyidir
+        addLineItem();
+    }
+
+    document.getElementById('invoiceModal').style.display = 'flex';
+}
+
+
+
+
+
+// XML Fatura kilidini zorla açar (Manuel Düzenleme Modu)
+function unlockInvoiceForm() {
+    const lockedInputs = document.querySelectorAll('.locked-input');
+
+    lockedInputs.forEach(el => {
+        el.removeAttribute('readonly');
+        if (el.tagName === 'SELECT') el.removeAttribute('disabled');
+        el.style.backgroundColor = '#ffffff';
+
+        // Kilitleri Açık Kilit 🔓 yapıyoruz
+        const label = el.parentElement.querySelector('label');
+        if (label) {
+            let icon = label.querySelector('.dynamic-lock-icon');
+            if (icon) {
+                icon.innerText = '🔓';
+                icon.title = "Kilit açıldı, dikkatli düzenleyin!";
+            }
+        }
+    });
+
+    // Uyarı kutusunu (Kilidi kır butonunun olduğu sarı yeri) gizle
+    document.getElementById('unlockWarningBox').style.display = 'none';
+}
+
+
+
 
 
 
@@ -297,9 +418,9 @@ function parseUBL(xml) {
         Array.from(lines).forEach(line => {
             const itemNode = line.getElementsByTagNameNS(ns.cac, 'Item')[0];
 
-            // Name ve SKU'yu ayrı ayrı çekiyoruz
-            const name = itemNode.getElementsByTagNameNS(ns.cbc, 'Name')[0]?.textContent ||
-                itemNode.getElementsByTagNameNS(ns.cbc, 'Description')[0]?.textContent ||
+            // DMO XML'leri için Description etiketini Name'den önce öncelikli yapıyoruz
+            const name = itemNode.getElementsByTagNameNS(ns.cbc, 'Description')[0]?.textContent ||
+                itemNode.getElementsByTagNameNS(ns.cbc, 'Name')[0]?.textContent ||
                 'İsimsiz Ürün';
 
             const sku = itemNode.getElementsByTagNameNS(ns.cac, 'SellersItemIdentification')[0]?.getElementsByTagNameNS(ns.cbc, 'ID')[0]?.textContent || '';
@@ -374,19 +495,72 @@ async function refreshData() {
     }
 }
 
-// 2. Filtreleyici (Sekmeler arası geçişlerde DEVREYE GİRER, Sunucuya gitmez)
+
+
+
+
+
+
+// 2. Filtreleyici (Sekmeler arası geçişlerde ve menülerde DEVREYE GİRER, Sunucuya gitmez)
 function renderCurrentView() {
     if (!allInvoicesCache) return; // Hafıza boşsa işlem yapma
 
-    // Hangi sekmedeyiz?
+    // A. Hangi sekmedeyiz? (Gelen/Giden)
     const directionFilter = currentView === 'gelen' ? 'INCOMING' : 'OUTGOING';
 
-    // Hafızadaki o 20-30 faturanın sadece "Gelenlerini" veya "Gidenlerini" süzgeçten geçir (ÇOK HIZLIDIR)
-    const filteredInvoices = allInvoicesCache.filter(inv => inv.direction === directionFilter);
+    // B. Önce o sekmeye ait (Gelen/Giden) tüm faturaları süz
+    let filteredInvoices = allInvoicesCache.filter(inv => inv.direction === directionFilter);
 
-    // Süzülmüş faturayı ekrana çizdir
+    // 🌟 EKRANDAKİ AÇILIR MENÜYÜ DOLDUR 
+    // Sekmedeki firmalara göre "Şirket Kutumuzun" içini tazeleyelim
+    populateCompanyFilter(filteredInvoices);
+
+    // C. Kullanıcının Seçtiği Filtreleri Yakalayalım
+    const companySelected = document.getElementById('filterCompany').value;
+    const currencySelected = document.getElementById('filterCurrency').value;
+    const searchText = document.getElementById('mainSearch').value.toLowerCase();
+
+    // Seçimlere göre faturaları bir kez daha elekten geçiriyoruz
+    filteredInvoices = filteredInvoices.filter(inv => {
+        // Yeni Filtreyi HTML'den Çekelim
+        const yearSelected = document.getElementById('filterYear').value;
+        const monthSelected = document.getElementById('filterMonth').value;
+        const statusSelected = document.getElementById('filterStatus').value;
+
+        // 1- Mevcut Şirket & Döviz & Yazı Filtreleri
+        const matchCompany = !companySelected || inv.companies?.name === companySelected;
+        const matchCurrency = !currencySelected || inv.currency === currencySelected;
+        const matchSearch = !searchText ||
+            (inv.companies?.name && inv.companies.name.toLowerCase().includes(searchText)) ||
+            (inv.invoice_no && inv.invoice_no.toLowerCase().includes(searchText));
+
+        // 2- Ödeme Durumu Filtresi
+        const valStatus = (inv.status || 'unpaid').toLowerCase();
+        const matchStatus = !statusSelected || valStatus === statusSelected;
+
+        // 3- Yıl ve Ay Filtresi (Faturanın Tarihine Bakıyoruz)
+        let matchYear = true;
+        let matchMonth = true;
+        if (yearSelected || monthSelected) {
+            // Faturanın kesim tarihini (invoice_date) Parçalayıp Yıl ve Ayı Alıyoruz
+            const d = new Date(inv.invoice_date);
+            if (yearSelected) matchYear = d.getFullYear().toString() === yearSelected;
+
+            // JavaScript aylar 0'dan başladığı için (Ocak=0) +1 ekleyip 2 haneli (01, 02) string yapıyoruz
+            if (monthSelected) {
+                const faturaAyi = String(d.getMonth() + 1).padStart(2, '0');
+                matchMonth = faturaAyi === monthSelected;
+            }
+        }
+
+        // 10 Numara 5 Yıldız Kural: Tüüüüüm filtrelerden "GEÇERLİ (true)" notu alan fatura tabloda kalır!
+        return matchCompany && matchCurrency && matchSearch && matchStatus && matchYear && matchMonth;
+    });
+
+    // En son sağ kalan (süzülmüş) faturaları masaya (ekrana) bas
     renderInvoiceTable(filteredInvoices);
 }
+
 
 
 
@@ -465,6 +639,42 @@ function updateSummaryCards(invoices) {
 
 
 
+// 🌟 ŞİRKET FİLTRESİNİ DOLDURAN MOTOR
+function populateCompanyFilter(invoices) {
+    const filterSelect = document.getElementById('filterCompany');
+
+    // Kutudaki mevcut değeri mi okuyalım, yoksa az önce sekme değiştirirken cebimize koyduğumuz eski hafızayı mı?
+    const memoryVal = filterSelect.getAttribute('data-memory');
+    const currentValue = memoryVal !== null ? memoryVal : filterSelect.value;
+    filterSelect.removeAttribute('data-memory'); // İşini bitirdi, sil gitsin
+
+    // Önce kutunun içini "Tüm Firmalar" seçeneği hariç temizliyoruz
+    filterSelect.innerHTML = '<option value="">Tüm Firmalar</option>';
+
+    // Elimizdeki faturalardan sadece benzersiz (kopya olmayan) firma isimlerini ayıklıyoruz
+    const uniqueCompanies = [...new Set(invoices.map(inv => inv.companies?.name).filter(Boolean))];
+
+    // Ayıkladığımız isimleri alfabetik dizip, filtreleme kutusuna <option> olarak basıyoruz
+    uniqueCompanies.sort().forEach(companyName => {
+        const option = document.createElement('option');
+        option.value = companyName;
+        option.textContent = companyName;
+        filterSelect.appendChild(option);
+    });
+
+    // Sayfa falan yenilenirse, kullanıcının o anki seçimi silinmesin diye (veya hafızadaki değer gelsin diye) geri koyuyoruz
+    filterSelect.value = currentValue;
+}
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -472,6 +682,7 @@ function updateSummaryCards(invoices) {
 
 // 2. Sunum: Gelen verileri HTML tablosuna dönüştürür
 function renderInvoiceTable(invoices) {
+    updateSummaryCards(invoices);
     const tableBody = document.getElementById('invoiceTableBody');
     tableBody.innerHTML = ''; // Önce tabloyu temizle
 
@@ -482,6 +693,10 @@ function renderInvoiceTable(invoices) {
 
     invoices.forEach(inv => {
         const row = document.createElement('tr');
+
+        // YENİ: Satırın her milimetrekaresini Tıklanabilir (Buton) yapıyoruz
+        row.style.cursor = "pointer";
+        row.onclick = () => viewInvoiceDetails(inv.id);
 
         // Durum butonunun rengini ayarlamak
         let statusHtml = '<span class="status-badge warning">Ödenmedi</span>';
@@ -521,6 +736,107 @@ function renderInvoiceTable(invoices) {
 
     });
 }
+
+
+
+
+
+// --- SADECE OKUNABİLİR ŞIK FATURA DETAY PANELİ KONTROLLERİ ---
+
+function closeInvoiceDetailModal() {
+    document.getElementById('invoiceDetailModal').style.display = 'none';
+}
+
+
+
+
+
+
+// --- SADECE OKUNABİLİR ŞIK FATURA DETAY PANELİ KONTROLLERİ ---
+function closeInvoiceDetailModal() {
+    document.getElementById('invoiceDetailModal').style.display = 'none';
+}
+
+function viewInvoiceDetails(id) {
+    const inv = allInvoicesCache.find(i => i.id === id);
+    if (!inv) return;
+
+    // Düzenle Butonuna Tıklanınca Asıl Formu Aç
+    const btnEdit = document.getElementById('btnEditInvoice');
+    btnEdit.onclick = () => {
+        closeInvoiceDetailModal();
+        viewInvoice(id);
+    };
+
+    // Sil Butonuna tıklayınca fonksiyonu çalıştır
+    const btnDelete = document.getElementById('btnDeleteInvoice');
+    if (btnDelete) {
+        btnDelete.onclick = () => { deleteInvoice(id); };
+    }
+
+    // Kutuları Doldur (Güzel Yuvarlak Kenarlı Tasarım)
+    document.getElementById('detail_no_text').innerText = inv.invoice_no || '-';
+    document.getElementById('detail_company').innerText = inv.companies?.name || '-';
+    document.getElementById('detail_date').innerText = inv.invoice_date ? new Date(inv.invoice_date).toLocaleDateString('tr-TR') : '-';
+    document.getElementById('detail_due_date').innerText = inv.due_date ? new Date(inv.due_date).toLocaleDateString('tr-TR') : '-';
+
+    // Paraları formatla
+    const currency = inv.currency || 'TL';
+    const cSymbol = currency === 'TL' ? '₺' : currency;
+
+    // NOT: _tl uzantılı değerler zaten kur ile çarpılmış Türk Lirası karşılıklarıdır!
+    // Bu yüzden yanlarına cSymbol (USD/EUR vb.) değil doğrudan '₺' yazılmalıdır.
+    document.getElementById('detail_net').innerText = (parseFloat(inv.net_amount_tl) || 0).toLocaleString('tr-TR') + ' ₺';
+    document.getElementById('detail_tax').innerText = (parseFloat(inv.tax_amount_tl) || 0).toLocaleString('tr-TR') + ' ₺';
+    document.getElementById('detail_total').innerText = (parseFloat(inv.total_amount_tl) || 0).toLocaleString('tr-TR') + ' ₺';
+
+    document.getElementById('detail_kur').innerText = inv.exchange_rate ? parseFloat(inv.exchange_rate).toLocaleString('tr-TR') + ' ₺' : '-';
+    document.getElementById('detail_notes').innerText = inv.notes || 'Not bulunmuyor.';
+
+    // Ödeme Durumunu Şık Balonlara Çevir (Oval)
+    let sHtml = '<span style="color:#ef4444; font-weight:700; background:#fee2e2; padding:4px 10px; border-radius:12px;">Ödenmedi</span>';
+    if (inv.status === 'paid') sHtml = '<span style="color:#16a34a; font-weight:700; background:#dcfce7; padding:4px 10px; border-radius:12px;">Ödendi</span>';
+    else if (inv.status === 'partial') sHtml = `<span style="color:#d97706; font-weight:700; background:#fef3c7; padding:4px 10px; border-radius:12px;">Kısmi (${(inv.paid_amount || 0).toLocaleString('tr-TR')} ₺)</span>`;
+    document.getElementById('detail_status').innerHTML = sHtml;
+
+    // 📦 YENİ: ÜRÜNLER (Line Items) TABLOSUNU ÇİZME
+    const tbody = document.getElementById('detail_items_body');
+    tbody.innerHTML = '';
+
+    // index.js güncellendiği için ürünler artık invoice_items içinde bize geliyor
+    if (inv.invoice_items && inv.invoice_items.length > 0) {
+        inv.invoice_items.forEach((item, index) => {
+            const tr = document.createElement('tr');
+            tr.style.borderBottom = "1px solid #f1f5f9";
+            if (index % 2 !== 0) tr.style.background = "#f8fafc"; // Zebra deseni 🦓
+
+            tr.innerHTML = `
+                <td style="padding:10px 15px; font-weight:600;">${item.product_name}</td>
+                <td style="padding:10px 15px; text-align:center;">${item.quantity} ${item.unit || ''}</td>
+                <td style="padding:10px 15px; text-align:right;">${(parseFloat(item.unit_price_cur) || 0).toLocaleString('tr-TR')} ${cSymbol}</td>
+                <td style="padding:10px 15px; text-align:center;">%${item.tax_rate || 0}</td>
+                <td style="padding:10px 15px; text-align:right; font-weight:700; color:#0f172a;">${(parseFloat(item.total_price_cur) || 0).toLocaleString('tr-TR')} ${cSymbol}</td>
+            `;
+            tbody.appendChild(tr);
+        });
+    } else {
+        tbody.innerHTML = `<tr><td colspan="5" style="padding:20px; text-align:center; color:#94a3b8; font-style:italic;">Bu faturaya ait ürün detayı bulunamadı. (Faturayı Yenile'ye basarak yeni veriyi çekebilirsin)</td></tr>`;
+    }
+
+    document.getElementById('invoiceDetailModal').style.display = 'flex';
+}
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -595,6 +911,79 @@ async function saveInvoiceToDatabase(e) {
 
 
 
+// İlgili faturayı backend üzerinden tamamen siliyoruz
+async function deleteInvoice(id) {
+    if (!confirm("⚠️ Bu faturayı ve içerisindeki tüm ürünleri silmek istediğinize emin misiniz?\nBu işlem geri alınamaz!")) return;
+
+    try {
+        const response = await fetch(`/api/invoices/${id}`, { method: 'DELETE' });
+        if (!response.ok) throw new Error("Silinemedi");
+
+        alert("✅ Fatura başarıyla silindi!");
+        closeInvoiceDetailModal();   // Görüntüleme penceresini kapat
+        refreshData();               // Listeyi tazeleyelim ki tablo ekranından da silinip uçsun
+    } catch (err) {
+        console.error("Silme hatası:", err);
+        alert("Fatura silinirken bir ağ hatası oluştu.");
+    }
+}
+
+
+
+
+
+
+
+
+
+
+
+// TCMB API'sinden anlık güncel döviz kurunu çeker
+async function fetchTCMBKur() {
+    const kurInput = document.getElementById('f_kur');
+    const currency = document.getElementById('f_currency').value;
+
+    if (currency === 'TL' || currency === 'TRY') {
+        kurInput.value = 1.0000;
+        alert("TL için kur her zaman 1'dir.");
+        return;
+    }
+
+    kurInput.placeholder = "Yükleniyor...";
+
+    try {
+        // CORS bypass için public proxy kullanımı (TCMB doğrudan tarayıcı fetch isteklerini kısıtlar)
+        const response = await fetch(`https://api.allorigins.win/raw?url=${encodeURIComponent('https://www.tcmb.gov.tr/kurlar/today.xml')}`);
+        if (!response.ok) throw new Error("Ağ hatası");
+
+        const str = await response.text();
+        const xmlDoc = new window.DOMParser().parseFromString(str, "text/xml");
+
+        const currencies = xmlDoc.getElementsByTagName("Currency");
+        let found = false;
+
+        for (let i = 0; i < currencies.length; i++) {
+            if (currencies[i].getAttribute("CurrencyCode") === currency) {
+                // Fatura kesiminde genellikle Döviz Satış (ForexSelling) baz alınır
+                const forexSelling = currencies[i].getElementsByTagName("ForexSelling")[0]?.textContent;
+                if (forexSelling) {
+                    kurInput.value = parseFloat(forexSelling).toFixed(4);
+                    found = true;
+                    break;
+                }
+            }
+        }
+
+        if (!found) {
+            alert(currency + " kuru TCMB listesinde bulunamadı.");
+            kurInput.placeholder = "0.0000";
+        }
+    } catch (err) {
+        console.error('TCMB Kur çekme hatası:', err);
+        alert("TCMB verisi alınırken ağ hatası oluştu. Lütfen manuel giriniz.");
+        kurInput.placeholder = "0.0000";
+    }
+}
 
 function addLineItem(desc = '', qty = 1, price = 0, total = 0, taxRate = 20) {
     const row = document.createElement('tr');
@@ -645,18 +1034,41 @@ function showXmlSuccess(firma, vkn) {
 
 
 
-// View switching logic
+// View switching logic (Sekme değişimi ve Hafıza Transferi)
 function switchView(view) {
+    if (currentView === view) return; // Zaten aynı sekmedeysek boşa yorulma
+
+    // 1- EKRANDAKİLERİ KAYDET (Eski sekmeye veda etmeden hemen önce bavula dolduruyoruz)
+    filterMemory[currentView] = {
+        search: document.getElementById('mainSearch').value,
+        company: document.getElementById('filterCompany').value,
+        currency: document.getElementById('filterCurrency').value,
+        year: document.getElementById('filterYear') ? document.getElementById('filterYear').value : '',
+        month: document.getElementById('filterMonth') ? document.getElementById('filterMonth').value : '',
+        status: document.getElementById('filterStatus') ? document.getElementById('filterStatus').value : ''
+    };
+
+    // 2- SEKME DEĞİŞİMİ
     currentView = view;
     document.getElementById('tabGelen').classList.toggle('active', view === 'gelen');
     document.getElementById('tabGiden').classList.toggle('active', view === 'giden');
 
-    // 🌟 Gelen/Giden sekmesine göre Özet Kartlarını (Toplam Borç vs) göster veya gizle
+    // 3- YENİ SEKMENİN HAFIZASINI (BAVULUNU) EKRANA GERİ BOŞALT
+    const memory = filterMemory[currentView];
+    document.getElementById('mainSearch').value = memory.search;
+    document.getElementById('filterCurrency').value = memory.currency;
+    if (document.getElementById('filterYear')) document.getElementById('filterYear').value = memory.year;
+    if (document.getElementById('filterMonth')) document.getElementById('filterMonth').value = memory.month;
+    if (document.getElementById('filterStatus')) document.getElementById('filterStatus').value = memory.status;
+
+    // (Şirket kutusu populateCompanyFilter ile özel dolacağı için onun hafızasını filtre motorunun içine yerleştirilmek üzere geçici kutuda saklıyoruz)
+    document.getElementById('filterCompany').setAttribute('data-memory', memory.company);
+
+    // Özet kartları (Sadece Gelen'de Görünsün)
     const summaryContainer = document.getElementById('summaryCardsContainer');
     if (summaryContainer) {
         summaryContainer.style.display = (view === 'gelen') ? '' : 'none';
     }
 
-    // refreshData() YERİNE ARTIK BUNU KULLANIYORUZ:
     renderCurrentView();
 }

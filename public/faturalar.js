@@ -4,12 +4,6 @@ const ns = {
     cac: "urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2"
 };
 
-// --- CONFIG & STATE ---
-const { createClient } = supabase;
-const supabaseUrl = 'https://qvowjtswizirfxwiwxnw.supabase.co';
-// const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InF2b3dqdHN3aXppcmZ4d2l3eG53Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYwOTQ0NjcsImV4cCI6MjA5MTY3MDQ2N30.9ELJamNBkUB-u8JLAyvWFwX0Aawa6dSCp5qre2Z6V5I';
-const supabaseKey = 'sb_publishable_225MxNegGoy8WVQY3Y68hQ_8NYnVjyk'
-const sb = createClient(supabaseUrl, supabaseKey);
 
 let currentParsedData = null; // XML'den gelen veriyi geçici olarak burada tutacağız
 let currentView = 'gelen'; // Varsayılan değer
@@ -261,58 +255,51 @@ function refreshData() {
 }
 
 async function saveInvoiceToDatabase(e) {
-    e.preventDefault(); // Sayfanın yenilenmesini engelle
+    e.preventDefault();
 
     if (!currentParsedData) {
         alert("Lütfen önce bir XML yükleyin!");
         return;
     }
 
-    try {
-        // 1. ADIM: Şirketi Kaydet veya Güncelle (Upsert)
-        const { data: companyData, error: companyError } = await sb
-            .from('companies')
-            .upsert(currentParsedData.company, { onConflict: 'vkn_tckn' })
-            .select()
-            .single();
-
-        if (companyError) throw companyError;
-
-        // 2. ADIM: Faturayı Kaydet
-        const invoiceToSave = {
-            ...currentParsedData.invoice,
-            company_id: companyData.id // Üstte kaydettiğimiz şirketin ID'sini bağladık
+    // 1. Hazırlık: UI verilerini (checkboxlar vs) topla
+    const lineRows = document.querySelectorAll('#lineItemsBody tr');
+    const itemsToSave = currentParsedData.items.map((item, index) => {
+        const row = lineRows[index];
+        return {
+            ...item,
+            is_internal: row.querySelector('.internal-toggle').checked,
+            tax_rate: parseInt(row.querySelector('.tax-rate-val').value)
         };
+    });
 
-        const { data: invoiceData, error: invoiceError } = await sb
-            .from('invoices')
-            .insert(invoiceToSave)
-            .select()
-            .single();
+    // 2. Paketleme: Sunucuya gidecek tek bir obje oluştur
+    const payload = {
+        company: currentParsedData.company,
+        invoice: currentParsedData.invoice,
+        items: itemsToSave
+    };
 
-        if (invoiceError) throw invoiceError;
-
-        // 3. ADIM: Fatura Kalemlerini (Ürünleri) Kaydet
-        const lineRows = document.querySelectorAll('#lineItemsBody tr');
-        const itemsToSave = currentParsedData.items.map((item, index) => {
-            const row = lineRows[index];
-            return {
-                ...item,
-                invoice_id: invoiceData.id,
-                is_internal: row.querySelector('.internal-toggle').checked, // Kutucuk işaretli mi?
-                tax_rate: parseInt(row.querySelector('.tax-rate-val').value) // XML'den gelen KDV
-            };
+    try {
+        // 3. Gönderim: Tek bir fetch isteği ile backend'e yolla
+        const response = await fetch('/api/save-invoice', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(payload)
         });
 
-        const { error: itemsError } = await sb
-            .from('invoice_items')
-            .insert(itemsToSave);
+        const result = await response.json();
 
-        if (itemsError) throw itemsError;
+        if (!response.ok) {
+            throw new Error(result.error || "Sunucu hatası");
+        }
 
-        alert("Fatura başarıyla kaydedildi!");
+        // Başarılı işlem sonrası UI güncellemeleri
+        alert(result.message);
         closeInvoiceModal();
-        refreshData(); // Tabloyu yenile
+        refreshData();
 
     } catch (err) {
         console.error("Kayıt Hatası:", err.message);

@@ -11,7 +11,9 @@
     "url": "https://github.com/yusufdogu/Inokas_Yeni_Crm.git"
   },
   "dependencies": {
-    "express": "^4.18.2"
+    "express": "^4.18.2",
+    "@supabase/supabase-js": "^2.39.0"
   },
+
   "private": true
 }

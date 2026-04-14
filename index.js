@@ -2,6 +2,9 @@ const express = require('express');
 const path = require('path');
 const { createClient } = require('@supabase/supabase-js');
 const app = express();
+require('dotenv').config();
+
+
 
 // 1. ADD THIS: This allows your server to read the "Big Package" (JSON) sent from the browser
 app.use(express.json());
@@ -11,11 +14,19 @@ const supabase = createClient(
   process.env.SUPABASE_ANON_KEY
 );
 
+
+
 app.use(express.static(path.join(__dirname, 'public')));
+
+
+
 
 app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
+
+
+
 
 // 2. ADD THIS: The new POST route to handle saving the full invoice
 app.post('/api/save-invoice', async (req, res) => {
@@ -24,36 +35,36 @@ app.post('/api/save-invoice', async (req, res) => {
 
     // --- STEP A: UPSERT COMPANY ---
     const { data: companyData, error: companyError } = await supabase
-        .from('companies')
-        .upsert(fullData.company, { onConflict: 'vkn_tckn' })
-        .select()
-        .single();
+      .from('companies')
+      .upsert(fullData.company, { onConflict: 'vkn_tckn' })
+      .select()
+      .single();
 
     if (companyError) throw companyError;
 
     // --- STEP B: INSERT INVOICE ---
     const invoiceToSave = {
-        ...fullData.invoice,
-        company_id: companyData.id
+      ...fullData.invoice,
+      company_id: companyData.id
     };
 
     const { data: invoiceData, error: invoiceError } = await supabase
-        .from('invoices')
-        .insert(invoiceToSave)
-        .select()
-        .single();
+      .from('invoices')
+      .insert(invoiceToSave)
+      .select()
+      .single();
 
     if (invoiceError) throw invoiceError;
 
     // --- STEP C: INSERT ITEMS ---
     const itemsToSave = fullData.items.map(item => ({
-        ...item,
-        invoice_id: invoiceData.id
+      ...item,
+      invoice_id: invoiceData.id
     }));
 
     const { error: itemsError } = await supabase
-        .from('invoice_items')
-        .insert(itemsToSave);
+      .from('invoice_items')
+      .insert(itemsToSave);
 
     if (itemsError) throw itemsError;
 
@@ -62,9 +73,49 @@ app.post('/api/save-invoice', async (req, res) => {
 
   } catch (err) {
     console.error("Kayıt Hatası:", err.message);
+    // Supabase (PostgreSQL) hata kodunu (err.code) frontend'e yeni bir paket olarak iletiyoruz!
+    res.status(500).json({ error: err.message, errorCode: err.code });
+  }
+});
+
+
+
+
+
+
+// 3. GET ROUTE: Faturaları veritabanından çekip UI'a gönderen yeni kapımız
+app.get('/api/invoices', async (req, res) => {
+  try {
+    // direction parametresini tarayıcıdan alıyoruz (?direction=INCOMING gibi)
+    const direction = req.query.direction;
+
+    // invoices tablosundan çekiyoruz, company_id üzerinden companies tablosuna bağlanıp firma adını alıyoruz
+    let query = supabase
+      .from('invoices')
+      .select('*, companies(name)')
+      .order('invoice_date', { ascending: false }); // En yeni tarihli en üstte
+
+    // Sadece istenen yöndeki (gelen/giden) faturaları filtrele
+    if (direction) {
+      query = query.eq('direction', direction);
+    }
+
+    const { data, error } = await query;
+    if (error) throw error;
+
+    // Bulduğumuz faturaları tarayıcıya geri yolla
+    res.status(200).json(data);
+  } catch (err) {
+    console.error("Fatura Çekme Hatası:", err.message);
     res.status(500).json({ error: err.message });
   }
 });
+
+
+
+
+
+
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {

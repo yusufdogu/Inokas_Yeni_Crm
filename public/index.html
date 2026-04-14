@@ -40,28 +40,30 @@
       </button>
     </div>
 
-    <section class="stats-grid">
+    <!-- KONTROL BİZDE BİR ID EKLEDİK: id="summaryCardsContainer" -->
+    <section class="stats-grid" id="summaryCardsContainer">
       <div class="stat-card">
         <label>Toplam Borç</label>
-        <h2 id="stat-total-debt" class="text-danger">—</h2>
+        <h2 id="stat-total-debt" class="text-danger">0,00 ₺</h2>
         <small id="stat-supplier-count">0 Tedarikçi</small>
       </div>
       <div class="stat-card">
         <label>Bu Ay Ödenecek</label>
-        <h2 id="stat-monthly-debt">—</h2>
+        <h2 id="stat-monthly-debt">0,00 ₺</h2>
         <small>Vadeye göre</small>
       </div>
       <div class="stat-card highlight-warn">
         <label>Vadesi Geçmiş</label>
-        <h2 id="stat-overdue" class="text-warn">—</h2>
+        <h2 id="stat-overdue" class="text-warn">0,00 ₺</h2>
         <small id="stat-overdue-count">0 Fatura</small>
       </div>
       <div class="stat-card highlight-success">
         <label>Toplam Ödenen</label>
-        <h2 id="stat-paid" class="text-success">—</h2>
+        <h2 id="stat-paid" class="text-success">0,00 ₺</h2>
         <small id="stat-paid-count">0 Fatura</small>
       </div>
     </section>
+
 
     <section class="content-card">
       <div class="toolbar">
@@ -85,7 +87,8 @@
           <thead>
             <tr>
               <th>Fatura No</th>
-              <th>Firma / Ünvan</th>
+              <th>Gönderen Firma</th>
+              <th>Alıcı Firma</th>
               <th>Tarih</th>
               <th>Vade</th>
               <th class="text-right">Matrah</th>

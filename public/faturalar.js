@@ -1,4 +1,8 @@
 // Filtrelerin Sekmelere Özel Hafızası (Her sekme kendi seçimini yazar)
+// index.html içindeki script ?v= ile aynı tut (deploy sonrası hangi bundle çalışıyor görmek için)
+const FATURALAR_BUILD = '20260417-rpc-update-3';
+console.info('[faturalar] bundle', FATURALAR_BUILD);
+
 const filterMemory = {
     gelen: { search: '', company: '', currency: '', year: '', month: '', status: '' },
     giden: { search: '', company: '', currency: '', year: '', month: '', status: '' }
@@ -1194,6 +1198,7 @@ async function saveInvoiceToDatabase(e) {
 
         try {
             isInvoiceSaveInFlight = true;
+            console.info('[faturalar] PUT şekli', Object.keys(updatePayload), 'invoice' in updatePayload ? 'nested ✓' : 'flat ✗');
             const response = await fetch(`/api/invoices/${invoiceId}`, {
                 method: 'PUT',
                 headers: {

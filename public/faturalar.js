@@ -1231,25 +1231,48 @@ async function saveInvoiceToDatabase(e) {
         return;
     }
 
-    // 1. Hazırlık: UI verilerini (checkboxlar vs) topla
-    const itemsToSave = currentParsedData.items.map((item, index) => {
-        const row = lineRows[index];
-        return {
-            ...item,
-            is_internal: row.querySelector('.internal-toggle').checked,
-            tax_rate: parseInt(row.querySelector('.tax-rate-val').value)
-        };
-    });
+    // 1. Hazırlık: İlk kayıtta da ekrandaki güncel satırları esas al
+    // (XML'den gelen başlangıç değerleri değil, kullanıcının son düzenlemesi kaydedilsin)
+    const itemsToSave = itemsFromForm;
+
+    // 2. Paketleme: Hibrit model
+    // - UI'da görünen alanlar: formdan oku (kullanıcının son düzeltmesi kaydedilsin)
+    // - UI'da görünmeyen XML alanları: currentParsedData'dan koru (null kaybı olmasın)
+    const companyFromUi = {
+        vkn_tckn: document.getElementById('f_vkn')?.value?.trim() || '',
+        name: document.getElementById('f_firma')?.value?.trim() || '',
+        phone: document.getElementById('f_phone')?.value?.trim() || '',
+        email: document.getElementById('f_email')?.value?.trim() || '',
+        website: document.getElementById('f_website')?.value?.trim() || '',
+        address: document.getElementById('f_address')?.value?.trim() || ''
+    };
+
+    const invoiceFromUi = {
+        invoice_no: document.getElementById('f_no')?.value || '',
+        invoice_type: document.getElementById('f_type')?.value || 'Ticari',
+        invoice_date: document.getElementById('f_date')?.value || null,
+        due_date: document.getElementById('f_due_date')?.value || null,
+        currency: document.getElementById('f_currency')?.value || 'TL',
+        exchange_rate: parseFloat(document.getElementById('f_kur')?.value) || 1,
+        status: status,
+        paid_amount: paidAmount,
+        net_amount_tl: parseFloat(document.getElementById('f_net')?.value) || 0,
+        tax_amount_tl: parseFloat(document.getElementById('f_tax')?.value) || 0,
+        total_amount_tl: totalAmount,
+        notes: document.getElementById('f_notes')?.value || ''
+    };
 
     // 2. Paketleme: Sunucuya gidecek tek bir obje oluştur
     const payload = {
         submit_view: currentView,
         parsed_view: currentParsedData.parsed_view || null,
-        company: currentParsedData.company,
+        company: {
+            ...(currentParsedData.company || {}),
+            ...companyFromUi
+        },
         invoice: {
             ...currentParsedData.invoice,
-            status: status,
-            paid_amount: paidAmount
+            ...invoiceFromUi
         },
         xml_context: currentParsedData.xml_context || null,
         items: itemsToSave

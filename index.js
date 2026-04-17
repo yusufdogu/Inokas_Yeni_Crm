@@ -1,24 +1,46 @@
+// 1. ALWAYS FIRST: Load environment variables
+require('dotenv').config();
+
+// 2. DEBUG: Verify the correct key is actually there
+console.log("Checking Key:", process.env.SUPABASE_KEY ? "EXISTS (Correct Secret Key)" : "MISSING");
+
 const express = require('express');
 const path = require('path');
 const { createClient } = require('@supabase/supabase-js');
+
+// 3. Initialize Supabase with the SERVICE ROLE KEY
+const supabaseUrl = process.env.SUPABASE_URL;
+const supabaseKey = process.env.SUPABASE_KEY; // Use the secret one here!
+
+if (!supabaseKey || !supabaseUrl) {
+    console.error("❌ Critical Error: Supabase URL or Key is missing from .env");
+    process.exit(1);
+}
+
+const supabase = createClient(supabaseUrl, supabaseKey);
+
+const { testGiderSync} = require('./services/sync-service');
+
 const app = express();
-require('dotenv').config();
-
-
-
-// 1. ADD THIS: This allows your server to read the "Big Package" (JSON) sent from the browser
 app.use(express.json());
 
-const supabase = createClient(
-  process.env.SUPABASE_URL,
-  process.env.SUPABASE_ANON_KEY
-);
+// Main execution block
+async function startApp() {
+    try {
+        console.log("🛠️ Starting Initial Sync...");
+        await testGiderSync(); // Use await here inside an async block
+        console.log("🏁 Sync Process Finished");
+
+    } catch (err) {
+        console.error("🛑 Startup Error:", err);
+    }
+}
+
+startApp();
 
 
 
 app.use(express.static(path.join(__dirname, 'public')));
-
-
 
 
 app.get('/', (req, res) => {

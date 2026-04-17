@@ -359,6 +359,7 @@ function parseUBL(xml) {
 
         // A. Firm Name
         const firmaAdi = party.getElementsByTagNameNS(ns.cac, 'PartyName')[0]?.getElementsByTagNameNS(ns.cbc, 'Name')[0]?.textContent ||
+            part.getElementsByTagNameNS(ns.cac,'FirstName')[0]?.getElementsByTagNameNS(ns.cbc, 'FamilyName')[0]?.textContent ||
             party.getElementsByTagNameNS(ns.cbc, 'RegistrationName')[0]?.textContent ||
             "Bilinmeyen Firma";
 

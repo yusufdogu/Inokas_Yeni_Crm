@@ -1152,7 +1152,7 @@ async function saveInvoiceToDatabase(e) {
         const numberInputs = row.querySelectorAll('input[type="number"]');
         const qty = parseFloat(qtyInput?.value || cells[1]?.innerText || 0) || 0;
         const unitPrice = parseFloat(numberInputs[1]?.value || cells[2]?.innerText || 0) || 0;
-        const lineTotal = parseFloat(numberInputs[2]?.value || cells[3]?.innerText || 0) || 0;
+        const lineTotal = qty * unitPrice;
         const taxRate = parseInt(row.querySelector('.tax-rate-val')?.value || cells[4]?.innerText || 0, 10) || 0;
         const internalToggle = row.querySelector('.internal-toggle');
         const isInternal = internalToggle ? !!internalToggle.checked : false;
@@ -1413,6 +1413,20 @@ function addLineItem(desc = '', qty = 1, price = 0, total = 0, taxRate = 20) {
         </td>
         <td><button type="button" class="btn-text" onclick="this.closest('tr').remove()" style="color:var(--danger)">✕</button></td>
     `;
+    const qtyInput = row.querySelector('td:nth-child(2) input[type="number"]');
+    const priceInput = row.querySelector('td:nth-child(3) input[type="number"]');
+    const totalInput = row.querySelector('td:nth-child(4) input[type="number"]');
+
+    const recalcLineTotal = () => {
+        const qtyVal = parseFloat(qtyInput?.value) || 0;
+        const priceVal = parseFloat(priceInput?.value) || 0;
+        totalInput.value = (qtyVal * priceVal).toFixed(2);
+    };
+
+    qtyInput?.addEventListener('input', recalcLineTotal);
+    priceInput?.addEventListener('input', recalcLineTotal);
+    recalcLineTotal();
+
     document.getElementById('lineItemsBody').appendChild(row);
 }
 

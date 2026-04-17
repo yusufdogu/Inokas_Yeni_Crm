@@ -410,10 +410,16 @@ function parseUBL(xml) {
 
         // --- COMPANY DATA SCRAPING ---
 
-        // A. Firm Name
-        const firmaAdi = party.getElementsByTagNameNS(ns.cac, 'PartyName')[0]?.getElementsByTagNameNS(ns.cbc, 'Name')[0]?.textContent ||
+        // A. Firm Name — önce ünvan (PartyName / RegistrationName); boşsa aynı party altında Person ad+soyad
+        const rawOrgName =
+            party.getElementsByTagNameNS(ns.cac, 'PartyName')[0]?.getElementsByTagNameNS(ns.cbc, 'Name')[0]?.textContent ||
             party.getElementsByTagNameNS(ns.cbc, 'RegistrationName')[0]?.textContent ||
-            "Bilinmeyen Firma";
+            '';
+        const personNode = party.getElementsByTagNameNS(ns.cac, 'Person')[0];
+        const firstN = personNode?.getElementsByTagNameNS(ns.cbc, 'FirstName')[0]?.textContent?.trim() || '';
+        const lastN = personNode?.getElementsByTagNameNS(ns.cbc, 'FamilyName')[0]?.textContent?.trim() || '';
+        const fromPerson = [firstN, lastN].filter(Boolean).join(' ').trim();
+        const firmaAdi = (rawOrgName || '').trim() || fromPerson || 'Bilinmeyen Firma';
 
         // B. VKN/TCKN (The Unique Identifier)
         let vkn = "";

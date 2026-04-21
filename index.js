@@ -177,57 +177,40 @@ app.post('/api/save-invoice', async (req, res) => {
 
 
 // 3.5. GET ROUTE: Stok özetini frontend'e gönderir
+// stock_movements tablosuna bağımlı değil: invoice_items + invoices join'i ile türetilir.
 app.get('/api/stocks/summary', async (req, res) => {
   try {
-    const { data, error } = await supabase
-      .from('stock_movements')
-      .select('invoice_item_id, product_name, sku, movement_type, quantity');
+    const { data: items, error } = await supabase
+      .from('invoice_items')
+      .select(`
+        id,
+        product_name,
+        product_code,
+        quantity,
+        unit_price_cur,
+        currency,
+        invoices!invoice_items_invoice_id_fkey (
+          direction,
+          currency,
+          calculation_rate
+        )
+      `);
 
     if (error) throw error;
 
-    const itemIds = [...new Set((data || []).map(r => r.invoice_item_id).filter(Boolean))];
-    const itemMap = {};
-    const invoiceMap = {};
-
-    if (itemIds.length > 0) {
-      const { data: items, error: itemsErr } = await supabase
-        .from('invoice_items')
-        .select('id, unit_price_cur, invoice_id')
-        .in('id', itemIds);
-      if (itemsErr) throw itemsErr;
-      (items || []).forEach((it) => { itemMap[it.id] = it; });
-
-      const invoiceIds = [...new Set((items || []).map(i => i.invoice_id).filter(Boolean))];
-      if (invoiceIds.length > 0) {
-        const { data: invoices, error: invErr } = await supabase
-          .from('invoices')
-          .select('id, currency, exchange_rate')
-          .in('id', invoiceIds);
-        if (invErr) throw invErr;
-        (invoices || []).forEach((inv) => { invoiceMap[inv.id] = inv; });
-      }
-    }
-
-    const toUnitUsd = (itemId) => {
-      const item = itemMap[itemId];
-      if (!item) return null;
-      const invoice = invoiceMap[item.invoice_id];
-      if (!invoice) return null;
-      const currency = String(invoice.currency || '').toUpperCase();
-      const unitPrice = Number(item.unit_price_cur || 0);
-      if (!(unitPrice > 0)) return null;
-      // Doğru USD dönüşümü için sadece USD fatura birimini kesin kabul ediyoruz.
-      if (currency === 'USD') return unitPrice;
-      return null;
-    };
-
     const grouped = {};
-    (data || []).forEach((row) => {
-      const key = row.sku ? `SKU:${row.sku}` : `NAME:${row.product_name}`;
+
+    (items || []).forEach((item) => {
+      const invoice = item.invoices;
+      if (!invoice) return;
+
+      const sku = item.product_code || null;
+      const key = sku ? `SKU:${sku}` : `NAME:${item.product_name}`;
+
       if (!grouped[key]) {
         grouped[key] = {
-          product_name: row.product_name,
-          sku: row.sku || null,
+          product_name: item.product_name,
+          sku,
           total_in: 0,
           total_out: 0,
           current_stock: 0,
@@ -235,33 +218,40 @@ app.get('/api/stocks/summary', async (req, res) => {
           total_out_usd: 0,
           in_qty_for_avg_usd: 0,
           out_qty_for_avg_usd: 0,
-          in_unit_usd: null,
-          out_unit_usd: null,
-          stock_usd: null
         };
       }
 
-      const qty = Number(row.quantity) || 0;
-      const unitUsd = toUnitUsd(row.invoice_item_id);
-      if (row.movement_type === 'IN') {
+      const qty = Number(item.quantity) || 0;
+      const unitPrice = Number(item.unit_price_cur) || 0;
+      // Fatura kaleminin para birimi, yoksa fatura başlığının para birimi
+      const itemCurrency = String(item.currency || invoice.currency || '').toUpperCase();
+
+      // Sadece USD kabul ediyoruz (kullanıcı tercihi: stok USD bazlı)
+      const unitUsd = (itemCurrency === 'USD' && unitPrice > 0) ? unitPrice : null;
+
+      const isIn  = invoice.direction === 'INCOMING';
+      const isOut = invoice.direction === 'OUTGOING';
+
+      if (isIn) {
         grouped[key].total_in += qty;
         if (unitUsd !== null) {
-          grouped[key].total_in_usd += qty * unitUsd;
+          grouped[key].total_in_usd    += qty * unitUsd;
           grouped[key].in_qty_for_avg_usd += qty;
         }
       }
-      if (row.movement_type === 'OUT') {
+      if (isOut) {
         grouped[key].total_out += qty;
         if (unitUsd !== null) {
-          grouped[key].total_out_usd += qty * unitUsd;
+          grouped[key].total_out_usd    += qty * unitUsd;
           grouped[key].out_qty_for_avg_usd += qty;
         }
       }
+
       grouped[key].current_stock = grouped[key].total_in - grouped[key].total_out;
     });
 
     const summary = Object.values(grouped).map((row) => {
-      const avgInUnitUsd = row.in_qty_for_avg_usd > 0 ? (row.total_in_usd / row.in_qty_for_avg_usd) : null;
+      const avgInUnitUsd  = row.in_qty_for_avg_usd  > 0 ? (row.total_in_usd  / row.in_qty_for_avg_usd)  : null;
       const avgOutUnitUsd = row.out_qty_for_avg_usd > 0 ? (row.total_out_usd / row.out_qty_for_avg_usd) : null;
       const stockUsd = avgInUnitUsd !== null ? row.current_stock * avgInUnitUsd : null;
       return {
@@ -281,10 +271,10 @@ app.get('/api/stocks/summary', async (req, res) => {
     });
 
     const stats = summary.reduce((acc, row) => {
-      acc.total_in_qty += Number(row.total_in || 0);
-      acc.total_out_qty += Number(row.total_out || 0);
-      acc.current_qty += Number(row.current_stock || 0);
-      acc.stock_usd += Number(row.stock_usd || 0);
+      acc.total_in_qty  += Number(row.total_in      || 0);
+      acc.total_out_qty += Number(row.total_out     || 0);
+      acc.current_qty   += Number(row.current_stock || 0);
+      acc.stock_usd     += Number(row.stock_usd     || 0);
       acc.total_out_usd += Number(row.total_out_usd || 0);
       return acc;
     }, { total_in_qty: 0, total_out_qty: 0, current_qty: 0, stock_usd: 0, total_out_usd: 0 });
@@ -388,6 +378,125 @@ app.delete('/api/invoices/:id', async (req, res) => {
 
 
 
+
+// ─── ÖDEME GEÇMİŞİ API'LERİ ──────────────────────────────────────────────────
+
+// Bir faturanın tüm ödemelerini tarihe göre sıralı getirir
+app.get('/api/invoices/:id/payments', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { data, error } = await supabase
+      .from('payments')
+      .select('*')
+      .eq('invoice_id', id)
+      .order('payment_date', { ascending: true });
+    if (error) throw error;
+    res.status(200).json(data || []);
+  } catch (err) {
+    console.error('Ödeme listesi hatası:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Yeni ödeme ekler, ardından faturanın paid_amount ve status'ünü yeniden hesaplar
+app.post('/api/payments', async (req, res) => {
+  try {
+    const { invoice_id, amount, currency, payment_date, notes } = req.body;
+
+    if (!invoice_id || !amount || !currency || !payment_date) {
+      return res.status(400).json({ error: 'invoice_id, amount, currency ve payment_date zorunludur.' });
+    }
+
+    // Ödemeyi kaydet
+    const { data: payment, error: insertErr } = await supabase
+      .from('payments')
+      .insert({ invoice_id, amount, currency, payment_date, notes: notes || null })
+      .select()
+      .single();
+    if (insertErr) throw insertErr;
+
+    // Faturanın ödeme toplamını ve durumunu güncelle
+    const { error: rpcErr } = await supabase
+      .rpc('recalculate_invoice_payment_status', { p_invoice_id: invoice_id });
+    if (rpcErr) throw rpcErr;
+
+    res.status(201).json({ message: 'Ödeme kaydedildi.', payment });
+  } catch (err) {
+    console.error('Ödeme ekleme hatası:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Ödemeyi günceller (tutar, tarih, not), ardından fatura özetini yeniden hesaplar
+app.put('/api/payments/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { amount, currency, payment_date, notes } = req.body;
+
+    // Güncelleme öncesi invoice_id'yi al
+    const { data: existing, error: fetchErr } = await supabase
+      .from('payments')
+      .select('invoice_id')
+      .eq('id', id)
+      .single();
+    if (fetchErr) throw fetchErr;
+
+    const fields = {};
+    if (amount     !== undefined) fields.amount       = amount;
+    if (currency   !== undefined) fields.currency     = currency;
+    if (payment_date !== undefined) fields.payment_date = payment_date;
+    if (notes      !== undefined) fields.notes        = notes;
+
+    const { error: updateErr } = await supabase
+      .from('payments')
+      .update(fields)
+      .eq('id', id);
+    if (updateErr) throw updateErr;
+
+    // Faturanın ödeme toplamını ve durumunu güncelle
+    const { error: rpcErr } = await supabase
+      .rpc('recalculate_invoice_payment_status', { p_invoice_id: existing.invoice_id });
+    if (rpcErr) throw rpcErr;
+
+    res.status(200).json({ message: 'Ödeme güncellendi.' });
+  } catch (err) {
+    console.error('Ödeme güncelleme hatası:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Ödeme siler, ardından faturanın paid_amount ve status'ünü yeniden hesaplar
+app.delete('/api/payments/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    // Silinmeden önce invoice_id'yi al (yeniden hesaplama için lazım)
+    const { data: payment, error: fetchErr } = await supabase
+      .from('payments')
+      .select('invoice_id')
+      .eq('id', id)
+      .single();
+    if (fetchErr) throw fetchErr;
+
+    const { error: deleteErr } = await supabase
+      .from('payments')
+      .delete()
+      .eq('id', id);
+    if (deleteErr) throw deleteErr;
+
+    // Faturanın ödeme toplamını ve durumunu güncelle
+    const { error: rpcErr } = await supabase
+      .rpc('recalculate_invoice_payment_status', { p_invoice_id: payment.invoice_id });
+    if (rpcErr) throw rpcErr;
+
+    res.status(200).json({ message: 'Ödeme silindi.' });
+  } catch (err) {
+    console.error('Ödeme silme hatası:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {

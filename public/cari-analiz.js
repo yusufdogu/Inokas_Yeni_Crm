@@ -19,6 +19,16 @@ function setupAnalysisUi() {
   tabCustomers?.addEventListener('click', () => switchAnalysisView('customers'));
   searchInput?.addEventListener('input', renderCompanyCards);
   document.getElementById('btnCloseCompanyModal')?.addEventListener('click', closeCompanyModal);
+
+  // Yenile butonu: cache'i temizleyip sunucudan taze veri çeker, sayfayı yeniden render eder
+  document.getElementById('btnRefreshAnaliz')?.addEventListener('click', async () => {
+    const btn = document.getElementById('btnRefreshAnaliz');
+    if (btn) { btn.disabled = true; btn.textContent = '⏳ Yükleniyor...'; }
+    sessionStorage.removeItem(CARI_ANALIZ_CACHE_KEY);
+    await fetchInvoicesForAnalysis(true);
+    renderCompanyCards();
+    if (btn) { btn.disabled = false; btn.innerHTML = '🔄 Yenile'; }
+  });
   document.getElementById('companyDetailModal')?.addEventListener('click', (e) => {
     if (e.target.id === 'companyDetailModal') closeCompanyModal();
   });
@@ -143,25 +153,26 @@ function groupByCompany(invoices, direction) {
         };
       }
 
-      const bucket = map[name];
-      const currency = normalizeCurrency(inv.currency);
-      const totalTl = parseFloat(inv.payable_amount_tl ?? inv.total_amount_tl) || 0;
-      const paidTl = Math.min(parseFloat(inv.paid_amount) || 0, totalTl);
-      const pendingTl = Math.max(totalTl - paidTl, 0);
-
+      const bucket   = map[name];
+      const currency = getInvoiceDisplayCurrency(inv);
       const totalCur = getInvoiceCurrencyTotal(inv);
-      const paidCur = totalTl > 0 ? (totalCur * (paidTl / totalTl)) : 0;
+      const paidCur  = getPaidAmountCur(inv);                    // doğru kaynak: paid_amount_cur
       const pendingCur = Math.max(totalCur - paidCur, 0);
 
-      bucket.invoiceCount += 1;
-      bucket.pendingTotalTl += pendingTl;
+      // Sıralama için TL cinsinden kalan borç tahmini
+      const rate       = parseFloat(inv.calculation_rate ?? inv.exchange_rate) || 1;
+      const iso        = String(inv.base_currency || inv.currency || 'TRY').toUpperCase();
+      const pendingTl  = iso === 'TRY' ? pendingCur : pendingCur * rate;
+
+      bucket.invoiceCount    += 1;
+      bucket.pendingTotalTl  += pendingTl;
       bucket.invoices.push(inv);
 
       if (!bucket.currencyStats[currency]) {
         bucket.currencyStats[currency] = { pending: 0, paid: 0 };
       }
       bucket.currencyStats[currency].pending += pendingCur;
-      bucket.currencyStats[currency].paid += paidCur;
+      bucket.currencyStats[currency].paid    += paidCur;
     });
 
   return map;
@@ -237,17 +248,15 @@ function closeCompanyModal() {
 function aggregateCompanyCurrencies(invoices) {
   const byCurrency = {};
   invoices.forEach((inv) => {
-    const currency = normalizeCurrency(inv.currency);
-    const totalTl = parseFloat(inv.payable_amount_tl ?? inv.total_amount_tl) || 0;
-    const paidTl = Math.min(parseFloat(inv.paid_amount) || 0, totalTl);
-    const totalCur = getInvoiceCurrencyTotal(inv);
-    const paidCur = totalTl > 0 ? (totalCur * (paidTl / totalTl)) : 0;
+    const currency   = getInvoiceDisplayCurrency(inv);
+    const totalCur   = getInvoiceCurrencyTotal(inv);
+    const paidCur    = getPaidAmountCur(inv);               // doğru kaynak: paid_amount_cur
     const pendingCur = Math.max(totalCur - paidCur, 0);
 
     if (!byCurrency[currency]) byCurrency[currency] = { total: 0, pending: 0, paid: 0 };
-    byCurrency[currency].total += totalCur;
+    byCurrency[currency].total   += totalCur;
     byCurrency[currency].pending += pendingCur;
-    byCurrency[currency].paid += paidCur;
+    byCurrency[currency].paid    += paidCur;
   });
   return byCurrency;
 }
@@ -304,6 +313,39 @@ function getInvoiceCurrencyTotal(inv) {
   const totalCurrency = parseFloat(inv.total_currency);
   if (!Number.isNaN(totalCurrency) && totalCurrency > 0) return totalCurrency;
   return parseFloat(inv.payable_amount_tl ?? inv.total_amount_tl) || 0;
+}
+
+// Faturanın ödenen tutarını kaynak para biriminde döndürür.
+// Önce paid_amount_cur (yeni sistem), sonra eski TL kaydından kur ile dönüştürür.
+function getPaidAmountCur(inv) {
+  const totalCur = getInvoiceCurrencyTotal(inv);
+
+  // Yeni sistem: paid_amount_cur doğrudan kaynak para biriminde saklanıyor
+  const amtCur = parseFloat(inv?.paid_amount_cur);
+  if (Number.isFinite(amtCur) && amtCur > 0) return Math.min(amtCur, totalCur);
+
+  const paidRaw = parseFloat(inv?.paid_amount) || 0;
+  if (paidRaw <= 0) return 0;
+
+  const iso  = String(inv?.base_currency || inv?.currency || 'TRY').trim().toUpperCase();
+  const rate = parseFloat(inv?.calculation_rate ?? inv?.exchange_rate) || 1;
+
+  if (iso === 'TRY' || iso === 'TL' || rate <= 1) {
+    // TL fatura veya kur bilgisi yoksa paid_amount zaten kaynak para biriminde
+    return Math.min(paidRaw, totalCur);
+  }
+
+  // Dövizli eski kayıt: paid_amount TL ise kura böl; kaynak para birimine çevir
+  const fromTl = Math.round((paidRaw / rate) * 100) / 100;
+  // Eğer sonuç totalCur'dan büyük değilse TL'den çevirdik; aksi halde zaten kaynak birimindeydi
+  return Math.min(fromTl <= totalCur ? fromTl : paidRaw, totalCur);
+}
+
+// Faturanın gösterim para birimi etiketini döndürür: TRY→"TL", USD→"USD" ...
+function getInvoiceDisplayCurrency(inv) {
+  const raw = String(inv?.base_currency || inv?.currency || 'TRY').trim().toUpperCase();
+  const iso = raw === 'TL' ? 'TRY' : raw;
+  return iso === 'TRY' ? 'TL' : iso;
 }
 
 function normalizeCurrency(cur) {

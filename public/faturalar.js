@@ -1,6 +1,6 @@
 // Filtrelerin Sekmelere Özel Hafızası (Her sekme kendi seçimini yazar)
 // index.html içindeki script ?v= ile aynı tut (deploy sonrası hangi bundle çalışıyor görmek için)
-const FATURALAR_BUILD = '20260419-inokas-vkn-page-inject';
+const FATURALAR_BUILD = '20260420-recalc-fix';
 console.info('[faturalar] bundle', FATURALAR_BUILD);
 
 const filterMemory = {
@@ -53,11 +53,6 @@ let isInvoiceSaveInFlight = false;
 // Then initialize all click/change/drop listeners in one place.
 document.addEventListener('DOMContentLoaded', () => {
     setupEventListeners();
-    const statusEl = document.getElementById('f_status');
-    if (statusEl) {
-        statusEl.addEventListener('change', syncPaidFieldByStatus);
-    }
-    syncPaidFieldByStatus(); // sayfa açılınca ilk doğru durumu uygula
     refreshData(true);
 
     // Get the invoice form from the page.
@@ -179,14 +174,12 @@ function viewInvoice(id) {
     document.getElementById('f_currency').value = invCurrencySelectValue(inv) || inv.currency || 'TL';
     document.getElementById('f_kur').value = inv.calculation_rate ?? inv.exchange_rate ?? '';
 
-    document.getElementById('f_status').value = (inv.status || 'unpaid').toLowerCase();
-    document.getElementById('f_paid').value = invPaidAmountSrc(inv);
+    // f_status ve f_paid formdan kaldırıldı — ödeme yönetimi payments tablosundan yapılıyor
 
     document.getElementById('f_net').value = invNetForForm(inv);
     document.getElementById('f_tax').value = invTaxForForm(inv);
     document.getElementById('f_total').value = invPayableForForm(inv);
     document.getElementById('f_notes').value = inv.notes || '';
-    syncPaidFieldByStatus();
 
     // Resmi kilitleri aktif et ve Label yanlarına Kapalı Kilit 🔒 ekle
     const lockedInputs = document.querySelectorAll('.locked-input');
@@ -290,17 +283,16 @@ function closeInvoiceModal() {
     document.getElementById('invoiceModal').style.display = 'none'; // close the window
     document.getElementById('invoiceForm').reset(); // reset the form like firm - date - amount
     document.getElementById('lineItemsBody').innerHTML = ''; // clear the information from the table
-    document.getElementById('previewPane').innerHTML = ` 
-        <div class="preview-empty-state">
-            <div class="upload-box" id="dropZone">
-                <input type="file" id="xmlInput" accept=".xml" hidden>
-                <span class="upload-icon">📄</span>
-                <h3>UBL-XML Dosyasını Yükle</h3>
-                <p>Verileri otomatik doldurmak için sürükleyin veya seçin</p>
-                <button class="btn btn-primary btn-sm" onclick="document.getElementById('xmlInput').click()">Dosya Seç</button>
-            </div>
-        </div>`; // previewPane is rebringing the "dosya yükle" button again
-    setupEventListeners(); // Re-bind dropzone
+    // Yeni kompakt XML şeridini geri yükle (eski büyük kutu değil)
+    document.getElementById('previewPane').innerHTML = `
+        <div id="dropZone" class="upload-box-compact">
+            <input type="file" id="xmlInput" accept=".xml" hidden>
+            <span class="upload-icon-sm">📄</span>
+            <span>UBL-XML ile otomatik doldur (opsiyonel) — sürükleyin veya seçin</span>
+            <button class="btn btn-primary btn-sm" onclick="document.getElementById('xmlInput').click()">Dosya Seç</button>
+        </div>
+        <div id="xmlDataSummary" class="xml-data-view" style="display:none;"></div>`;
+    setupEventListeners(); // dropZone event'lerini yeniden bağla
 }
 // Acts as a "Clean-up Crew". It hides the window and wipes all previous data (form, items, uploads).
 // This ensures that every new invoice entry starts with a "clean slate" to prevent data mixing.
@@ -1049,8 +1041,13 @@ function invPayableAmountSrc(inv) {
 }
 
 function invPaidAmountSrc(inv) {
+    // paid_amount_cur: fatura para biriminde saklanan tutar (kur çarpımı yok, kesin doğru)
+    // Sadece > 0 ise kullan: 0 değeri "henüz ödenmedi" veya "eski kayıt" anlamına gelir
+    const cur = parseFloat(inv?.paid_amount_cur);
+    if (Number.isFinite(cur) && cur > 0) return cur;
+    // Geriye dönük uyumluluk: eski kayıtlarda paid_amount TL cinsinden saklanmış olabilir
     const paidTl = parseFloat(inv?.paid_amount) || 0;
-    return paidTl / invCalculationRate(inv);
+    return Math.round((paidTl / invCalculationRate(inv)) * 100) / 100;
 }
 
 function invRemainingAmountSrc(inv) {
@@ -1063,32 +1060,30 @@ function invCurrencySelectValue(inv) {
 
 /** Formda gösterilecek kaynak para tutarları (önce cur kolonları, yoksa eski TL kolonları) */
 function invNetForForm(inv) {
-    const cur = inv?.total_tax_exclusive_cur;
-    if (cur != null && cur !== '') {
-        const n = parseFloat(cur);
-        if (!Number.isNaN(n)) return n;
-    }
-    const leg = parseFloat(inv?.net_amount_tl);
-    return Number.isNaN(leg) ? '' : leg;
+    const cur = parseFloat(inv?.total_tax_exclusive_cur);
+    if (Number.isFinite(cur)) return cur;
+    // Fallback: eski kayıt — TL tutarı kura bölerek kaynak para birimine çevir
+    const tl = parseFloat(inv?.total_tax_exclusive_tl);
+    const rate = invCalculationRate(inv);
+    if (Number.isFinite(tl) && rate > 0) return Math.round((tl / rate) * 100) / 100;
+    return '';
 }
 
 function invTaxForForm(inv) {
     const tl = parseFloat(inv?.tax_amount_tl);
     const rate = invCalculationRate(inv);
-    if (inv?.total_tax_exclusive_cur != null && inv?.total_tax_exclusive_cur !== '' && rate > 0 && !Number.isNaN(tl)) {
-        return tl / rate;
-    }
-    return Number.isNaN(tl) ? '' : tl;
+    if (Number.isFinite(tl) && rate > 0) return Math.round((tl / rate) * 100) / 100;
+    return '';
 }
 
 function invPayableForForm(inv) {
-    const cur = inv?.payable_amount_cur;
-    if (cur != null && cur !== '') {
-        const n = parseFloat(cur);
-        if (!Number.isNaN(n)) return n;
-    }
-    const leg = parseFloat(inv?.total_amount_tl);
-    return Number.isNaN(leg) ? '' : leg;
+    const cur = parseFloat(inv?.payable_amount_cur);
+    if (Number.isFinite(cur) && cur > 0) return cur;
+    // Fallback: eski kayıt — doğru kolon adı payable_amount_tl
+    const tl = parseFloat(inv?.payable_amount_tl);
+    const rate = invCalculationRate(inv);
+    if (Number.isFinite(tl) && rate > 0) return Math.round((tl / rate) * 100) / 100;
+    return '';
 }
 
 /**
@@ -1264,7 +1259,7 @@ function renderCurrentView() {
     // C. Kullanıcının Seçtiği Filtreleri Yakalayalım
     const companySelected = document.getElementById('filterCompany').value;
     const currencySelected = normalizeCurrencyCode(document.getElementById('filterCurrency').value);
-    const searchText = document.getElementById('mainSearch').value.toLowerCase();
+    const searchText = document.getElementById('mainSearch').value.toLocaleLowerCase('tr-TR');
 
     // Seçimlere göre faturaları bir kez daha elekten geçiriyoruz
     filteredInvoices = filteredInvoices.filter(inv => {
@@ -1278,8 +1273,8 @@ function renderCurrentView() {
         const invoiceCurrency = normalizeCurrencyCode(inv.currency);
         const matchCurrency = !currencySelected || invoiceCurrency === currencySelected;
         const matchSearch = !searchText ||
-            (inv.companies?.name && inv.companies.name.toLowerCase().includes(searchText)) ||
-            (inv.invoice_no && inv.invoice_no.toLowerCase().includes(searchText));
+            (inv.companies?.name && inv.companies.name.toLocaleLowerCase('tr-TR').includes(searchText)) ||
+            (inv.invoice_no && inv.invoice_no.toLocaleLowerCase('tr-TR').includes(searchText));
 
         // 2- Ödeme Durumu Filtresi
         const valStatus = (inv.status || 'unpaid').toLowerCase();
@@ -1326,64 +1321,147 @@ function renderCurrentView() {
 
 
 
-// 🌟 ÖZET KARTLARI MATEMATİK MOTORU
+// ─── ÖZET PROGRESS BARLARI ───────────────────────────────────────────────────
+
+// Fatura listesindeki tüm faturaları para birimine göre gruplar ve
+// her para birimi için ödenen / kalan ilerleme barını çizer.
 function updateSummaryCards(invoices) {
-    // Sekmeye göre başlıklar değişir, hesap motoru aynıdır.
-    const isIncomingView = currentView === 'gelen';
-    document.getElementById('stat-label-total').innerText = isIncomingView ? 'Toplam Borç' : 'Toplam Alacak';
-    document.getElementById('stat-label-monthly').innerText = isIncomingView ? 'Bu Ay Ödenecek' : 'Bu Ay Alacak';
-    document.getElementById('stat-label-overdue').innerText = 'Vadesi Geçmiş';
-    document.getElementById('stat-label-paid').innerText = isIncomingView ? 'Toplam Ödenen' : 'Tahsil Edilen';
+    const container = document.getElementById('summaryCardsContainer');
+    if (!container) return;
 
-    let totalDebt = 0;
-    let monthlyDebt = 0;
-    let overdueDebt = 0;
-    let totalPaid = 0;
+    const isIncoming = currentView === 'gelen';
 
-    let overdueCount = 0;
-    let paidCount = 0;
-
-    const uniqueCompanies = new Set();
+    // Para birimine göre toplamları hesapla: { TRY: {payable, paid, count}, USD: {...}, ... }
+    const byCurrency = {};
     invoices.forEach(inv => {
-        const total = invPayableAmountTl(inv);
-        const paid = parseFloat(inv.paid_amount) || 0;
-        const status = (inv.status || 'unpaid').toLowerCase();
-        const remaining = Math.max(total - paid, 0);
+        const iso     = invBaseCurrencyIso(inv);    // "TRY" | "USD" | "EUR" ...
+        const payable = invPayableAmountSrc(inv);   // kaynak para biriminde toplam
+        const paid    = invPaidAmountSrc(inv);      // kaynak para biriminde ödenen
 
-        // Kalan borç varsa borç kartlarına yansıt
-        if (remaining > 0) {
-            totalDebt += remaining;
-            if (inv.companies?.name) uniqueCompanies.add(inv.companies.name);
-        }
-
-        // Ödenen toplam: kısmi + tam ödemelerin tamamı
-        if (paid > 0) {
-            totalPaid += paid;
-        }
-
-        // Kaç fatura tamamen kapandı?
-        if (status === 'paid') {
-            paidCount++;
-        }
+        if (!byCurrency[iso]) byCurrency[iso] = { payable: 0, paid: 0, count: 0 };
+        byCurrency[iso].payable += payable;
+        byCurrency[iso].paid    += Math.min(paid, payable); // fazla ödemeyi kırp
+        byCurrency[iso].count   += 1;
     });
 
-    // 💰 Sayıları şık bir TL formatına çevirme aracı
-    const formatTL = (num) => Number(num).toLocaleString('tr-TR', { style: 'currency', currency: 'TRY' });
+    container.innerHTML = ''; // önceki barları temizle
 
-    // 🎯 Bulunan değerleri HTML'deki kimliklere (ID) fırlat!
-    document.getElementById('stat-total-debt').innerText = formatTL(totalDebt);
-    document.getElementById('stat-supplier-count').innerText = isIncomingView
-        ? `${uniqueCompanies.size} Tedarikçi`
-        : `${uniqueCompanies.size} Müşteri`;
+    // Görüntüleme sırası: TRY önce, ardından alfabetik dövizler
+    const preferredOrder = ['TRY', 'USD', 'EUR'];
+    const allIsos = [...new Set([...preferredOrder, ...Object.keys(byCurrency)])];
+    const visibleIsos = allIsos.filter(iso => byCurrency[iso] && byCurrency[iso].count > 0);
 
-    document.getElementById('stat-monthly-debt').innerText = formatTL(monthlyDebt);
+    if (visibleIsos.length === 0) {
+        container.innerHTML = '<p style="color:#94a3b8; font-size:13px; margin:0;">Gösterilecek fatura yok.</p>';
+        return;
+    }
 
-    document.getElementById('stat-overdue').innerText = formatTL(overdueDebt);
-    document.getElementById('stat-overdue-count').innerText = `${overdueCount} Fatura`;
-
-    document.getElementById('stat-paid').innerText = formatTL(totalPaid);
-    document.getElementById('stat-paid-count').innerText = `${paidCount} Fatura`;
+    visibleIsos.forEach(iso => {
+        const { payable, paid } = byCurrency[iso];
+        const remaining = Math.max(payable - paid, 0);
+        container.appendChild(buildProgressBar(iso, paid, remaining, payable, isIncoming));
+    });
 }
+
+// Para birimi etiketini döndürür: TRY → "TL", USD → "USD" ...
+function _isoLabel(iso) { return iso === 'TRY' ? 'TL' : iso; }
+
+// Sayıyı formatlı string'e çevirir
+function _fmtAmount(num, iso) {
+    const n = Number(num) || 0;
+    if (iso === 'TRY') return n.toLocaleString('tr-TR', { style: 'currency', currency: 'TRY' });
+    return `${n.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${_isoLabel(iso)}`;
+}
+
+// Tek bir progress bar HTML elementi oluşturur ve döndürür
+function buildProgressBar(iso, paid, remaining, total, isIncoming) {
+    const label   = _isoLabel(iso);
+    const paidPct = total > 0 ? Math.round((paid / total) * 100) : 0;
+    const remPct  = 100 - paidPct;
+
+    // Başlık: gelen = borç/ödenen, giden = alacak/tahsil
+    const titlePaid = isIncoming ? 'Ödenen' : 'Tahsil Edilen';
+    const titleRem  = isIncoming ? 'Kalan Borç' : 'Kalan Alacak';
+
+    const wrapper = document.createElement('div');
+    wrapper.style.cssText = `
+        background: #ffffff;
+        border: 1px solid #e2e8f0;
+        border-radius: 14px;
+        padding: 16px 20px;
+        box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+    `;
+
+    // Para birimi başlığı
+    const heading = document.createElement('div');
+    heading.style.cssText = 'display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;';
+    heading.innerHTML = `
+        <span style="font-size:13px; font-weight:800; color:#64748b; letter-spacing:0.5px;">${label}</span>
+        <span style="font-size:12px; color:#94a3b8;">${isIncoming ? 'Toplam' : 'Toplam Alacak'}: ${_fmtAmount(total, iso)}</span>
+    `;
+    wrapper.appendChild(heading);
+
+    // Progress bar gövdesi
+    const barWrap = document.createElement('div');
+    barWrap.style.cssText = `
+        display: flex;
+        height: 28px;
+        border-radius: 8px;
+        overflow: hidden;
+        background: #f1f5f9;
+    `;
+
+    // Ödenen (yeşil) dilim — sıfırsa gösterme
+    if (paid > 0) {
+        const paidBar = document.createElement('div');
+        paidBar.style.cssText = `
+            width: ${paidPct}%;
+            background: linear-gradient(90deg, #16a34a, #22c55e);
+            transition: width 0.5s ease;
+            min-width: ${paid > 0 ? '4px' : '0'};
+        `;
+        barWrap.appendChild(paidBar);
+    }
+
+    // Kalan (kırmızı) dilim — sıfırsa gösterme
+    if (remaining > 0) {
+        const remBar = document.createElement('div');
+        remBar.style.cssText = `
+            width: ${remPct}%;
+            background: linear-gradient(90deg, #f87171, #ef4444);
+            transition: width 0.5s ease;
+            min-width: ${remaining > 0 ? '4px' : '0'};
+        `;
+        barWrap.appendChild(remBar);
+    }
+
+    // Tamamen ödenmişse tüm bar yeşil
+    if (paid > 0 && remaining === 0) {
+        barWrap.innerHTML = '';
+        const fullBar = document.createElement('div');
+        fullBar.style.cssText = 'width:100%; background:linear-gradient(90deg,#16a34a,#22c55e); border-radius:8px;';
+        barWrap.appendChild(fullBar);
+    }
+
+    wrapper.appendChild(barWrap);
+
+    // Sayılar: solda ödenen (yeşil), sağda kalan (kırmızı)
+    const labels = document.createElement('div');
+    labels.style.cssText = 'display:flex; justify-content:space-between; margin-top:10px;';
+    labels.innerHTML = `
+        <span style="font-size:13px; font-weight:700; color:#16a34a;">
+            ✓ ${titlePaid}: ${_fmtAmount(paid, iso)}
+        </span>
+        <span style="font-size:13px; font-weight:700; color:#ef4444;">
+            ✕ ${titleRem}: ${_fmtAmount(remaining, iso)}
+        </span>
+    `;
+    wrapper.appendChild(labels);
+
+    return wrapper;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 
 
 
@@ -1458,10 +1536,11 @@ function renderInvoiceTable(invoices) {
         row.style.cursor = "pointer";
         row.onclick = () => viewInvoiceDetails(inv.id);
 
-        // Durum butonunun rengini ayarlamak
+        // Durum butonunun rengini ayarlamak (DB lowercase veya Capitalize olabilir → normalize et)
+        const normStatus = (inv.status || '').toLowerCase();
         let statusHtml = '<span class="status-badge warning">Ödenmedi</span>';
-        if (inv.status === 'paid') statusHtml = '<span class="status-badge success">Ödendi</span>';
-        else if (inv.status === 'partial') statusHtml = '<span class="status-badge info">Kısmi</span>';
+        if (normStatus === 'paid') statusHtml = '<span class="status-badge success">Ödendi</span>';
+        else if (normStatus === 'partial') statusHtml = '<span class="status-badge info">Kısmi</span>';
 
         const netSrc = invNetAmountSrc(inv);
         const taxSrc = invTaxAmountSrc(inv);
@@ -1517,6 +1596,256 @@ function closeInvoiceDetailModal() {
     document.getElementById('invoiceDetailModal').style.display = 'none';
 }
 
+// ─── ÖDEME GEÇMİŞİ FONKSİYONLARI ────────────────────────────────────────────
+
+// Fatura için API'den ödeme geçmişini çekip tabloya yazar; sol panel özetini de günceller
+async function loadInvoicePayments(inv) {
+    const tbody = document.getElementById('detail_payments_body');
+    if (!tbody) return;
+
+    tbody.innerHTML = '<tr><td colspan="6" style="padding:16px; text-align:center; color:#94a3b8;">Yükleniyor...</td></tr>';
+
+    try {
+        const res = await fetch(`/api/invoices/${inv.id}/payments`);
+        const payments = await res.json();
+        renderPaymentRows(payments, inv);
+        updateDetailModalSummary(payments, inv); // sol panel: toplam ödenen / kalan / durum
+    } catch (err) {
+        tbody.innerHTML = '<tr><td colspan="6" style="padding:16px; text-align:center; color:#ef4444;">Ödemeler yüklenemedi.</td></tr>';
+    }
+}
+
+// Sol paneli (TOPLAM ÖDENEN, KALAN BORÇ, Durum badge) API'den gelen ödemelerle günceller
+function updateDetailModalSummary(payments, inv) {
+    const totalPayable = invPayableAmountSrc(inv);
+    const totalPaid    = (payments || []).reduce((s, p) => s + (parseFloat(p.amount) || 0), 0);
+    const remaining    = Math.max(0, totalPayable - totalPaid);
+    const currLabel    = invDisplayCurrencyLabel(inv);
+    const fmt          = n => n.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+    const elPaid      = document.getElementById('detail_paid');
+    const elRemaining = document.getElementById('detail_remaining');
+    const elStatus    = document.getElementById('detail_status');
+    if (!elPaid || !elRemaining) return;
+
+    elPaid.innerText      = `${fmt(totalPaid)} ${currLabel}`;
+    elRemaining.innerText = `${fmt(remaining)} ${currLabel}`;
+
+    // Durum badge: sadece kelime, tutar yok (tutar zaten TOPLAM ÖDENEN'de görünüyor)
+    if (elStatus) {
+        if (totalPaid > 0 && totalPaid >= totalPayable) {
+            elStatus.innerHTML = '<span style="color:#16a34a; font-weight:700; background:#dcfce7; padding:4px 12px; border-radius:12px; font-size:13px;">✓ Ödendi</span>';
+        } else if (totalPaid > 0) {
+            elStatus.innerHTML = '<span style="color:#d97706; font-weight:700; background:#fef3c7; padding:4px 12px; border-radius:12px; font-size:13px;">◑ Kısmi</span>';
+        } else {
+            elStatus.innerHTML = '<span style="color:#ef4444; font-weight:700; background:#fee2e2; padding:4px 12px; border-radius:12px; font-size:13px;">✕ Ödenmedi</span>';
+        }
+    }
+}
+
+// Ödeme satırlarını tabloya yazar; her satırda o ödeme sonrasındaki kalan borcu gösterir
+function renderPaymentRows(payments, inv) {
+    const tbody = document.getElementById('detail_payments_body');
+    const totalPayable = invPayableAmountSrc(inv);
+    const currLabel    = invDisplayCurrencyLabel(inv);
+    const fmt          = n => n.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+    if (!payments || payments.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="6" style="padding:20px; text-align:center; color:#94a3b8;">Henüz ödeme kaydı yok.</td></tr>';
+        return;
+    }
+
+    tbody.innerHTML = '';
+    let cumulative = 0;
+
+    payments.forEach((p, i) => {
+        cumulative += parseFloat(p.amount) || 0;
+        const remaining = Math.max(0, totalPayable - cumulative);
+        const tr = document.createElement('tr');
+        tr.id = `pay-row-${p.id}`;
+        tr.style.borderBottom = '1px solid #f1f5f9';
+        if (i % 2 !== 0) tr.style.background = '#f8fafc';
+
+        // Görüntüleme modu (düzenleme kapalı)
+        tr.innerHTML = `
+            <td style="padding:10px 14px; color:#374151;">
+                ${new Date(p.payment_date + 'T00:00:00').toLocaleDateString('tr-TR')}
+            </td>
+            <td style="padding:10px 14px; text-align:right; font-weight:700; color:#16a34a;">
+                ${fmt(parseFloat(p.amount))} ${currLabel}
+            </td>
+            <td style="padding:10px 14px; text-align:right; font-weight:700; color:${remaining > 0 ? '#e11d48' : '#16a34a'};">
+                ${fmt(remaining)} ${currLabel}
+            </td>
+            <td style="padding:10px 14px; color:#64748b; font-size:12px;">
+                ${p.notes ? p.notes.replace(/</g,'&lt;') : '—'}
+            </td>
+            <td style="padding:10px 14px; text-align:center; white-space:nowrap;">
+                <button onclick="togglePaymentEdit('${p.id}','${inv.id}','${p.payment_date}',${parseFloat(p.amount)},'${(p.notes||'').replace(/'/g,"\\'")}')"
+                    title="Düzenle"
+                    style="background:#dbeafe; color:#2563eb; border:none; border-radius:6px; padding:4px 8px; font-size:12px; cursor:pointer; margin-right:4px;">
+                    ✏️
+                </button>
+                <button onclick="deletePayment('${p.id}','${inv.id}')"
+                    title="Ödemeyi sil"
+                    style="background:#fee2e2; color:#ef4444; border:none; border-radius:6px; padding:4px 8px; font-size:12px; cursor:pointer;">
+                    🗑️
+                </button>
+            </td>
+        `;
+        tbody.appendChild(tr);
+    });
+}
+
+// Satırı inline düzenleme moduna geçirir (mevcut değerler inputlara yüklenir)
+function togglePaymentEdit(payId, invoiceId, currentDate, currentAmount, currentNotes) {
+    const tr = document.getElementById(`pay-row-${payId}`);
+    if (!tr) return;
+
+    const today = new Date().toISOString().slice(0, 10);
+
+    tr.innerHTML = `
+        <td style="padding:6px 8px;">
+            <input type="date" id="edit_date_${payId}" value="${currentDate}" max="${today}"
+                style="padding:5px 8px; border:1px solid #7dd3fc; border-radius:6px; font-size:13px; width:130px;">
+        </td>
+        <td style="padding:6px 8px;">
+            <input type="number" id="edit_amount_${payId}" value="${currentAmount}" step="0.01" min="0.01"
+                style="padding:5px 8px; border:1px solid #7dd3fc; border-radius:6px; font-size:13px; width:100px;">
+        </td>
+        <td style="padding:6px 8px; color:#94a3b8; font-size:12px; text-align:center;">—</td>
+        <td style="padding:6px 8px;">
+            <input type="text" id="edit_notes_${payId}" value="${currentNotes}"
+                style="padding:5px 8px; border:1px solid #7dd3fc; border-radius:6px; font-size:13px; width:100%;">
+        </td>
+        <td style="padding:6px 8px; text-align:center; white-space:nowrap;">
+            <button onclick="savePaymentEdit('${payId}','${invoiceId}')"
+                style="background:#0ea5e9; color:white; border:none; border-radius:6px; padding:5px 10px; font-size:12px; cursor:pointer; margin-right:4px;">
+                💾 Kaydet
+            </button>
+            <button onclick="loadInvoicePayments(allInvoicesCache.find(i=>i.id==='${invoiceId}'))"
+                style="background:#f1f5f9; color:#64748b; border:1px solid #e2e8f0; border-radius:6px; padding:5px 8px; font-size:12px; cursor:pointer;">
+                ✕
+            </button>
+        </td>
+    `;
+}
+
+// Düzenlenen ödemeyi kaydeder
+async function savePaymentEdit(payId, invoiceId) {
+    const dateVal   = document.getElementById(`edit_date_${payId}`)?.value;
+    const amountVal = parseFloat(document.getElementById(`edit_amount_${payId}`)?.value);
+    const notesVal  = document.getElementById(`edit_notes_${payId}`)?.value?.trim() || '';
+
+    const today = new Date().toISOString().slice(0, 10);
+    if (!dateVal)              { alert('Lütfen tarih girin.');           return; }
+    if (dateVal > today)       { alert('Gelecek tarihe ödeme eklenemez.'); return; }
+    if (!amountVal || amountVal <= 0) { alert('Geçerli bir tutar girin.'); return; }
+
+    const inv = allInvoicesCache.find(i => i.id === invoiceId);
+
+    try {
+        const res = await fetch(`/api/payments/${payId}`, {
+            method:  'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body:    JSON.stringify({ amount: amountVal, payment_date: dateVal, notes: notesVal })
+        });
+        const result = await res.json();
+        if (!res.ok) throw new Error(result.error || 'Güncellenemedi.');
+
+        if (inv) {
+            loadInvoicePayments(inv);
+            refreshData(true); // ana listeyi de güncelle
+        }
+    } catch (err) {
+        alert('Hata: ' + err.message);
+    }
+}
+
+// Yeni ödeme formdaki değerleri okuyup API'ye gönderir, sonra sayfayı günceller
+async function saveNewPayment(inv) {
+    const dateVal   = document.getElementById('pay_date')?.value;
+    const amountVal = parseFloat(document.getElementById('pay_amount')?.value);
+    const notesVal  = document.getElementById('pay_notes')?.value?.trim() || '';
+
+    // Gelecek tarih engeli
+    const today = new Date().toISOString().slice(0, 10);
+    if (!dateVal)              { alert('Lütfen ödeme tarihini seçin.'); return; }
+    if (dateVal > today)       { alert('Gelecek tarihe ödeme eklenemez. Bugün veya geçmiş bir tarih seçin.'); return; }
+    if (!amountVal || amountVal <= 0) { alert('Lütfen geçerli bir tutar girin.'); return; }
+
+    // Toplam aşım kontrolü: mevcut ödemelerin toplamı + yeni tutar fatura toplamını geçemez
+    const totalPayable  = invPayableAmountSrc(inv);
+    const currentPaid   = (parseFloat(inv.paid_amount_cur) || 0); // backend son halden gelir, cache'de
+    const afterThisPay  = currentPaid + amountVal;
+    if (afterThisPay > totalPayable) {
+        const currLabel = invDisplayCurrencyLabel(inv);
+        const remaining = totalPayable - currentPaid;
+        alert(
+            `⚠️ Fatura toplamı aşılıyor!\n\n` +
+            `Fatura toplamı : ${totalPayable.toLocaleString('tr-TR', {minimumFractionDigits:2})} ${currLabel}\n` +
+            `Şimdiye kadar ödenen : ${currentPaid.toLocaleString('tr-TR', {minimumFractionDigits:2})} ${currLabel}\n` +
+            `Girebileceğiniz maksimum : ${remaining.toLocaleString('tr-TR', {minimumFractionDigits:2})} ${currLabel}`
+        );
+        return;
+    }
+
+    // Para birimi: faturanın gösterim para birimi (USD, EUR, TRY vs.)
+    const currency = invBaseCurrencyIso(inv);
+
+    try {
+        const res = await fetch('/api/payments', {
+            method:  'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body:    JSON.stringify({ invoice_id: inv.id, amount: amountVal, currency, payment_date: dateVal, notes: notesVal })
+        });
+        const result = await res.json();
+        if (!res.ok) throw new Error(result.error || 'Ödeme kaydedilemedi.');
+
+        // Formu gizle
+        document.getElementById('newPaymentForm').style.display = 'none';
+
+        // Cache'deki faturayı optimistik olarak güncelle (UI anında tepki versin)
+        const cached = allInvoicesCache.find(i => i.id === inv.id);
+        if (cached) {
+            cached.paid_amount_cur = (parseFloat(cached.paid_amount_cur) || 0) + amountVal;
+            cached.paid_amount     = cached.paid_amount_cur;
+        }
+
+        // Ödeme tablosunu ve sol paneli yenile (API'den gerçek veriyle)
+        await loadInvoicePayments(inv);
+
+        // Ana tablo da güncellensin (backend paid_amount ve status'ü değiştirdi)
+        refreshData(true);
+
+    } catch (err) {
+        alert('Hata: ' + err.message);
+    }
+}
+
+// Belirtilen ödeme kaydını siler, tablo ve özeti günceller
+async function deletePayment(paymentId, invoiceId) {
+    if (!confirm('Bu ödeme kaydı silinsin mi?')) return;
+
+    try {
+        const res = await fetch(`/api/payments/${paymentId}`, { method: 'DELETE' });
+        const result = await res.json();
+        if (!res.ok) throw new Error(result.error || 'Silinemedi.');
+
+        // Ödeme listesini ve sol paneli güncelle
+        const inv = allInvoicesCache.find(i => i.id === invoiceId);
+        if (inv) await loadInvoicePayments(inv);
+
+        // Ana tablo da yenile
+        refreshData(true);
+
+    } catch (err) {
+        alert('Hata: ' + err.message);
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+
 function viewInvoiceDetails(id) {
     const inv = allInvoicesCache.find(i => i.id === id);
     if (!inv) return;
@@ -1550,16 +1879,26 @@ function viewInvoiceDetails(id) {
     document.getElementById('detail_paid').innerText = formatMoneyDisplay(inv, paidAmountSrc);
     document.getElementById('detail_remaining').innerText = formatMoneyDisplay(inv, invRemainingAmountSrc(inv));
 
-    document.getElementById('detail_kur').innerText = (inv.calculation_rate != null || inv.exchange_rate != null)
+    // TL faturalarda kur gösteriminin anlamı yok → '-'
+    const isTRYInvoice = invBaseCurrencyIso(inv) === 'TRY';
+    const hasRate      = inv.calculation_rate != null || inv.exchange_rate != null;
+    document.getElementById('detail_kur').innerText = (!isTRYInvoice && hasRate)
         ? `1 ${invDisplayCurrencyLabel(inv)} = ${invCalculationRate(inv).toLocaleString('tr-TR')} ${tgtLabel}`
         : '-';
     document.getElementById('detail_notes').innerText = inv.notes || 'Not bulunmuyor.';
 
-    // Ödeme Durumunu Şık Balonlara Çevir (Oval)
-    let sHtml = '<span style="color:#ef4444; font-weight:700; background:#fee2e2; padding:4px 10px; border-radius:12px;">Ödenmedi</span>';
-    if (inv.status === 'paid') sHtml = '<span style="color:#16a34a; font-weight:700; background:#dcfce7; padding:4px 10px; border-radius:12px;">Ödendi</span>';
-    else if (inv.status === 'partial') sHtml = `<span style="color:#d97706; font-weight:700; background:#fef3c7; padding:4px 10px; border-radius:12px;">Kısmi (${formatMoneyDisplay(inv, paidAmountSrc)})</span>`;
-    document.getElementById('detail_status').innerHTML = sHtml;
+    // Durum badge'ini cache'deki anlık değerle hemen göster (API cevabı gelince updateDetailModalSummary günceller)
+    const elStatusInit = document.getElementById('detail_status');
+    if (elStatusInit) {
+        const ns = (inv.status || '').toLowerCase();
+        if (ns === 'paid') {
+            elStatusInit.innerHTML = '<span style="color:#16a34a; font-weight:700; background:#dcfce7; padding:4px 12px; border-radius:12px; font-size:13px;">✓ Ödendi</span>';
+        } else if (ns === 'partial') {
+            elStatusInit.innerHTML = '<span style="color:#d97706; font-weight:700; background:#fef3c7; padding:4px 12px; border-radius:12px; font-size:13px;">◑ Kısmi</span>';
+        } else {
+            elStatusInit.innerHTML = '<span style="color:#ef4444; font-weight:700; background:#fee2e2; padding:4px 12px; border-radius:12px; font-size:13px;">✕ Ödenmedi</span>';
+        }
+    }
 
     // 📦 YENİ: ÜRÜNLER (Line Items) TABLOSUNU ÇİZME
     const tbody = document.getElementById('detail_items_body');
@@ -1587,6 +1926,42 @@ function viewInvoiceDetails(id) {
         });
     } else {
         tbody.innerHTML = `<tr><td colspan="6" style="padding:20px; text-align:center; color:#94a3b8; font-style:italic;">Bu faturaya ait ürün detayı bulunamadı. (Faturayı Yenile'ye basarak yeni veriyi çekebilirsin)</td></tr>`;
+    }
+
+    // Ödeme geçmişini API'den çek ve sağ sütuna render et
+    loadInvoicePayments(inv);
+
+    // "Yeni Ödeme Ekle" butonuna tıklayınca formu aç/kapat
+    const btnAdd = document.getElementById('btnAddPayment');
+    if (btnAdd) {
+        btnAdd.onclick = () => {
+            const form = document.getElementById('newPaymentForm');
+            const isVisible = form.style.display !== 'none';
+            form.style.display = isVisible ? 'none' : 'flex';
+            // Varsayılan tarih: bugün; max da bugün (gelecek tarih girilemez)
+            if (!isVisible) {
+                const today = new Date().toISOString().slice(0, 10);
+                const payDateEl = document.getElementById('pay_date');
+                payDateEl.value = today;
+                payDateEl.max   = today;
+                document.getElementById('pay_amount').value = '';
+                document.getElementById('pay_notes').value = '';
+            }
+        };
+    }
+
+    // "Kaydet" butonuna tıklayınca ödemeyi kaydet
+    const btnSave = document.getElementById('btnSavePayment');
+    if (btnSave) {
+        btnSave.onclick = () => saveNewPayment(inv);
+    }
+
+    // "İptal" butonuna tıklayınca formu gizle
+    const btnCancel = document.getElementById('btnCancelPayment');
+    if (btnCancel) {
+        btnCancel.onclick = () => {
+            document.getElementById('newPaymentForm').style.display = 'none';
+        };
     }
 
     document.getElementById('invoiceDetailModal').style.display = 'flex';
@@ -1622,36 +1997,9 @@ async function saveInvoiceToDatabase(e) {
     }
     const invoiceId = document.getElementById('f_id')?.value;
 
-    // --- Payment: formda tutarlar kaynak para (SourceCurrency); DB'de paid_amount = TL ---
-    const statusEl = document.getElementById('f_status');
-    const paidEl = document.getElementById('f_paid');
-
-    const status = (statusEl?.value || 'unpaid').toLowerCase();
+    // Ödeme durumu artık payments tablosundan otomatik hesaplanıyor.
+    // Düzenle formunda yalnızca fatura bilgileri (tarih, ürünler, kur vs.) güncellenir.
     const fin = readInvoiceFinancialsFromForm();
-    const totalPayableTl = fin.payable_amount_tl;
-    const rawTotal = parseFloat(document.getElementById('f_total')?.value);
-    const payableSrc = (Number.isFinite(rawTotal) && rawTotal > 0)
-        ? rawTotal
-        : (fin.payable_amount_cur > 0 ? fin.payable_amount_cur : totalPayableTl / fin.calculation_rate);
-    let paidSrc = parseFloat(paidEl?.value) || 0;
-
-    if (status === 'unpaid') {
-        paidSrc = 0;
-    } else if (status === 'paid') {
-        paidSrc = payableSrc;
-    } else if (status === 'partial') {
-        if (paidSrc <= 0 || paidSrc >= payableSrc) {
-            alert("Kısmi ödeme için tutar 0'dan büyük ve genel toplamdan küçük olmalı (kaynak para).");
-            return;
-        }
-    }
-
-    const paidAmount = paidSrc * fin.calculation_rate;
-
-    if (paidAmount - totalPayableTl > 0.01) {
-        alert("Ödenen tutar, fatura toplamının TL karşılığını aşamaz.");
-        return;
-    }
 
     const formCurrency = document.getElementById('f_currency')?.value?.trim() || 'TL';
 
@@ -1686,8 +2034,7 @@ async function saveInvoiceToDatabase(e) {
     if (invoiceId) {
         const updatePayload = {
             invoice: {
-                status: status,
-                paid_amount: paidAmount,
+                // status ve paid_amount güncellenmez — payments tablosundan otomatik hesaplanıyor
                 due_date: document.getElementById('f_due_date')?.value || null,
                 notes: document.getElementById('f_notes')?.value || '',
                 invoice_type: document.getElementById('f_type')?.value || 'Ticari',
@@ -1765,8 +2112,10 @@ async function saveInvoiceToDatabase(e) {
         invoice_type: document.getElementById('f_type')?.value || 'Ticari',
         invoice_date: document.getElementById('f_date')?.value || null,
         due_date: document.getElementById('f_due_date')?.value || null,
-        status: status,
-        paid_amount: paidAmount,
+        // Yeni fatura başlangıçta 'unpaid', ödemeler payments tablosundan yönetilir
+        status: 'unpaid',
+        paid_amount: 0,
+        paid_amount_cur: 0,
         notes: document.getElementById('f_notes')?.value || ''
     };
 
@@ -1931,6 +2280,30 @@ async function fetchTCMBKur() {
 
 
 
+// Tüm line item satırlarını okuyup f_net / f_tax / f_total alanlarını günceller.
+// readonly sadece kullanıcı girişini engeller; JS ile .value atamak her zaman çalışır.
+function recalcInvoiceTotalsFromLines() {
+    const rows = document.querySelectorAll('#lineItemsBody tr');
+    let totalNet = 0;
+    let totalTax = 0;
+
+    rows.forEach(row => {
+        const qty      = parseFloat(row.querySelector('td:nth-child(3) input[type="number"]')?.value) || 0;
+        const price    = parseFloat(row.querySelector('td:nth-child(4) input[type="number"]')?.value) || 0;
+        const taxRate  = parseFloat(row.querySelector('.tax-rate-val')?.value) || 0;
+        const lineNet  = qty * price;
+        totalNet += lineNet;
+        totalTax += lineNet * taxRate / 100;
+    });
+
+    const netEl   = document.getElementById('f_net');
+    const taxEl   = document.getElementById('f_tax');
+    const totalEl = document.getElementById('f_total');
+    if (netEl)   netEl.value   = totalNet.toFixed(2);
+    if (taxEl)   taxEl.value   = totalTax.toFixed(2);
+    if (totalEl) totalEl.value = (totalNet + totalTax).toFixed(2);
+}
+
 function addLineItem(desc = '', qty = 1, price = 0, total = 0, taxRate = 20, sku = '') {
     const row = document.createElement('tr');
     row.innerHTML = `
@@ -1943,25 +2316,28 @@ function addLineItem(desc = '', qty = 1, price = 0, total = 0, taxRate = 20, sku
             <input type="checkbox" class="internal-toggle" title="Şirket İçi Kullanım (Sarf)">
             <input type="hidden" class="tax-rate-val" value="${taxRate}">
         </td>
-        <td><button type="button" class="btn-text" onclick="this.closest('tr').remove()" style="color:var(--danger)">✕</button></td>
+        <td><button type="button" class="btn-text" onclick="this.closest('tr').remove(); recalcInvoiceTotalsFromLines();" style="color:var(--danger)">✕</button></td>
     `;
-    const skuInput = row.querySelector('.line-sku-val');
+    const skuInput   = row.querySelector('.line-sku-val');
     if (skuInput) skuInput.value = String(sku ?? '').trim();
-    const qtyInput = row.querySelector('td:nth-child(3) input[type="number"]');
+    const qtyInput   = row.querySelector('td:nth-child(3) input[type="number"]');
     const priceInput = row.querySelector('td:nth-child(4) input[type="number"]');
     const totalInput = row.querySelector('td:nth-child(5) input[type="number"]');
 
     const recalcLineTotal = () => {
-        const qtyVal = parseFloat(qtyInput?.value) || 0;
+        const qtyVal   = parseFloat(qtyInput?.value)   || 0;
         const priceVal = parseFloat(priceInput?.value) || 0;
         totalInput.value = (qtyVal * priceVal).toFixed(2);
+        // Satır değişince fatura genel toplamlarını da güncelle
+        recalcInvoiceTotalsFromLines();
     };
 
     qtyInput?.addEventListener('input', recalcLineTotal);
     priceInput?.addEventListener('input', recalcLineTotal);
-    recalcLineTotal();
 
+    // Satırı önce DOM'a ekle, sonra hesapla — yoksa recalcInvoiceTotalsFromLines bu satırı göremez
     document.getElementById('lineItemsBody').appendChild(row);
+    recalcLineTotal();
 }
 
 
@@ -1974,20 +2350,32 @@ function addLineItem(desc = '', qty = 1, price = 0, total = 0, taxRate = 20, sku
 
 function showXmlSuccess(firma, vkn) {
     const previewPane = document.getElementById('previewPane');
+    // Tek satır koyu şerit: firma adı + VKN + kaldır butonu
     previewPane.innerHTML = `
-        <div class="xml-data-view">
-            <div class="xml-tag-group">
-                <h4>✅ Dosya Doğrulandı</h4>
-                <p><strong>Firma:</strong> ${firma}</p>
-                <p><strong>VKN:</strong> ${vkn}</p>
-            </div>
-            <div class="xml-tag-group">
-                <h4>🔍 Veri Aktarımı</h4>
-                <p>Tüm ürünler ve tutarlar form alanlarına aktarıldı. Lütfen sağ taraftaki verileri kontrol ederek kaydedin.</p>
-            </div>
-            <button class="btn btn-secondary btn-sm" onclick="closeInvoiceModal()">❌ Dosyayı Kaldır</button>
+        <div style="display:flex; align-items:center; gap:16px; background:#0f172a; border-radius:8px; padding:10px 16px; flex-wrap:wrap;">
+            <span style="color:#4ade80; font-size:15px; flex-shrink:0;">✓</span>
+            <span style="color:#ffffff; font-weight:700; font-size:13px; flex:1; min-width:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${firma}</span>
+            <span style="color:#94a3b8; font-size:12px; flex-shrink:0;">VKN: ${vkn || '—'}</span>
+            <button onclick="resetXmlStrip()"
+                style="background:#ef4444; color:white; border:none; border-radius:6px; padding:5px 12px; font-size:12px; font-weight:600; cursor:pointer; flex-shrink:0;">
+                Dosyayı Kaldır
+            </button>
         </div>
     `;
+}
+
+// Sadece XML şeridini sıfırlar — formu veya modalı kapatmaz
+function resetXmlStrip() {
+    const previewPane = document.getElementById('previewPane');
+    previewPane.innerHTML = `
+        <div id="dropZone" class="upload-box-compact">
+            <input type="file" id="xmlInput" accept=".xml" hidden>
+            <span class="upload-icon-sm">📄</span>
+            <span>UBL-XML ile otomatik doldur (opsiyonel) — sürükleyin veya seçin</span>
+            <button class="btn btn-primary btn-sm" onclick="document.getElementById('xmlInput').click()">Dosya Seç</button>
+        </div>
+        <div id="xmlDataSummary" class="xml-data-view" style="display:none;"></div>`;
+    setupEventListeners(); // dropZone eventlerini yeniden bağla
 }
 
 

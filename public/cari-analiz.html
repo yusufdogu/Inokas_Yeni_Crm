@@ -47,8 +47,13 @@
     </div>
 
     <section class="content-card">
-      <div class="toolbar">
+      <div class="toolbar" style="display:flex; align-items:center; gap:8px;">
         <input type="text" id="companySearch" placeholder="Firma ara...">
+        <button id="btnRefreshAnaliz"
+          title="Sunucudan taze veri çek"
+          style="background:#f1f5f9; border:1px solid #cbd5e1; border-radius:8px; padding:7px 14px; font-size:13px; font-weight:600; color:#475569; cursor:pointer; white-space:nowrap; display:flex; align-items:center; gap:6px;">
+          🔄 Yenile
+        </button>
       </div>
       <div id="companyCardsGrid" class="cards-grid"></div>
       <div id="analysisEmptyState" class="empty-state">Rapor verisi hazırlanıyor...</div>

@@ -1,0 +1,3 @@
+# Railway (Nixpacks): Supabase JS 2.103+ Node 20+ istiyor; build’de 18 seçilmesin.
+[variables]
+NIXPACKS_NODE_VERSION = "20"

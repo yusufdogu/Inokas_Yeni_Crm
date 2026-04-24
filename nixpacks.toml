@@ -1,3 +1,7 @@
 # Railway (Nixpacks): Supabase JS 2.103+ Node 20+ istiyor; build’de 18 seçilmesin.
+# DMO: index.js `spawn('python3', ['app.py'])` kullanıyor — imajda python3 olsun.
 [variables]
 NIXPACKS_NODE_VERSION = "20"
+
+[phases.setup]
+nixPkgs = ["python3"]

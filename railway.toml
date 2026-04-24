@@ -1,6 +1,7 @@
 [build]
 builder = "NIXPACKS"
-buildCommand = "npm install"
+# Node deps + DMO (app.py) Python deps — aksi halde spawn python3 veya import hata verir
+buildCommand = "npm install && python3 -m pip install --no-cache-dir -r requirements.txt"
 
 [deploy]
 startCommand = "npm start"

@@ -68,14 +68,31 @@ def extract_data(pdf_file):
         results["satinalma_siparis_no"] = m.group(1) if m else None
 
         # ── PAGE 2 ──────────────────────────────────────────────────────────
-        # 6. Table
-        table = pdf.pages[1].extract_table()
-        if table:
-            table = [[clean_cell(cell) for cell in row] for row in table]
+        tables = pdf.pages[1].extract_tables()
+
+        # ── TABLE 0: Müşteri block ───────────────────────────────────────────
+        results["musteri_no"] = None
+        results["musteri_adi"] = None
+
+        if tables and len(tables) > 0:
+            musteri_table = tables[0]
+            for row in musteri_table:
+                label = clean_cell(row[0]) or ""
+                value = clean_cell(row[1]) if len(row) > 1 else None
+                if label.startswith("No"):
+                    results["musteri_no"] = value
+                elif label.startswith("Adı"):
+                    results["musteri_adi"] = value
+
+        # ── TABLE 1: Malzeme listesi ─────────────────────────────────────────
+        results["malzeme_tablosu"] = []
+
+        if tables and len(tables) > 1:
+            malzeme_table = [[clean_cell(cell) for cell in row] for row in tables[1]]
 
             header_rows = []
             data_rows = []
-            for row in table:
+            for row in malzeme_table:
                 first_cell = (row[0] or "").strip()
                 if re.match(r"^\d+$", first_cell):
                     data_rows.append(row)
@@ -95,19 +112,13 @@ def extract_data(pdf_file):
             else:
                 merged_header = [f"col_{i}" for i in range(len(data_rows[0]))] if data_rows else []
 
-            # Build list of dicts — no pandas needed
             product_col = "MALZEMENIN CINSI(VARSA MARKA VE MODELI)"
-            rows = []
             for data_row in data_rows:
                 row_dict = dict(zip(merged_header, data_row))
                 val = row_dict.get(product_col) or ""
                 m = re.search(r"EPSON\s+(\S+)", val)
                 row_dict["MALZEME_KODU"] = m.group(1) if m else None
-                rows.append(row_dict)
-
-            results["malzeme_tablosu"] = rows
-        else:
-            results["malzeme_tablosu"] = []
+                results["malzeme_tablosu"].append(row_dict)
 
     return results
 
@@ -374,6 +385,7 @@ def debug_dmo():
         "lists_sample":  lists[:5],
         "spec_content":  spec_content,
     })
+
 
 
 # ── RUN ──────────────────────────────────────────────────────────────────────

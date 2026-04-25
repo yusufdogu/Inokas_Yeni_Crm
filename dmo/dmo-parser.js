@@ -83,7 +83,7 @@ let activePdfIndex  = null;
 async function parseSinglePdf(file) {
     const formData = new FormData();
     formData.append("pdf", file);
-    const res = await fetch("/parse-pdf", { method: "POST", body: formData });
+    const res = await fetch("/api/dmo/parse-pdf", { method: "POST", body: formData });
     if (!res.ok) {
         let message = "Sunucu hatası";
         try {
@@ -1287,7 +1287,7 @@ async function renderStatsCards(orders) {
 async function fetchAndRenderRates() {
     try {
         // TCMB rates
-        const res  = await fetch("/usd-eur-rate");
+        const res  = await fetch("/api/dmo/usd-eur-rate");
         const data = await res.json();
 
         if (data.USD) document.getElementById("stat-usd-rate").textContent    = parseFloat(data.USD).toFixed(2) + " ₺";
@@ -1730,7 +1730,7 @@ async function scrapeDMOPrices() {
     showToast("DMO fiyatları güncelleniyor... Bu işlem ~1 dakika sürebilir", "info");
 
     try {
-        const res = await fetch("/scrape-dmo-prices", {
+        const res = await fetch("/api/dmo/scrape-dmo-prices", {
             method: "POST"
         });
         const data = await res.json();

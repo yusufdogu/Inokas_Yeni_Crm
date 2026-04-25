@@ -8,7 +8,6 @@ import io
 import re
 import pandas as pd
 import pdfplumber
-import requests
 from bs4 import BeautifulSoup
 import time
 import requests
@@ -395,16 +394,13 @@ def debug_dmo():
 # ── RUN ──────────────────────────────────────────────────────────────────────
 
 if __name__ == "__main__":
-    # Node içinden child process olarak çalıştığı için reloader kapalı olmalı.
-    app.run(debug=False, port=5000, use_reloader=False)
+    # host='0.0.0.0' ensures it listens on all available network interfaces within the container
+    app.run(host='0.0.0.0', port=5000, debug=False, use_reloader=False)
 
 
 
 
 
 
-
-import sys
-print(f"Python version: {sys.version}", flush=True)
 
 

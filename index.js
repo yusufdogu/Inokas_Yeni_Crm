@@ -22,7 +22,7 @@ app.use(express.json());
 
 const supabase = createClient(
   process.env.SUPABASE_URL,
-  process.env.SUPABASE_ANON_KEY
+  process.env.SUPABASE_KEY
 );
 
 /** Ana sayfa: static’ten ÖNCE — aksi halde GET / hiç buraya düşmez, toplu XML için VKN enjekte edilemez */
@@ -310,7 +310,7 @@ app.get('/api/stocks/summary', async (req, res) => {
 
     const { data: productRows, error: productErr } = await supabase
       .from('products')
-      .select('product_code, reserved_quantity, gift_quentity');
+      .select('id, product_code, reserved_quantity, gift_quantity');
     if (productErr) throw productErr;
 
     const productByCode = new Map(
@@ -319,8 +319,9 @@ app.get('/api/stocks/summary', async (req, res) => {
         .map((p) => [
           String(p.product_code || '').trim(),
           {
+            id:                p.id,
             reserved_quantity: Number(p.reserved_quantity || 0),
-            gift_quantity: Number(p.gift_quentity || 0)
+            gift_quantity:     Number(p.gift_quantity || 0)
           }
         ])
     );
@@ -449,8 +450,9 @@ app.get('/api/stocks/summary', async (req, res) => {
         fifo_cogs_usd: row.fifo_out_cost_usd,
         fifo_revenue_usd: row.fifo_revenue_usd,
         fifo_gross_profit_usd: row.fifo_gross_profit_usd,
+        product_id:        productMeta?.id || null,
         reserved_quantity: Number(productMeta?.reserved_quantity || 0),
-        gift_quantity: Number(productMeta?.gift_quantity || 0)
+        gift_quantity:     Number(productMeta?.gift_quantity || 0)
       };
     }).sort((a, b) => {
       if (b.current_stock !== a.current_stock) return b.current_stock - a.current_stock;
@@ -544,6 +546,62 @@ app.get('/api/companies/by-vkn', async (req, res) => {
     if (error || !data) return res.status(404).json({ error: 'Firma bulunamadı' });
     res.json(data);
   } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── ÜRÜN DETAY: GET ──────────────────────────────────────────────────────────
+app.get('/api/products/:id', async (req, res) => {
+  try {
+    const id = String(req.params.id || '').trim();
+    if (!id) return res.status(400).json({ error: 'Ürün id zorunlu.' });
+
+    const { data, error } = await supabase
+      .from('products')
+      .select('*')
+      .eq('id', id)
+      .single();
+
+    if (error || !data) return res.status(404).json({ error: 'Ürün bulunamadı.' });
+    res.json(data);
+  } catch (err) {
+    console.error('GET /api/products/:id hatası:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── ÜRÜN GÜNCELLE: PUT ───────────────────────────────────────────────────────
+app.put('/api/products/:id', async (req, res) => {
+  try {
+    const id = String(req.params.id || '').trim();
+    if (!id) return res.status(400).json({ error: 'Ürün id zorunlu.' });
+
+    // Strip read-only fields so they can never be overwritten
+    const {
+      id: _id,
+      created_at,
+      updated_at,
+      dmo_fiyat_updated,
+      ...fields
+    } = req.body || {};
+
+    if (Object.keys(fields).length === 0) {
+      return res.status(400).json({ error: 'Güncellenecek alan bulunamadı.' });
+    }
+
+    fields.updated_at = new Date().toISOString();
+
+    const { data, error } = await supabase
+      .from('products')
+      .update(fields)
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (error) throw error;
+    res.json({ message: 'Ürün güncellendi.', data });
+  } catch (err) {
+    console.error('PUT /api/products/:id hatası:', err.message);
     res.status(500).json({ error: err.message });
   }
 });
@@ -1211,8 +1269,8 @@ function startDmoPythonService() {
     console.warn('DMO Python servisi başlatılmadı: app.py bulunamadı.');
     return;
   }
-
-  dmoPyProcess = spawn('python3', [appPyPath], {
+  const pythonCmd = process.platform === 'win32' ? 'python' : 'python3';
+  dmoPyProcess = spawn(pythonCmd, [appPyPath], {
     cwd: __dirname,
     env: process.env,
     stdio: ['ignore', 'pipe', 'pipe']

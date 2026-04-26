@@ -1,46 +1,30 @@
 // ── API CONFIG ───────────────────────────────────────────────────────────────
 // ── URUNLER LOOKUP ───────────────────────────────────────────────────────────
-const URUNLER = {
-    105809: { urun: "EPSON C13T08H100 WF Enterprise AM-C4000 Black 50k",   maliyet_usd: 107 },
-    105810: { urun: "EPSON C13T08H200 WF Enterprise AM-C4000 Cyan 30k",    maliyet_usd: 107 },
-    105811: { urun: "EPSON C13T08H300 WF Enterprise AM-C4000 Magenta 30k", maliyet_usd: 107 },
-    105812: { urun: "EPSON C13T08H400 WF Enterprise AM-C4000 Yellow 30k",  maliyet_usd: 107 },
-    105813: { urun: "EPSON C13T08G100 WF Enterprise AM-C5000 Black 50k",   maliyet_usd: 107 },
-    105814: { urun: "EPSON C13T08G200 WF Enterprise AM-C5000 Cyan 30k",    maliyet_usd: 107 },
-    105815: { urun: "EPSON C13T08G300 WF Enterprise AM-C5000 Magenta 30k", maliyet_usd: 107 },
-    105816: { urun: "EPSON C13T08G400 WF Enterprise AM-C5000 Yellow 30k",  maliyet_usd: 107 },
-    105817: { urun: "EPSON C13T11E140 WF-C5390/C5890 XXL Black 10k",       maliyet_usd: 36  },
-    105819: { urun: "EPSON C13T11D340 WF-C5390/C5890 XL Magenta 5k",       maliyet_usd: 36  },
-    105820: { urun: "EPSON C13T11D440 WF-C5390/C5890 XL Yellow 5k",        maliyet_usd: 36  },
-    76618:  { urun: "EPSON C13T02S100 C20750 50000 BLACK",                  maliyet_usd: 130 },
-    76619:  { urun: "EPSON C13T02S200 C20750 50000 CYAN",                   maliyet_usd: 213 },
-    76620:  { urun: "EPSON C13T02S300 C20750 50000 MAGENTA",                maliyet_usd: 213 },
-    76621:  { urun: "EPSON C13T02S400 C20750 50000 YELLOW",                 maliyet_usd: 213 },
-    76622:  { urun: "EPSON C13T02Y100 C21000 50000 BLACK",                  maliyet_usd: 119 },
-    76623:  { urun: "EPSON C13T02Y200 C21000 50000 CYAN",                   maliyet_usd: 174 },
-    76624:  { urun: "EPSON C13T02Y300 C21000 50000 MAGENTA",                maliyet_usd: 174 },
-    76625:  { urun: "EPSON C13T02Y400 C21000 50000 YELLOW",                 maliyet_usd: 174 },
-    76630:  { urun: "EPSON C13T05B140 C879 86000 BLACK",                    maliyet_usd: 175 },
-    76632:  { urun: "EPSON C13T05B240 C879 50000 CYAN",                     maliyet_usd: 225 },
-    76633:  { urun: "EPSON C13T05B340 C879 50000 MAGENTA",                  maliyet_usd: 225 },
-    76635:  { urun: "EPSON C13T05B440 C879 50000 YELLOW",                   maliyet_usd: 225 },
-    105821: { urun: "EPSON C11CJ43401 RENKLİ Yazıcı AM-C4000",             maliyet_usd: 2250},
-    106776: { urun: "EPSON C11CK23401 RENKLİ Yazıcı C5890",                maliyet_usd: 295 },
-    74012:  { urun: "EPSON C11CH88401 RENKLİ Yazıcı C21000",               maliyet_usd: 7000},
-    57205:  { urun: "EPSON DS-970 Tarayıcı A4",                            maliyet_usd: 496 },
-    94581:  { urun: "EPSON C13T01C100 WF-C529R/C579R Black XL",            maliyet_usd: 35  },
-    94586:  { urun: "EPSON C13T01C200 WF-C529R/C579R Cyan XL",             maliyet_usd: 35  },
-    94590:  { urun: "EPSON C13T01C300 WF-C529R/C579R Magenta XL",          maliyet_usd: 35  },
-    94593:  { urun: "EPSON C13T01C400 WF-C529R/C579R Yellow XL",           maliyet_usd: 35  },
-    112723: { urun: "EPSON C13T12F140 WF-M5399/5899 Black 40K",            maliyet_usd: 140 },
-    68443:  { urun: "EPSON C13T04Q100 M20590 60000 BLACK",                  maliyet_usd: 180 },
-    112718: { urun: "EPSON C11CK76402 SİYAH-BEYAZ Yazıcı M5899",          maliyet_usd: 295 },
-    127105: { urun: "EPSON C11CJ91402 RENKLİ Yazıcı AM-C6000",            maliyet_usd: 3160},
-    40876:  { urun: "MÜREKKEP-KARTUŞ 5000 CYAN",                           maliyet_usd: 42  },
-    40881:  { urun: "MÜREKKEP-KARTUŞ 5000 YELLOW",                         maliyet_usd: 42  },
-    40883:  { urun: "C13T946140 10000 SİYAH-BEYAZ",                        maliyet_usd: 50  },
-};
+let URUNLER        = {};
+let urunlerLoaded  = false;
 
+async function loadUrunler() {
+    if (urunlerLoaded) return;
+    const { data, error } = await db
+        .from("products")
+        .select("dmo_code, product_name, maliyet_usd");
+
+    if (error) {
+        showToast("Ürünler yüklenemedi: " + error.message, "error");
+        return;
+    }
+
+    data.forEach(p => {
+        if (p.dmo_code) {
+            URUNLER[parseInt(p.dmo_code)] = {
+                urun:        p.product_name,
+                maliyet_usd: p.maliyet_usd || 0,
+            };
+        }
+    });
+
+    urunlerLoaded = true;
+}
 // ── FILTER STATE ─────────────────────────────────────────────────────────────
 const filterState = {
     search:    "",
@@ -356,7 +340,7 @@ function calculateDMOBasket(items) {
 }
 
 function calculateInokasBasket() {
-    const usdRate = parseFloat(document.getElementById("usd_rate")?.value) || 45;
+    const usdRate = parseFloat(document.getElementById("stat-usd-rate")?.value) || 45;
     if (!window._lastParsedItems) return;
 
     let inokasTotal = 0;
@@ -364,6 +348,7 @@ function calculateInokasBasket() {
         const katalogKod = parseInt(item["SIRA NO KATALOG KOD NO"] || item["KATALOG KOD NO"] || "0");
         const miktar     = parseInt(item["MIKTAR"] || "0");
         const urun       = URUNLER[katalogKod];
+
         if (urun && usdRate > 0) {
             inokasTotal += urun.maliyet_usd * miktar * usdRate;
         }
@@ -550,8 +535,10 @@ function calculateProfit() {
 });
 
 // ── MODAL ────────────────────────────────────────────────────────────────────
-function openInvoiceModal() {
+async function openInvoiceModal() {
     document.getElementById("invoiceModal").style.display = "flex";
+    await loadUrunler();
+
     const currentUsd = parseFloat(document.getElementById("stat-usd-rate")?.textContent);
     if (!isNaN(currentUsd)) {
         setField("usd_rate", currentUsd.toFixed(2));
@@ -862,6 +849,7 @@ async function saveOrder() {
                     productId = existingProduct.id;
                 } else {
                     const urun = URUNLER[katalogKod];
+
                     const { data: newProduct, error: productError } = await db
                         .from("products")
                         .insert({

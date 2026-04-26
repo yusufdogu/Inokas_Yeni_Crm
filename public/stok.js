@@ -108,6 +108,9 @@ function renderDepoTable() {
     const backorder = backorderBySkuMap[row.sku] || 0;
     const stockClass = Number(row.current_stock) <= 0 ? 'text-danger' : Number(row.current_stock) < 5 ? 'text-warning' : 'text-success';
     const tr = document.createElement('tr');
+    tr.dataset.productId = row.product_id || '';
+    tr.title = 'Düzenlemek için tıklayın';
+    tr.onclick = () => { if (row.product_id) openProductModal(row.product_id); };
     tr.innerHTML = `
       <td style="font-weight:600;">${esc(row.product_name)}</td>
       <td><span class="badge-sku">${esc(row.sku || '-')}</span></td>
@@ -702,4 +705,156 @@ async function deletePendingOrderItem(poItemId, btnEl) {
   } finally {
     btnEl.disabled = false;
   }
+}
+
+
+// ─── ÜRÜN DETAY MODALİ ───────────────────────────────────────────────────────
+let _editingProductId = null;
+
+async function openProductModal(productId) {
+  if (!productId) return;
+  _editingProductId = productId;
+
+  const msgEl = document.getElementById('productModalMsg');
+  const saveBtn = document.getElementById('productModalSaveBtn');
+  msgEl.textContent = 'Yükleniyor...';
+  msgEl.className = 'modal-msg';
+  saveBtn.disabled = true;
+
+  document.getElementById('productEditModal').style.display = 'flex';
+
+  try {
+    const res = await fetch(`/api/products/${productId}`);
+    if (!res.ok) throw new Error('Ürün verisi alınamadı.');
+    const product = await res.json();
+
+    document.getElementById('productModalTitle').textContent = product.product_name || 'Ürün Detayı';
+    fillProductModal(product);
+    msgEl.textContent = '';
+    saveBtn.disabled = false;
+  } catch (err) {
+    msgEl.textContent = `Hata: ${err.message}`;
+    msgEl.className = 'modal-msg error';
+  }
+}
+
+function fillProductModal(p) {
+  const fields = [
+    'product_name', 'product_code', 'brand', 'category', 'model',
+    'maliyet_usd', 'sozlesme_fiyat_eur',
+    'last_purchase_price_cur', 'last_purchase_currency',
+    'last_purchase_rate', 'last_purchase_price_tl', 'avg_purchase_price_tl',
+    'dmo_code', 'dmo_fiyat_try', 'dmo_url', 'gift_quantity',
+    'stock_on_hand', 'reserved_quantity', 'ordered_quantity', 'shipped_total',
+  ];
+  fields.forEach(key => {
+    const el = document.getElementById(`pf-${key}`);
+    if (el) el.value = p[key] ?? '';
+  });
+
+  // Timestamps — format nicely
+  ['created_at', 'updated_at', 'dmo_fiyat_updated'].forEach(key => {
+    const el = document.getElementById(`pf-${key}`);
+    if (!el) return;
+    el.value = p[key] ? new Date(p[key]).toLocaleString('tr-TR') : '—';
+  });
+}
+
+function closeProductModal() {
+  document.getElementById('productEditModal').style.display = 'none';
+  _editingProductId = null;
+  const msgEl = document.getElementById('productModalMsg');
+  msgEl.textContent = '';
+  msgEl.className = 'modal-msg';
+}
+
+async function saveProductModal() {
+  if (!_editingProductId) return;
+
+  const msgEl  = document.getElementById('productModalMsg');
+  const saveBtn = document.getElementById('productModalSaveBtn');
+  msgEl.textContent  = 'Kaydediliyor...';
+  msgEl.className    = 'modal-msg';
+  saveBtn.disabled   = true;
+
+  const fields = [
+    'product_name', 'product_code', 'brand', 'category', 'model',
+    'maliyet_usd', 'sozlesme_fiyat_eur',
+    'last_purchase_price_cur', 'last_purchase_currency',
+    'last_purchase_rate', 'last_purchase_price_tl', 'avg_purchase_price_tl',
+    'dmo_code', 'dmo_fiyat_try', 'dmo_url', 'gift_quantity',
+    'stock_on_hand', 'reserved_quantity', 'ordered_quantity', 'shipped_total',
+  ];
+
+  const numericFields = new Set([
+    'maliyet_usd', 'sozlesme_fiyat_eur',
+    'last_purchase_price_cur', 'last_purchase_rate',
+    'last_purchase_price_tl', 'avg_purchase_price_tl',
+    'dmo_fiyat_try', 'gift_quantity',
+    'stock_on_hand', 'reserved_quantity', 'ordered_quantity', 'shipped_total',
+  ]);
+
+  const payload = {};
+  fields.forEach(key => {
+    const el = document.getElementById(`pf-${key}`);
+    if (!el) return;
+    const raw = el.value.trim();
+    if (numericFields.has(key)) {
+      payload[key] = raw === '' ? null : Number(raw);
+    } else {
+      payload[key] = raw === '' ? null : raw;
+    }
+  });
+
+  try {
+    const res = await fetch(`/api/products/${_editingProductId}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data?.error || 'Kayıt hatası');
+
+    msgEl.textContent = 'Kaydedildi ✓';
+    msgEl.className   = 'modal-msg success';
+
+    // Update the matching row in allStocks in memory — no full reload
+    updateStockRowInMemory(_editingProductId, payload);
+
+    setTimeout(() => {
+      closeProductModal();
+    }, 800);
+
+  } catch (err) {
+    msgEl.textContent = `Hata: ${err.message}`;
+    msgEl.className   = 'modal-msg error';
+  } finally {
+    saveBtn.disabled = false;
+  }
+}
+
+function updateStockRowInMemory(productId, payload) {
+  const idx = allStocks.findIndex(r => r.product_id === productId);
+  if (idx === -1) return;
+
+  // Update only the fields that exist in allStocks
+  if (payload.product_name     !== undefined) allStocks[idx].product_name     = payload.product_name;
+  if (payload.reserved_quantity !== undefined) allStocks[idx].reserved_quantity = Number(payload.reserved_quantity || 0);
+  if (payload.gift_quantity    !== undefined) allStocks[idx].gift_quantity     = Number(payload.gift_quantity    || 0);
+
+  // Re-render only the affected row
+  const body = document.getElementById('stocksTableBody');
+  if (!body) return;
+  const rows = body.querySelectorAll('tr');
+  rows.forEach(tr => {
+    if (tr.dataset.productId === productId) {
+      const row = allStocks[idx];
+      const stockClass = Number(row.current_stock) <= 0 ? 'text-danger'
+                       : Number(row.current_stock) < 5  ? 'text-warning'
+                       : 'text-success';
+      tr.querySelector('td:first-child').textContent = esc(row.product_name);
+      tr.querySelector('td:nth-child(7)').textContent = fmtQty(row.reserved_quantity || 0);
+      tr.querySelector('td:nth-child(8)').textContent = fmtQty(row.gift_quantity || 0);
+    }
+  });
 }

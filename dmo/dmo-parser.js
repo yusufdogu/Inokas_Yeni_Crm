@@ -1337,8 +1337,9 @@ async function updateOrderStatus() {
 // ── HIZLI HESAP DATA ──────────────────────────────────────────────────────────
 
 const LIMIT    = 3000000;
-let   hhItems  = {};
-let   hhProducts  = [];
+let hhItems    = {};  // Tab 1 pending quantities (not yet added to sepet)
+let hhSepet    = {};  // Tab 2 basket (added products, used for calculations)
+let hhActiveTab = 'urunler';
 // Replace getCurrentRates()s with this function
 function getCurrentRates() {
     return {
@@ -1382,6 +1383,8 @@ async function openHizliHesap() {
 function closeHizliHesap() {
     document.getElementById("hizliHesapModal").style.display = "none";
     hhItems = {};
+    hhSepet     = {};
+    hhActiveTab = 'urunler';
     document.getElementById("hh_customer_name").value = "";
     document.getElementById("hh_usd_rate").value      = "";
     document.getElementById("hh_search").value        = "";
@@ -1392,70 +1395,167 @@ function closeHizliHesap() {
 
 // ── PRODUCT GRID ──────────────────────────────────────────────────────────────
 function renderHHProductTable() {
-    const container = document.getElementById("hh_product_grid");
-    const search    = document.getElementById("hh_search")?.value.toLocaleLowerCase("tr-TR") || "";
-    const usdRate   = getCurrentRates().usd_try;
+    const container  = document.getElementById("hh_product_grid");
+    const search     = document.getElementById("hh_search")?.value.toLocaleLowerCase("tr-TR") || "";
+    const usdRate    = getCurrentRates().usd_try;
 
-    const filtered = hhProducts.filter(p =>
-        p.product_name?.toLocaleLowerCase("tr-TR").includes(search) ||
-        p.dmo_code?.toString().includes(search) ||
-        p.model?.toLocaleLowerCase("tr-TR").includes(search)
-    );
+    // Update tab badges
+    const sepetCount = Object.keys(hhSepet).length;
+    const sepetBadge = document.getElementById("hh_tab_sepet_count");
+    if (sepetBadge) sepetBadge.textContent = sepetCount > 0 ? ` (${sepetCount})` : "";
 
-    if (filtered.length === 0) {
+    if (hhActiveTab === 'urunler') {
+        // Tab 1: products NOT in hhSepet
+        const filtered = hhProducts.filter(p =>
+            !hhSepet[p.dmo_code] && (
+                p.product_name?.toLocaleLowerCase("tr-TR").includes(search) ||
+                p.dmo_code?.toString().includes(search) ||
+                p.model?.toLocaleLowerCase("tr-TR").includes(search)
+            )
+        );
+
+        if (filtered.length === 0) {
+            container.innerHTML = `
+                <div style="text-align:center; padding:40px; color:#94a3b8;">
+                    Ürün bulunamadı
+                </div>`;
+            return;
+        }
+
         container.innerHTML = `
-            <div style="text-align:center; padding:40px; color:#94a3b8;">
-                Ürün bulunamadı
-            </div>`;
-        return;
+            <table style="width:100%; border-collapse:collapse; font-size:12px;">
+                <thead>
+                    <tr style="background:#f1f5f9; color:#64748b; font-weight:700; font-size:11px;">
+                        <th style="padding:10px 8px; text-align:left;">DMO KOD</th>
+                        <th style="padding:10px 8px; text-align:left;">ÜRÜN</th>
+                        <th style="padding:10px 8px; text-align:left;">ÜRÜN KOD</th>
+                        <th style="padding:10px 8px; text-align:left;">MODEL</th>
+                        <th style="padding:10px 8px; text-align:left;">STOK</th>
+                        <th style="padding:10px 8px; text-align:right;">DMO FİYAT</th>
+                        <th style="padding:10px 8px; text-align:right;">ALIŞ EUR→TL</th>
+                        <th style="padding:10px 8px; text-align:right;">MAL USD→TL</th>
+                        <th style="padding:10px 8px; text-align:right;">MARJ %</th>
+                        <th style="padding:10px 8px; text-align:center;">ADET</th>
+                        <th style="padding:10px 8px; text-align:center;">🎁 ADET</th>
+                        <th style="padding:10px 8px; text-align:center;"></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${filtered.map(p => renderHHRow(p, usdRate, 'urunler')).join("")}
+                </tbody>
+            </table>
+        `;
+
+    } else {
+        // Tab 2: only hhSepet products
+        const filtered = Object.values(hhSepet).filter(p =>
+            p.product_name?.toLocaleLowerCase("tr-TR").includes(search) ||
+            p.dmo_code?.toString().includes(search) ||
+            p.model?.toLocaleLowerCase("tr-TR").includes(search)
+        );
+
+        if (filtered.length === 0) {
+            container.innerHTML = `
+                <div style="text-align:center; padding:40px; color:#94a3b8;">
+                    Sepet boş
+                </div>`;
+            return;
+        }
+
+        container.innerHTML = `
+            <table style="width:100%; border-collapse:collapse; font-size:12px;">
+                <thead>
+                    <tr style="background:#f1f5f9; color:#64748b; font-weight:700; font-size:11px;">
+                        <th style="padding:10px 8px; text-align:left;">DMO KOD</th>
+                        <th style="padding:10px 8px; text-align:left;">ÜRÜN</th>
+                        <th style="padding:10px 8px; text-align:left;">ÜRÜN KOD</th>
+                        <th style="padding:10px 8px; text-align:left;">MODEL</th>
+                        <th style="padding:10px 8px; text-align:left;">STOK</th>
+                        <th style="padding:10px 8px; text-align:right;">DMO FİYAT</th>
+                        <th style="padding:10px 8px; text-align:right;">ALIŞ EUR→TL</th>
+                        <th style="padding:10px 8px; text-align:right;">MAL USD→TL</th>
+                        <th style="padding:10px 8px; text-align:right;">MARJ %</th>
+                        <th style="padding:10px 8px; text-align:center;">ADET</th>
+                        <th style="padding:10px 8px; text-align:center;">🎁 ADET</th>
+                        <th style="padding:10px 8px; text-align:center;"></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${filtered.map(p => renderHHRow(p, usdRate, 'sepet')).join("")}
+                </tbody>
+            </table>
+        `;
+    }
+}
+function renderHHRow(p, usdRate, tab) {
+    const dmoFiyat  = parseFloat(p.dmo_fiyat_try      || 0);
+    const alisEur   = parseFloat(p.sozlesme_fiyat_eur  || 0);
+    const malUsd    = parseFloat(p.maliyet_usd         || 0);
+    const realDMO   = dmoFiyat / 1.08;
+    const alisTL    = alisEur * getCurrentRates().dmo_eur_try;
+    const malTL     = malUsd  * usdRate;
+    const marj      = realDMO > 0 ? ((realDMO - malTL) / realDMO * 100) : 0;
+    const marjColor = marj >= 0 ? "#16a34a" : "#dc2626";
+
+    let qty, giftQty, actionBtn;
+
+    if (tab === 'sepet') {
+        // Read from hhSepet
+        qty     = hhSepet[p.dmo_code]?.quantity     || 0;
+        giftQty = hhSepet[p.dmo_code]?.giftQuantity || 0;
+        actionBtn = `
+            <button
+                onclick="removeFromSepet('${p.dmo_code}')"
+                style="
+                    padding:4px 10px;
+                    background:#fee2e2;
+                    color:#dc2626;
+                    border:1px solid #fecaca;
+                    border-radius:6px;
+                    font-size:11px;
+                    font-weight:700;
+                    cursor:pointer;
+                    white-space:nowrap;
+                "
+            >Çıkar</button>
+        `;
+    } else {
+        // Read from hhItems (pending)
+        const item = hhItems[p.dmo_code] || {};
+        qty     = item.quantity     || 0;
+        giftQty = item.giftQuantity || 0;
+        const hasQty = qty > 0 || giftQty > 0;
+        actionBtn = hasQty ? `
+            <button
+                onclick="addToSepet('${p.dmo_code}')"
+                style="
+                    padding:4px 10px;
+                    background:#eff6ff;
+                    color:#2563eb;
+                    border:1px solid #bfdbfe;
+                    border-radius:6px;
+                    font-size:11px;
+                    font-weight:700;
+                    cursor:pointer;
+                    white-space:nowrap;
+                "
+            >Ekle</button>
+        ` : `<span style="display:inline-block; width:52px;"></span>`;
     }
 
-    // Build table
-    container.innerHTML = `
-        <table style="width:100%; border-collapse:collapse; font-size:12px;">
-            <thead>
-                <tr style="background:#f1f5f9; color:#64748b; font-weight:700; font-size:11px;">
-                    <th style="padding:10px 8px; text-align:left;">DMO KOD</th>
-                    <th style="padding:10px 8px; text-align:left;">ÜRÜN</th>
-                    <th style="padding:10px 8px; text-align:left;">ÜRÜN KOD</th>
-                    <th style="padding:10px 8px; text-align:left;">MODEL</th>
-                    <th style="padding:10px 8px; text-align:left;">STOK</th>
-                    <th style="padding:10px 8px; text-align:right;">DMO FİYAT</th>
-                    <th style="padding:10px 8px; text-align:right;">ALIŞ EUR→TL</th>
-                    <th style="padding:10px 8px; text-align:right;">MAL USD→TL</th>
-                    <th style="padding:10px 8px; text-align:right;">MARJ %</th>
-                    <th style="padding:10px 8px; text-align:center;">ADET</th>
-                    <th style="padding:10px 8px; text-align:center;">🎁 ADET</th>
-                </tr>
-            </thead>
-            <tbody>
-                ${filtered.map(p => renderHHRow(p, usdRate)).join("")}
-            </tbody>
-        </table>
-    `;
-}
+    const qtyInput = tab === 'sepet'
+        ? `oninput="updateSepetItem('${p.dmo_code}', this.value, false)"`
+        : `oninput="updateHHItem('${p.dmo_code}', this.value, false)"`;
 
-function renderHHRow(p, usdRate) {
-    const dmoFiyat   = parseFloat(p.dmo_fiyat_try       || 0);
-    const alisEur    = parseFloat(p.sozlesme_fiyat_eur   || 0);
-    const malUsd     = parseFloat(p.maliyet_usd          || 0);
-
-    const realDMO    = dmoFiyat / 1.08;
-    const alisTL     = alisEur * getCurrentRates().dmo_eur_try;
-    const malTL      = malUsd  * usdRate;
-    const marj       = realDMO > 0 ? ((realDMO - malTL) / realDMO * 100) : 0;
-    const marjColor  = marj >= 0 ? "#16a34a" : "#dc2626";
-
-    const item       = hhItems[p.dmo_code] || {};
-    const qty        = item.quantity     || "";
-    const giftQty    = item.giftQuantity || "";
-    const isActive   = qty > 0 || giftQty > 0;
+    const giftInput = tab === 'sepet'
+        ? `oninput="updateSepetItem('${p.dmo_code}', this.value, true)"`
+        : `oninput="updateHHItem('${p.dmo_code}', this.value, true)"`;
 
     return `
         <tr style="
             border-bottom:1px solid #e2e8f0;
-            background:${isActive ? "#eff6ff" : "white"};
-            transition: background 0.15s;
+            background:${tab === 'sepet' ? '#f0fdf4' : 'white'};
+            transition:background 0.15s;
         ">
             <td style="padding:8px; font-weight:700; color:#2563eb;">${p.dmo_code || "-"}</td>
             <td style="padding:8px; color:#0f172a; max-width:200px;">
@@ -1477,30 +1577,112 @@ function renderHHRow(p, usdRate) {
                 ${realDMO > 0 ? "%" + marj.toFixed(1) : "-"}
             </td>
             <td style="padding:8px; text-align:center;">
-                <input 
-                    type="number" 
-                    min="0" 
+                <input
+                    type="number"
+                    min="0"
                     placeholder="0"
                     value="${qty}"
-                    oninput="updateHHItem('${p.dmo_code}', this.value, false)"
+                    ${qtyInput}
                     style="width:60px; padding:4px 6px; border:1px solid #e2e8f0; border-radius:6px; text-align:center; font-size:12px;"
                 >
             </td>
             <td style="padding:8px; text-align:center;">
-                <input 
-                    type="number" 
-                    min="0" 
+                <input
+                    type="number"
+                    min="0"
                     placeholder="0"
                     value="${giftQty}"
-                    oninput="updateHHItem('${p.dmo_code}', this.value, true)"
+                    ${giftInput}
                     style="width:60px; padding:4px 6px; border:1px solid #fed7aa; border-radius:6px; text-align:center; font-size:12px; background:#fff7ed;"
                 >
+            </td>
+            <td style="padding:8px; text-align:center;">
+                ${actionBtn}
             </td>
         </tr>
     `;
 }
 function filterHHProducts() {
     renderHHProductTable();
+}
+
+function addToSepet(dmoCode) {
+    const product = hhProducts.find(p => p.dmo_code == dmoCode);
+    if (!product) return;
+
+    const item = hhItems[dmoCode] || {};
+
+    // Move to sepet with current quantities
+    hhSepet[dmoCode] = {
+        ...product,
+        quantity:     item.quantity     || 0,
+        giftQuantity: item.giftQuantity || 0,
+    };
+
+    // Clear from pending
+    delete hhItems[dmoCode];
+
+    // Switch to sepet tab and re-render
+    hhActiveTab = 'sepet';
+    updateHHTabUI();
+    renderHHProductTable();
+    recalcHizliHesap();
+}
+
+function removeFromSepet(dmoCode) {
+    if (!hhSepet[dmoCode]) return;
+
+    // Restore quantities back to hhItems so Tab 1 remembers them
+    hhItems[dmoCode] = {
+        quantity:     hhSepet[dmoCode].quantity     || 0,
+        giftQuantity: hhSepet[dmoCode].giftQuantity || 0,
+    };
+
+    // Clean up zero quantities
+    if (hhItems[dmoCode].quantity === 0 && hhItems[dmoCode].giftQuantity === 0) {
+        delete hhItems[dmoCode];
+    }
+
+    delete hhSepet[dmoCode];
+
+    renderHHProductTable();
+    recalcHizliHesap();
+}
+
+function updateSepetItem(dmoCode, value, isGift) {
+    if (!hhSepet[dmoCode]) return;
+    const qty = parseInt(value) || 0;
+
+    if (isGift) {
+        hhSepet[dmoCode].giftQuantity = qty;
+    } else {
+        hhSepet[dmoCode].quantity = qty;
+    }
+
+    // If both are 0 remove from sepet
+    if (hhSepet[dmoCode].quantity === 0 && hhSepet[dmoCode].giftQuantity === 0) {
+        removeFromSepet(dmoCode);
+        return;
+    }
+
+    recalcHizliHesap();
+}
+
+function switchHHTab(tab) {
+    hhActiveTab = tab;
+    updateHHTabUI();
+    renderHHProductTable();
+}
+
+function updateHHTabUI() {
+    const urunlerBtn = document.getElementById("hh_tab_urunler");
+    const sepetBtn   = document.getElementById("hh_tab_sepet");
+    if (urunlerBtn) urunlerBtn.style.fontWeight = hhActiveTab === 'urunler' ? '800' : '500';
+    if (urunlerBtn) urunlerBtn.style.borderBottom = hhActiveTab === 'urunler' ? '2px solid #2563eb' : '2px solid transparent';
+    if (urunlerBtn) urunlerBtn.style.color = hhActiveTab === 'urunler' ? '#2563eb' : '#64748b';
+    if (sepetBtn)   sepetBtn.style.fontWeight = hhActiveTab === 'sepet' ? '800' : '500';
+    if (sepetBtn)   sepetBtn.style.borderBottom = hhActiveTab === 'sepet' ? '2px solid #2563eb' : '2px solid transparent';
+    if (sepetBtn)   sepetBtn.style.color = hhActiveTab === 'sepet' ? '#2563eb' : '#64748b';
 }
 
 function updateHHItem(dmoCode, value, isGift) {
@@ -1531,6 +1713,35 @@ function updateHHItem(dmoCode, value, isGift) {
     if (hhItems[dmoCode].quantity === 0 && hhItems[dmoCode].giftQuantity === 0) {
         delete hhItems[dmoCode];
     }
+    // Update Ekle button live without re-rendering the whole table
+    const rows = document.querySelectorAll("#hh_product_grid tbody tr");
+    rows.forEach(tr => {
+        const dmoCell = tr.querySelector("td:first-child");
+        if (!dmoCell || dmoCell.textContent.trim() !== String(dmoCode)) return;
+
+        const actionCell = tr.querySelector("td:last-child");
+        if (!actionCell) return;
+
+        const item   = hhItems[dmoCode] || {};
+        const hasQty = (item.quantity || 0) > 0 || (item.giftQuantity || 0) > 0;
+
+        actionCell.innerHTML = hasQty ? `
+            <button
+                onclick="addToSepet('${dmoCode}')"
+                style="
+                    padding:4px 10px;
+                    background:#eff6ff;
+                    color:#2563eb;
+                    border:1px solid #bfdbfe;
+                    border-radius:6px;
+                    font-size:11px;
+                    font-weight:700;
+                    cursor:pointer;
+                    white-space:nowrap;
+                "
+            >Ekle</button>
+        ` : `<span style="display:inline-block; width:52px;"></span>`;
+    });
 
     recalcHizliHesap();
 }
@@ -1544,7 +1755,7 @@ function recalcHizliHesap() {
     let inokasBasket = 0;
     let giftTotal    = 0;
 
-    Object.values(hhItems).forEach(item => {
+    Object.values(hhSepet).forEach(item => {
         const dmoFiyat = parseFloat(item.dmo_fiyat_try  || 0);
         const malUsd   = parseFloat(item.maliyet_usd    || 0);
         const malTL    = malUsd * usdRate;
@@ -1625,7 +1836,7 @@ function updateLimitBar(currentDMO = 0) {
 }
 // ── SAVE AS TASLAK ────────────────────────────────────────────────────────────
 async function saveHizliHesapAsTaslak() {
-    if (Object.keys(hhItems).length === 0) {
+    if (Object.keys(hhSepet).length === 0) {
         showToast("Lütfen en az bir ürün ekleyin", "error");
         return;
     }
@@ -1673,7 +1884,7 @@ async function saveHizliHesapAsTaslak() {
             return;
         }
 
-        for (const item of Object.values(hhItems)) {
+        for (const item of Object.values(hhSepet)) {
             if (item.quantity > 0) {
                 await db.from("dmo_order_items").insert({
                     order_id:            order.id,

@@ -480,6 +480,40 @@
                     </div>
                 </div>
 
+                <!-- Tabs -->
+                <div style="display:flex; gap:0; margin-bottom:12px; border-bottom:1px solid #e2e8f0;">
+                    <button
+                        id="hh_tab_urunler"
+                        onclick="switchHHTab('urunler')"
+                        style="
+                            padding:8px 16px;
+                            background:none;
+                            border:none;
+                            border-bottom:2px solid #2563eb;
+                            font-size:13px;
+                            font-weight:800;
+                            color:#2563eb;
+                            cursor:pointer;
+                            transition:all 0.15s;
+                        "
+                    >Ürünler</button>
+                    <button
+                        id="hh_tab_sepet"
+                        onclick="switchHHTab('sepet')"
+                        style="
+                            padding:8px 16px;
+                            background:none;
+                            border:none;
+                            border-bottom:2px solid transparent;
+                            font-size:13px;
+                            font-weight:500;
+                            color:#64748b;
+                            cursor:pointer;
+                            transition:all 0.15s;
+                        "
+                    >Sepet<span id="hh_tab_sepet_count"></span></button>
+                </div>
+
                 <!-- Search -->
                 <input type="text" id="hh_search" oninput="filterHHProducts()"
                     placeholder="🔍 Ürün ara..."

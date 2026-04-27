@@ -242,6 +242,107 @@ def get_tcmb_kur():
     return jsonify(results)
 
 
+
+@app.route("/find-dmo-url", methods=["POST"])
+def find_dmo_url():
+    data       = request.get_json()
+    dmo_code   = str(data.get("dmo_code", "")).strip()
+    product_id = str(data.get("product_id", "")).strip()
+
+    if not dmo_code or not product_id:
+        return jsonify({"error": "dmo_code ve product_id zorunlu"}), 400
+
+    try:
+        session = requests.Session()
+        session.get("https://www.dmo.gov.tr", headers={
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+        }, timeout=10)
+        time.sleep(2)
+
+        res = session.get(
+            f"https://www.dmo.gov.tr/Arama?s={dmo_code}",
+            headers={
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+                "Referer": "https://www.dmo.gov.tr/",
+            },
+            timeout=15
+        )
+        soup = BeautifulSoup(res.text, "lxml")
+
+        # ── Find all product-item cards ───────────────────────────────────────
+        matched_url   = None
+        matched_price = None
+
+        for item in soup.find_all("div", class_="product-item"):
+            # Get DMO code from div.brand > span
+            brand_div = item.find("div", class_="brand")
+            if not brand_div:
+                continue
+
+            code_span = brand_div.find("span")
+            if not code_span:
+                continue
+
+            card_code = code_span.get_text(strip=True)
+            if card_code != dmo_code:
+                continue
+
+            # ── Exact match found ─────────────────────────────────────────────
+
+            # Get URL from div.title > a
+            title_div = item.find("div", class_="title")
+            if not title_div:
+                continue
+            link = title_div.find("a", href=True)
+            if not link:
+                continue
+            matched_url = "https://www.dmo.gov.tr" + link["href"]
+
+            # Get price from span.price-current → divide by 1.20 to get excl. VAT
+            price_span = item.find("span", class_="price-current")
+            if price_span:
+                raw = price_span.get_text(strip=True)
+                raw = raw.replace("₺", "").replace("\u20ba", "").strip()
+                raw = raw.replace(".", "").replace(",", ".")
+                try:
+                    price_incl_vat = float(raw)
+                    matched_price  = round(price_incl_vat / 1.20, 2)
+                except:
+                    matched_price = None
+
+            break  # stop after first exact match
+
+        if not matched_url:
+            return jsonify({"found": False, "message": f"{dmo_code} kodu DMO'da bulunamadı"})
+
+        # ── Save to DB ────────────────────────────────────────────────────────
+        update_payload = {
+            "dmo_url":          matched_url,
+            "dmo_fiyat_updated": "now()",
+            "updated_at":        "now()",
+        }
+        if matched_price is not None:
+            update_payload["dmo_fiyat_try"] = matched_price
+
+        db.table("products").update(update_payload).eq("id", product_id).execute()
+
+        # ── Insert price history if price found ───────────────────────────────
+        if matched_price is not None:
+            ref = db.table("products").select("sozlesme_fiyat_eur").eq("id", product_id).single().execute()
+            db.table("product_price_history").insert({
+                "product_id":         product_id,
+                "dmo_fiyat_try":      matched_price,
+                "sozlesme_fiyat_eur": ref.data.get("sozlesme_fiyat_eur") if ref.data else None,
+            }).execute()
+
+        return jsonify({
+            "found": True,
+            "url":   matched_url,
+            "price": matched_price,
+        })
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 @app.route("/scrape-dmo-prices", methods=["POST"])
 def scrape_dmo_prices():
     results = { "updated": [], "failed": [] }
@@ -298,7 +399,10 @@ def scrape_dmo_prices():
         if str(product["dmo_code"]) == "106776":
             ref_price = scraped["price"]
 
-        results["updated"].append(product["dmo_code"])
+        results["updated"].append({
+            "dmo_code": product["dmo_code"],
+            "price": scraped["price"]
+        })
         print(f"OK: {product['dmo_code']} → {scraped['price']} ₺")
 
     # ── Rate history ──────────────────────────────────────────────────────────────
@@ -322,9 +426,6 @@ def scrape_dmo_prices():
             .maybeSingle() \
             .execute()
 
-        usd_try = float(last_rates.data["usd_try"] or 0) if last_rates.data else 0
-        eur_try = float(last_rates.data["eur_try"] or 0) if last_rates.data else 0
-
         # Update latest row with dmo_eur_try instead of inserting new row
         db.table("rate_history") \
             .update({"dmo_eur_try": dmo_eur_try}) \
@@ -344,14 +445,16 @@ def scrape_dmo_prices():
 
 @app.route("/debug-dmo", methods=["GET"])
 def debug_dmo():
+    dmo_code = request.args.get("code", "105818")
+
     session = requests.Session()
     session.get("https://www.dmo.gov.tr", headers={
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
     }, timeout=10)
     time.sleep(2)
 
-    res  = session.get(
-        "https://www.dmo.gov.tr/Katalog/Urun/Detay/4350033_1105829?show=1",
+    res = session.get(
+        f"https://www.dmo.gov.tr/Arama?s={dmo_code}",
         headers={
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
             "Referer": "https://www.dmo.gov.tr/",
@@ -360,33 +463,28 @@ def debug_dmo():
     )
     soup = BeautifulSoup(res.text, "lxml")
 
-    # Find the specs section specifically
-    spec_divs = soup.find_all("div", class_=lambda c: c and any(
-        x in c.lower() for x in ["spec", "ozellik", "özellik", "detail", "feature"]
+    # Dump first 5 product cards raw HTML
+    cards = soup.find_all("div", class_=lambda c: c and any(
+        x in c.lower() for x in ["product", "item", "card", "urun", "ürün"]
     ))
 
-    # Find all ul/li structures
-    lists = []
-    for ul in soup.find_all(["ul", "ol"]):
-        items = [li.get_text(strip=True) for li in ul.find_all("li")]
-        if items:
-            lists.append(items[:5])
+    # Also find all anchors with /Katalog/Urun/Detay in href
+    links = [
+                {"href": a.get("href"), "text": a.get_text(strip=True)[:100]}
+                for a in soup.find_all("a", href=lambda h: h and "/Katalog/Urun/Detay" in h)
+            ][:10]
 
-    # Find section with "Ürün Özellikleri" heading
-    spec_heading = soup.find(string=lambda t: t and "Ürün Özellikleri" in t)
-    spec_content = None
-    if spec_heading:
-        parent = spec_heading.find_parent()
-        if parent:
-            spec_content = str(parent.find_next_sibling())[:2000]
+    # Find price elements
+    prices = [el.get_text(strip=True) for el in soup.find_all(
+        class_=lambda c: c and any(x in c.lower() for x in ["price", "fiyat"])
+    )][:20]
 
     return jsonify({
-        "spec_divs":     [str(d)[:300] for d in spec_divs[:5]],
-        "lists_sample":  lists[:5],
-        "spec_content":  spec_content,
+        "cards_raw": [str(c)[:2000] for c in cards[:3]],  # ← increase to 2000
+        "links": links,
+        "prices": prices,
+        "page_title": soup.title.get_text() if soup.title else None,
     })
-
-
 
 # ── RUN ──────────────────────────────────────────────────────────────────────
 

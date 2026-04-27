@@ -102,6 +102,24 @@ app.get('/api/dmo/usd-eur-rate', async (req, res) => {
   }
 });
 
+
+app.post('/api/dmo/find-dmo-url', async (req, res) => {
+  try {
+    const r = await fetch(`http://${DMO_PY_HOST}:${DMO_PY_PORT}/find-dmo-url`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(req.body)
+    });
+    const text = await r.text();
+    res.status(r.status);
+    res.setHeader('content-type', r.headers.get('content-type') || 'application/json; charset=utf-8');
+    res.send(text);
+  } catch (err) {
+    console.error('DMO find-url proxy hatası:', err.message);
+    res.status(502).json({ error: 'DMO servisine bağlanılamadı.' });
+  }
+});
+
 app.post('/api/dmo/scrape-dmo-prices', async (req, res) => {
   try {
     const r = await fetch(`http://${DMO_PY_HOST}:${DMO_PY_PORT}/scrape-dmo-prices`, {

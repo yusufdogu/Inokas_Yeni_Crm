@@ -1668,6 +1668,72 @@ function updateSepetItem(dmoCode, value, isGift) {
     recalcHizliHesap();
 }
 
+
+async function updateHHPrices() {
+    const btn = document.getElementById("hhUpdateBtn");
+    if (!btn) return;
+
+    // Only products with dmo_code
+    const toUpdate = hhProducts.filter(p => p.dmo_code && p.id);
+    if (toUpdate.length === 0) {
+        showToast("Güncellenecek ürün bulunamadı", "error");
+        return;
+    }
+
+    // Disable button, show progress
+    btn.disabled = true;
+    let done = 0;
+    const total = toUpdate.length;
+
+    for (const product of toUpdate) {
+        btn.textContent = `⏳ Güncelleniyor... (${done}/${total})`;
+
+        try {
+            const res = await fetch("/api/dmo/find-dmo-url", {
+                method:  "POST",
+                headers: { "Content-Type": "application/json" },
+                body:    JSON.stringify({
+                    dmo_code:   String(product.dmo_code),
+                    product_id: String(product.id),
+                })
+            });
+
+            const data = await res.json();
+
+            if (!res.ok) {
+                showToast(`❌ ${product.dmo_code} — hata: ${data.error || "bilinmeyen"}`, "error");
+            } else if (!data.found) {
+                showToast(`❌ ${product.dmo_code} DMO'da bulunamadı`, "error");
+            } else if (data.price) {
+                // Update hhProducts in memory so grid shows new price immediately
+                const idx = hhProducts.findIndex(p => p.dmo_code == product.dmo_code);
+                if (idx !== -1) {
+                    hhProducts[idx].dmo_fiyat_try = data.price;
+                    hhProducts[idx].dmo_url       = data.url;
+                }
+                showToast(`✅ ${product.dmo_code} güncellendi → ${formatAmount(data.price)} ₺`, "success");
+            } else {
+                showToast(`🔍 ${product.dmo_code} bulundu ama fiyat alınamadı`, "warning");
+            }
+
+        } catch (err) {
+            showToast(`❌ ${product.dmo_code} — ${err.message}`, "error");
+        }
+
+        done++;
+
+        // Small delay between requests to avoid hammering DMO
+        await new Promise(r => setTimeout(r, 500));
+    }
+
+    // Re-render grid with updated prices
+    renderHHProductTable();
+    recalcHizliHesap();
+
+    btn.disabled    = false;
+    btn.textContent = "🔄 Fiyatları Güncelle";
+    showToast(`Güncelleme tamamlandı: ${done}/${total}`, "success");
+}
 function switchHHTab(tab) {
     hhActiveTab = tab;
     updateHHTabUI();

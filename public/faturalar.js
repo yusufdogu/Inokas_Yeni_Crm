@@ -23,18 +23,143 @@ const ns = {
 
 /**
  * XML’deki “ürün kodu” bilgisini okur; `invoice_items.product_code` alanına yazılır.
- * Öncelik: satıcı ürün kodu → yoksa standart kimlik (ör. barkod/GTIN).
- * - cac:Item/cac:SellersItemIdentification/cbc:ID
- * - cac:Item/cac:StandardItemIdentification/cbc:ID
+ * Gelen faturalarda öncelik:
+ * - ManufacturersItemIdentification
+ * - SellersItemIdentification
+ * - StandardItemIdentification
+ * Sonra Name/Description fallback (DB product_code set doğrulaması ile).
+ * Giden faturalarda eski davranış korunur.
  */
-function parseProductCodeForSku(itemNode) {
+const PRODUCT_CODE_CACHE_TTL_MS = 5 * 60 * 1000;
+let productCodeLookupSet = null;
+let productCodeLookupFetchedAt = 0;
+let productCodeLookupPromise = null;
+
+function normalizeProductCodeForMatch(v) {
+    return String(v ?? '').trim().replace(/\s+/g, ' ').toUpperCase();
+}
+
+function sanitizeSkuCandidate(v) {
+    return String(v ?? '')
+        .replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu, '')
+        .replace(/\s+/g, ' ')
+        .trim();
+}
+
+function isInProductCodeLookup(candidate) {
+    if (!productCodeLookupSet || !(productCodeLookupSet instanceof Set)) return false;
+    const key = normalizeProductCodeForMatch(candidate);
+    return !!key && productCodeLookupSet.has(key);
+}
+
+async function ensureProductCodeLookupSetLoaded(force = false) {
+    const now = Date.now();
+    const fresh = productCodeLookupSet && (now - productCodeLookupFetchedAt) < PRODUCT_CODE_CACHE_TTL_MS;
+    if (!force && fresh) return;
+    if (productCodeLookupPromise) {
+        await productCodeLookupPromise;
+        return;
+    }
+
+    productCodeLookupPromise = (async () => {
+        const res = await fetch('/api/products/codes');
+        if (!res.ok) throw new Error('Ürün kod listesi alınamadı');
+        const json = await res.json();
+        const codes = Array.isArray(json?.codes) ? json.codes : [];
+        productCodeLookupSet = new Set(
+            codes.map((x) => normalizeProductCodeForMatch(x)).filter(Boolean)
+        );
+        productCodeLookupFetchedAt = Date.now();
+    })();
+
+    try {
+        await productCodeLookupPromise;
+    } finally {
+        productCodeLookupPromise = null;
+    }
+}
+
+function pickSkuFromTextAgainstDb(text) {
+    const src = String(text || '').trim();
+    if (!src) return '';
+    const tokens = src.match(/[A-Za-z0-9]+(?:[-_./][A-Za-z0-9]+)*/g) || [];
+
+    // 1) Tek token eşleşmesi
+    for (const tok of tokens) {
+        const cand = sanitizeSkuCandidate(tok);
+        if (isInProductCodeLookup(cand)) return cand;
+    }
+    // 2) Tek boşluklu iki token birleşimi (ET500I W8 gibi)
+    for (let i = 0; i < tokens.length - 1; i++) {
+        const pair = sanitizeSkuCandidate(`${tokens[i]} ${tokens[i + 1]}`);
+        if (isInProductCodeLookup(pair)) return pair;
+    }
+    return '';
+}
+
+function pickRawSkuFromText(text) {
+    const src = String(text || '').trim();
+    if (!src) return '';
+    const tokens = src.match(/[A-Za-z0-9]+(?:[-_./][A-Za-z0-9]+)*/g) || [];
+    const isLikelyCode = (tok) => {
+        const t = sanitizeSkuCandidate(tok);
+        if (!t) return false;
+        const hasLetter = /[A-Za-z]/.test(t);
+        const hasDigit = /\d/.test(t);
+        if (hasLetter && hasDigit && t.length >= 5) return true;
+        if (!hasLetter && hasDigit && t.length >= 6) return true;
+        return false;
+    };
+    for (const tok of tokens) {
+        if (isLikelyCode(tok)) return sanitizeSkuCandidate(tok);
+    }
+    for (let i = 0; i < tokens.length - 1; i++) {
+        const pair = sanitizeSkuCandidate(`${tokens[i]} ${tokens[i + 1]}`);
+        if (pair && /[A-Za-z0-9]/.test(pair)) return pair;
+    }
+    return '';
+}
+
+function parseProductCodeForSku(itemNode, viewKey, unresolvedWarnings) {
     if (!itemNode) return '';
+    const manufacturer = itemNode.getElementsByTagNameNS(ns.cac, 'ManufacturersItemIdentification')[0]
+        ?.getElementsByTagNameNS(ns.cbc, 'ID')[0]?.textContent;
     const seller = itemNode.getElementsByTagNameNS(ns.cac, 'SellersItemIdentification')[0]
         ?.getElementsByTagNameNS(ns.cbc, 'ID')[0]?.textContent;
     const standard = itemNode.getElementsByTagNameNS(ns.cac, 'StandardItemIdentification')[0]
         ?.getElementsByTagNameNS(ns.cbc, 'ID')[0]?.textContent;
-    const t = (v) => String(v ?? '').trim();
-    return t(seller) || t(standard) || '';
+    const name = itemNode.getElementsByTagNameNS(ns.cbc, 'Name')[0]?.textContent;
+    const description = itemNode.getElementsByTagNameNS(ns.cbc, 'Description')[0]?.textContent;
+    const t = (v) => sanitizeSkuCandidate(v);
+
+    // Giden akışını bozmayalım: önce satıcı kodu, sonra standart.
+    if (viewKey !== 'gelen') {
+        return t(seller) || t(standard) || '';
+    }
+
+    // Gelen: öncelik üretici > satıcı > standart, ama DB doğrulamasıyla.
+    const structuredCandidates = [t(manufacturer), t(seller), t(standard)].filter(Boolean);
+    for (const cand of structuredCandidates) {
+        if (isInProductCodeLookup(cand)) return cand;
+    }
+
+    // Structured alanlar DB'de yoksa metinden (Name/Description) aday bul.
+    const fromName = pickSkuFromTextAgainstDb(name);
+    if (fromName) return fromName;
+    const fromDesc = pickSkuFromTextAgainstDb(description);
+    if (fromDesc) return fromDesc;
+
+    // Son fallback: DB'de olmasa da XML'den gelen en iyi adayı koru.
+    const rawFallback =
+        structuredCandidates[0] ||
+        pickRawSkuFromText(name) ||
+        pickRawSkuFromText(description) ||
+        '';
+
+    if (rawFallback && Array.isArray(unresolvedWarnings)) {
+        unresolvedWarnings.push(rawFallback);
+    }
+    return rawFallback;
 }
 
 let currentParsedData = null;
@@ -179,6 +304,11 @@ function syncPaidFieldByStatus() {
 function openInvoiceModal() {
     document.getElementById('invoiceForm').reset();
     document.getElementById('f_id').value = '';
+    if (currentView === 'gelen') {
+        ensureProductCodeLookupSetLoaded(false).catch((e) => {
+            console.warn('Ürün kod seti ön yükleme hatası:', e?.message || e);
+        });
+    }
 
     // Her şeyi açık (Kilitsiz) hale getir
     const lockedInputs = document.querySelectorAll('.locked-input');
@@ -367,9 +497,16 @@ function closeInvoiceModal() {
 
 
 // --- XML PARSING ENGINE ---
-function handleFileUpload(e) {
+async function handleFileUpload(e) {
     const file = e.target.files[0]; // keep the firs file user uploaded
     if (!file) return;
+    if (currentView === 'gelen') {
+        try {
+            await ensureProductCodeLookupSetLoaded(false);
+        } catch (err) {
+            console.warn('Ürün kod seti yüklenemedi, fallback sınırlı çalışacak:', err?.message || err);
+        }
+    }
 
     const reader = new FileReader(); // ready-made function created by browser
     reader.onload = function (event) {
@@ -578,13 +715,14 @@ function buildInvoicePayloadFromXml(xml, viewKey) {
 
     const lines = xml.getElementsByTagNameNS(ns.cac, 'InvoiceLine');
     const items = [];
+    const unresolvedSkuWarnings = [];
 
     Array.from(lines).forEach(line => {
         const itemNode = line.getElementsByTagNameNS(ns.cac, 'Item')[0];
         const name = itemNode.getElementsByTagNameNS(ns.cbc, 'Description')[0]?.textContent ||
             itemNode.getElementsByTagNameNS(ns.cbc, 'Name')[0]?.textContent ||
             'İsimsiz Ürün';
-        const sku = parseProductCodeForSku(itemNode);
+        const sku = parseProductCodeForSku(itemNode, viewKey, unresolvedSkuWarnings);
         const qty = getVal(line, 'InvoicedQuantity');
         const priceNode = line.getElementsByTagNameNS(ns.cac, 'Price')[0];
         const price = priceNode ? priceNode.getElementsByTagNameNS(ns.cbc, 'PriceAmount')[0]?.textContent : 0;
@@ -643,6 +781,7 @@ function buildInvoicePayloadFromXml(xml, viewKey) {
             customer_vkn: customerVKN
         },
         items,
+        _skuWarnings: Array.from(new Set(unresolvedSkuWarnings)).filter(Boolean),
         _kurXml: kur || ''
     };
 }
@@ -693,7 +832,10 @@ function parseUBL(xml) {
         const pack = buildInvoicePayloadFromXml(xml, currentView);
         currentParsedData = pack;
         applyParsedPayloadToForm(pack);
-        showXmlSuccess(pack.company.name, pack.company.vkn_tckn);
+        const skuWarnings = (currentView === 'gelen' && Array.isArray(pack._skuWarnings))
+            ? pack._skuWarnings
+            : [];
+        showXmlSuccess(pack.company.name, pack.company.vkn_tckn, skuWarnings);
     } catch (err) {
         console.error("XML Parsing Error:", err);
         if (err.message && (err.message.includes("HATA") || err.message.includes("Güvenlik"))) {
@@ -887,6 +1029,11 @@ async function handleBulkFilePick(ev) {
     } catch (e) {
         alert(e.message);
         return;
+    }
+    try {
+        await ensureProductCodeLookupSetLoaded(false);
+    } catch (e) {
+        console.warn('Toplu XML için ürün kod seti alınamadı:', e?.message || e);
     }
 
     for (const file of files) {
@@ -2859,19 +3006,34 @@ function checkPendingOrdersForRow(row) {
 
 
 
-function showXmlSuccess(firma, vkn) {
+function showXmlSuccess(firma, vkn, skuWarnings = []) {
     const previewPane = document.getElementById('previewPane');
+    const warningHtml = Array.isArray(skuWarnings) && skuWarnings.length
+        ? `
+        <div id="skuWarningCard" class="sku-warning-card">
+            <div class="sku-warning-head">
+                <div class="sku-warning-title">Dikkat: Yeni urun kodu olabilir</div>
+                <button type="button" class="sku-warning-close" onclick="document.getElementById('skuWarningCard')?.remove()">Kapat</button>
+            </div>
+            <div class="sku-warning-text">
+                Asagidaki kodlar products tablosunda kayitli degil. XML'den geldigi gibi satira yazildi:
+            </div>
+            <div class="sku-warning-chips">
+                ${skuWarnings.map((x) => `<span class="sku-warning-chip">${String(x || '').replace(/[<>&"]/g, '')}</span>`).join('')}
+            </div>
+        </div>`
+        : '';
     // Tek satır koyu şerit: firma adı + VKN + kaldır butonu
     previewPane.innerHTML = `
-        <div style="display:flex; align-items:center; gap:16px; background:#0f172a; border-radius:8px; padding:10px 16px; flex-wrap:wrap;">
-            <span style="color:#4ade80; font-size:15px; flex-shrink:0;">✓</span>
-            <span style="color:#ffffff; font-weight:700; font-size:13px; flex:1; min-width:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${firma}</span>
-            <span style="color:#94a3b8; font-size:12px; flex-shrink:0;">VKN: ${vkn || '—'}</span>
-            <button onclick="resetXmlStrip()"
-                style="background:#ef4444; color:white; border:none; border-radius:6px; padding:5px 12px; font-size:12px; font-weight:600; cursor:pointer; flex-shrink:0;">
+        <div class="xml-success-strip">
+            <span class="xml-success-icon">✓</span>
+            <span class="xml-success-firma">${firma}</span>
+            <span class="xml-success-vkn">VKN: ${vkn || '—'}</span>
+            <button onclick="resetXmlStrip()" class="xml-success-remove">
                 Dosyayı Kaldır
             </button>
         </div>
+        ${warningHtml}
     `;
 }
 

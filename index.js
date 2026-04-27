@@ -569,7 +569,7 @@ app.get('/api/companies/by-vkn', async (req, res) => {
 });
 
 // ─── ÜRÜN DETAY: GET ──────────────────────────────────────────────────────────
-app.get('/api/products/:id', async (req, res) => {
+app.get('/api/products/:id([0-9a-fA-F-]{36})', async (req, res) => {
   try {
     const id = String(req.params.id || '').trim();
     if (!id) return res.status(400).json({ error: 'Ürün id zorunlu.' });
@@ -589,7 +589,7 @@ app.get('/api/products/:id', async (req, res) => {
 });
 
 // ─── ÜRÜN GÜNCELLE: PUT ───────────────────────────────────────────────────────
-app.put('/api/products/:id', async (req, res) => {
+app.put('/api/products/:id([0-9a-fA-F-]{36})', async (req, res) => {
   try {
     const id = String(req.params.id || '').trim();
     if (!id) return res.status(400).json({ error: 'Ürün id zorunlu.' });
@@ -636,6 +636,23 @@ app.get('/api/products/by-code', async (req, res) => {
     if (error || !data) return res.status(404).json({ error: 'Ürün bulunamadı' });
     res.json(data);
   } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/products/codes', async (req, res) => {
+  try {
+    const { data, error } = await supabase
+      .from('products')
+      .select('product_code')
+      .not('product_code', 'is', null);
+    if (error) throw error;
+    const codes = (data || [])
+      .map((r) => String(r.product_code || '').trim())
+      .filter(Boolean);
+    res.json({ codes });
+  } catch (err) {
+    console.error('GET /api/products/codes hatası:', err.message);
     res.status(500).json({ error: err.message });
   }
 });

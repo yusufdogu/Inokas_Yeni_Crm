@@ -1497,7 +1497,7 @@ async function refreshData(forceFetch = false) {
         }
     }
 
-    tableBody.innerHTML = '<tr><td colspan="11" class="text-center">Faturalar sunucudan yükleniyor...</td></tr>';
+    tableBody.innerHTML = '<tr><td colspan="10" class="text-center">Faturalar sunucudan yükleniyor...</td></tr>';
 
     try {
         // Parametre vermiyoruz, tüm faturaları (Gelen+Giden) tek seferde istiyoruz
@@ -1518,7 +1518,7 @@ async function refreshData(forceFetch = false) {
 
     } catch (error) {
         console.error("Tablo Yenileme Hatası:", error);
-        tableBody.innerHTML = '<tr><td colspan="11" class="text-center text-danger">Veriler yüklenirken hata oluştu!</td></tr>';
+        tableBody.innerHTML = '<tr><td colspan="10" class="text-center text-danger">Veriler yüklenirken hata oluştu!</td></tr>';
     }
 }
 
@@ -1540,6 +1540,7 @@ async function refreshData(forceFetch = false) {
 
 // 2. Filtreleyici (Sekmeler arası geçişlerde ve menülerde DEVREYE GİRER, Sunucuya gitmez)
 function renderCurrentView() {
+    updateCompanyColumnHeader();
     if (!allInvoicesCache) return; // Hafıza boşsa işlem yapma
 
     // A. Hangi sekmedeyiz? (Gelen/Giden)
@@ -1612,6 +1613,12 @@ function renderCurrentView() {
     // H. Filtrelenmiş faturaları ekrana bas
     renderInvoiceTable(filteredInvoices);
     updateSummaryCards(filteredInvoices);
+}
+
+function updateCompanyColumnHeader() {
+    const el = document.getElementById('companyColumnHeader');
+    if (!el) return;
+    el.textContent = currentView === 'gelen' ? 'Gönderen Firma' : 'Alıcı Firma';
 }
 
 // Tümünü Göster/Gizle toggle fonksiyonu
@@ -2028,7 +2035,7 @@ function renderInvoiceTable(invoices) {
     tableBody.innerHTML = ''; // Önce tabloyu temizle
 
     if (invoices.length === 0) {
-        tableBody.innerHTML = '<tr><td colspan="11" style="padding:40px; text-align:center; color:#94a3b8;">Lütfen faturaları görmek için arama yapın ya da filtreleme özelliklerini kullanın.</td></tr>';
+        tableBody.innerHTML = '<tr><td colspan="10" style="padding:40px; text-align:center; color:#94a3b8;">Lütfen faturaları görmek için arama yapın ya da filtreleme özelliklerini kullanın.</td></tr>';
         return;
     }
 
@@ -2063,11 +2070,13 @@ function renderInvoiceTable(invoices) {
             receiverName = inv.companies?.name || 'Bilinmeyen Firma';
         }
 
-        // Tablodaki HTML sütunlarını (Gönderen ve Alıcı olarak) sırayla basıyoruz
+        // Tabloyu tek "Firma" kolonu ile sade gösteriyoruz:
+        // Gelen: gönderen firma | Giden: alıcı firma
+        const companyName = inv.direction === 'INCOMING' ? senderName : receiverName;
+
         row.innerHTML = `
             <td><strong>${inv.invoice_no}</strong></td>
-            <td>${senderName}</td>
-            <td><strong>${receiverName}</strong></td>
+            <td><strong>${companyName}</strong></td>
             <td>${inv.invoice_date}</td>
             <td>${inv.due_date || '-'}</td>
             <td class="text-right">${formatMoneyDisplay(inv, netSrc)}</td>
@@ -3074,6 +3083,7 @@ function switchView(view) {
 
     // 2- SEKME DEĞİŞİMİ
     currentView = view;
+    updateCompanyColumnHeader();
     document.getElementById('tabGelen').classList.toggle('active', view === 'gelen');
     document.getElementById('tabGiden').classList.toggle('active', view === 'giden');
     updateActionButtonsTheme();

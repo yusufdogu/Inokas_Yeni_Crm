@@ -710,10 +710,53 @@ async function deletePendingOrderItem(poItemId, btnEl) {
 
 // ─── ÜRÜN DETAY MODALİ ───────────────────────────────────────────────────────
 let _editingProductId = null;
+let _productModalTab = 'info';
+
+function switchProductModalTab(tab) {
+  _productModalTab = tab === 'movements' ? 'movements' : 'info';
+  document.getElementById('productTabInfoBtn')?.classList.toggle('active', _productModalTab === 'info');
+  document.getElementById('productTabMovementsBtn')?.classList.toggle('active', _productModalTab === 'movements');
+  document.getElementById('productModalTab-info')?.classList.toggle('active', _productModalTab === 'info');
+  document.getElementById('productModalTab-movements')?.classList.toggle('active', _productModalTab === 'movements');
+}
+
+function renderProductMovementsBySku(skuRaw) {
+  const body = document.getElementById('productMovementsTableBody');
+  const emptyEl = document.getElementById('productMovementsEmptyState');
+  if (!body || !emptyEl) return;
+
+  const sku = String(skuRaw || '').trim().toLowerCase();
+  const rows = (allMovements || []).filter((m) => String(m.sku || '').trim().toLowerCase() === sku);
+
+  body.innerHTML = '';
+  if (!sku || rows.length === 0) {
+    emptyEl.style.display = 'block';
+    emptyEl.textContent = 'Bu ürün için hareket bulunamadı.';
+    return;
+  }
+
+  emptyEl.style.display = 'none';
+  rows.forEach((m) => {
+    const tr = document.createElement('tr');
+    const isIn = String(m.direction || '').toUpperCase() === 'INCOMING';
+    const dirText = isIn ? 'Giriş' : 'Çıkış';
+    tr.innerHTML = `
+      <td class="movement-date-cell">${esc(m.invoice_date || '-')}</td>
+      <td><span class="badge-dir ${isIn ? 'badge-in' : 'badge-out'}">${dirText}</span></td>
+      <td>${esc(m.invoice_no || '-')}</td>
+      <td title="${esc(m.company_name || '-')}">${esc(m.company_name || '-')}</td>
+      <td class="text-right">${fmtQty(m.quantity || 0)}</td>
+      <td class="text-right">${Number(m.unit_price_cur || 0).toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+      <td>${esc(m.currency || '-')}</td>
+    `;
+    body.appendChild(tr);
+  });
+}
 
 async function openProductModal(productId) {
   if (!productId) return;
   _editingProductId = productId;
+  switchProductModalTab('movements');
 
   const msgEl = document.getElementById('productModalMsg');
   const saveBtn = document.getElementById('productModalSaveBtn');
@@ -729,7 +772,10 @@ async function openProductModal(productId) {
     const product = await res.json();
 
     document.getElementById('productModalTitle').textContent = product.product_name || 'Ürün Detayı';
+    const subtitle = document.getElementById('productModalSubTitle');
+    if (subtitle) subtitle.textContent = `Kod: ${product.product_code || '—'}`;
     fillProductModal(product);
+    renderProductMovementsBySku(product.product_code);
     msgEl.textContent = '';
     saveBtn.disabled = false;
   } catch (err) {
@@ -763,6 +809,7 @@ function fillProductModal(p) {
 function closeProductModal() {
   document.getElementById('productEditModal').style.display = 'none';
   _editingProductId = null;
+  switchProductModalTab('movements');
   const msgEl = document.getElementById('productModalMsg');
   msgEl.textContent = '';
   msgEl.className = 'modal-msg';
@@ -817,6 +864,9 @@ async function saveProductModal() {
 
     msgEl.textContent = 'Kaydedildi ✓';
     msgEl.className   = 'modal-msg success';
+    const subtitle = document.getElementById('productModalSubTitle');
+    if (subtitle) subtitle.textContent = `Kod: ${payload.product_code || document.getElementById('pf-product_code')?.value || '—'}`;
+    renderProductMovementsBySku(payload.product_code || document.getElementById('pf-product_code')?.value);
 
     // Update the matching row in allStocks in memory — no full reload
     updateStockRowInMemory(_editingProductId, payload);

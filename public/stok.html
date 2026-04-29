@@ -403,6 +403,38 @@
 
       </div>
     </div>
+
+    <div id="skuMergeModal" class="modal-overlay" style="display:none;" onclick="if(event.target===this) closeSkuMergeModal()">
+      <div class="sku-merge-modal">
+        <div class="sku-merge-header">
+          <div>
+            <h3>SKU Birleştir</h3>
+            <p>Eşleşmeyen SKU kodunu hedef koda taşı.</p>
+          </div>
+          <button type="button" class="modal-close-btn" onclick="closeSkuMergeModal()">✕</button>
+        </div>
+        <form id="skuMergeForm" class="sku-merge-body">
+          <div class="sku-merge-field">
+            <label>Mevcut Kod</label>
+            <input type="text" id="skuMergeFromCode" readonly>
+          </div>
+          <div class="sku-merge-field">
+            <label>Hedef Kod</label>
+            <input type="text" id="skuMergeToCode" placeholder="Örn: WDBWLG0120HBK-EESN" required>
+          </div>
+          <label class="sku-merge-check">
+            <input type="checkbox" id="skuMergeCreateMissing" checked>
+            Hedef kod `products` tablosunda yoksa otomatik oluştur
+          </label>
+          <div id="skuMergeHint" class="sku-merge-hint"></div>
+          <div class="sku-merge-footer">
+            <span id="skuMergeMsg" class="modal-msg"></span>
+            <button type="button" class="btn-secondary" onclick="closeSkuMergeModal()">İptal</button>
+            <button type="submit" id="skuMergeSubmitBtn" class="btn-primary">Birleştir</button>
+          </div>
+        </form>
+      </div>
+    </div>
   </main>
 
   <script src="nav-pill.js?v=nav-slide-3-ease"></script>

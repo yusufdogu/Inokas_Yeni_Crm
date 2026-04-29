@@ -939,3 +939,96 @@ body {
 #stocksTableBody tr:hover {
   background: #f8fafc;
 }
+
+.sku-merge-modal {
+  width: 100%;
+  max-width: 560px;
+  background: #fff;
+  border-radius: 16px;
+  box-shadow: 0 22px 60px rgba(15, 23, 42, 0.35);
+  overflow: hidden;
+  border: 1px solid #e2e8f0;
+}
+
+.sku-merge-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 18px 20px 14px;
+  background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+}
+
+.sku-merge-header h3 {
+  margin: 0;
+  color: #f8fafc;
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.sku-merge-header p {
+  margin: 4px 0 0;
+  color: #cbd5e1;
+  font-size: 12px;
+}
+
+.sku-merge-body {
+  padding: 18px 20px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.sku-merge-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.sku-merge-field label {
+  font-size: 12px;
+  color: #475569;
+  font-weight: 600;
+}
+
+.sku-merge-field input {
+  height: 40px;
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  padding: 0 12px;
+  font-size: 14px;
+  color: #0f172a;
+}
+
+.sku-merge-field input:focus {
+  outline: none;
+  border-color: #2563eb;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.14);
+}
+
+.sku-merge-field input[readonly] {
+  background: #f8fafc;
+  color: #334155;
+}
+
+.sku-merge-check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: #334155;
+  user-select: none;
+}
+
+.sku-merge-hint {
+  font-size: 12px;
+  color: #64748b;
+  min-height: 16px;
+}
+
+.sku-merge-footer {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 4px;
+}

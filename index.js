@@ -686,6 +686,39 @@ app.get('/api/products/codes', async (req, res) => {
   }
 });
 
+// SKU products'ta yoksa hızlıca oluştur (stok ekranındaki eşleştirme akışı için)
+app.post('/api/products/ensure-by-code', async (req, res) => {
+  try {
+    const code = String(req.body?.product_code || '').trim();
+    const name = String(req.body?.product_name || '').trim();
+    if (!code) return res.status(400).json({ error: 'product_code zorunlu' });
+
+    const { data: existing, error: existingErr } = await supabase
+      .from('products')
+      .select('id, product_code, product_name')
+      .eq('product_code', code)
+      .maybeSingle();
+    if (existingErr) throw existingErr;
+    if (existing) return res.json({ created: false, data: existing });
+
+    const fallbackName = name || `Ürün ${code}`;
+    const { data: created, error: createErr } = await supabase
+      .from('products')
+      .insert({
+        product_code: code,
+        product_name: fallbackName
+      })
+      .select('id, product_code, product_name')
+      .single();
+    if (createErr) throw createErr;
+
+    res.json({ created: true, data: created });
+  } catch (err) {
+    console.error('POST /api/products/ensure-by-code hatası:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.post('/api/purchase-orders', async (req, res) => {
   try {
     const companyVkn = String(req.body?.company_vkn || '').trim();
@@ -967,6 +1000,47 @@ app.get('/api/invoices', async (req, res) => {
     res.status(200).json(data);
   } catch (err) {
     console.error("Fatura Çekme Hatası:", err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// invoice_items SKU toplu normalizasyonu (UI'dan manuel birleştirme)
+app.post('/api/invoice-items/normalize-sku', async (req, res) => {
+  try {
+    const fromCode = String(req.body?.from_code || '').trim();
+    const toCode = String(req.body?.to_code || '').trim();
+    if (!fromCode || !toCode) {
+      return res.status(400).json({ error: 'from_code ve to_code zorunludur.' });
+    }
+    if (fromCode === toCode) {
+      return res.status(400).json({ error: 'Eski ve yeni kod aynı olamaz.' });
+    }
+
+    const { data: rows, error: selectError } = await supabase
+      .from('invoice_items')
+      .select('id')
+      .eq('product_code', fromCode);
+    if (selectError) throw selectError;
+    const ids = (rows || []).map((r) => r.id).filter(Boolean);
+
+    if (!ids.length) {
+      return res.json({ message: 'Güncellenecek satır bulunamadı.', updated_rows: 0 });
+    }
+
+    const { error: updateError } = await supabase
+      .from('invoice_items')
+      .update({ product_code: toCode })
+      .in('id', ids);
+    if (updateError) throw updateError;
+
+    res.json({
+      message: 'SKU normalizasyonu tamamlandı.',
+      from_code: fromCode,
+      to_code: toCode,
+      updated_rows: ids.length
+    });
+  } catch (err) {
+    console.error('POST /api/invoice-items/normalize-sku hatası:', err.message);
     res.status(500).json({ error: err.message });
   }
 });

@@ -10,6 +10,7 @@ let currentInsightTab = 'profit';
 let movementCompanyList = [];
 const profitDrillState = { level: 'brand', brand: '', category: '' };
 const PROFIT_BAR_COLORS = ['#2563eb', '#0ea5e9', '#22c55e', '#f59e0b', '#ef4444', '#a855f7', '#14b8a6', '#f97316', '#06b6d4', '#84cc16'];
+let _skuMergeContext = null;
 
 const STOCK_CACHE_KEY     = 'inokas_stock_v2';
 const MOVEMENT_CACHE_KEY  = 'inokas_movements_v1';
@@ -50,6 +51,7 @@ function setupStockUi() {
   });
   document.getElementById('insightStartDate')?.addEventListener('change', () => renderStockInsights());
   document.getElementById('insightEndDate')?.addEventListener('change', () => renderStockInsights());
+  document.getElementById('skuMergeForm')?.addEventListener('submit', submitSkuMergeForm);
   addPendingPoLine();
 }
 
@@ -241,8 +243,8 @@ function renderDepoTable() {
     const stockClass = Number(row.current_stock) <= 0 ? 'text-danger' : Number(row.current_stock) < 5 ? 'text-warning' : 'text-success';
     const tr = document.createElement('tr');
     tr.dataset.productId = row.product_id || '';
-    tr.title = 'Düzenlemek için tıklayın';
-    tr.onclick = () => { if (row.product_id) openProductModal(row.product_id); };
+    tr.title = row.product_id ? 'Düzenlemek için tıklayın' : 'SKU eşleşmesi yok - düzeltmek için tıklayın';
+    tr.onclick = () => handleStockRowClick(row);
     tr.innerHTML = `
       <td style="font-weight:600;">${esc(row.product_name)}</td>
       <td><span class="badge-sku">${esc(row.sku || '-')}</span></td>
@@ -256,6 +258,137 @@ function renderDepoTable() {
     `;
     body.appendChild(tr);
   });
+}
+
+async function handleStockRowClick(row) {
+  if (row?.product_id) {
+    openProductModal(row.product_id);
+    return;
+  }
+  const fromSku = String(row?.sku || '').trim();
+  if (!fromSku) {
+    alert('Bu satırda ürün kodu bulunamadı.');
+    return;
+  }
+  openSkuMergeModal(row);
+}
+
+function openSkuMergeModal(row) {
+  _skuMergeContext = row || null;
+  const fromSku = String(row?.sku || '').trim();
+  const fromInput = document.getElementById('skuMergeFromCode');
+  const toInput = document.getElementById('skuMergeToCode');
+  const msgEl = document.getElementById('skuMergeMsg');
+  const hintEl = document.getElementById('skuMergeHint');
+  const createMissing = document.getElementById('skuMergeCreateMissing');
+  if (!fromInput || !toInput) return;
+
+  fromInput.value = fromSku;
+  toInput.value = fromSku;
+  if (createMissing) createMissing.checked = true;
+  if (msgEl) {
+    msgEl.textContent = '';
+    msgEl.className = 'modal-msg';
+  }
+  if (hintEl) {
+    hintEl.textContent = row?.product_name
+      ? `${row.product_name} satırı için toplu SKU güncellemesi yapılacak.`
+      : 'Seçili satır için toplu SKU güncellemesi yapılacak.';
+  }
+  document.getElementById('skuMergeModal').style.display = 'flex';
+  setTimeout(() => toInput.focus(), 0);
+}
+
+function closeSkuMergeModal() {
+  document.getElementById('skuMergeModal').style.display = 'none';
+  _skuMergeContext = null;
+}
+
+async function submitSkuMergeForm(e) {
+  e.preventDefault();
+  const row = _skuMergeContext;
+  const fromSku = String(document.getElementById('skuMergeFromCode')?.value || '').trim();
+  const toSku = String(document.getElementById('skuMergeToCode')?.value || '').trim();
+  const createIfMissing = !!document.getElementById('skuMergeCreateMissing')?.checked;
+  const submitBtn = document.getElementById('skuMergeSubmitBtn');
+  const msgEl = document.getElementById('skuMergeMsg');
+  if (!row || !fromSku) return;
+
+  if (!toSku) {
+    if (msgEl) {
+      msgEl.textContent = 'Hedef ürün kodu boş olamaz.';
+      msgEl.className = 'modal-msg error';
+    }
+    return;
+  }
+  if (toSku === fromSku) {
+    if (msgEl) {
+      msgEl.textContent = 'Eski ve yeni kod aynı. Değişiklik yapılmadı.';
+      msgEl.className = 'modal-msg error';
+    }
+    return;
+  }
+
+  try {
+    if (submitBtn) submitBtn.disabled = true;
+    if (msgEl) {
+      msgEl.textContent = 'Birleştiriliyor...';
+      msgEl.className = 'modal-msg';
+    }
+
+    const res = await fetch('/api/invoice-items/normalize-sku', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ from_code: fromSku, to_code: toSku })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data?.error || 'SKU güncelleme başarısız');
+
+    sessionStorage.removeItem(STOCK_CACHE_KEY);
+    sessionStorage.removeItem(MOVEMENT_CACHE_KEY);
+    sessionStorage.removeItem(PO_CACHE_KEY);
+    await loadAllData();
+
+    let product = null;
+    const byCodeRes = await fetch(`/api/products/by-code?code=${encodeURIComponent(toSku)}`);
+    if (byCodeRes.ok) {
+      product = await byCodeRes.json();
+    } else if (byCodeRes.status === 404 && createIfMissing) {
+      const ensureRes = await fetch('/api/products/ensure-by-code', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          product_code: toSku,
+          product_name: String(row?.product_name || '').trim()
+        })
+      });
+      const ensureData = await ensureRes.json();
+      if (!ensureRes.ok) throw new Error(ensureData?.error || 'Ürün oluşturulamadı');
+      product = ensureData?.data || null;
+    }
+
+    if (msgEl) {
+      msgEl.textContent = `Tamamlandı. Güncellenen satır: ${Number(data?.updated_rows || 0)}`;
+      msgEl.className = 'modal-msg success';
+    }
+
+    if (product?.id) {
+      sessionStorage.removeItem(STOCK_CACHE_KEY);
+      await loadStockSummary();
+      closeSkuMergeModal();
+      openProductModal(product.id);
+      return;
+    }
+
+    closeSkuMergeModal();
+  } catch (err) {
+    if (msgEl) {
+      msgEl.textContent = `Hata: ${err.message}`;
+      msgEl.className = 'modal-msg error';
+    }
+  } finally {
+    if (submitBtn) submitBtn.disabled = false;
+  }
 }
 
 function renderStockStats() {

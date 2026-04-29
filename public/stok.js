@@ -2,10 +2,13 @@
 let allStocks       = [];  // Depo durumu (Tab 1)
 let allMovements    = [];  // Stok hareketleri (Tab 2)
 let allPendingOrders = []; // Bekleyen siparişler (Tab 3)
+let allProductsCatalog = []; // Ürün master listesi (kar analizi görünürlüğü)
 let stockStats      = null;
 let currentStockTab = 'depo';
 let currentInsightTab = 'profit';
 let movementCompanyList = [];
+const profitDrillState = { level: 'brand', brand: '', category: '' };
+const PROFIT_BAR_COLORS = ['#2563eb', '#0ea5e9', '#22c55e', '#f59e0b', '#ef4444', '#a855f7', '#14b8a6', '#f97316', '#06b6d4', '#84cc16'];
 
 const STOCK_CACHE_KEY     = 'inokas_stock_v2';
 const MOVEMENT_CACHE_KEY  = 'inokas_movements_v1';
@@ -23,10 +26,26 @@ function setupStockUi() {
   document.getElementById('poCompanyVkn')?.addEventListener('blur', autoFillCompanyByVkn);
   document.querySelectorAll('.insight-tab-btn').forEach((btn) => {
     btn.addEventListener('click', () => {
-      currentInsightTab = btn.dataset.insightTab || 'profit';
+      const nextTab = btn.dataset.insightTab || 'profit';
+      if (nextTab === 'profit_drill' && currentInsightTab !== 'profit_drill') {
+        profitDrillState.level = 'brand';
+        profitDrillState.brand = '';
+        profitDrillState.category = '';
+      }
+      currentInsightTab = nextTab;
       document.querySelectorAll('.insight-tab-btn').forEach((x) => x.classList.toggle('active', x === btn));
       renderStockInsights();
     });
+  });
+  document.getElementById('insightBackBtn')?.addEventListener('click', () => {
+    if (profitDrillState.level === 'model') {
+      profitDrillState.level = 'category';
+      profitDrillState.category = '';
+    } else if (profitDrillState.level === 'category') {
+      profitDrillState.level = 'brand';
+      profitDrillState.brand = '';
+    }
+    renderStockInsights();
   });
   addPendingPoLine();
 }
@@ -54,6 +73,7 @@ async function loadStockSummary() {
   if (cached) {
     allStocks  = cached.data  || [];
     stockStats = cached.stats || null;
+    allProductsCatalog = cached.product_catalog || [];
     renderStockStats();
     renderStockInsights();
     renderDepoTable();
@@ -65,7 +85,8 @@ async function loadStockSummary() {
     const payload = await res.json();
     allStocks  = payload.data  || [];
     stockStats = payload.stats || null;
-    writeCache(STOCK_CACHE_KEY, { data: allStocks, stats: stockStats });
+    allProductsCatalog = payload.product_catalog || [];
+    writeCache(STOCK_CACHE_KEY, { data: allStocks, stats: stockStats, product_catalog: allProductsCatalog });
     renderStockStats();
     renderStockInsights();
     renderDepoTable();
@@ -73,6 +94,84 @@ async function loadStockSummary() {
     console.error('Stok hatası:', err);
     if (!cached) showEmpty('stocksEmptyState', 'Stok verileri alınamadı.');
   }
+}
+
+function isSarfCategory(category) {
+  const c = String(category || '').toLocaleLowerCase('tr-TR');
+  return c.includes('sarf');
+}
+
+function buildProfitDrillRows() {
+  const metricBySku = new Map();
+  (allStocks || []).forEach((r) => {
+    const sku = String(r.sku || '').trim();
+    if (!sku) return;
+    metricBySku.set(sku, Number(r.fifo_gross_profit_usd || 0));
+  });
+
+  const source = [];
+  const seen = new Set();
+  (allProductsCatalog || []).forEach((p) => {
+    const sku = String(p.sku || '').trim();
+    if (!sku || seen.has(sku)) return;
+    seen.add(sku);
+    source.push({
+      sku,
+      product_name: p.product_name || '',
+      brand: p.brand || '',
+      category: p.category || '',
+      model: p.model || '',
+      fifo_gross_profit_usd: metricBySku.has(sku) ? Number(metricBySku.get(sku) || 0) : 0
+    });
+  });
+  // Katalogda olmayan ama metrikte olan SKU'ları da kaçırma.
+  (allStocks || []).forEach((r) => {
+    const sku = String(r.sku || '').trim();
+    if (!sku || seen.has(sku)) return;
+    seen.add(sku);
+    source.push({
+      sku,
+      product_name: r.product_name || '',
+      brand: r.brand || '',
+      category: r.category || '',
+      model: r.model || '',
+      fifo_gross_profit_usd: Number(r.fifo_gross_profit_usd || 0)
+    });
+  });
+
+  let rows = [];
+  let subtitle = 'Marka Bazlı Kar (USD)';
+  if (profitDrillState.level === 'brand') {
+    const byBrand = new Map();
+    source.forEach((r) => {
+      const key = String(r.brand || 'Markasız').trim() || 'Markasız';
+      byBrand.set(key, Number(byBrand.get(key) || 0) + Number(r.fifo_gross_profit_usd || 0));
+    });
+    rows = [...byBrand.entries()].map(([name, value]) => ({ name, value, canDrill: true }));
+  } else if (profitDrillState.level === 'category') {
+    const scoped = source.filter((r) => String(r.brand || 'Markasız').trim() === profitDrillState.brand);
+    const byCategory = new Map();
+    scoped.forEach((r) => {
+      const key = String(r.category || 'Kategorisiz').trim() || 'Kategorisiz';
+      byCategory.set(key, Number(byCategory.get(key) || 0) + Number(r.fifo_gross_profit_usd || 0));
+    });
+    rows = [...byCategory.entries()].map(([name, value]) => ({ name, value, canDrill: !isSarfCategory(name) }));
+    subtitle = `${profitDrillState.brand} > Kategori Bazlı Kar`;
+  } else {
+    const scoped = source.filter((r) =>
+      String(r.brand || 'Markasız').trim() === profitDrillState.brand &&
+      String(r.category || 'Kategorisiz').trim() === profitDrillState.category
+    );
+    const byModel = new Map();
+    scoped.forEach((r) => {
+      const key = String(r.model || r.product_name || r.sku || 'Modelsiz').trim() || 'Modelsiz';
+      byModel.set(key, Number(byModel.get(key) || 0) + Number(r.fifo_gross_profit_usd || 0));
+    });
+    rows = [...byModel.entries()].map(([name, value]) => ({ name, value, canDrill: false }));
+    subtitle = `${profitDrillState.brand} > ${profitDrillState.category} > Model Bazlı Kar`;
+  }
+  rows.sort((a, b) => Number(b.value || 0) - Number(a.value || 0));
+  return { rows, subtitle };
 }
 
 function renderDepoTable() {
@@ -136,12 +235,56 @@ function renderStockStats() {
 function renderStockInsights() {
   const barsEl = document.getElementById('stockInsightBars');
   const subEl = document.getElementById('stockInsightSubLabel');
-  if (!barsEl || !subEl) return;
+  const backBtn = document.getElementById('insightBackBtn');
+  if (!barsEl || !subEl || !backBtn) return;
+
+  if (currentInsightTab === 'profit_drill') {
+    const { rows, subtitle } = buildProfitDrillRows();
+    subEl.textContent = subtitle;
+    backBtn.style.display = profitDrillState.level === 'brand' ? 'none' : 'inline-flex';
+    barsEl.innerHTML = '';
+    if (!rows.length) {
+      barsEl.innerHTML = '<div class="insight-empty">Kar analizi için yeterli veri yok.</div>';
+      return;
+    }
+    barsEl.className = 'insight-columns';
+    const maxVal = rows.reduce((acc, row) => Math.max(acc, Number(row.value || 0)), 0);
+    rows.forEach((row, idx) => {
+      const col = document.createElement('div');
+      const heightPct = maxVal > 0 ? Math.max(3, Math.round((Number(row.value || 0) / maxVal) * 100)) : 0;
+      col.className = 'insight-col';
+      col.innerHTML = `
+        <div class="insight-col-value">${fmtUsd(row.value)}</div>
+        <div class="insight-col-bar-wrap">
+          <div class="insight-col-bar" style="height:${heightPct}%; background:${PROFIT_BAR_COLORS[idx % PROFIT_BAR_COLORS.length]};"></div>
+        </div>
+        <div class="insight-col-name" title="${esc(row.name)}">${esc(row.name)}</div>
+      `;
+      if (row.canDrill) {
+        col.classList.add('clickable');
+        col.onclick = () => {
+          if (profitDrillState.level === 'brand') {
+            profitDrillState.level = 'category';
+            profitDrillState.brand = row.name;
+            profitDrillState.category = '';
+          } else if (profitDrillState.level === 'category') {
+            profitDrillState.level = 'model';
+            profitDrillState.category = row.name;
+          }
+          renderStockInsights();
+        };
+      }
+      barsEl.appendChild(col);
+    });
+    return;
+  }
 
   const model = buildInsightModel();
   const active = model[currentInsightTab] || model.profit;
   const rows = Array.isArray(active.rows) ? active.rows : [];
   const maxVal = rows.reduce((acc, row) => Math.max(acc, Number(row.value) || 0), 0);
+  backBtn.style.display = 'none';
+  barsEl.className = 'insight-bars';
 
   subEl.textContent = active.subtitle || 'Top 10';
   barsEl.innerHTML = '';

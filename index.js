@@ -328,7 +328,7 @@ app.get('/api/stocks/summary', async (req, res) => {
 
     const { data: productRows, error: productErr } = await supabase
       .from('products')
-      .select('id, product_code, reserved_quantity, gift_quantity');
+      .select('id, product_code, product_name, reserved_quantity, gift_quantity, brand, category, model');
     if (productErr) throw productErr;
 
     const productByCode = new Map(
@@ -339,7 +339,10 @@ app.get('/api/stocks/summary', async (req, res) => {
           {
             id:                p.id,
             reserved_quantity: Number(p.reserved_quantity || 0),
-            gift_quantity:     Number(p.gift_quantity || 0)
+            gift_quantity:     Number(p.gift_quantity || 0),
+            brand:             String(p.brand || '').trim(),
+            category:          String(p.category || '').trim(),
+            model:             String(p.model || '').trim()
           }
         ])
     );
@@ -470,7 +473,10 @@ app.get('/api/stocks/summary', async (req, res) => {
         fifo_gross_profit_usd: row.fifo_gross_profit_usd,
         product_id:        productMeta?.id || null,
         reserved_quantity: Number(productMeta?.reserved_quantity || 0),
-        gift_quantity:     Number(productMeta?.gift_quantity || 0)
+        gift_quantity:     Number(productMeta?.gift_quantity || 0),
+        brand:             productMeta?.brand || '',
+        category:          productMeta?.category || '',
+        model:             productMeta?.model || ''
       };
     }).sort((a, b) => {
       if (b.current_stock !== a.current_stock) return b.current_stock - a.current_stock;
@@ -498,7 +504,18 @@ app.get('/api/stocks/summary', async (req, res) => {
       fifo_gross_profit_usd: 0
     });
 
-    res.status(200).json({ data: summary, stats });
+    const productCatalog = (productRows || [])
+      .map((p) => ({
+        product_id: String(p.id || ''),
+        sku: String(p.product_code || '').trim(),
+        product_name: String(p.product_name || '').trim(),
+        brand: String(p.brand || '').trim(),
+        category: String(p.category || '').trim(),
+        model: String(p.model || '').trim()
+      }))
+      .filter((p) => p.sku);
+
+    res.status(200).json({ data: summary, stats, product_catalog: productCatalog });
   } catch (err) {
     console.error("Stok Özet Hatası:", err.message);
     res.status(500).json({ error: err.message });

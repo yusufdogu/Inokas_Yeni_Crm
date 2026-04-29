@@ -68,9 +68,13 @@
           <button type="button" class="insight-tab-btn active" data-insight-tab="profit">En Çok Kazandıran Ürünler</button>
           <button type="button" class="insight-tab-btn" data-insight-tab="sold">En Çok Satan Ürünler</button>
           <button type="button" class="insight-tab-btn" data-insight-tab="slow">Yavaş Dönen / Şişmiş Stok</button>
+          <button type="button" class="insight-tab-btn" data-insight-tab="profit_drill">Kar Analizi</button>
         </div>
         <div class="insight-body">
-          <div id="stockInsightSubLabel" class="insight-sub-label">Top 10 (yükleniyor)</div>
+          <div class="insight-header-row">
+            <button type="button" id="insightBackBtn" class="insight-back-btn" style="display:none;">← Geri</button>
+            <div id="stockInsightSubLabel" class="insight-sub-label">Top 10 (yükleniyor)</div>
+          </div>
           <div id="stockInsightBars" class="insight-bars"></div>
         </div>
       </div>
@@ -208,6 +212,7 @@
         </div>
         <div id="poEmptyState" class="empty-state">Bekleyen sipariş verisi yükleniyor...</div>
       </div>
+
     </section>
 
     <!-- ÜRÜN DETAY / DÜZENLEME MODALİ -->

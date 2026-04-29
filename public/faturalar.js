@@ -1547,26 +1547,12 @@ function renderCurrentView() {
     const directionFilter = currentView === 'gelen' ? 'INCOMING' : 'OUTGOING';
 
     // B. Önce o sekmeye ait (Gelen/Giden) tüm faturaları süz
-    let filteredInvoices = allInvoicesCache.filter(inv => inv.direction === directionFilter);
+    const scopedInvoices = allInvoicesCache.filter(inv => inv.direction === directionFilter);
 
     // B2. Firma dropdown'ını her zaman doldur (erken return'den önce, aksi hâlde liste boş kalır)
-    populateCompanyFilter(filteredInvoices);
+    populateCompanyFilter(scopedInvoices);
 
-    // C. Kullanıcı bu sekmede henüz bir şeye dokunmadıysa → boş tablo + gri placeholder barlar
-    if (!hasInteracted()) {
-        renderInvoiceTable([]);
-        updateSummaryCards([]);
-        return;
-    }
-
-    // D. Bu sekme için "Tümünü Göster" aktifse → filtresiz hepsini göster
-    if (isShowAll()) {
-        renderInvoiceTable(filteredInvoices);
-        updateSummaryCards(filteredInvoices);
-        return;
-    }
-
-    // E. Kullanıcı etkileşim yaptı ama showAll kapalı → filtreleri oku ve uygula
+    // C. Filtreleri her durumda oku: dashboard daima filtreye göre güncellensin
     const companySelected = document.getElementById('filterCompany').value;
     const yearSelected = document.getElementById('filterYear').value;
     const monthSelected = document.getElementById('filterMonth').value;
@@ -1577,9 +1563,8 @@ function renderCurrentView() {
     // Arama metnini normalize et
     const searchTextLower = searchText.toLocaleLowerCase('tr-TR');
 
-    // G. Seçimlere göre faturaları filtrele
-    filteredInvoices = filteredInvoices.filter(inv => {
-        // 1- Mevcut Şirket & Döviz & Yazı Filtreleri
+    // Dashboard için filtrelenmiş küme (buton durumundan bağımsız)
+    const filterMatchedInvoices = scopedInvoices.filter(inv => {
         const matchCompany = !companySelected || inv.companies?.name === companySelected;
         const invoiceCurrency = normalizeCurrencyCode(inv.currency);
         const matchCurrency = !currencySelected || invoiceCurrency === currencySelected;
@@ -1587,32 +1572,40 @@ function renderCurrentView() {
             (inv.companies?.name && inv.companies.name.toLocaleLowerCase('tr-TR').includes(searchTextLower)) ||
             (inv.invoice_no && inv.invoice_no.toLocaleLowerCase('tr-TR').includes(searchTextLower));
 
-        // 2- Ödeme Durumu Filtresi
         const valStatus = (inv.status || 'unpaid').toLowerCase();
         const matchStatus = !statusSelected || valStatus === statusSelected;
 
-        // 3- Yıl ve Ay Filtresi (Faturanın Tarihine Bakıyoruz)
         let matchYear = true;
         let matchMonth = true;
         if (yearSelected || monthSelected) {
-            // Faturanın kesim tarihini (invoice_date) Parçalayıp Yıl ve Ayı Alıyoruz
             const d = new Date(inv.invoice_date);
             if (yearSelected) matchYear = d.getFullYear().toString() === yearSelected;
-
-            // JavaScript aylar 0'dan başladığı için (Ocak=0) +1 ekleyip 2 haneli (01, 02) string yapıyoruz
             if (monthSelected) {
                 const faturaAyi = String(d.getMonth() + 1).padStart(2, '0');
                 matchMonth = faturaAyi === monthSelected;
             }
         }
-
-        // 10 Numara 5 Yıldız Kural: Tüüüüüm filtrelerden "GEÇERLİ (true)" notu alan fatura tabloda kalır!
         return matchCompany && matchCurrency && matchSearch && matchStatus && matchYear && matchMonth;
     });
 
-    // H. Filtrelenmiş faturaları ekrana bas
-    renderInvoiceTable(filteredInvoices);
-    updateSummaryCards(filteredInvoices);
+    // C2. Kullanıcı bu sekmede henüz bir şeye dokunmadıysa → tablo boş kalsın.
+    // Dashboard ise yine filtreye göre güncellenir.
+    if (!hasInteracted()) {
+        renderInvoiceTable([]);
+        updateSummaryCards(filterMatchedInvoices);
+        return;
+    }
+
+    // D. Bu sekme için "Tümünü Göster" aktifse → tabloda filtresiz hepsini göster
+    if (isShowAll()) {
+        renderInvoiceTable(scopedInvoices);
+        updateSummaryCards(filterMatchedInvoices);
+        return;
+    }
+
+    // E. showAll kapalıysa tablo da filtreli küme ile güncellenir
+    renderInvoiceTable(filterMatchedInvoices);
+    updateSummaryCards(filterMatchedInvoices);
 }
 
 function updateCompanyColumnHeader() {
@@ -1630,7 +1623,7 @@ function toggleShowAll() {
     const btn = document.getElementById('btnToggleShowAll');
 
     if (isShowAll()) {
-        // Açıldı → filtreleri temizle
+        // Açıldı → filtreleri temizle; dashboard da tüm sekme verisine dönsün.
         document.getElementById('filterCompany').value = '';
         document.getElementById('filterYear').value = '';
         document.getElementById('filterMonth').value = '';

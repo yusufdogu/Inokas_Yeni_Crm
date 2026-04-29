@@ -603,8 +603,8 @@ body {
   background: #ffffff;
   border-radius: 16px;
   width: 100%;
-  max-width: 780px;
-  max-height: 90vh;
+  max-width: 960px;
+  height: min(90vh, 760px);
   display: flex;
   flex-direction: column;
   box-shadow: 0 20px 60px rgba(0,0,0,0.2);
@@ -616,22 +616,56 @@ body {
   align-items: center;
   justify-content: space-between;
   padding: 20px 24px;
-  border-bottom: 1px solid #e2e8f0;
+  border-bottom: 1px solid #0b1220;
+  background: #0f172a;
   flex-shrink: 0;
 }
 
 .modal-header h2 {
   font-size: 17px;
   font-weight: 700;
-  color: #0f172a;
+  color: #ffffff;
   margin: 0;
+}
+
+.product-modal-subtitle {
+  margin-top: 3px;
+  font-size: 12px;
+  color: #cbd5e1;
+  font-family: 'Geist Mono', monospace;
+  font-weight: 700;
+}
+
+.product-modal-tabs {
+  display: flex;
+  gap: 0;
+  border-bottom: 1px solid #e2e8f0;
+  background: #f8fafc;
+}
+
+.product-modal-tab-btn {
+  border: none;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: #64748b;
+  font-weight: 700;
+  font-size: 13px;
+  padding: 10px 16px;
+  cursor: pointer;
+}
+
+.product-modal-tab-btn.active {
+  color: #047857;
+  border-bottom-color: #059669;
+  font-weight: 800;
+  background: #ffffff;
 }
 
 .modal-close-btn {
   background: none;
   border: none;
   font-size: 18px;
-  color: #94a3b8;
+  color: #cbd5e1;
   cursor: pointer;
   padding: 4px 8px;
   border-radius: 6px;
@@ -639,8 +673,8 @@ body {
 }
 
 .modal-close-btn:hover {
-  background: #f1f5f9;
-  color: #0f172a;
+  background: rgba(255,255,255,0.12);
+  color: #ffffff;
 }
 
 .modal-body {
@@ -652,6 +686,26 @@ body {
   gap: 20px;
 }
 
+.product-modal-tab-content {
+  display: none;
+}
+
+.product-modal-tab-content.active {
+  display: flex;
+}
+
+.product-movements-table td,
+.product-movements-table th {
+  white-space: nowrap;
+}
+
+.product-movements-table td:nth-child(4),
+.product-movements-table th:nth-child(4) {
+  max-width: 230px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .modal-section {
   display: flex;
   flex-direction: column;
@@ -660,10 +714,10 @@ body {
 
 .modal-section-title {
   font-size: 11px;
-  font-weight: 700;
+  font-weight: 800;
   text-transform: uppercase;
   letter-spacing: 0.08em;
-  color: #94a3b8;
+  color: #0f172a;
   padding-bottom: 6px;
   border-bottom: 1px solid #f1f5f9;
 }

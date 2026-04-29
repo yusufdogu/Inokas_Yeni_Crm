@@ -215,11 +215,19 @@
       <div class="modal-box">
 
         <div class="modal-header">
-          <h2 id="productModalTitle">Ürün Detayı</h2>
+          <div>
+            <h2 id="productModalTitle">Ürün Detayı</h2>
+            <div id="productModalSubTitle" class="product-modal-subtitle">Kod: —</div>
+          </div>
           <button class="modal-close-btn" onclick="closeProductModal()">✕</button>
         </div>
 
-        <div class="modal-body">
+        <div class="product-modal-tabs">
+          <button type="button" class="product-modal-tab-btn active" id="productTabMovementsBtn" onclick="switchProductModalTab('movements')">Stok Hareketleri</button>
+          <button type="button" class="product-modal-tab-btn" id="productTabInfoBtn" onclick="switchProductModalTab('info')">Ürün Bilgileri</button>
+        </div>
+
+        <div class="modal-body product-modal-tab-content" id="productModalTab-info">
 
           <!-- GENEL -->
           <div class="modal-section">
@@ -348,7 +356,27 @@
             </div>
           </div>
 
-        </div><!-- /.modal-body -->
+        </div><!-- /#productModalTab-info -->
+
+        <div class="modal-body product-modal-tab-content active" id="productModalTab-movements">
+          <div class="table-wrap">
+            <table class="stocks-table product-movements-table">
+              <thead>
+                <tr>
+                  <th>Tarih</th>
+                  <th>İşlem</th>
+                  <th>Fatura No</th>
+                  <th>Firma</th>
+                  <th class="text-right">Miktar</th>
+                  <th class="text-right">Birim Fiyat</th>
+                  <th>Döviz</th>
+                </tr>
+              </thead>
+              <tbody id="productMovementsTableBody"></tbody>
+            </table>
+          </div>
+          <div id="productMovementsEmptyState" class="empty-state">Bu ürün için hareket bulunamadı.</div>
+        </div><!-- /#productModalTab-movements -->
 
         <div class="modal-footer">
           <span id="productModalMsg" class="modal-msg"></span>

@@ -133,8 +133,16 @@ body {
 .insight-header-row {
   display: flex;
   align-items: center;
-  gap: 8px;
+  justify-content: space-between;
+  gap: 12px;
   margin-bottom: 8px;
+}
+
+.insight-header-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
 }
 
 .insight-back-btn {
@@ -152,6 +160,31 @@ body {
   color: #0f172a;
   font-size: 0.78rem;
   font-weight: 700;
+}
+
+.insight-date-filters {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.insight-date-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.74rem;
+  color: #334155;
+  font-weight: 700;
+}
+
+.insight-date-label input[type="date"] {
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 4px 8px;
+  font-size: 0.75rem;
+  font-family: inherit;
+  color: #0f172a;
+  background: #ffffff;
 }
 
 .insight-bars {
@@ -641,6 +674,8 @@ body {
   .insight-tabs { flex-wrap: wrap; }
   .insight-row { grid-template-columns: 1fr; gap: 4px; }
   .insight-value { text-align: left; }
+  .insight-header-row { flex-direction: column; align-items: stretch; }
+  .insight-date-filters { justify-content: flex-start; flex-wrap: wrap; }
   .company-dropdown-wrap { width: 100%; min-width: 0; max-width: 100%; }
   .company-dropdown-panel { width: 100%; }
   .tab-btn { padding: 11px 14px; font-size: 0.82rem; }

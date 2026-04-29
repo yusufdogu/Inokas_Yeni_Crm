@@ -72,8 +72,20 @@
         </div>
         <div class="insight-body">
           <div class="insight-header-row">
-            <button type="button" id="insightBackBtn" class="insight-back-btn" style="display:none;">← Geri</button>
-            <div id="stockInsightSubLabel" class="insight-sub-label">Top 10 (yükleniyor)</div>
+            <div class="insight-header-left">
+              <button type="button" id="insightBackBtn" class="insight-back-btn" style="display:none;">← Geri</button>
+              <div id="stockInsightSubLabel" class="insight-sub-label">Top 10 (yükleniyor)</div>
+            </div>
+            <div id="insightDateFilters" class="insight-date-filters" style="display:none;">
+              <label class="insight-date-label">
+                Başlangıç
+                <input type="date" id="insightStartDate">
+              </label>
+              <label class="insight-date-label">
+                Bitiş
+                <input type="date" id="insightEndDate">
+              </label>
+            </div>
           </div>
           <div id="stockInsightBars" class="insight-bars"></div>
         </div>

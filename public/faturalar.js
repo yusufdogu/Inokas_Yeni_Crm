@@ -1497,7 +1497,7 @@ async function refreshData(forceFetch = false) {
         }
     }
 
-    tableBody.innerHTML = '<tr><td colspan="10" class="text-center">Faturalar sunucudan yükleniyor...</td></tr>';
+    tableBody.innerHTML = '<tr><td colspan="7" class="text-center">Faturalar sunucudan yükleniyor...</td></tr>';
 
     try {
         // Parametre vermiyoruz, tüm faturaları (Gelen+Giden) tek seferde istiyoruz
@@ -1518,7 +1518,7 @@ async function refreshData(forceFetch = false) {
 
     } catch (error) {
         console.error("Tablo Yenileme Hatası:", error);
-        tableBody.innerHTML = '<tr><td colspan="10" class="text-center text-danger">Veriler yüklenirken hata oluştu!</td></tr>';
+        tableBody.innerHTML = '<tr><td colspan="7" class="text-center text-danger">Veriler yüklenirken hata oluştu!</td></tr>';
     }
 }
 
@@ -1568,9 +1568,13 @@ function renderCurrentView() {
         const matchCompany = !companySelected || inv.companies?.name === companySelected;
         const invoiceCurrency = normalizeCurrencyCode(inv.currency);
         const matchCurrency = !currencySelected || invoiceCurrency === currencySelected;
+        const matchProductCode = !searchTextLower || (inv.invoice_items || []).some((it) =>
+            String(it.product_code || '').toLocaleLowerCase('tr-TR').includes(searchTextLower)
+        );
         const matchSearch = !searchTextLower ||
             (inv.companies?.name && inv.companies.name.toLocaleLowerCase('tr-TR').includes(searchTextLower)) ||
-            (inv.invoice_no && inv.invoice_no.toLocaleLowerCase('tr-TR').includes(searchTextLower));
+            (inv.invoice_no && inv.invoice_no.toLocaleLowerCase('tr-TR').includes(searchTextLower)) ||
+            matchProductCode;
 
         const valStatus = (inv.status || 'unpaid').toLowerCase();
         const matchStatus = !statusSelected || valStatus === statusSelected;
@@ -2028,7 +2032,7 @@ function renderInvoiceTable(invoices) {
     tableBody.innerHTML = ''; // Önce tabloyu temizle
 
     if (invoices.length === 0) {
-        tableBody.innerHTML = '<tr><td colspan="10" style="padding:40px; text-align:center; color:#94a3b8;">Lütfen faturaları görmek için arama yapın ya da filtreleme özelliklerini kullanın.</td></tr>';
+        tableBody.innerHTML = '<tr><td colspan="7" style="padding:40px; text-align:center; color:#94a3b8;">Lütfen faturaları görmek için arama yapın ya da filtreleme özelliklerini kullanın.</td></tr>';
         return;
     }
 
@@ -2048,8 +2052,7 @@ function renderInvoiceTable(invoices) {
         const netSrc = invNetAmountSrc(inv);
         const taxSrc = invTaxAmountSrc(inv);
         const totalSrc = invPayableAmountSrc(inv);
-        const paidSrc = invPaidAmountSrc(inv);
-        const remainingSrc = invRemainingAmountSrc(inv);
+        
 
         // Gelen/Giden durumuna göre Gönderen ve Alıcıyı belirliyoruz
         let senderName = "";
@@ -2071,12 +2074,9 @@ function renderInvoiceTable(invoices) {
             <td><strong>${inv.invoice_no}</strong></td>
             <td><strong>${companyName}</strong></td>
             <td>${inv.invoice_date}</td>
-            <td>${inv.due_date || '-'}</td>
             <td class="text-right">${formatMoneyDisplay(inv, netSrc)}</td>
             <td class="text-right">${formatMoneyDisplay(inv, taxSrc)}</td>
             <td class="text-right"><strong>${formatMoneyDisplay(inv, totalSrc)}</strong></td>
-            <td class="text-right text-success">${formatMoneyDisplay(inv, paidSrc)}</td>
-            <td class="text-right text-danger">${formatMoneyDisplay(inv, remainingSrc)}</td>
             <td>${statusHtml}</td>
         `;
         tableBody.appendChild(row);

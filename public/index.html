@@ -56,7 +56,7 @@
       <div class="toolbar" style="display:flex; flex-direction:column; gap:16px;">
         <div class="search-group" style="display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
           <!-- Arama Butonu -->
-          <input type="text" id="mainSearch" onkeyup="renderCurrentView()" placeholder="Firma veya fatura no ara...">
+          <input type="text" id="mainSearch" onkeyup="renderCurrentView()" placeholder="Firma, fatura no veya ürün kodu ara...">
 
           <!-- Şirket Seçme Menüsü (custom dropdown) -->
           <div id="companyDropdownWrap" class="company-dropdown-wrap">
@@ -132,12 +132,9 @@
               <th>Fatura No</th>
               <th id="companyColumnHeader">Gönderen Firma</th>
               <th>Tarih</th>
-              <th>Vade</th>
               <th class="text-right">Matrah</th>
               <th class="text-right">KDV</th>
               <th class="text-right">Toplam</th>
-              <th class="text-right">Ödenen</th>
-              <th class="text-right">Kalan</th>
               <th>Durum</th>
             </tr>
           </thead>

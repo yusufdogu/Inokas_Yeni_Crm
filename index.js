@@ -398,6 +398,7 @@ app.get('/api/stocks/summary', async (req, res) => {
       });
     });
 
+    const profitEvents = [];
     Object.values(grouped).forEach((row) => {
       row.events.sort((a, b) => {
         const ad = String(a.invoiceDate || '');
@@ -444,7 +445,13 @@ app.get('/api/stocks/summary', async (req, res) => {
           // Brüt karı sadece satış USD karşılığı biliniyorsa hesapla.
           if (ev.unitUsd !== null) {
             const thisOutRevenue = ev.qty * ev.unitUsd;
-            row.fifo_gross_profit_usd += (thisOutRevenue - thisOutFifoCost);
+            const thisGross = (thisOutRevenue - thisOutFifoCost);
+            row.fifo_gross_profit_usd += thisGross;
+            profitEvents.push({
+              sku: row.sku || null,
+              invoice_date: ev.invoiceDate || null,
+              gross_profit_usd: thisGross
+            });
           }
         }
       });
@@ -515,7 +522,12 @@ app.get('/api/stocks/summary', async (req, res) => {
       }))
       .filter((p) => p.sku);
 
-    res.status(200).json({ data: summary, stats, product_catalog: productCatalog });
+    res.status(200).json({
+      data: summary,
+      stats,
+      product_catalog: productCatalog,
+      profit_events: profitEvents
+    });
   } catch (err) {
     console.error("Stok Özet Hatası:", err.message);
     res.status(500).json({ error: err.message });

@@ -395,40 +395,37 @@ body {
 /* Tek firma kolonu satırı itmesin */
 .modern-table th:nth-child(2),
 .modern-table td:nth-child(2) {
-  width: 18%;
+  width: 22%;
 }
 
-/* Tarih ve vade sabit dar kolon */
+/* Tarih kolonu */
 .modern-table th:nth-child(3),
-.modern-table td:nth-child(3),
-.modern-table th:nth-child(4),
-.modern-table td:nth-child(4) {
-  width: 9%;
+.modern-table td:nth-child(3) {
+  width: 12%;
 }
 
 /* Tutar kolonları */
+.modern-table th:nth-child(4),
+.modern-table td:nth-child(4),
 .modern-table th:nth-child(5),
 .modern-table td:nth-child(5),
 .modern-table th:nth-child(6),
-.modern-table td:nth-child(6),
-.modern-table th:nth-child(7),
-.modern-table td:nth-child(7),
-.modern-table th:nth-child(8),
-.modern-table td:nth-child(8),
-.modern-table th:nth-child(9),
-.modern-table td:nth-child(9) {
-  width: 8%;
+.modern-table td:nth-child(6) {
+  width: 13%;
 }
 
 /* Fatura no + durum genişlikleri */
 .modern-table th:nth-child(1),
 .modern-table td:nth-child(1) {
-  width: 10%;
+  width: 16%;
+  white-space: nowrap;
+  overflow: visible;
+  text-overflow: clip;
 }
 
-.modern-table th:nth-child(10),
-.modern-table td:nth-child(10) {
-  width: 7%;
+.modern-table th:nth-child(7),
+.modern-table td:nth-child(7) {
+  width: 10%;
 }
 
 .modern-table tr:hover { background: #f8fafc; }

@@ -3,6 +3,7 @@ let allStocks       = [];  // Depo durumu (Tab 1)
 let allMovements    = [];  // Stok hareketleri (Tab 2)
 let allPendingOrders = []; // Bekleyen siparişler (Tab 3)
 let allProductsCatalog = []; // Ürün master listesi (kar analizi görünürlüğü)
+let allProfitEvents = []; // Tarih kırılımında kar analizi için event listesi
 let stockStats      = null;
 let currentStockTab = 'depo';
 let currentInsightTab = 'profit';
@@ -47,6 +48,8 @@ function setupStockUi() {
     }
     renderStockInsights();
   });
+  document.getElementById('insightStartDate')?.addEventListener('change', () => renderStockInsights());
+  document.getElementById('insightEndDate')?.addEventListener('change', () => renderStockInsights());
   addPendingPoLine();
 }
 
@@ -74,6 +77,7 @@ async function loadStockSummary() {
     allStocks  = cached.data  || [];
     stockStats = cached.stats || null;
     allProductsCatalog = cached.product_catalog || [];
+    allProfitEvents = cached.profit_events || [];
     renderStockStats();
     renderStockInsights();
     renderDepoTable();
@@ -86,7 +90,13 @@ async function loadStockSummary() {
     allStocks  = payload.data  || [];
     stockStats = payload.stats || null;
     allProductsCatalog = payload.product_catalog || [];
-    writeCache(STOCK_CACHE_KEY, { data: allStocks, stats: stockStats, product_catalog: allProductsCatalog });
+    allProfitEvents = payload.profit_events || [];
+    writeCache(STOCK_CACHE_KEY, {
+      data: allStocks,
+      stats: stockStats,
+      product_catalog: allProductsCatalog,
+      profit_events: allProfitEvents
+    });
     renderStockStats();
     renderStockInsights();
     renderDepoTable();
@@ -101,13 +111,36 @@ function isSarfCategory(category) {
   return c.includes('sarf');
 }
 
-function buildProfitDrillRows() {
-  const metricBySku = new Map();
-  (allStocks || []).forEach((r) => {
-    const sku = String(r.sku || '').trim();
-    if (!sku) return;
-    metricBySku.set(sku, Number(r.fifo_gross_profit_usd || 0));
+function getInsightDateRange() {
+  const startRaw = document.getElementById('insightStartDate')?.value || '';
+  const endRaw = document.getElementById('insightEndDate')?.value || '';
+  if (!startRaw && !endRaw) return { start: '', end: '' };
+  let start = startRaw;
+  let end = endRaw;
+  if (start && end && start > end) {
+    const t = start;
+    start = end;
+    end = t;
+  }
+  return { start, end };
+}
+
+function getProfitBySkuInRange() {
+  const { start, end } = getInsightDateRange();
+  const map = new Map();
+  (allProfitEvents || []).forEach((ev) => {
+    const sku = String(ev.sku || '').trim();
+    const d = String(ev.invoice_date || '').slice(0, 10);
+    if (!sku || !d) return;
+    if (start && d < start) return;
+    if (end && d > end) return;
+    map.set(sku, Number(map.get(sku) || 0) + Number(ev.gross_profit_usd || 0));
   });
+  return map;
+}
+
+function buildProfitDrillRows() {
+  const metricBySku = getProfitBySkuInRange();
 
   const source = [];
   const seen = new Set();
@@ -236,9 +269,11 @@ function renderStockInsights() {
   const barsEl = document.getElementById('stockInsightBars');
   const subEl = document.getElementById('stockInsightSubLabel');
   const backBtn = document.getElementById('insightBackBtn');
-  if (!barsEl || !subEl || !backBtn) return;
+  const dateFilters = document.getElementById('insightDateFilters');
+  if (!barsEl || !subEl || !backBtn || !dateFilters) return;
 
   if (currentInsightTab === 'profit_drill') {
+    dateFilters.style.display = 'flex';
     const { rows, subtitle } = buildProfitDrillRows();
     subEl.textContent = subtitle;
     backBtn.style.display = profitDrillState.level === 'brand' ? 'none' : 'inline-flex';
@@ -279,6 +314,7 @@ function renderStockInsights() {
     return;
   }
 
+  dateFilters.style.display = 'none';
   const model = buildInsightModel();
   const active = model[currentInsightTab] || model.profit;
   const rows = Array.isArray(active.rows) ? active.rows : [];

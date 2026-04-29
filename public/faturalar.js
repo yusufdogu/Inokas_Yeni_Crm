@@ -130,6 +130,7 @@ function parseProductCodeForSku(itemNode, viewKey, unresolvedWarnings) {
         ?.getElementsByTagNameNS(ns.cbc, 'ID')[0]?.textContent;
     const name = itemNode.getElementsByTagNameNS(ns.cbc, 'Name')[0]?.textContent;
     const description = itemNode.getElementsByTagNameNS(ns.cbc, 'Description')[0]?.textContent;
+    const keyword = itemNode.getElementsByTagNameNS(ns.cbc, 'Keyword')[0]?.textContent;
     const t = (v) => sanitizeSkuCandidate(v);
 
     // Giden akışını bozmayalım: önce satıcı kodu, sonra standart.
@@ -148,12 +149,15 @@ function parseProductCodeForSku(itemNode, viewKey, unresolvedWarnings) {
     if (fromName) return fromName;
     const fromDesc = pickSkuFromTextAgainstDb(description);
     if (fromDesc) return fromDesc;
+    const fromKeyword = pickSkuFromTextAgainstDb(keyword);
+    if (fromKeyword) return fromKeyword;
 
     // Son fallback: DB'de olmasa da XML'den gelen en iyi adayı koru.
     const rawFallback =
         structuredCandidates[0] ||
         pickRawSkuFromText(name) ||
         pickRawSkuFromText(description) ||
+        pickRawSkuFromText(keyword) ||
         '';
 
     if (rawFallback && Array.isArray(unresolvedWarnings)) {

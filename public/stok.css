@@ -588,15 +588,21 @@ body {
 }
 
 /* ── TABLE ── */
-.table-wrap { overflow-x: auto; }
+.table-wrap {
+  overflow-x: auto;
+  overflow-y: auto;          /* kendi scroll container'ı olsun */
+  max-height: calc(100vh - 260px); /* topbar + dashboard + tab-bar + toolbar payı */
+}
 
 .stocks-table {
   width: 100%;
-  border-collapse: collapse;
+  border-collapse: separate !important;
+  border-spacing: 0;
 }
 
 .stocks-table th {
   background: #f1f5f9;
+  background-color: #f1f5f9; /* solid renk: sticky alttaki satırı kapatsın */
   color: var(--text-sub);
   text-align: left;
   padding: 11px 14px;
@@ -605,6 +611,12 @@ body {
   text-transform: uppercase;
   letter-spacing: 0.03em;
   white-space: nowrap;
+  position: sticky;
+  top: 0;          /* wrapper kendi scroll container'ı olduğu için 0 yeterli */
+  z-index: 10;
+  border-top: none !important;
+  border-bottom: none !important;
+  box-shadow: 0 1px 0 #e2e8f0;
 }
 
 .stocks-table td {

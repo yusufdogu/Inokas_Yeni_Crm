@@ -44,8 +44,8 @@ body {
 .main-container {
   max-width: 1400px;
   margin: 2rem auto;
-  padding: 0 1rem 140px; /* İçerik az olsa bile hafif aşağı kaydırma payı */
-  min-height: calc(100vh - 64px);
+  padding: 0 1rem 48px; /* Alt boşluğu azalt */
+  min-height: auto;
 }
 
 .view-switcher { display: flex; gap: 1rem; margin-bottom: 2rem; }
@@ -364,24 +364,33 @@ body {
   width: 100%;
   max-width: 100%;
   overflow-x: auto;
-  overflow-y: hidden;
+  overflow-y: auto;          /* kendi scroll container'ı olsun — sticky top:0 çalışsın */
+  max-height: calc(100vh - 220px); /* topbar + toolbar + filtreler için pay */
 }
 
 .modern-table {
   width: 100%;
   max-width: 100%;
-  border-collapse: collapse;
+  border-collapse: separate !important;
+  border-spacing: 0;
   font-size: 0.9rem;
   table-layout: fixed; /* İçerik büyüse de kolonlar container dışına itmesin */
 }
 
 .modern-table th {
   background: #f1f5f9;
+  background-color: #f1f5f9; /* solid renk: sticky alttaki satırı kapatsın */
   padding: 12px 16px;
   text-align: left;
   font-weight: 700;
   color: var(--text-sub);
   white-space: nowrap;
+  position: sticky;
+  top: 0;          /* wrapper kendi scroll container'ı olduğu için 0 yeterli */
+  z-index: 10;
+  border-top: none !important;
+  border-bottom: none !important;
+  box-shadow: 0 1px 0 #e2e8f0;
 }
 
 .modern-table td {

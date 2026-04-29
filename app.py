@@ -120,6 +120,9 @@ def extract_data(pdf_file):
                 row_dict["MALZEME_KODU"] = m.group(1) if m else None
                 results["malzeme_tablosu"].append(row_dict)
 
+            print("Merged headers:", merged_header, flush=True)
+            print("First data row:", data_rows[0] if data_rows else [], flush=True)
+
     return results
 
 
@@ -326,6 +329,25 @@ def find_dmo_url():
 
         db.table("products").update(update_payload).eq("id", product_id).execute()
 
+        dmo_eur_rate=(float(matched_price)/1.08)/355
+
+        if dmo_code == "106776":
+            try:
+                # Try to get the last row
+                response = db.table("rate_history").select("id").order("id", desc=True).limit(1).execute()
+
+                if response.data and len(response.data) > 0:
+                    # Row exists, update it
+                    target_id = response.data[0]['id']
+                    db.table("rate_history").update({"dmo_eur_try": dmo_eur_rate}).eq("id", target_id).execute()
+                else:
+                    # Table is empty, maybe insert a new one instead?
+                    db.table("rate_history").insert({"dmo_eur_try": dmo_eur_rate}).execute()
+
+            except Exception as e:
+                print(f"Database Error: {e}")
+                # This print will show up in your terminal, helping you debug!
+
         # ── Insert price history if price found ───────────────────────────────
         if matched_price is not None:
             ref = db.table("products").select("sozlesme_fiyat_eur").eq("id", product_id).single().execute()
@@ -418,18 +440,9 @@ def scrape_dmo_prices():
         real_price = ref_price / 1.08  # remove %8 DMO markup
         dmo_eur_try = round(real_price / ref_eur, 4)
 
-        # Get latest USD and EUR rates to store together
-        last_rates = db.table("rate_history") \
-            .select("usd_try, eur_try") \
-            .order("recorded_at", ascending=False) \
-            .limit(1) \
-            .maybeSingle() \
-            .execute()
-
         # Update latest row with dmo_eur_try instead of inserting new row
         db.table("rate_history") \
             .update({"dmo_eur_try": dmo_eur_try}) \
-            .order("recorded_at", ascending=False) \
             .limit(1) \
             .execute()
 

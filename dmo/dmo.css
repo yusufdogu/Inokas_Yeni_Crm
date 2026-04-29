@@ -120,9 +120,37 @@ body {
 .modal-overlay {
   position: fixed; inset: 0; background: rgba(0,0,0,0.5); display: none; align-items: center; justify-content: center; z-index: 1000;
 }
-/* Eski tam-ekran modal (geriye dönük uyumluluk) */
+
+#hizliHesapModal .modal-content.full-screen {
+    display: grid;
+    grid-template-columns: 1.2fr 0.8fr;
+    grid-template-rows: 90vh;
+    height: 90vh;
+    overflow: hidden;
+}
+
+#hizliHesapModal .pdf-preview-side,
+#hizliHesapModal .modal-form-side {
+    height: 90vh;
+    max-height: 90vh;
+    overflow-y: auto;
+    box-sizing: border-box;
+}
+
 .modal-content.full-screen {
-  width: 95vw; height: 90vh; background: white; border-radius: 20px; display: grid; grid-template-columns: 1fr 1fr; overflow: hidden;
+  width: 95vw;
+  height: 90vh;
+  background: white;
+  border-radius: 20px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  overflow: hidden;
+  align-items: stretch;
+}
+
+.modal-content.full-screen > * {
+  min-height: 0;
+  overflow-y: auto;
 }
 
 /* YENİ: Yeniden tasarlanmış fatura modal layout */
@@ -574,32 +602,134 @@ body {
   padding-top: 0.5rem;
   border-top: 1px solid var(--border);
 }
-
-.charts-grid {
+/* ── CHARTS GRID ─────────────────────────────────────────────────────────── */
+#chartsGrid {
     display: grid;
-    grid-template-columns: repeat(2, 1fr);
-    gap: 20px;
-    margin-bottom: 24px;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
 }
 
 .chart-card {
     background: #ffffff;
-    border-radius: 16px;
-    padding: 20px 24px;
     border: 1px solid #e2e8f0;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+    border-radius: 12px;
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
 }
 
 .chart-card.span-2 {
     grid-column: span 2;
 }
 
+.chart-card-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
 .chart-title {
-    font-size: 14px;
+    font-size: 12px;
     font-weight: 700;
     color: #0f172a;
-    margin: 0 0 16px 0;
+    margin: 0;
 }
+
+.chart-canvas-wrap {
+    position: relative;
+    height: 200px;
+}
+
+.chart-canvas-wrap canvas {
+    width:  100% !important;
+    height: 100% !important;
+}
+
+.chart-expand-btn {
+    background:  none;
+    border:      none;
+    cursor:      pointer;
+    font-size:   16px;
+    color:       #94a3b8;
+    padding:     2px 4px;
+    border-radius: 4px;
+    transition:  color 0.15s;
+    line-height: 1;
+}
+
+.chart-expand-btn:hover {
+    color: #2563eb;
+}
+
+/* ── CHART MODAL ─────────────────────────────────────────────────────────── */
+.chart-modal-overlay {
+    position:        fixed;
+    inset:           0;
+    background:      rgba(0,0,0,0.5);
+    display:         flex;
+    align-items:     center;
+    justify-content: center;
+    z-index:         2000;
+    padding:         24px;
+}
+
+.chart-modal-box {
+    background:    #ffffff;
+    border-radius: 16px;
+    width:         100%;
+    max-width:     900px;
+    max-height:    90vh;
+    display:       flex;
+    flex-direction: column;
+    box-shadow:    0 20px 60px rgba(0,0,0,0.2);
+    overflow:      hidden;
+}
+
+.chart-modal-header {
+    display:         flex;
+    align-items:     center;
+    justify-content: space-between;
+    padding:         16px 20px;
+    border-bottom:   1px solid #e2e8f0;
+    flex-shrink:     0;
+}
+
+.chart-modal-header h3 {
+    font-size:   15px;
+    font-weight: 700;
+    color:       #0f172a;
+    margin:      0;
+}
+
+.chart-modal-close {
+    background:    none;
+    border:        none;
+    font-size:     18px;
+    color:         #94a3b8;
+    cursor:        pointer;
+    padding:       4px 8px;
+    border-radius: 6px;
+    transition:    all 0.15s;
+}
+
+.chart-modal-close:hover {
+    background: #f1f5f9;
+    color:      #0f172a;
+}
+
+.chart-modal-body {
+    padding:  24px;
+    flex:     1;
+    position: relative;
+    height:   500px;
+}
+
+.chart-modal-body canvas {
+    width:  100% !important;
+    height: 100% !important;
+}
+
 
 .invoice-cards-grid {
     display: grid;

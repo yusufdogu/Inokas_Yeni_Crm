@@ -1,15 +1,17 @@
 // ── CHARTS ───────────────────────────────────────────────────────────────────
 
-let chartInstances = {};
+let chartInstances     = {};
+let chartModalInstance = null;
+let chartDataStore     = {};
 
 function destroyCharts() {
     Object.values(chartInstances).forEach(c => c.destroy());
     chartInstances = {};
 }
 
-// ── CHART HELPERS ─────────────────────────────────────────────────────────────
 function clearChartsGrid() {
     destroyCharts();
+    chartDataStore = {};
     document.getElementById("chartsGrid").innerHTML = "";
 }
 
@@ -18,10 +20,35 @@ function createChartCanvas(id, title, spanTwo = false) {
     const div  = document.createElement("div");
     div.className = `chart-card${spanTwo ? " span-2" : ""}`;
     div.innerHTML = `
-        <h3 class="chart-title">${title}</h3>
-        <canvas id="${id}"></canvas>
+        <div class="chart-card-header">
+            <h3 class="chart-title">${title}</h3>
+            <button class="chart-expand-btn" onclick="openChartModal('${id}')" title="Büyüt">⛶</button>
+        </div>
+        <div class="chart-canvas-wrap">
+            <canvas id="${id}"></canvas>
+        </div>
     `;
     grid.appendChild(div);
+}
+
+// ── SHARED CHART CREATOR ──────────────────────────────────────────────────────
+function makeChart(instanceKey, canvasId, title, type, data, options) {
+    const el = document.getElementById(canvasId);
+    if (!el) return;
+
+    const fullOptions = {
+        ...options,
+        responsive:          true,
+        maintainAspectRatio: false,
+    };
+
+    if (chartInstances[instanceKey]) {
+        chartInstances[instanceKey].destroy();
+    }
+
+    chartInstances[instanceKey] = new Chart(el, { type, data, options: fullOptions });
+
+    chartDataStore[canvasId] = { title, type, data, options: fullOptions };
 }
 
 // ── MAIN CHART LOADER ─────────────────────────────────────────────────────────
@@ -37,23 +64,19 @@ async function loadCharts(orders) {
         return;
     }
 
-    // ── Always show ───────────────────────────────────────────────────────────
     createChartCanvas("monthlyProfitChart", "📈 Aylık Net Kar Trendi", true);
     renderMonthlyProfitChart(orders);
 
-
-    // ── Default view — no filters ─────────────────────────────────────────────
     if (!f.hasCompany && !f.hasProduct) {
-        createChartCanvas("topCustomersChart",   "🏢 En Çok Sipariş Veren Müşteriler");
-        createChartCanvas("topProductsChart",    "📦 En Çok Sipariş Edilen Ürünler");
-        createChartCanvas("basketComparisonChart", "📊 DMO vs İnokas Sepet", true);
+        createChartCanvas("topCustomersChart",    "🏢 En Çok Sipariş Veren Müşteriler");
+        createChartCanvas("topProductsChart",     "📦 En Çok Sipariş Edilen Ürünler");
+        createChartCanvas("basketComparisonChart","📊 DMO vs İnokas Sepet", true);
         renderTopCustomersChart(orders);
         await renderTopProductsChart(orders);
         renderBasketComparisonChart(orders);
         return;
     }
 
-    // ── Company only ──────────────────────────────────────────────────────────
     if (f.hasCompany && !f.hasProduct) {
         createChartCanvas("customerProductMixChart",     "🥧 Ürün Dağılımı");
         createChartCanvas("customerOrderFrequencyChart", "📅 Sipariş Sıklığı");
@@ -62,18 +85,16 @@ async function loadCharts(orders) {
         return;
     }
 
-    // ── Product only ──────────────────────────────────────────────────────────
     if (f.hasProduct && !f.hasCompany) {
-        createChartCanvas("productCustomerChart",       "🏢 Bu Ürünü En Çok Kim Aldı");
-        createChartCanvas("productQuantityTrendChart",  "📦 Miktar Trendi");
+        createChartCanvas("productCustomerChart",      "🏢 Bu Ürünü En Çok Kim Aldı");
+        createChartCanvas("productQuantityTrendChart", "📦 Miktar Trendi");
         await renderProductCustomerChart(orders);
         renderProductQuantityTrendChart(orders);
         return;
     }
 
-    // ── Both company + product ────────────────────────────────────────────────
     if (f.hasCompany && f.hasProduct) {
-        createChartCanvas("marginTrendChart",  "💰 Kar Marjı Trendi", true);
+        createChartCanvas("marginTrendChart",      "💰 Kar Marjı Trendi",   true);
         createChartCanvas("basketComparisonChart", "📊 DMO vs İnokas Sepet", true);
         renderMarginTrendChart(orders);
         renderBasketComparisonChart(orders);
@@ -81,10 +102,8 @@ async function loadCharts(orders) {
     }
 }
 
-// ── 1. MONTHLY PROFIT TREND (LINE) ───────────────────────────────────────────
+// ── 1. MONTHLY PROFIT TREND ───────────────────────────────────────────────────
 function renderMonthlyProfitChart(orders) {
-    const el = document.getElementById("monthlyProfitChart");
-    if (!el || orders.length === 0) return;  // ← add this
     const monthly = {};
     orders.forEach(o => {
         const month = o.order_date?.slice(0, 7);
@@ -98,175 +117,61 @@ function renderMonthlyProfitChart(orders) {
         return `${mo}/${y}`;
     });
 
-    chartInstances.monthly = new Chart(document.getElementById("monthlyProfitChart"), {
-        type: "line",
-        data: {
+    makeChart("monthly", "monthlyProfitChart", "📈 Aylık Net Kar Trendi", "line",
+        {
             labels,
             datasets: [{
-                label: "Net Kar (₺)",
-                data: Object.values(monthly),
-                borderColor: "#2563eb",
+                label:           "Net Kar (₺)",
+                data:            Object.values(monthly),
+                borderColor:     "#2563eb",
                 backgroundColor: "rgba(37,99,235,0.08)",
-                borderWidth: 2,
-                pointRadius: 4,
-                tension: 0.3,
-                fill: true,
+                borderWidth:     2,
+                pointRadius:     4,
+                tension:         0.3,
+                fill:            true,
             }]
         },
-        options: {
-            responsive: true,
+        {
             plugins: {
                 legend: { display: false },
-                tooltip: {
-                    callbacks: {
-                        label: ctx => formatAmount(ctx.raw) + " ₺"
-                    }
-                }
+                tooltip: { callbacks: { label: ctx => formatAmount(ctx.raw) + " ₺" } }
             },
-            scales: {
-                y: {
-                    ticks: { callback: val => formatAmount(val) + " ₺" }
-                }
-            }
+            scales: { y: { ticks: { callback: val => formatAmount(val) + " ₺" } } }
         }
-    });
+    );
 }
 
-// ── 2. CUSTOMER PIE CHART ────────────────────────────────────────────────────
-function renderCustomerPieChart(orders) {
-    const el = document.getElementById("customerPieChart");
-    if (!el || orders.length === 0) return;  // ← add this
-    const customers = {};
-    orders.forEach(o => {
-        const name = o.customer_name || "Bilinmeyen";
-        if (!customers[name]) customers[name] = 0;
-        customers[name] += o.dmo_basket_total || 0;
-    });
-
-    const labels = Object.keys(customers);
-    const colors = [
-        "#2563eb","#16a34a","#dc2626","#d97706",
-        "#7c3aed","#0891b2","#db2777","#65a30d"
-    ];
-
-    chartInstances.pie = new Chart(document.getElementById("customerPieChart"), {
-        type: "doughnut",
-        data: {
-            labels,
-            datasets: [{
-                data: Object.values(customers),
-                backgroundColor: colors.slice(0, labels.length),
-                borderWidth: 2,
-                borderColor: "#ffffff"
-            }]
-        },
-        options: {
-            responsive: true,
-            plugins: {
-                legend: { position: "bottom", labels: { font: { size: 11 } } },
-                tooltip: {
-                    callbacks: {
-                        label: ctx => `${ctx.label}: ${formatAmount(ctx.raw)} ₺`
-                    }
-                }
-            }
-        }
-    });
-}
-
-// ── 3. DMO vs İNOKAS BASKET COMPARISON (BAR) ─────────────────────────────────
+// ── 2. BASKET COMPARISON ──────────────────────────────────────────────────────
 function renderBasketComparisonChart(orders) {
-    const el = document.getElementById("basketComparisonChart");
-    if (!el || orders.length === 0) return;  // ← add this
-    chartInstances.bar = new Chart(document.getElementById("basketComparisonChart"), {
-        type: "bar",
-        data: {
+    makeChart("bar", "basketComparisonChart", "📊 DMO vs İnokas Sepet", "bar",
+        {
             labels: orders.map(o => o.sales_order_no),
             datasets: [
                 {
-                    label: "DMO Sepet",
-                    data: orders.map(o => o.dmo_basket_total || 0),
+                    label:           "DMO Sepet",
+                    data:            orders.map(o => o.dmo_basket_total || 0),
                     backgroundColor: "rgba(37,99,235,0.7)",
-                    borderRadius: 4,
+                    borderRadius:    4,
                 },
                 {
-                    label: "İnokas Sepet",
-                    data: orders.map(o => o.inokas_basket_total || 0),
+                    label:           "İnokas Sepet",
+                    data:            orders.map(o => o.inokas_basket_total || 0),
                     backgroundColor: "rgba(22,163,74,0.7)",
-                    borderRadius: 4,
+                    borderRadius:    4,
                 }
             ]
         },
-        options: {
-            responsive: true,
+        {
             plugins: {
-                tooltip: {
-                    callbacks: {
-                        label: ctx => `${ctx.dataset.label}: ${formatAmount(ctx.raw)} ₺`
-                    }
-                }
+                tooltip: { callbacks: { label: ctx => `${ctx.dataset.label}: ${formatAmount(ctx.raw)} ₺` } }
             },
-            scales: {
-                y: { ticks: { callback: val => formatAmount(val) + " ₺" } }
-            }
+            scales: { y: { ticks: { callback: val => formatAmount(val) + " ₺" } } }
         }
-    });
+    );
 }
 
-async function renderUSDRateChart(dateStart, dateEnd) {
-    const el = document.getElementById("usdRateChart");
-    if (!el) return;  // ← add this
-
-    const rates = await fetchUSDRateHistory(dateStart, dateEnd);
-    if (!rates || Object.keys(rates).length === 0) return;
-
-    const labels = Object.keys(rates);
-    const values = labels.map(d => rates[d].TRY);
-
-    if (chartInstances.usdRate) chartInstances.usdRate.destroy();
-
-    chartInstances.usdRate = new Chart(document.getElementById("usdRateChart"), {
-        type: "line",
-        data: {
-            labels: labels.map(d => formatDate(d)),
-            datasets: [{
-                label: "USD/TRY",
-                data: values,
-                borderColor: "#d97706",
-                backgroundColor: "rgba(217,119,6,0.08)",
-                borderWidth: 2,
-                pointRadius: 2,
-                tension: 0.3,
-                fill: true,
-            }]
-        },
-        options: {
-            responsive: true,
-            plugins: {
-                legend: { display: false },
-                tooltip: {
-                    callbacks: {
-                        label: ctx => `1 USD = ${ctx.raw.toFixed(2)} ₺`
-                    }
-                }
-            },
-            scales: {
-                y: {
-                    ticks: {
-                        callback: val => val.toFixed(2) + " ₺"
-                    }
-                }
-            }
-        }
-    });
-}
-
-
-// ── TOP CUSTOMERS ─────────────────────────────────────────────────────────────
+// ── 3. TOP CUSTOMERS ──────────────────────────────────────────────────────────
 function renderTopCustomersChart(orders) {
-    const el = document.getElementById("topCustomersChart");
-    if (!el) return;
-
     const customers = {};
     orders.forEach(o => {
         const name = o.customer_name || "Bilinmeyen";
@@ -274,13 +179,10 @@ function renderTopCustomersChart(orders) {
         customers[name] += o.dmo_basket_total || 0;
     });
 
-    const sorted = Object.entries(customers)
-        .sort((a, b) => b[1] - a[1])
-        .slice(0, 5);
+    const sorted = Object.entries(customers).sort((a, b) => b[1] - a[1]).slice(0, 5);
 
-    chartInstances.topCustomers = new Chart(el, {
-        type: "bar",
-        data: {
+    makeChart("topCustomers", "topCustomersChart", "🏢 En Çok Sipariş Veren Müşteriler", "bar",
+        {
             labels: sorted.map(([name]) => name),
             datasets: [{
                 data:            sorted.map(([, val]) => val),
@@ -288,18 +190,15 @@ function renderTopCustomersChart(orders) {
                 borderRadius:    4,
             }]
         },
-        options: {
+        {
             indexAxis: "y",
-            responsive: true,
-            plugins: { legend: { display: false } },
-            scales: {
-                x: { ticks: { callback: val => formatAmount(val) + " ₺" } }
-            }
+            plugins:   { legend: { display: false } },
+            scales:    { x: { ticks: { callback: val => formatAmount(val) + " ₺" } } }
         }
-    });
+    );
 }
 
-// ── TOP PRODUCTS ──────────────────────────────────────────────────────────────
+// ── 4. TOP PRODUCTS ───────────────────────────────────────────────────────────
 async function renderTopProductsChart(orders) {
     const el = document.getElementById("topProductsChart");
     if (!el || orders.length === 0) return;
@@ -319,13 +218,10 @@ async function renderTopProductsChart(orders) {
         products[name] += i.quantity || 0;
     });
 
-    const sorted = Object.entries(products)
-        .sort((a, b) => b[1] - a[1])
-        .slice(0, 5);
+    const sorted = Object.entries(products).sort((a, b) => b[1] - a[1]).slice(0, 5);
 
-    chartInstances.topProducts = new Chart(el, {
-        type: "bar",
-        data: {
+    makeChart("topProducts", "topProductsChart", "📦 En Çok Sipariş Edilen Ürünler", "bar",
+        {
             labels: sorted.map(([name]) => name),
             datasets: [{
                 data:            sorted.map(([, val]) => val),
@@ -333,18 +229,15 @@ async function renderTopProductsChart(orders) {
                 borderRadius:    4,
             }]
         },
-        options: {
+        {
             indexAxis: "y",
-            responsive: true,
-            plugins: { legend: { display: false } },
-            scales: {
-                x: { ticks: { callback: val => val + " adet" } }
-            }
+            plugins:   { legend: { display: false } },
+            scales:    { x: { ticks: { callback: val => val + " adet" } } }
         }
-    });
+    );
 }
 
-// ── CUSTOMER PRODUCT MIX ──────────────────────────────────────────────────────
+// ── 5. CUSTOMER PRODUCT MIX ───────────────────────────────────────────────────
 async function renderCustomerProductMixChart(orders) {
     const el = document.getElementById("customerProductMixChart");
     if (!el || orders.length === 0) return;
@@ -367,9 +260,8 @@ async function renderCustomerProductMixChart(orders) {
     const colors = ["#2563eb","#16a34a","#dc2626","#d97706","#7c3aed","#0891b2","#db2777","#65a30d"];
     const labels = Object.keys(products);
 
-    chartInstances.customerProductMix = new Chart(el, {
-        type: "doughnut",
-        data: {
+    makeChart("customerProductMix", "customerProductMixChart", "🥧 Ürün Dağılımı", "doughnut",
+        {
             labels,
             datasets: [{
                 data:            Object.values(products),
@@ -378,25 +270,17 @@ async function renderCustomerProductMixChart(orders) {
                 borderColor:     "#ffffff"
             }]
         },
-        options: {
-            responsive: true,
+        {
             plugins: {
-                legend: { position: "bottom", labels: { font: { size: 11 } } },
-                tooltip: {
-                    callbacks: {
-                        label: ctx => `${ctx.label}: ${formatAmount(ctx.raw)} ₺`
-                    }
-                }
+                legend:  { position: "bottom", labels: { font: { size: 11 } } },
+                tooltip: { callbacks: { label: ctx => `${ctx.label}: ${formatAmount(ctx.raw)} ₺` } }
             }
         }
-    });
+    );
 }
 
-// ── CUSTOMER ORDER FREQUENCY ──────────────────────────────────────────────────
+// ── 6. CUSTOMER ORDER FREQUENCY ───────────────────────────────────────────────
 function renderCustomerOrderFrequencyChart(orders) {
-    const el = document.getElementById("customerOrderFrequencyChart");
-    if (!el) return;
-
     const monthly = {};
     orders.forEach(o => {
         const month = o.order_date?.slice(0, 7);
@@ -410,9 +294,8 @@ function renderCustomerOrderFrequencyChart(orders) {
         return `${mo}/${y}`;
     });
 
-    chartInstances.orderFrequency = new Chart(el, {
-        type: "bar",
-        data: {
+    makeChart("orderFrequency", "customerOrderFrequencyChart", "📅 Sipariş Sıklığı", "bar",
+        {
             labels,
             datasets: [{
                 label:           "Sipariş Sayısı",
@@ -421,17 +304,14 @@ function renderCustomerOrderFrequencyChart(orders) {
                 borderRadius:    4,
             }]
         },
-        options: {
-            responsive: true,
+        {
             plugins: { legend: { display: false } },
-            scales: {
-                y: { ticks: { stepSize: 1 } }
-            }
+            scales:  { y: { ticks: { stepSize: 1 } } }
         }
-    });
+    );
 }
 
-// ── PRODUCT CUSTOMER CHART ────────────────────────────────────────────────────
+// ── 7. PRODUCT CUSTOMER CHART ─────────────────────────────────────────────────
 async function renderProductCustomerChart(orders) {
     const el = document.getElementById("productCustomerChart");
     if (!el || orders.length === 0) return;
@@ -455,9 +335,8 @@ async function renderProductCustomerChart(orders) {
     const sorted = Object.entries(customerQty).sort((a, b) => b[1] - a[1]);
     const colors = ["#2563eb","#16a34a","#dc2626","#d97706","#7c3aed"];
 
-    chartInstances.productCustomer = new Chart(el, {
-        type: "doughnut",
-        data: {
+    makeChart("productCustomer", "productCustomerChart", "🏢 Bu Ürünü En Çok Kim Aldı", "doughnut",
+        {
             labels: sorted.map(([name]) => name),
             datasets: [{
                 data:            sorted.map(([, val]) => val),
@@ -466,21 +345,16 @@ async function renderProductCustomerChart(orders) {
                 borderColor:     "#ffffff"
             }]
         },
-        options: {
-            responsive: true,
+        {
             plugins: {
-                legend: { position: "bottom" },
-                tooltip: {
-                    callbacks: {
-                        label: ctx => `${ctx.label}: ${ctx.raw} adet`
-                    }
-                }
+                legend:  { position: "bottom" },
+                tooltip: { callbacks: { label: ctx => `${ctx.label}: ${ctx.raw} adet` } }
             }
         }
-    });
+    );
 }
 
-// ── PRODUCT QUANTITY TREND ────────────────────────────────────────────────────
+// ── 8. PRODUCT QUANTITY TREND ─────────────────────────────────────────────────
 async function renderProductQuantityTrendChart(orders) {
     const el = document.getElementById("productQuantityTrendChart");
     if (!el || orders.length === 0) return;
@@ -507,9 +381,8 @@ async function renderProductQuantityTrendChart(orders) {
         return `${mo}/${y}`;
     });
 
-    chartInstances.productQuantityTrend = new Chart(el, {
-        type: "line",
-        data: {
+    makeChart("productQuantityTrend", "productQuantityTrendChart", "📦 Miktar Trendi", "line",
+        {
             labels,
             datasets: [{
                 label:           "Toplam Adet",
@@ -522,26 +395,19 @@ async function renderProductQuantityTrendChart(orders) {
                 fill:            true,
             }]
         },
-        options: {
-            responsive: true,
+        {
             plugins: { legend: { display: false } },
-            scales: {
-                y: { ticks: { callback: val => val + " adet" } }
-            }
+            scales:  { y: { ticks: { callback: val => val + " adet" } } }
         }
-    });
+    );
 }
 
-// ── MARGIN TREND ──────────────────────────────────────────────────────────────
+// ── 9. MARGIN TREND ───────────────────────────────────────────────────────────
 function renderMarginTrendChart(orders) {
-    const el = document.getElementById("marginTrendChart");
-    if (!el) return;
-
     const sorted = [...orders].sort((a, b) => new Date(a.order_date) - new Date(b.order_date));
 
-    chartInstances.marginTrend = new Chart(el, {
-        type: "line",
-        data: {
+    makeChart("marginTrend", "marginTrendChart", "💰 Kar Marjı Trendi", "line",
+        {
             labels: sorted.map(o => formatDate(o.order_date)),
             datasets: [{
                 label:           "Kar %",
@@ -554,12 +420,61 @@ function renderMarginTrendChart(orders) {
                 fill:            true,
             }]
         },
-        options: {
-            responsive: true,
+        {
             plugins: { legend: { display: false } },
-            scales: {
-                y: { ticks: { callback: val => val.toFixed(1) + "%" } }
-            }
+            scales:  { y: { ticks: { callback: val => val.toFixed(1) + "%" } } }
         }
+    );
+}
+
+// ── CHART MODAL ───────────────────────────────────────────────────────────────
+function openChartModal(chartId) {
+    const stored = chartDataStore[chartId];
+    if (!stored) return;
+
+    let modal = document.getElementById("chartExpandModal");
+    if (!modal) {
+        modal = document.createElement("div");
+        modal.id        = "chartExpandModal";
+        modal.className = "chart-modal-overlay";
+        modal.innerHTML = `
+            <div class="chart-modal-box">
+                <div class="chart-modal-header">
+                    <h3 id="chartModalTitle"></h3>
+                    <button onclick="closeChartModal()" class="chart-modal-close">✕</button>
+                </div>
+                <div class="chart-modal-body">
+                    <canvas id="chartModalCanvas"></canvas>
+                </div>
+            </div>
+        `;
+        modal.addEventListener("click", e => {
+            if (e.target === modal) closeChartModal();
+        });
+        document.body.appendChild(modal);
+    }
+
+    document.getElementById("chartModalTitle").textContent = stored.title;
+    modal.style.display = "flex";
+
+    if (chartModalInstance) {
+        chartModalInstance.destroy();
+        chartModalInstance = null;
+    }
+
+    const canvas = document.getElementById("chartModalCanvas");
+    chartModalInstance = new Chart(canvas, {
+        type:    stored.type,
+        data:    stored.data,
+        options: stored.options,
     });
+}
+
+function closeChartModal() {
+    const modal = document.getElementById("chartExpandModal");
+    if (modal) modal.style.display = "none";
+    if (chartModalInstance) {
+        chartModalInstance.destroy();
+        chartModalInstance = null;
+    }
 }

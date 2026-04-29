@@ -1,4 +1,7 @@
-// ── API CONFIG ───────────────────────────────────────────────────────────────
+
+let _isTaslakMerge = false;
+
+
 // ── URUNLER LOOKUP ───────────────────────────────────────────────────────────
 let URUNLER        = {};
 let urunlerLoaded  = false;
@@ -56,6 +59,56 @@ function getActiveFilters() {
     };
 }
 
+function toggleAdvancedFilters() {
+    const panel = document.getElementById("advancedFilters");
+    const btn   = document.getElementById("btnAdvancedFilters");
+    const isOpen = panel.style.display !== "none";
+    panel.style.display = isOpen ? "none" : "block";
+    btn.style.borderColor  = isOpen ? "#e2e8f0" : "#2563eb";
+    btn.style.color        = isOpen ? "#64748b"  : "#2563eb";
+}
+
+function updateActiveFilterCount() {
+    const filters = [
+        document.getElementById("filterStatus")?.value,
+        document.getElementById("filterCategory")?.value,
+        document.getElementById("filterDateStart")?.value,
+        document.getElementById("filterDateEnd")?.value,
+        document.getElementById("filterMinBasket")?.value,
+        document.getElementById("filterMaxBasket")?.value,
+    ].filter(Boolean);
+
+    const countEl = document.getElementById("activeFilterCount");
+    if (filters.length > 0) {
+        countEl.style.display = "inline";
+        countEl.textContent   = filters.length;
+    } else {
+        countEl.style.display = "none";
+    }
+}
+
+function clearAllFilters() {
+    document.getElementById("filterStatus").value    = "";
+    document.getElementById("filterCategory").value  = "";
+    document.getElementById("filterDateStart").value = "";
+    document.getElementById("filterDateEnd").value   = "";
+    document.getElementById("filterMinBasket").value = "";
+    document.getElementById("filterMaxBasket").value = "";
+    document.getElementById("mainSearch").value      = "";
+    document.getElementById("filterProduct").value   = "";
+    filterState.search    = "";
+    filterState.company   = "";
+    filterState.product   = "";
+    filterState.dateStart = "";
+    filterState.dateEnd   = "";
+    filterState.status    = "";
+    filterState.category  = "";
+    filterState.minBasket = null;
+    filterState.maxBasket = null;
+    updateActiveFilterCount();
+    renderCurrentView();
+}
+
 let _editingOrderId = null;
 // ── PDF STATE ────────────────────────────────────────────────────────────────
 let pdfs            = [];   // { file, blobUrl, parsedData, name }
@@ -83,6 +136,7 @@ async function parseSinglePdf(file) {
         }
         throw new Error(message);
     }
+    console.log(res)
     return res.json();
 }
 
@@ -236,33 +290,40 @@ function escapeHtml(str) {
 }
 
 function normalizeLineItem(item = {}) {
-    const katalogKod   = String(pickItemValue(item, ["KATALOG KOD NO", "SIRA NO KATALOG KOD NO"], "")).trim();
-    const malzemeAdi   = String(pickItemValue(item, ["MALZEMENIN CINSI(VARSA MARKA VE MODELI)"])).trim();
-    const malzemeKodu  = String(pickItemValue(item, ["MALZEME_KODU"], "")).trim();
-    const miktar       = parseFloat(String(pickItemValue(item, ["MIKTAR"], "0")).replace(",", ".")) || 0;
+    const katalogKod    = String(pickItemValue(item, ["KATALOG KOD NO", "SIRA NO KATALOG KOD NO"], "")).trim();
+    const malzemeAdi    = String(pickItemValue(item, ["MALZEMENIN CINSI(VARSA MARKA VE MODELI)"])).trim();
+    const malzemeKodu   = String(pickItemValue(item, ["MALZEME_KODU"], "")).trim();
+    const miktar        = parseFloat(String(pickItemValue(item, ["MIKTAR"], "0")).replace(",", ".")) || 0;
 
-    // Use parseAmount only for Turkish-formatted strings from PDF
-    // Use parseFloat for values already stored as raw numbers
-    const rawDmo      = pickItemValue(item, ["KAT.SÖZ.FIY.(TL)", "KAT.SÃ–Z.FIY.(TL)"], "0");
-    const rawIndirim  = pickItemValue(item, ["ALIMA ESAS INDIRMLI BIRIM FIYAT"], "0");
-    const rawToplam   = pickItemValue(item, ["TUTARI (TL)"], "0");
+    const rawDmo        = pickItemValue(item, ["KAT.SÖZ.FIY.(TL)", "KAT.SÃ–Z.FIY.(TL)"], "0");
+    const rawIndirim    = pickItemValue(item, ["ALIMA ESAS INDIRMLI BIRIM FIYAT"], "0");
+    const rawToplam     = pickItemValue(item, ["TUTARI (TL)"], "0");
 
-    // If value contains comma → Turkish format from PDF → use parseAmount
-    // Otherwise → raw float already stored → use parseFloat
-    const dmoFiyat    = String(rawDmo).includes(",")    ? parseAmount(rawDmo)    : parseFloat(rawDmo)    || 0;
-    const indirimFiyat = String(rawIndirim).includes(",") ? parseAmount(rawIndirim) : parseFloat(rawIndirim) || 0;
-    const mevcutToplam = String(rawToplam).includes(",")  ? parseAmount(rawToplam)  : parseFloat(rawToplam)  || 0;
+    // ── Discount columns ─────────────────────────────────────────────────────
+    const rawTutar      = pickItemValue(item, ["INDIRIM ORANLARI TUTAR"], "0");
+    const rawIlaveTutar = pickItemValue(item, ["ILAVE TUTAR"], "0");
+    const rawToplamInd  = pickItemValue(item, ["TOPLAM"], "0");
 
-    const toplam = indirimFiyat > 0 && miktar > 0 ? indirimFiyat * miktar : mevcutToplam;
+    const dmoFiyat      = String(rawDmo).includes(",")     ? parseAmount(rawDmo)     : parseFloat(rawDmo)     || 0;
+    const indirimFiyat  = String(rawIndirim).includes(",") ? parseAmount(rawIndirim) : parseFloat(rawIndirim) || 0;
+    const mevcutToplam  = String(rawToplam).includes(",")  ? parseAmount(rawToplam)  : parseFloat(rawToplam)  || 0;
+    const toplam        = indirimFiyat > 0 && miktar > 0   ? indirimFiyat * miktar   : mevcutToplam;
+
+    const tutar         = String(rawTutar).includes(",")      ? parseAmount(rawTutar)      : parseFloat(rawTutar)      || 0;
+    const ilaveTutar    = String(rawIlaveTutar).includes(",") ? parseAmount(rawIlaveTutar) : parseFloat(rawIlaveTutar) || 0;
+    const toplamIndirim = String(rawToplamInd).includes(",")  ? parseAmount(rawToplamInd)  : parseFloat(rawToplamInd)  || 0;
 
     return {
         "KATALOG KOD NO":                          katalogKod,
         "MALZEMENIN CINSI(VARSA MARKA VE MODELI)": malzemeAdi,
         "MALZEME_KODU":                            malzemeKodu,
-        "KAT.SÖZ.FIY.(TL)":                       dmoFiyat,      // store as number, not string
-        "ALIMA ESAS INDIRMLI BIRIM FIYAT":         indirimFiyat,  // store as number
+        "KAT.SÖZ.FIY.(TL)":                       dmoFiyat,
+        "ALIMA ESAS INDIRMLI BIRIM FIYAT":         indirimFiyat,
         "MIKTAR":                                  String(miktar),
-        "TUTARI (TL)":                             String(toplam), // store as raw float string
+        "TUTARI (TL)":                             String(toplam),
+        "TUTAR":                                   tutar,
+        "ILAVE TUTAR":                             ilaveTutar,
+        "TOPLAM":                                  toplamIndirim,
     };
 }
 
@@ -434,47 +495,95 @@ function renderLineItems(items) {
     window._lastParsedItems = Array.isArray(items) ? items : [];
     tbody.innerHTML = "";
 
-    if (window._lastParsedItems.length === 0) {
+    const regularItems = window._lastParsedItems.filter(i => !i.is_gift);
+    const giftItems    = window._lastParsedItems.filter(i => i.is_gift);
+
+    if (regularItems.length === 0 && giftItems.length === 0) {
         tbody.innerHTML = `
             <tr>
                 <td colspan="9" style="text-align:center; color:#94a3b8; padding:14px;">
                     Kalem yok. "＋ Kalem Ekle" ile manuel ekleyebilirsiniz.
                 </td>
-            </tr>
-        `;
+            </tr>`;
         calculateDMOBasket([]);
         return;
     }
 
-    window._lastParsedItems.forEach((rawItem, index) => {
-        const item = normalizeLineItem(rawItem);
-        window._lastParsedItems[index] = item;
+    // ── Regular items ─────────────────────────────────────────────────────────
+    if (regularItems.length > 0) {
 
-        const katalogKod = item["KATALOG KOD NO"] || "";
-        const malzemeAdi = item["MALZEMENIN CINSI(VARSA MARKA VE MODELI)"] || "";
-        const malzemeKodu = item["MALZEME_KODU"] || "";
-        const dmoFiyat     = parseFloat(pickItemValue(item, ["KAT.SÖZ.FIY.(TL)", "KAT.SÃ–Z.FIY.(TL)"], "0")) || 0;
-        const indirimFiyat = parseFloat(item["ALIMA ESAS INDIRMLI BIRIM FIYAT"] || "0") || 0;
-        const miktar = parseFloat(item["MIKTAR"] || "0") || 0;
-        const toplam       = parseFloat(item["TUTARI (TL)"]) || 0;
-        const maliyetTL = getLineItemMaliyetTL(item);
+        regularItems.forEach((rawItem, index) => {
+            const item         = normalizeLineItem(rawItem);
+            window._lastParsedItems[index] = item;
+            tbody.appendChild(buildLineItemRow(item, index));
+        });
+    }
 
-        const tr = document.createElement("tr");
-        tr.innerHTML = `
-            <td><input type="text" value="${escapeHtml(katalogKod)}" oninput="updateLineItemField(${index}, 'katalog', this.value)"></td>
-            <td><input type="text" value="${escapeHtml(malzemeAdi)}" oninput="updateLineItemField(${index}, 'adi', this.value)"></td>
-            <td><input type="text" value="${escapeHtml(malzemeKodu)}" oninput="updateLineItemField(${index}, 'kodu', this.value)"></td>
-            <td><input type="number" step="0.01" min="0" value="${dmoFiyat}" oninput="updateLineItemField(${index}, 'dmoFiyat', this.value)"></td>
-            <td><input type="number" step="0.01" min="0" value="${indirimFiyat}" oninput="updateLineItemField(${index}, 'indirimFiyat', this.value)"></td>
-            <td><input type="number" step="1" min="0" value="${miktar}" oninput="updateLineItemField(${index}, 'miktar', this.value)"></td>
-            <td class="text-right">${maliyetTL !== null ? formatAmount(maliyetTL) : "-"}</td>
-            <td class="text-right">${formatAmount(toplam)}</td>
-            <td class="text-right"><button type="button" class="btn btn-secondary" style="padding:4px 8px; font-size:11px;" onclick="removeLineItem(${index})">Sil</button></td>
-        `;
-        tbody.appendChild(tr);
-    });
+    // ── Gift items ────────────────────────────────────────────────────────────
+    if (giftItems.length > 0) {
+        const giftHeader = document.createElement("tr");
+        giftHeader.innerHTML = `
+            <td colspan="9" style="background:#fff7ed; padding:8px 12px; font-size:11px; font-weight:800; color:#d97706; letter-spacing:0.5px;">
+                🎁 HEDİYELER
+            </td>`;
+        tbody.appendChild(giftHeader);
 
-    calculateDMOBasket(window._lastParsedItems);
+        giftItems.forEach((rawItem, index) => {
+            const item    = normalizeLineItem(rawItem);
+            const usdRate = parseFloat(document.getElementById("usd_rate")?.value) || 45;
+            const katalogKodInt = parseInt(item["KATALOG KOD NO"] || "0");
+            const miktar        = parseFloat(item["MIKTAR"] || "0");
+            const urun          = URUNLER[katalogKodInt];
+            const maliyetTL     = urun ? urun.maliyet_usd * miktar * usdRate : 0;
+
+            const tr = document.createElement("tr");
+            tr.style.background = "#fff7ed";
+            tr.innerHTML = `
+                <td style="padding:8px 4px;">${item["KATALOG KOD NO"] || "-"}</td>
+                <td style="padding:8px 4px;">${item["MALZEMENIN CINSI(VARSA MARKA VE MODELI)"] || "-"}</td>
+                <td style="padding:8px 4px;">${item["MALZEME_KODU"] || "-"}</td>
+                <td colspan="3" style="padding:8px 4px; text-align:center; color:#d97706; font-weight:600;">
+                    🎁 ${miktar} adet hediye
+                </td>
+                <td style="padding:8px 4px; text-align:right; color:#d97706; font-weight:700;">
+                    ${maliyetTL > 0 ? formatAmount(maliyetTL) + " ₺" : "-"}
+                </td>
+                <td colspan="2"></td>
+            `;
+            tbody.appendChild(tr);
+        });
+    }
+
+    calculateDMOBasket(window._lastParsedItems.filter(i => !i.is_gift));
+}
+
+function buildLineItemRow(item, index) {
+    const katalogKod   = item["KATALOG KOD NO"] || "";
+    const malzemeAdi   = item["MALZEMENIN CINSI(VARSA MARKA VE MODELI)"] || "";
+    const malzemeKodu  = item["MALZEME_KODU"] || "";
+    const dmoFiyat     = parseFloat(item["KAT.SÖZ.FIY.(TL)"])                 || 0;
+    const indirimPct   = parseFloat(item["TOPLAM INDIRIM"])                    || 0;
+    const indirimFiyat = parseFloat(item["ALIMA ESAS INDIRMLI BIRIM FIYAT"])   || 0;
+    const miktar       = parseFloat(item["MIKTAR"] || "0")                     || 0;
+    const toplam       = parseFloat(item["TUTARI (TL)"])                       || 0;
+    const maliyetTL    = getLineItemMaliyetTL(item);
+
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+        <td><input type="text"   value="${escapeHtml(katalogKod)}"   oninput="updateLineItemField(${index}, 'katalog',      this.value)"></td>
+        <td><input type="text"   value="${escapeHtml(malzemeAdi)}"   oninput="updateLineItemField(${index}, 'adi',          this.value)"></td>
+        <td><input type="text"   value="${escapeHtml(malzemeKodu)}"  oninput="updateLineItemField(${index}, 'kodu',         this.value)"></td>
+        <td><input type="number" step="0.01" min="0" value="${dmoFiyat}"     oninput="updateLineItemField(${index}, 'dmoFiyat',    this.value)"></td>
+        <td><input type="number" step="0.01" min="0" value="${indirimPct}"   oninput="updateLineItemField(${index}, 'indirimPct',  this.value)"></td>
+        <td><input type="number" step="0.01" min="0" value="${indirimFiyat}" oninput="updateLineItemField(${index}, 'indirimFiyat',this.value)"></td>
+        <td><input type="number" step="1"    min="0" value="${miktar}"       oninput="updateLineItemField(${index}, 'miktar',      this.value)"></td>
+        <td class="text-right">${maliyetTL !== null ? formatAmount(maliyetTL) : "-"}</td>
+        <td class="text-right">${formatAmount(toplam)}</td>
+        <td class="text-right">
+            <button type="button" class="btn btn-secondary" style="padding:4px 8px; font-size:11px;" onclick="removeLineItem(${index})">Sil</button>
+        </td>
+    `;
+    return tr;
 }
 
 function computeInvoiceMetrics(dmoBasket, inokasBasket, stampTax) {
@@ -506,30 +615,44 @@ function calculateProfit() {
     const inokasBasket = parseFloat(document.getElementById("inokas_basket")?.value) || 0;
     const stampTax     = parseFloat(document.getElementById("stamp_tax")?.value)     || 0;
 
-    const m = computeInvoiceMetrics(dmoBasket, inokasBasket, stampTax);
+    const kdv          = dmoBasket * 0.20;
+    const tevkifat     = kdv * 0.20;
+    const gercekKdv    = kdv - tevkifat;
+    const dmoKesinti   = dmoBasket * 0.08;
+    const risturn      = dmoBasket * 0.01;
+    const toplamGelir  = dmoBasket + kdv;
+    const toplamGider  = inokasBasket + stampTax + tevkifat + dmoKesinti + risturn;
+    const netProfit    = toplamGelir - toplamGider;
+    const profitPct    = dmoBasket > 0 ? (netProfit / dmoBasket) * 100 : 0;
 
-    // Set fields
-    setField("kdv_tax",          m.kdv.toFixed(2));
-    setField("inv_dmo_kesinti",  m.dmoKesinti.toFixed(2));
-    setField("inv_tevkifat",     m.tevkifat.toFixed(2));
-    setField("inv_gercek_kdv",   m.gercekKdv.toFixed(2));
-    setField("inv_toplam_gelir", m.toplamGelir.toFixed(2));
-    setField("inv_toplam_gider", m.toplamGider.toFixed(2));
-    setField("inv_risturn",m.risturn.toFixed(2))
+    // İndirim Kaybı = sum of catalog prices - dmo basket
+    const indirimKaybi = (window._lastParsedItems || []).reduce((sum, item) => {
+        const katalogFiyat = parseFloat(item["KAT.SÖZ.FIY.(TL)"])  || 0;
+        const miktar       = parseFloat(item["MIKTAR"])              || 0;
+        return sum + (katalogFiyat * miktar);
+    }, 0) - dmoBasket;
+
+    setField("kdv_tax",          kdv.toFixed(2));
+    setField("inv_tevkifat",     tevkifat.toFixed(2));
+    setField("inv_gercek_kdv",   gercekKdv.toFixed(2));
+    setField("inv_dmo_kesinti",  dmoKesinti.toFixed(2));
+    setField("inv_risturn",      risturn.toFixed(2));
+    setField("inv_toplam_gelir", toplamGelir.toFixed(2));
+    setField("inv_toplam_gider", toplamGider.toFixed(2));
+    setField("inv_indirim_kaybi", indirimKaybi > 0 ? indirimKaybi.toFixed(2) : 0);
 
     const profitEl  = document.getElementById("net_profit_display");
     const percentEl = document.getElementById("profit_percent_display");
 
     if (profitEl) {
-        profitEl.textContent = formatAmount(m.netProfit.toFixed(2)) + " ₺";
-        profitEl.style.color = m.netProfit >= 0 ? "#16a34a" : "#dc2626";
+        profitEl.textContent = formatAmount(netProfit.toFixed(2)) + " ₺";
+        profitEl.style.color = netProfit >= 0 ? "#16a34a" : "#dc2626";
     }
     if (percentEl) {
-        percentEl.textContent = m.profitPct.toFixed(2) + "%";
-        percentEl.style.color = m.profitPct >= 0 ? "#16a34a" : "#dc2626";
+        percentEl.textContent = profitPct.toFixed(2) + "%";
+        percentEl.style.color = profitPct >= 0 ? "#16a34a" : "#dc2626";
     }
-}
-// Recalculate when user changes risturn or stamp tax manually
+}// Recalculate when user changes risturn or stamp tax manually
 ["stamp_tax"].forEach(id => {
     document.getElementById(id)?.addEventListener("input", calculateProfit);
 });
@@ -548,6 +671,8 @@ async function openInvoiceModal() {
 function closeInvoiceModal() {
     document.getElementById("invoiceModal").style.display = "none";
     _editingOrderId = null; // ← reset edit mode
+    _isTaslakMerge  = false;
+
     resetForm();
 }
 
@@ -660,6 +785,8 @@ function resetForm() {
     pdfs.forEach(p => URL.revokeObjectURL(p.blobUrl));
     pdfs           = [];
     activePdfIndex = null;
+    _isTaslakMerge  = false;
+
 
     // Clear form fields
     resetFormFields();
@@ -753,9 +880,146 @@ async function saveOrder() {
     const kdv             = m.kdv;
     const netProfit       = m.netProfit;
     const profitPct       = m.profitPct;
+    const usdRate = parseFloat(document.getElementById("usd_rate")?.value)
 
     try {
         showModalAlert("Kaydediliyor...", "info");
+
+        // ── TASLAK MERGE ─────────────────────────────────────────────────────────────
+        if (_editingOrderId && _isTaslakMerge) {
+            showModalAlert("Taslak güncelleniyor...", "info");
+
+            // 1. Fetch existing gift items before deleting
+            const { data: giftItems } = await db
+                .from("dmo_order_items")
+                .select("*")
+                .eq("order_id", _editingOrderId)
+                .eq("is_gift", true);
+
+            // 2. Delete non-gift items
+            await db
+                .from("dmo_order_items")
+                .delete()
+                .eq("order_id", _editingOrderId)
+                .eq("is_gift", false);
+
+            // 3. Update order fields from PDF
+            const { error: updateError } = await db
+                .from("dmo_orders")
+                .update({
+                    sales_order_no:        salesOrderNo,
+                    purchase_order_no:     purchaseOrderNo,
+                    customer_name:         document.getElementById("customer_name")?.value,
+                    customer_no:           document.getElementById("customer_no")?.value,
+                    order_date:            parseOrderDate(document.getElementById("order_date")?.value),
+                    stamp_tax:             stampTax,
+                    dmo_basket_total:      dmoBasket,
+                    inokas_basket_total:   inokasBasket,
+                    stamp_tax_total:       stampTax,
+                    net_profit:            netProfit,
+                    profit_percentage:     profitPct,
+                    usd_rate:              usdRate,
+                    status:                "Sipariş Alındı",
+                })
+                .eq("id", _editingOrderId);
+
+            if (updateError) {
+                showModalAlert("Güncelleme başarısız: " + updateError.message, "error");
+                return;
+            }
+
+            // 4. Insert new PDF items
+            const items   = window._lastParsedItems || [];
+            let failedItems = 0;
+
+            for (const item of items) {
+                const katalogKod  = parseInt(item["KATALOG KOD NO"] || "0");
+                const malzemeKodu = item["MALZEME_KODU"] || null;
+                const miktar      = parseInt(item["MIKTAR"] || "0");
+                const unitPrice   = parseFloat(item["ALIMA ESAS INDIRMLI BIRIM FIYAT"] || "0");
+                const lineTotal   = parseFloat(item["TUTARI (TL)"]) || 0;
+
+                let productId = null;
+                if (malzemeKodu) {
+                    const { data: existingProduct } = await db
+                        .from("products")
+                        .select("id")
+                        .eq("product_code", malzemeKodu)
+                        .maybeSingle();
+
+                    if (existingProduct) {
+                        productId = existingProduct.id;
+                    } else {
+                        const urun = URUNLER[katalogKod];
+                        const { data: newProduct, error: productError } = await db
+                            .from("products")
+                            .insert({
+                                product_code:            malzemeKodu,
+                                product_name:            item["MALZEMENIN CINSI(VARSA MARKA VE MODELI)"] || malzemeKodu,
+                                dmo_code:                katalogKod.toString(),
+                                last_purchase_price_cur: urun ? urun.maliyet_usd : 0,
+                                last_purchase_currency:  "USD",
+                                last_purchase_rate:      usdRate,
+                                last_purchase_price_tl:  urun ? urun.maliyet_usd * usdRate : 0,
+                            })
+                            .select()
+                            .single();
+
+                        if (!productError) productId = newProduct.id;
+                    }
+                }
+
+                const { error: itemError } = await db
+                    .from("dmo_order_items")
+                    .insert({
+                        order_id:            _editingOrderId,
+                        product_id:          productId,
+                        quantity:            miktar,
+                        unit_price_excl_vat: unitPrice,
+                        line_total_excl_vat: lineTotal,
+                        is_gift:             false,
+                        katalog_kod:         katalogKod.toString(),
+                        maliyet_usd:         URUNLER[katalogKod]?.maliyet_usd || 0,
+                        maliyet_tl:          (URUNLER[katalogKod]?.maliyet_usd || 0) * usdRate,
+                    });
+
+                if (itemError) failedItems++;
+            }
+            // 5. Update gift_quentity on products for each gift item
+            if (giftItems && giftItems.length > 0) {
+                for (const giftItem of giftItems) {
+                    if (!giftItem.product_id) continue;
+
+                    const { data: product } = await db
+                        .from("products")
+                        .select("gift_quantity")
+                        .eq("id", giftItem.product_id)
+                        .maybeSingle();
+
+                    if (!product) continue;
+
+                    const currentGift = Number(product.gift_quantity || 0);
+                    const newGift     = currentGift + Number(giftItem.quantity || 0);
+
+                    await db
+                        .from("products")
+                        .update({ gift_quantity: newGift })
+                        .eq("id", giftItem.product_id);
+                }
+            }
+
+            // 5. Gift items stay — they were not deleted in step 2
+            if (failedItems > 0) {
+                showModalAlert(`Güncellendi fakat ${failedItems} kalem hatalı!`, "warn");
+            } else {
+                showModalAlert("Taslak → Sipariş Alındı! ✓", "success");
+                setTimeout(() => {
+                    closeInvoiceModal();
+                    renderCurrentView();
+                }, 1000);
+            }
+            return;
+        }
 
         // ── 1. Duplicate check ────────────────────────────────────────────────
         const { data: existing } = await db
@@ -768,6 +1032,9 @@ async function saveOrder() {
             showModalAlert("Bu sipariş zaten kayıtlı: " + salesOrderNo, "error");
             return;
         }
+
+
+
         // ── EDIT MODE ────────────────────────────────────────────────────────────────
         if (_editingOrderId) {
             const { error: updateError } = await db
@@ -815,7 +1082,7 @@ async function saveOrder() {
                 net_profit:            netProfit,
                 profit_percentage:     profitPct,
                 total_amount_excl_vat: dmoBasket,
-                status:                "Beklemede",
+                status:                "Sipariş Alındı",
             })
             .select()
             .single();
@@ -833,8 +1100,8 @@ async function saveOrder() {
             const katalogKod  = parseInt(item["KATALOG KOD NO"] || "0");
             const malzemeKodu = item["MALZEME_KODU"] || null;
             const miktar      = parseInt(item["MIKTAR"] || "0");
-            const unitPrice   = parseAmount(item["ALIMA ESAS INDIRMLI BIRIM FIYAT"] || "0");
-            const lineTotal   = parseAmount(item["TUTARI (TL)"] || "0");
+            const unitPrice   = parseFloat(item["ALIMA ESAS INDIRMLI BIRIM FIYAT"] || "0") || 0;
+            const lineTotal   = parseFloat(item["TUTARI (TL)"]) || 0;
 
             let productId = null;
 
@@ -905,11 +1172,30 @@ async function saveOrder() {
         showModalAlert("Beklenmeyen hata: " + err.message, "error");
     }
 }
+
+function openPDFForTaslak() {
+    closeInvoiceDetailModal();
+    // _currentOrderId is already set from openDetailModal
+    _editingOrderId  = _currentOrderId;
+    _isTaslakMerge   = true; // ← new flag
+    openInvoiceModal();
+}
+
 // ── DETAIL MODAL ─────────────────────────────────────────────────────────────
 async function openDetailModal(order) {
+    // In openDetailModal
+    const btnEdit   = document.getElementById("btnEditInvoice");
+    const btnAddPDF = document.getElementById("btnAddPDF");
+
+    if (order.status === "Taslak") {
+        btnEdit.style.display   = "none";
+        btnAddPDF.style.display = "flex";
+    } else {
+        btnEdit.style.display   = "flex";
+        btnAddPDF.style.display = "none";
+    }
     // Fill header
     _currentOrderId = order.id;  // ← add this at the top
-
 
     document.getElementById("detail_no_text").textContent  = order.sales_order_no || "Taslak";
     document.getElementById("detail_company").textContent  = order.customer_name  || "-";
@@ -924,19 +1210,23 @@ async function openDetailModal(order) {
     profitEl.textContent = formatAmount(order.net_profit) + " ₺  %" + (order.profit_percentage?.toFixed(1) || "0");
     profitEl.style.color = order.net_profit >= 0 ? "#16a34a" : "#dc2626";
     // Fetch line items
+
+
     const { data: items, error } = await db
-        .from("dmo_order_items")
-        .select(`
-            quantity,
-            unit_price_excl_vat,
-            line_total_excl_vat,
-            products (
-                product_code,
-                product_name,
-                last_purchase_price_tl
-            )
-        `)
-        .eq("order_id", order.id);
+    .from("dmo_order_items")
+    .select(`
+        quantity,
+        unit_price_excl_vat,
+        line_total_excl_vat,
+        is_gift,
+        maliyet_tl,
+        products (
+            product_code,
+            product_name,
+            last_purchase_price_tl
+        )
+    `)
+    .eq("order_id", order.id);
 
     console.log("items:", items, "error:", error);
 
@@ -945,21 +1235,58 @@ async function openDetailModal(order) {
         return;
     }
 
-    // Render line items
+
     const tbody = document.getElementById("detail_items_body");
     tbody.innerHTML = "";
 
-    items.forEach(item => {
-        const tr = document.createElement("tr");
-        tr.innerHTML = `
-            <td style="padding:10px 15px;">${item.products?.product_name || "-"}</td>
-            <td style="padding:10px 15px; text-align:center;">${item.quantity}</td>
-            <td style="padding:10px 15px; text-align:right;">${formatAmount(item.unit_price_excl_vat)} ₺</td>
-            <td style="padding:10px 15px; text-align:center;">%20</td>
-            <td style="padding:10px 15px; text-align:right;">${formatAmount(item.line_total_excl_vat)} ₺</td>
-        `;
-        tbody.appendChild(tr);
-    });
+    const regularItems = items.filter(i => !i.is_gift);
+    const giftItems    = items.filter(i => i.is_gift);
+
+    // Regular items
+    if (regularItems.length > 0) {
+        const headerRow = document.createElement("tr");
+        headerRow.innerHTML = `
+            <td colspan="5" style="background:#eff6ff; padding:8px 15px; font-size:11px; font-weight:800; color:#2563eb;">
+                📦 SİPARİŞ KALEMLERİ
+            </td>`;
+        tbody.appendChild(headerRow);
+
+        regularItems.forEach(item => {
+            const tr = document.createElement("tr");
+            tr.innerHTML = `
+                <td style="padding:10px 15px;">${item.products?.product_name || "-"}</td>
+                <td style="padding:10px 15px; text-align:center;">${item.quantity}</td>
+                <td style="padding:10px 15px; text-align:right;">${formatAmount(item.unit_price_excl_vat)} ₺</td>
+                <td style="padding:10px 15px; text-align:center;">%20</td>
+                <td style="padding:10px 15px; text-align:right;">${formatAmount(item.line_total_excl_vat)} ₺</td>
+            `;
+            tbody.appendChild(tr);
+        });
+    }
+
+    // Gift items
+    if (giftItems.length > 0) {
+        const giftHeader = document.createElement("tr");
+        giftHeader.innerHTML = `
+            <td colspan="5" style="background:#fff7ed; padding:8px 15px; font-size:11px; font-weight:800; color:#d97706;">
+                🎁 HEDİYELER
+            </td>`;
+        tbody.appendChild(giftHeader);
+
+        giftItems.forEach(item => {
+            const maliyetTL = parseFloat(item.maliyet_tl || 0) * parseFloat(item.quantity || 0);
+            const tr = document.createElement("tr");
+            tr.style.background = "#fff7ed";
+            tr.innerHTML = `
+                <td style="padding:10px 15px;">${item.products?.product_name || "-"}</td>
+                <td style="padding:10px 15px; text-align:center;">${item.quantity} 🎁</td>
+                <td style="padding:10px 15px; text-align:right; color:#d97706;">${formatAmount(item.maliyet_tl)} ₺</td>
+                <td style="padding:10px 15px; text-align:center;">-</td>
+                <td style="padding:10px 15px; text-align:right; color:#d97706;">${formatAmount(maliyetTL)} ₺</td>
+            `;
+            tbody.appendChild(tr);
+        });
+    }
 
     // Fill notes with profit breakdown
     document.getElementById("detail_notes").innerHTML = `
@@ -990,7 +1317,10 @@ async function openEditModal(order) {
     // Change header and button
     document.getElementById("modalFormTitle").textContent = "DMO Sipariş Düzenle";
     document.getElementById("btnSaveOrder").textContent   = "✏️ Güncelle";
-
+    const btnAddPDF = document.getElementById("btnAddPDF");
+    if (btnAddPDF) {
+        btnAddPDF.style.display = order.status === "Taslak" ? "flex" : "none";
+    }
 
 
     // Fill form fields
@@ -1064,9 +1394,17 @@ function clearModalAlert() {
 async function deleteOrder(orderId) {
     if (!confirm("Bu siparişi silmek istediğinizden emin misiniz?")) return;
 
-    // Delete line items first (foreign key constraint)
+    // 1. Fetch gift items before deleting — need to restore gift_quentity
+    const { data: giftItems } = await db
+        .from("dmo_order_items")
+        .select("product_id, quantity")
+        .eq("order_id", orderId)
+        .eq("is_gift", true);
+
+    // 2. Delete line items first (foreign key constraint)
     await db.from("dmo_order_items").delete().eq("order_id", orderId);
 
+    // 3. Delete order
     const { error } = await db.from("dmo_orders").delete().eq("id", orderId);
 
     if (error) {
@@ -1074,11 +1412,33 @@ async function deleteOrder(orderId) {
         return;
     }
 
+    // 4. Restore gift_quentity on products
+    if (giftItems && giftItems.length > 0) {
+        for (const giftItem of giftItems) {
+            if (!giftItem.product_id) continue;
+
+            const { data: product } = await db
+                .from("products")
+                .select("gift_quentity")
+                .eq("id", giftItem.product_id)
+                .maybeSingle();
+
+            if (!product) continue;
+
+            const currentGift = Number(product.gift_quentity || 0);
+            const newGift     = Math.max(0, currentGift - Number(giftItem.quantity || 0));
+
+            await db
+                .from("products")
+                .update({ gift_quentity: newGift })
+                .eq("id", giftItem.product_id);
+        }
+    }
+
     showToast("Sipariş silindi!", "success");
     closeInvoiceDetailModal();
     renderCurrentView();
 }
-
 // DD.MM.YYYY → YYYY-MM-DD (db date format)
 function parseOrderDate(dateStr) {
     if (!dateStr) return new Date().toISOString().slice(0, 10);
@@ -1161,6 +1521,7 @@ async function renderCurrentView() {
             o.customer_name?.toLocaleLowerCase("tr-TR").includes(filterState.search)
         );
     }
+
     // Basket range filter
     if (filterState.minBasket) {
         filteredOrders = filteredOrders.filter(o => o.dmo_basket_total >= filterState.minBasket);
@@ -1205,9 +1566,11 @@ function toggleInvoiceList() {
 }
 
 // ── RENDER INVOICE CARDS ──────────────────────────────────────────────────────
-function renderTable(orders) {
+async function renderTable(orders) {
     const container = document.getElementById("invoiceCardsContainer");
     container.innerHTML = "";
+    // 1. Added .single() to get an object instead of an array
+
 
     if (orders.length === 0) {
         container.innerHTML = `
@@ -1217,7 +1580,27 @@ function renderTable(orders) {
         return;
     }
 
-    orders.forEach(order => {
+    for (const order of orders) {
+        console.log("Data:",orders[0]);
+
+        const { data: item, err } = await db
+            .from("dmo_orders")
+            .select("status")
+            .eq("id", order.id)
+            .single();
+
+        console.log("Data:", item, "Error:", err);
+
+        // 2. Check if the element exists and there was no error
+        if (err) {
+            console.error("Database error:", err.message);
+        } else if (item) {
+            // 3. Use 'item.status' because 'item' is the object returned
+            const statusElement = document.getElementById("detail_status");
+            if (statusElement) {
+                statusElement.textContent = item.status;
+            }
+        }
         const profitColor = order.net_profit >= 0 ? "#16a34a" : "#dc2626";
         const card = document.createElement("div");
         card.className = "invoice-card";
@@ -1239,7 +1622,7 @@ function renderTable(orders) {
             </div>
         `;
         container.appendChild(card);
-    });
+    }
 }
 
 
@@ -1274,31 +1657,48 @@ async function renderStatsCards(orders) {
 
 async function fetchAndRenderRates() {
     try {
-        // TCMB rates
-        const res  = await fetch("/api/dmo/usd-eur-rate");
+        // 1. Fetch TCMB Rates
+        const res = await fetch("/api/dmo/usd-eur-rate");
+        if (!res.ok) throw new Error(`TCMB Fetch Failed: ${res.status}`);
+
         const data = await res.json();
+        if (data.USD) document.getElementById("stat-usd-rate").textContent = parseFloat(data.USD).toFixed(2) + " ₺";
+        if (data.EUR) document.getElementById("stat-eur-rate").textContent = parseFloat(data.EUR).toFixed(2) + " ₺";
 
-        if (data.USD) document.getElementById("stat-usd-rate").textContent    = parseFloat(data.USD).toFixed(2) + " ₺";
-        if (data.EUR) document.getElementById("stat-eur-rate").textContent    = parseFloat(data.EUR).toFixed(2) + " ₺";
+        console.log("Full DMO Response:", data); // Check exactly what keys are here
 
-        // DMO EUR rate from rate_history
-        const { data: rateHistory } = await db
-            .from("rate_history")
-            .select("dmo_eur_try")
-            .not("dmo_eur_try", "is", null)
-            .order("recorded_at", { ascending: false })
-            .limit(1)
-            .maybeSingle();
 
-        if (rateHistory?.dmo_eur_try) {
-            document.getElementById("stat-eurdmo-rate").textContent = parseFloat(rateHistory.dmo_eur_try).toFixed(2) + " ₺";
+        // 2. Fetch DMO Specific Rate
+        const dmo = await fetch("/api/dmo/find-dmo-url", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                dmo_code: "106776",
+                product_id: "c3fa6b0f-4e2b-4bf3-b42a-f517074c1347",
+            })
+        });
+
+        if (!dmo.ok) throw new Error(`DMO Fetch Failed: ${dmo.status}`);
+
+        const dmo_res = await dmo.json();
+        console.log("Full DMO Response:", dmo_res); // Check exactly what keys are here
+
+        // Fix: Use the property that actually exists in your JSON response
+        const targetRate = dmo_res.price ;
+
+        if (targetRate) {
+            const element = document.getElementById("stat-eurdmo-rate");
+            if (element) {
+                element.textContent = ((parseFloat(targetRate)/1.08)/355).toFixed(2) + " ₺";
+            }
+        } else {
+            console.warn("DMO rate property not found in response.");
         }
 
     } catch (err) {
         console.error("Kur çekilemedi:", err.message);
     }
 }
-
 // ── HELPERS ──────────────────────────────────────────────────────────────────
 // "2026-04-17" → "17.04.2026"
 function formatDate(dateStr) {
@@ -1382,12 +1782,11 @@ async function openHizliHesap() {
 }
 function closeHizliHesap() {
     document.getElementById("hizliHesapModal").style.display = "none";
-    hhItems = {};
+    hhItems     = {};
     hhSepet     = {};
     hhActiveTab = 'urunler';
-    document.getElementById("hh_customer_name").value = "";
-    document.getElementById("hh_usd_rate").value      = "";
-    document.getElementById("hh_search").value        = "";
+    document.getElementById("hh_customer_name").value    = "";
+    document.getElementById("hh_search").value           = "";
     document.getElementById("hh_product_grid").innerHTML = "";
     recalcHizliHesap();
 }
@@ -1492,7 +1891,7 @@ function renderHHRow(p, usdRate, tab) {
     const alisEur   = parseFloat(p.sozlesme_fiyat_eur  || 0);
     const malUsd    = parseFloat(p.maliyet_usd         || 0);
     const realDMO   = dmoFiyat / 1.08;
-    const alisTL    = alisEur * getCurrentRates().dmo_eur_try;
+    const alisTL    = alisEur * getCurrentRates().eur_try;
     const malTL     = malUsd  * usdRate;
     const marj      = realDMO > 0 ? ((realDMO - malTL) / realDMO * 100) : 0;
     const marjColor = marj >= 0 ? "#16a34a" : "#dc2626";
@@ -1565,7 +1964,7 @@ function renderHHRow(p, usdRate, tab) {
             <td style="padding:8px; color:#64748b;">${p.model || "-"}</td>
             <td style="padding:8px; color:#64748b;">${p.stock_on_hand || "-"}</td>
             <td style="padding:8px; text-align:right; font-weight:600;">
-                ${dmoFiyat > 0 ? formatAmount(dmoFiyat) + " ₺" : "-"}
+                ${dmoFiyat > 0 ? `${formatAmount(dmoFiyat)} ₺ → ${formatAmount(realDMO)} ₺` : "-"}
             </td>
             <td style="padding:8px; text-align:right; color:#64748b;">
                 ${alisEur > 0 ? `€${alisEur} → ${formatAmount(alisTL)} ₺` : "-"}
@@ -1836,6 +2235,7 @@ function recalcHizliHesap() {
     const gercekKdv   = kdv - tevkifat;
     const dmoKesinti  = dmoBasket * 0.08;
     const risturn     = dmoBasket * 0.01;
+    const damga_karar = dmoBasket * 0.01517;
     const toplamGelir = dmoBasket + kdv;
     const toplamGider = inokasBasket + tevkifat + dmoKesinti + risturn + giftTotal;
     const netProfit   = toplamGelir - toplamGider;
@@ -1849,13 +2249,18 @@ function recalcHizliHesap() {
     setVal("hh_dmo_basket",    dmoBasket);
     setVal("hh_inokas_basket", inokasBasket);
     setVal("hh_dmo_deduction", dmoKesinti);
+    setVal("hh_damga_karar", damga_karar);
+
     setVal("hh_kdv",           kdv);
     setVal("hh_tevkifat",      tevkifat);
     setVal("hh_gercek_kdv",    gercekKdv);
     setVal("hh_gift_total",    giftTotal);
     setVal("hh_risturn",       risturn);
-    setVal("hh_toplam_gelir",  toplamGelir);
-    setVal("hh_toplam_gider",  toplamGider);
+
+    const gelirEl = document.getElementById("hh_toplam_gelir");
+    const giderEl = document.getElementById("hh_toplam_gider");
+    if (gelirEl) gelirEl.value = formatAmount(toplamGelir.toFixed(2));
+    if (giderEl) giderEl.value = formatAmount(toplamGider.toFixed(2));
 
     // ✅ Fix
     const usdEl = document.getElementById("hh_rate_usd");
@@ -1902,6 +2307,7 @@ function updateLimitBar(currentDMO = 0) {
 }
 // ── SAVE AS TASLAK ────────────────────────────────────────────────────────────
 async function saveHizliHesapAsTaslak() {
+    console.log("customer:", document.getElementById("hh_customer_name")?.value);
     if (Object.keys(hhSepet).length === 0) {
         showToast("Lütfen en az bir ürün ekleyin", "error");
         return;
@@ -1926,7 +2332,7 @@ async function saveHizliHesapAsTaslak() {
         const { data: order, error: orderError } = await db
             .from("dmo_orders")
             .insert({
-                customer_name:       document.getElementById("hh_customer_name")?.value || null,
+                customer_name: document.getElementById("hh_customer_name")?.value || null,
                 order_date:          new Date().toISOString().slice(0, 10),
                 usd_rate:            usdRate,
                 dmo_basket_total:    dmoBasket,
@@ -1954,7 +2360,7 @@ async function saveHizliHesapAsTaslak() {
             if (item.quantity > 0) {
                 await db.from("dmo_order_items").insert({
                     order_id:            order.id,
-                    product_id:          item.product_id || null,
+                    product_id:          item.id || null,
                     quantity:            item.quantity,
                     unit_price_excl_vat: parseFloat(item.dmo_fiyat_try || 0),
                     line_total_excl_vat: parseFloat(item.dmo_fiyat_try || 0) * item.quantity,
@@ -1968,7 +2374,7 @@ async function saveHizliHesapAsTaslak() {
             if (item.giftQuantity > 0) {
                 await db.from("dmo_order_items").insert({
                     order_id:            order.id,
-                    product_id:          item.product_id || null,
+                    product_id:          item.id || null,
                     quantity:            item.giftQuantity,
                     unit_price_excl_vat: parseFloat(item.dmo_fiyat_try || 0),
                     line_total_excl_vat: parseFloat(item.dmo_fiyat_try || 0) * item.giftQuantity,

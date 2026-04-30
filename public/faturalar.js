@@ -373,7 +373,7 @@ function openInvoiceModal() {
 
 
 // 2- EKRANI "GÜNCELLEME" İÇİN DOLDURARAK (KİLİTLİ OLARAK) AÇ
-function viewInvoice(id) {
+async function viewInvoice(id) {
     const inv = allInvoicesCache.find(i => i.id === id);
     if (!inv) return;
 
@@ -444,6 +444,22 @@ function viewInvoice(id) {
     } else {
         // Gösterecek ürün yoksa bile boş bir satır açık tutmak iyidir
         addLineItem();
+    }
+
+    // Düzenleme modunda da DB'de olmayan SKU'lar için XML yüklemedekiyle aynı uyarıyı göster.
+    try {
+        await ensureProductCodeLookupSetLoaded();
+        const missingSkus = Array.from(new Set(
+            (inv.invoice_items || [])
+                .map((it) => String(it.product_code || it.sku || '').trim())
+                .filter(Boolean)
+                .filter((sku) => !isInProductCodeLookup(sku))
+        ));
+        if (missingSkus.length) {
+            showXmlSuccess(inv.companies?.name || '-', inv.companies?.vkn_tckn || '-', missingSkus);
+        }
+    } catch (e) {
+        console.warn('SKU uyarı kontrolü yapılamadı:', e);
     }
 
     document.getElementById('invoiceModal').style.display = 'flex';
@@ -1157,6 +1173,7 @@ async function executeBulkUpload() {
         const payload = {
             submit_view: view,
             parsed_view: view,
+            is_bulk_upload: true,
             company: entry.pack.company,
             invoice: {
                 ...entry.pack.invoice,
@@ -2898,12 +2915,14 @@ function renderRowCategorySelect(selectEl, isInternal, value = '') {
     const options = getRowCategoryOptions(isInternal);
     const selectedValue = String(value || '').trim();
     const placeholder = isInternal ? 'Ofis içi kategorisi seçin' : 'Ürün kategorisi seçin';
+  const addNewOptionHtml = isInternal ? '' : '<option value="__add_new_category__">+ Yeni kategori ekle</option>';
     selectEl.innerHTML = [
         `<option value="">${placeholder}</option>`,
-        ...options.map((opt) => {
+    ...options.map((opt) => {
             const selectedAttr = opt === selectedValue ? ' selected' : '';
             return `<option value="${opt}"${selectedAttr}>${opt}</option>`;
-        })
+    }),
+    addNewOptionHtml
     ].join('');
 }
 
@@ -2953,6 +2972,11 @@ function addLineItem(
         </td>
         <td>
             <select class="line-category-select"></select>
+            <div class="line-category-quick-add" style="display:none; margin-top:6px; align-items:center; gap:6px;">
+                <input type="text" class="line-category-quick-input" placeholder="Kategori yazın" style="font-size:12px; padding:5px 8px; border:1px solid #cbd5e1; border-radius:6px;">
+                <button type="button" class="line-category-quick-save" title="Ekle" style="width:26px; height:26px; border:none; border-radius:6px; background:#16a34a; color:#fff; font-weight:700; cursor:pointer;">✓</button>
+                <button type="button" class="line-category-quick-cancel" title="İptal" style="width:26px; height:26px; border:none; border-radius:6px; background:#ef4444; color:#fff; font-weight:700; cursor:pointer;">✕</button>
+            </div>
         </td>
         <td style="min-width:60px;">
             <button type="button" class="btn-text" onclick="this.closest('tr').remove(); recalcInvoiceTotalsFromLines();" style="color:var(--danger); float:right;">✕</button>
@@ -2962,6 +2986,10 @@ function addLineItem(
     const skuInput   = row.querySelector('.line-sku-val');
     const internalToggle = row.querySelector('.internal-toggle');
     const categorySelect = row.querySelector('.line-category-select');
+    const quickAddWrap = row.querySelector('.line-category-quick-add');
+    const quickAddInput = row.querySelector('.line-category-quick-input');
+    const quickAddSave = row.querySelector('.line-category-quick-save');
+    const quickAddCancel = row.querySelector('.line-category-quick-cancel');
     if (skuInput) {
         skuInput.value = String(sku ?? '').trim();
         skuInput.addEventListener('input', () => checkPendingOrdersForRow(row));
@@ -2974,7 +3002,33 @@ function addLineItem(
             if (!internalToggle.checked) {
                 applySkuBasedProductCategory(row, skuInput?.value || '');
             }
+            if (internalToggle.checked && quickAddWrap) {
+                quickAddWrap.style.display = 'none';
+            }
         };
+      categorySelect.addEventListener('change', () => {
+        if (categorySelect.value !== '__add_new_category__') return;
+        if (internalToggle.checked) return;
+        categorySelect.value = '';
+        if (quickAddWrap) quickAddWrap.style.display = 'flex';
+        if (quickAddInput) {
+            quickAddInput.value = '';
+            quickAddInput.focus();
+        }
+      });
+      quickAddSave?.addEventListener('click', () => {
+        const next = String(quickAddInput?.value || '').trim();
+        if (!next) return;
+        if (!productCategoryOptionList.includes(next)) {
+          productCategoryOptionList.push(next);
+          productCategoryOptionList.sort((a, b) => a.localeCompare(b, 'tr'));
+        }
+        renderRowCategorySelect(categorySelect, false, next);
+        if (quickAddWrap) quickAddWrap.style.display = 'none';
+      });
+      quickAddCancel?.addEventListener('click', () => {
+        if (quickAddWrap) quickAddWrap.style.display = 'none';
+      });
         internalToggle.addEventListener('change', syncRowCategoryOptions);
         syncRowCategoryOptions();
     }

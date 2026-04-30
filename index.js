@@ -207,6 +207,7 @@ app.post('/api/save-invoice', async (req, res) => {
   try {
     const fullData = req.body; // This is the package coming from faturalar.js
     const shouldUpdateStock = fullData?.update_stock !== false;
+    const isBulkUpload = fullData?.is_bulk_upload === true;
     const inokasVkn = (process.env.INOKAS_VKN || '').trim();
     const direction = String(fullData?.invoice?.direction || '').toUpperCase();
     const submitView = String(fullData?.submit_view || '').trim();
@@ -283,6 +284,48 @@ app.post('/api/save-invoice', async (req, res) => {
       .single();
 
     if (invoiceError) throw invoiceError;
+
+    // Tekli yüklemede: kullanıcı kategori seçtiyse, products'ta olmayan SKU'yu oluştur.
+    if (!isBulkUpload) {
+      const requestedRows = (Array.isArray(fullData?.items) ? fullData.items : [])
+        .map((it) => ({
+          product_code: String(it?.product_code || '').trim(),
+          product_name: String(it?.product_name || '').trim(),
+          is_internal: it?.is_internal === true,
+          product_category: String(it?.product_category || '').trim()
+        }))
+        .filter((it) => it.product_code && !it.is_internal && it.product_category);
+
+      const uniqueByCode = new Map();
+      requestedRows.forEach((r) => {
+        if (!uniqueByCode.has(r.product_code)) uniqueByCode.set(r.product_code, r);
+      });
+      const requested = [...uniqueByCode.values()];
+
+      if (requested.length > 0) {
+        const codes = requested.map((x) => x.product_code);
+        const { data: existingProducts, error: existingErr } = await supabase
+          .from('products')
+          .select('product_code')
+          .in('product_code', codes);
+        if (existingErr) throw existingErr;
+        const existingSet = new Set((existingProducts || []).map((x) => String(x.product_code || '').trim()));
+
+        const toCreate = requested.filter((x) => !existingSet.has(x.product_code));
+        if (toCreate.length > 0) {
+          const { error: createErr } = await supabase
+            .from('products')
+            .insert(
+              toCreate.map((x) => ({
+                product_code: x.product_code,
+                product_name: x.product_name || x.product_code,
+                category: x.product_category
+              }))
+            );
+          if (createErr) throw createErr;
+        }
+      }
+    }
 
     // --- STEP C: INSERT ITEMS ---
     const itemsToSave = fullData.items.map(item => {

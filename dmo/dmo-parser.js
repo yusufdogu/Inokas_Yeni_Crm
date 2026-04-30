@@ -1239,7 +1239,7 @@ async function openDetailModal(order) {
     const gercekKdv = kdv - tevkifat;
     const kesinti  = dmo * 0.08;
     const risturn  = dmo * 0.01;
-    const toplamGelir = dmo + kdv;
+    const toplamGelir = dmo + kdv - tevkifat;
     const toplamGider = inokas + stamp + tevkifat + kesinti + risturn;
 
     document.getElementById("detail_total").textContent        = formatAmount(dmo)        + " ₺";
@@ -1306,7 +1306,7 @@ async function openDetailModal(order) {
     const giftItems    = items.filter(i => i.is_gift);
 
     if (regularItems.length > 0) {
-        
+
         regularItems.forEach(item => {
             const tr = document.createElement("tr");
             tr.innerHTML = `

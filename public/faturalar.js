@@ -34,6 +34,10 @@ const PRODUCT_CODE_CACHE_TTL_MS = 5 * 60 * 1000;
 let productCodeLookupSet = null;
 let productCodeLookupFetchedAt = 0;
 let productCodeLookupPromise = null;
+let productCategoryByCodeMap = new Map();
+let productCategoryOptionList = [];
+let productCategoryFetchedAt = 0;
+let productCategoryPromise = null;
 
 function normalizeProductCodeForMatch(v) {
     return String(v ?? '').trim().replace(/\s+/g, ' ').toUpperCase();
@@ -76,6 +80,37 @@ async function ensureProductCodeLookupSetLoaded(force = false) {
         await productCodeLookupPromise;
     } finally {
         productCodeLookupPromise = null;
+    }
+}
+
+async function ensureProductCategoryLookupLoaded(force = false) {
+    const now = Date.now();
+    const fresh = productCategoryOptionList.length > 0 && (now - productCategoryFetchedAt) < PRODUCT_CODE_CACHE_TTL_MS;
+    if (!force && fresh) return;
+    if (productCategoryPromise) {
+        await productCategoryPromise;
+        return;
+    }
+    productCategoryPromise = (async () => {
+        const res = await fetch('/api/products/category-map');
+        if (!res.ok) throw new Error('Ürün kategori listesi alınamadı');
+        const json = await res.json();
+        const rows = Array.isArray(json?.rows) ? json.rows : [];
+        const categories = Array.isArray(json?.categories) ? json.categories : [];
+        productCategoryByCodeMap = new Map(
+            rows
+                .map((r) => [normalizeProductCodeForMatch(r?.product_code), String(r?.category || '').trim()])
+                .filter(([k]) => !!k)
+        );
+        productCategoryOptionList = categories
+            .map((x) => String(x || '').trim())
+            .filter(Boolean);
+        productCategoryFetchedAt = Date.now();
+    })();
+    try {
+        await productCategoryPromise;
+    } finally {
+        productCategoryPromise = null;
     }
 }
 
@@ -402,7 +437,8 @@ function viewInvoice(id) {
                 item.product_code || item.sku || '',
                 item.purchase_order_item_id || '',
                 !!item.is_internal,
-                item.internal_category || ''
+                item.internal_category || '',
+                item.product_category || ''
             );
         });
     } else {
@@ -831,6 +867,7 @@ function applyParsedPayloadToForm(pack) {
             item.product_code || '',
             '',
             false,
+            '',
             ''
         );
     });
@@ -2360,9 +2397,10 @@ async function deletePayment(paymentId, invoiceId) {
 
 // ─────────────────────────────────────────────────────────────────────────────
 
-function viewInvoiceDetails(id) {
+async function viewInvoiceDetails(id) {
     const inv = allInvoicesCache.find(i => i.id === id);
     if (!inv) return;
+    try { await ensureProductCategoryLookupLoaded(); } catch {}
 
     // Düzenle Butonuna Tıklanınca Asıl Formu Aç
     const btnEdit = document.getElementById('btnEditInvoice');
@@ -2428,9 +2466,13 @@ function viewInvoiceDetails(id) {
             const code = (item.product_code || item.sku) && String(item.product_code || item.sku).trim()
                 ? String(item.product_code || item.sku).trim()
                 : '—';
+            const category = item.is_internal
+                ? (String(item.internal_category || '').trim() || '—')
+                : (String(productCategoryByCodeMap.get(normalizeProductCodeForMatch(code)) || '').trim() || '—');
             tr.innerHTML = `
                 <td style="padding:10px 15px; font-weight:600;">${item.product_name}</td>
                 <td style="padding:10px 15px; font-size:12px; color:#475569; font-family:ui-monospace,monospace;">${code}</td>
+                <td style="padding:10px 15px; color:#334155;">${category}</td>
                 <td style="padding:10px 15px; text-align:center;">${item.quantity} ${item.unit || ''}</td>
                 <td style="padding:10px 15px; text-align:right;">${(parseFloat(item.unit_price_cur) || 0).toLocaleString('tr-TR')} ${invDisplayCurrencyLabel(inv)}</td>
                 <td style="padding:10px 15px; text-align:center;">%${item.tax_rate || 0}</td>
@@ -2439,7 +2481,7 @@ function viewInvoiceDetails(id) {
             tbody.appendChild(tr);
         });
     } else {
-        tbody.innerHTML = `<tr><td colspan="6" style="padding:20px; text-align:center; color:#94a3b8; font-style:italic;">Bu faturaya ait ürün detayı bulunamadı. (Faturayı Yenile'ye basarak yeni veriyi çekebilirsin)</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="7" style="padding:20px; text-align:center; color:#94a3b8; font-style:italic;">Bu faturaya ait ürün detayı bulunamadı. (Faturayı Yenile'ye basarak yeni veriyi çekebilirsin)</td></tr>`;
     }
 
     // Ödeme geçmişini API'den çek ve sağ sütuna render et
@@ -2532,10 +2574,10 @@ async function saveInvoiceToDatabase(e) {
             const taxRate = parseFloat(row.querySelector('.tax-rate-val')?.value || cells[5]?.innerText || 0) || 0;
             const internalToggle = row.querySelector('.internal-toggle');
             const isInternal = internalToggle ? !!internalToggle.checked : false;
-            const internalCategoryVal = row.querySelector('.internal-category-select')?.value?.trim() || '';
+            const rowCategoryVal = row.querySelector('.line-category-select')?.value?.trim() || '';
             const skuVal = row.querySelector('.line-sku-val')?.value?.trim() || '';
             const poItemId = row.querySelector('.po-item-id-val')?.value || null;
-            if (isInternal && !internalCategoryVal) {
+            if (isInternal && !rowCategoryVal) {
                 throw new Error(`Ofis içi ürünlerde kategori zorunlu: ${productName}`);
             }
             return {
@@ -2548,7 +2590,8 @@ async function saveInvoiceToDatabase(e) {
                 total_price_cur: lineTotal,
                 currency: formCurrency,
                 is_internal: isInternal,
-                internal_category: isInternal ? internalCategoryVal : null,
+                internal_category: isInternal ? rowCategoryVal : null,
+                product_category: !isInternal ? (rowCategoryVal || null) : null,
                 purchase_order_item_id: poItemId
             };
         }).filter(item => item.product_name && item.quantity > 0);
@@ -2845,6 +2888,38 @@ const INTERNAL_CATEGORY_OPTIONS = [
     'diğer'
 ];
 
+function getRowCategoryOptions(isInternal) {
+    if (isInternal) return INTERNAL_CATEGORY_OPTIONS;
+    return productCategoryOptionList;
+}
+
+function renderRowCategorySelect(selectEl, isInternal, value = '') {
+    if (!selectEl) return;
+    const options = getRowCategoryOptions(isInternal);
+    const selectedValue = String(value || '').trim();
+    const placeholder = isInternal ? 'Ofis içi kategorisi seçin' : 'Ürün kategorisi seçin';
+    selectEl.innerHTML = [
+        `<option value="">${placeholder}</option>`,
+        ...options.map((opt) => {
+            const selectedAttr = opt === selectedValue ? ' selected' : '';
+            return `<option value="${opt}"${selectedAttr}>${opt}</option>`;
+        })
+    ].join('');
+}
+
+function applySkuBasedProductCategory(row, skuRaw) {
+    const sku = normalizeProductCodeForMatch(skuRaw);
+    const categorySelect = row.querySelector('.line-category-select');
+    const internalToggle = row.querySelector('.internal-toggle');
+    if (!categorySelect || !internalToggle || internalToggle.checked) return;
+    if (!sku) return;
+    const category = String(productCategoryByCodeMap.get(sku) || '').trim();
+    if (!category) return;
+    if ([...categorySelect.options].some((o) => o.value === category)) {
+        categorySelect.value = category;
+    }
+}
+
 function addLineItem(
     desc = '',
     qty = 1,
@@ -2854,16 +2929,12 @@ function addLineItem(
     sku = '',
     linkedPoItemId = '',
     isInternal = false,
-    internalCategory = ''
+    internalCategory = '',
+    productCategory = ''
 ) {
-    const selectedCategory = String(internalCategory || '').trim().toLocaleLowerCase('tr-TR');
-    const internalCategoryOptionsHtml = [
-        '<option value="">Kategori seçin</option>',
-        ...INTERNAL_CATEGORY_OPTIONS.map((opt) => {
-            const selectedAttr = opt === selectedCategory ? ' selected' : '';
-            return `<option value="${opt}"${selectedAttr}>${opt}</option>`;
-        })
-    ].join('');
+    const selectedInternalCategory = String(internalCategory || '').trim().toLocaleLowerCase('tr-TR');
+    const selectedProductCategory = String(productCategory || '').trim();
+    const initialCategory = isInternal ? selectedInternalCategory : selectedProductCategory;
 
     const row = document.createElement('tr');
     row.innerHTML = `
@@ -2877,11 +2948,11 @@ function addLineItem(
                 <input type="checkbox" class="internal-toggle" title="Şirket İçi Kullanım (Sarf)" ${isInternal ? 'checked' : ''}>
                 <span>Ofis İçi</span>
             </label>
-            <select class="internal-category-select" style="display:${isInternal ? 'block' : 'none'};">
-                ${internalCategoryOptionsHtml}
-            </select>
             <input type="hidden" class="tax-rate-val" value="${taxRate}">
             <input type="hidden" class="po-item-id-val" value="${linkedPoItemId || ''}">
+        </td>
+        <td>
+            <select class="line-category-select"></select>
         </td>
         <td style="min-width:60px;">
             <button type="button" class="btn-text" onclick="this.closest('tr').remove(); recalcInvoiceTotalsFromLines();" style="color:var(--danger); float:right;">✕</button>
@@ -2890,22 +2961,22 @@ function addLineItem(
     `;
     const skuInput   = row.querySelector('.line-sku-val');
     const internalToggle = row.querySelector('.internal-toggle');
-    const internalCategorySelect = row.querySelector('.internal-category-select');
+    const categorySelect = row.querySelector('.line-category-select');
     if (skuInput) {
         skuInput.value = String(sku ?? '').trim();
         skuInput.addEventListener('input', () => checkPendingOrdersForRow(row));
+        skuInput.addEventListener('blur', () => applySkuBasedProductCategory(row, skuInput.value));
     }
-    if (internalToggle && internalCategorySelect) {
-        const syncInternalCategoryUi = () => {
-            if (internalToggle.checked) {
-                internalCategorySelect.style.display = 'block';
-            } else {
-                internalCategorySelect.style.display = 'none';
-                internalCategorySelect.value = '';
+    if (internalToggle && categorySelect) {
+        const syncRowCategoryOptions = () => {
+            const previous = String(categorySelect.value || '').trim();
+            renderRowCategorySelect(categorySelect, internalToggle.checked, previous || initialCategory);
+            if (!internalToggle.checked) {
+                applySkuBasedProductCategory(row, skuInput?.value || '');
             }
         };
-        internalToggle.addEventListener('change', syncInternalCategoryUi);
-        syncInternalCategoryUi();
+        internalToggle.addEventListener('change', syncRowCategoryOptions);
+        syncRowCategoryOptions();
     }
 
     const qtyInput   = row.querySelector('td:nth-child(3) input[type="number"]');
@@ -2929,6 +3000,12 @@ function addLineItem(
 
     // Satır eklendikten sonra, eğer bekleyen sipariş verisi varsa bu ürünle eşleşiyor mu kontrol et
     checkPendingOrdersForRow(row);
+    ensureProductCategoryLookupLoaded().then(() => {
+        if (categorySelect && internalToggle) {
+            renderRowCategorySelect(categorySelect, internalToggle.checked, initialCategory);
+            if (!internalToggle.checked) applySkuBasedProductCategory(row, skuInput?.value || '');
+        }
+    }).catch(() => {});
 }
 
 // Global olarak seçili firmanın bekleyen siparişlerini tutarız

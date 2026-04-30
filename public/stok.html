@@ -103,7 +103,11 @@
       <!-- TAB 1: DEPO DURUMU -->
       <div id="tabContent-depo" class="tab-content active">
         <div class="toolbar">
-          <input type="text" id="stockSearch" placeholder="Ürün adı veya SKU ara...">
+          <input type="text" id="stockSearch" placeholder="Ürün adı veya kodunu girin...">
+          <select id="stockCategoryFilter">
+            <option value="">Tüm Kategoriler</option>
+          </select>
+          <button type="button" id="stockUnmappedFilterBtn" class="btn-secondary">DB'de Olmayanları Filtrele</button>
         </div>
         <div class="table-wrap">
           <table class="stocks-table">
@@ -111,6 +115,7 @@
               <tr>
                 <th>Ürün Adı</th>
                 <th>SKU / Kod</th>
+                <th>Kategori</th>
                 <th class="text-right">Giren</th>
                 <th class="text-right">Çıkan</th>
                 <th class="text-right">Mevcut</th>
@@ -264,7 +269,9 @@
               </div>
               <div class="modal-field">
                 <label>Kategori</label>
-                <input type="text" id="pf-category">
+                <select id="pf-category">
+                  <option value="">Kategori seçin</option>
+                </select>
               </div>
               <div class="modal-field modal-field--full">
                 <label>Model</label>

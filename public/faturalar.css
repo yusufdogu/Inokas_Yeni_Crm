@@ -639,6 +639,12 @@ body[data-view="giden"] #btnToggleShowAll:hover {
   min-width: 210px;
   vertical-align: top;
 }
+.line-table th:nth-child(7),
+.line-table td:nth-child(7) {
+  width: 190px;
+  min-width: 190px;
+  vertical-align: middle;
+}
 .line-table th:nth-child(6) {
   text-align: center;
   vertical-align: middle;
@@ -669,7 +675,7 @@ body[data-view="giden"] #btnToggleShowAll:hover {
   display: inline-flex;
   align-items: center;
 }
-.internal-category-select {
+.line-category-select {
   width: 100%;
   box-sizing: border-box;
   font-size: 12px;

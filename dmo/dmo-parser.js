@@ -317,7 +317,8 @@ function normalizeLineItem(item = {}) {
         "KATALOG KOD NO":                          katalogKod,
         "MALZEMENIN CINSI(VARSA MARKA VE MODELI)": malzemeAdi,
         "MALZEME_KODU":                            malzemeKodu,
-        "KAT.SÖZ.FIY.(TL)":                       dmoFiyat,
+        "TESLIM SURESI (GUN)":                     String(pickItemValue(item, ["TESLIM SURESI (GÜN)", "TESLIM SURESI (GUN)"], "0")),
+        "KAT.SÖZ.FIY.(TL)":                        dmoFiyat,
         "ALIMA ESAS INDIRMLI BIRIM FIYAT":         indirimFiyat,
         "MIKTAR":                                  String(miktar),
         "TUTARI (TL)":                             String(toplam),
@@ -328,15 +329,30 @@ function normalizeLineItem(item = {}) {
 }
 
 function fillForm(data) {
-    setField("sales_order_no", data.satis_siparis_no);
-    setField("purchase_order_no",data.satinalma_siparis_no)
-    setField("customer_name",  data.musteri_adi);
-    setField("customer_no",  data.musteri_no);
-    setField("order_date", parseOrderDate(data.tarih));
-    setField("stamp_tax",      parseAmount(data.karar_siparis_damga_vergisi));
+    setField("sales_order_no",   data.satis_siparis_no);
+    setField("purchase_order_no", data.satinalma_siparis_no);
+    setField("customer_name",    data.musteri_adi);
+    setField("customer_no",      data.musteri_no);
+    setField("order_date",       parseOrderDate(data.tarih));
+    setField("stamp_tax",        parseAmount(data.karar_siparis_damga_vergisi));
 
     window._lastParsedItems = (data.malzeme_tablosu || []).map(normalizeLineItem);
     renderLineItems(window._lastParsedItems);
+
+    // ── Calculate last delivery date ──────────────────────────────────────────
+    const orderDateVal = document.getElementById("order_date")?.value;
+    if (orderDateVal && window._lastParsedItems.length > 0) {
+        const maxDays = Math.max(
+            ...window._lastParsedItems.map(item =>
+                parseInt(item["TESLIM SURESI (GUN)"] || "0") || 0
+            )
+        );
+        if (maxDays > 0) {
+            const orderDate    = new Date(orderDateVal);
+            orderDate.setDate(orderDate.getDate() + maxDays);
+            setField("last_order_date", orderDate.toISOString().slice(0, 10));
+        }
+    }
 }
 
 function setField(id, value) {
@@ -1075,6 +1091,8 @@ async function saveOrder() {
                 customer_name:         document.getElementById("customer_name")?.value,
                 customer_no:           document.getElementById("customer_no")?.value,
                 order_date:            parseOrderDate(document.getElementById("order_date")?.value) ,
+                // Add to insert object
+                last_delivery_date: document.getElementById("last_order_date")?.value || null,
                 stamp_tax:             stampTax,
                 dmo_basket_total:      dmoBasket,
                 inokas_basket_total:   inokasBasket,
@@ -1183,10 +1201,75 @@ function openPDFForTaslak() {
 
 // ── DETAIL MODAL ─────────────────────────────────────────────────────────────
 async function openDetailModal(order) {
-    // In openDetailModal
+    _currentOrderId = order.id;
+
+    // ── Status badge + header color ───────────────────────────────────────────
+    const statusColors = {
+        "Taslak":         { bg: "#f1f5f9", color: "#64748b", border: "#e2e8f0" },
+        "Sipariş Alındı": { bg: "#eff6ff", color: "#2563eb", border: "#bfdbfe" },
+        "Tamamlandı":     { bg: "#f0fdf4", color: "#16a34a", border: "#bbf7d0" },
+        "İptal":          { bg: "#fef2f2", color: "#dc2626", border: "#fecaca" },
+    };
+    const sc     = statusColors[order.status] || statusColors["Taslak"];
+    const header = document.getElementById("detail_modal_header");
+    if (header) {
+        header.style.background   = sc.bg;
+        header.style.borderBottom = `1px solid ${sc.border}`;
+    }
+
+    const badge = document.getElementById("detail_status_badge");
+    if (badge) {
+        badge.textContent   = order.status || "Taslak";
+        badge.style.color   = sc.color;
+        badge.style.background = "transparent";
+    }
+
+    // ── Fill info cards ───────────────────────────────────────────────────────
+    document.getElementById("detail_no_text").textContent  = order.sales_order_no || "Taslak";
+    document.getElementById("detail_company").textContent  = order.customer_name  || "-";
+    document.getElementById("detail_date").textContent     = formatDate(order.order_date);
+    document.getElementById("detail_delivery").textContent = order.last_delivery_date ? formatDate(order.last_delivery_date) : "-";
+
+    // ── Fill stats ────────────────────────────────────────────────────────────
+    const dmo      = order.dmo_basket_total    || 0;
+    const inokas   = order.inokas_basket_total || 0;
+    const stamp    = order.stamp_tax_total     || 0;
+    const kdv      = dmo * 0.20;
+    const tevkifat = kdv * 0.20;
+    const gercekKdv = kdv - tevkifat;
+    const kesinti  = dmo * 0.08;
+    const risturn  = dmo * 0.01;
+    const toplamGelir = dmo + kdv - tevkifat;
+    const toplamGider = inokas + stamp + tevkifat + kesinti + risturn;
+
+    document.getElementById("detail_total").textContent        = formatAmount(dmo)        + " ₺";
+    document.getElementById("detail_inokas").textContent       = formatAmount(inokas)     + " ₺";
+    document.getElementById("detail_tax").textContent          = formatAmount(kdv)        + " ₺";
+    document.getElementById("detail_stamp").textContent        = formatAmount(stamp)      + " ₺";
+    document.getElementById("detail_tevkifat").textContent     = formatAmount(tevkifat)   + " ₺";
+    document.getElementById("detail_gercek_kdv").textContent   = formatAmount(gercekKdv)  + " ₺";
+    document.getElementById("detail_kesinti").textContent      = formatAmount(kesinti)    + " ₺";
+    document.getElementById("detail_risturn").textContent      = formatAmount(risturn)    + " ₺";
+    document.getElementById("detail_toplam_gelir").textContent = formatAmount(toplamGelir)+ " ₺";
+    document.getElementById("detail_toplam_gider").textContent = formatAmount(toplamGider)+ " ₺";
+
+    const profitEl  = document.getElementById("detail_profit");
+    const pctEl     = document.getElementById("detail_profit_pct");
+    const netProfit = order.net_profit || 0;
+    const profitPct = order.profit_percentage || 0;
+
+    if (profitEl) {
+        profitEl.textContent = formatAmount(netProfit) + " ₺";
+        profitEl.style.color = netProfit >= 0 ? "#16a34a" : "#dc2626";
+    }
+    if (pctEl) {
+        pctEl.textContent = profitPct.toFixed(1) + "%";
+        pctEl.style.color = profitPct >= 0 ? "#16a34a" : "#dc2626";
+    }
+
+    // ── Show/hide buttons based on status ────────────────────────────────────
     const btnEdit   = document.getElementById("btnEditInvoice");
     const btnAddPDF = document.getElementById("btnAddPDF");
-
     if (order.status === "Taslak") {
         btnEdit.style.display   = "none";
         btnAddPDF.style.display = "flex";
@@ -1194,115 +1277,69 @@ async function openDetailModal(order) {
         btnEdit.style.display   = "flex";
         btnAddPDF.style.display = "none";
     }
-    // Fill header
-    _currentOrderId = order.id;  // ← add this at the top
 
-    document.getElementById("detail_no_text").textContent  = order.sales_order_no || "Taslak";
-    document.getElementById("detail_company").textContent  = order.customer_name  || "-";
-    document.getElementById("detail_date").textContent     = formatDate(order.order_date);
-    document.getElementById("detail_total").textContent    = formatAmount(order.dmo_basket_total) + " ₺";
-    document.getElementById("detail_inokas").textContent   = formatAmount(order.inokas_basket_total) + " ₺";
-    document.getElementById("detail_tax").textContent      = formatAmount(order.dmo_basket_total * 0.20) + " ₺";
-    document.getElementById("detail_stamp").textContent    = formatAmount(order.stamp_tax_total) + " ₺";
-    document.getElementById("detail_tevkifat").textContent = formatAmount(order.dmo_basket_total * 0.20 * 0.20) + " ₺";
-
-    const profitEl = document.getElementById("detail_profit");
-    profitEl.textContent = formatAmount(order.net_profit) + " ₺  %" + (order.profit_percentage?.toFixed(1) || "0");
-    profitEl.style.color = order.net_profit >= 0 ? "#16a34a" : "#dc2626";
-    // Fetch line items
-
-
+    // ── Fetch line items ──────────────────────────────────────────────────────
     const { data: items, error } = await db
-    .from("dmo_order_items")
-    .select(`
-        quantity,
-        unit_price_excl_vat,
-        line_total_excl_vat,
-        is_gift,
-        maliyet_tl,
-        products (
-            product_code,
-            product_name,
-            last_purchase_price_tl
-        )
-    `)
-    .eq("order_id", order.id);
-
-    console.log("items:", items, "error:", error);
+        .from("dmo_order_items")
+        .select(`
+            quantity,
+            unit_price_excl_vat,
+            line_total_excl_vat,
+            is_gift,
+            maliyet_tl,
+            products (
+                product_code,
+                product_name
+            )
+        `)
+        .eq("order_id", order.id);
 
     if (error) {
         showToast("Kalemler yüklenemedi: " + error.message, "error");
         return;
     }
 
-
-    const tbody = document.getElementById("detail_items_body");
-    tbody.innerHTML = "";
-
+    // ── Render products ───────────────────────────────────────────────────────
+    const tbody       = document.getElementById("detail_items_body");
+    tbody.innerHTML   = "";
     const regularItems = items.filter(i => !i.is_gift);
     const giftItems    = items.filter(i => i.is_gift);
 
-    // Regular items
     if (regularItems.length > 0) {
-        const headerRow = document.createElement("tr");
-        headerRow.innerHTML = `
-            <td colspan="5" style="background:#eff6ff; padding:8px 15px; font-size:11px; font-weight:800; color:#2563eb;">
-                📦 SİPARİŞ KALEMLERİ
-            </td>`;
-        tbody.appendChild(headerRow);
 
         regularItems.forEach(item => {
             const tr = document.createElement("tr");
             tr.innerHTML = `
-                <td style="padding:10px 15px;">${item.products?.product_name || "-"}</td>
-                <td style="padding:10px 15px; text-align:center;">${item.quantity}</td>
-                <td style="padding:10px 15px; text-align:right;">${formatAmount(item.unit_price_excl_vat)} ₺</td>
-                <td style="padding:10px 15px; text-align:center;">%20</td>
-                <td style="padding:10px 15px; text-align:right;">${formatAmount(item.line_total_excl_vat)} ₺</td>
+                <td style="padding:10px 12px;">${item.products?.product_name || "-"}</td>
+                <td style="padding:10px 12px; text-align:center;">${item.quantity}</td>
+                <td style="padding:10px 12px; text-align:right;">${formatAmount(item.unit_price_excl_vat)} ₺</td>
+                <td style="padding:10px 12px; text-align:right;">${formatAmount(item.line_total_excl_vat)} ₺</td>
             `;
             tbody.appendChild(tr);
         });
     }
 
-    // Gift items
     if (giftItems.length > 0) {
-        const giftHeader = document.createElement("tr");
-        giftHeader.innerHTML = `
-            <td colspan="5" style="background:#fff7ed; padding:8px 15px; font-size:11px; font-weight:800; color:#d97706;">
-                🎁 HEDİYELER
-            </td>`;
-        tbody.appendChild(giftHeader);
-
+        tbody.appendChild(Object.assign(document.createElement("tr"), {
+            innerHTML: `<td colspan="4" style="background:#fff7ed; padding:8px 12px; font-size:11px; font-weight:800; color:#d97706;">🎁 HEDİYELER</td>`
+        }));
         giftItems.forEach(item => {
-            const maliyetTL = parseFloat(item.maliyet_tl || 0) * parseFloat(item.quantity || 0);
+            const maliyetToplam = parseFloat(item.maliyet_tl || 0) * parseFloat(item.quantity || 0);
             const tr = document.createElement("tr");
             tr.style.background = "#fff7ed";
             tr.innerHTML = `
-                <td style="padding:10px 15px;">${item.products?.product_name || "-"}</td>
-                <td style="padding:10px 15px; text-align:center;">${item.quantity} 🎁</td>
-                <td style="padding:10px 15px; text-align:right; color:#d97706;">${formatAmount(item.maliyet_tl)} ₺</td>
-                <td style="padding:10px 15px; text-align:center;">-</td>
-                <td style="padding:10px 15px; text-align:right; color:#d97706;">${formatAmount(maliyetTL)} ₺</td>
+                <td style="padding:10px 12px;">${item.products?.product_name || "-"}</td>
+                <td style="padding:10px 12px; text-align:center;">${item.quantity} 🎁</td>
+                <td style="padding:10px 12px; text-align:right; color:#d97706;">${formatAmount(item.maliyet_tl)} ₺</td>
+                <td style="padding:10px 12px; text-align:right; color:#d97706;">${formatAmount(maliyetToplam)} ₺</td>
             `;
             tbody.appendChild(tr);
         });
     }
 
-    // Fill notes with profit breakdown
-    document.getElementById("detail_notes").innerHTML = `
-        DMO Sepet: <strong>${formatAmount(order.dmo_basket_total)} ₺</strong> | 
-        İnokas Sepet: <strong>${formatAmount(order.inokas_basket_total)} ₺</strong> | 
-        Damga: <strong>${formatAmount(order.stamp_tax_total)} ₺</strong> | 
-        KDV: <strong>${formatAmount(order.dmo_basket_total * 0.20)} ₺</strong> | 
-        Net Kar: <strong style="color:${order.net_profit >= 0 ? '#16a34a' : '#dc2626'}">${formatAmount(order.net_profit)} ₺</strong> | 
-        Kar %: <strong>${order.profit_percentage?.toFixed(2)}%</strong>
-    `;
-
-    // Delete button
+    // ── Buttons ───────────────────────────────────────────────────────────────
     document.getElementById("btnDeleteInvoice").onclick = () => deleteOrder(order.id);
-
-    // Edit button — will implement later
-    document.getElementById("btnEditInvoice").onclick = () => openEditModal(order);
+    document.getElementById("btnEditInvoice").onclick   = () => openEditModal(order);
 
     document.getElementById("invoiceDetailModal").style.display = "flex";
 }
@@ -1569,8 +1606,6 @@ function toggleInvoiceList() {
 async function renderTable(orders) {
     const container = document.getElementById("invoiceCardsContainer");
     container.innerHTML = "";
-    // 1. Added .single() to get an object instead of an array
-
 
     if (orders.length === 0) {
         container.innerHTML = `
@@ -1580,37 +1615,32 @@ async function renderTable(orders) {
         return;
     }
 
-    for (const order of orders) {
-        console.log("Data:",orders[0]);
+    const statusColors = {
+        "Taslak":        { bg: "#f8fafc", color: "#64748b", border: "#e2e8f0" },
+        "Sipariş Alındı":{ bg: "#eff6ff", color: "#2563eb", border: "#bfdbfe" },
+        "Tamamlandı":    { bg: "#f0fdf4", color: "#16a34a", border: "#bbf7d0" },
+        "İptal":         { bg: "#fef2f2", color: "#dc2626", border: "#fecaca" },
+    };
 
-        const { data: item, err } = await db
-            .from("dmo_orders")
-            .select("status")
-            .eq("id", order.id)
-            .single();
-
-        console.log("Data:", item, "Error:", err);
-
-        // 2. Check if the element exists and there was no error
-        if (err) {
-            console.error("Database error:", err.message);
-        } else if (item) {
-            // 3. Use 'item.status' because 'item' is the object returned
-            const statusElement = document.getElementById("detail_status");
-            if (statusElement) {
-                statusElement.textContent = item.status;
-            }
-        }
+    orders.forEach(order => {
         const profitColor = order.net_profit >= 0 ? "#16a34a" : "#dc2626";
+        const status      = order.status || "Taslak";
+        const sc          = statusColors[status] || statusColors["Taslak"];
+
         const card = document.createElement("div");
         card.className = "invoice-card";
         card.onclick   = () => openDetailModal(order);
         card.innerHTML = `
             <div class="invoice-card-header">
-                <span class="invoice-card-no">#${order.sales_order_no}</span>
+                <span class="invoice-card-no">#${order.sales_order_no || "Taslak"}</span>
                 <span class="invoice-card-date">${formatDate(order.order_date)}</span>
             </div>
             <div class="invoice-card-customer">${order.customer_name || "-"}</div>
+            <div style="margin-bottom:8px;">
+                <span style="font-size:11px; font-weight:700; padding:2px 8px; border-radius:99px; background:${sc.bg}; color:${sc.color}; border:1px solid ${sc.border};">
+                    ${status}
+                </span>
+            </div>
             <div class="invoice-card-footer">
                 <span class="invoice-card-dmo">DMO: ${formatAmount(order.dmo_basket_total)} ₺</span>
                 <span class="invoice-card-profit" style="color:${profitColor}">
@@ -1622,9 +1652,8 @@ async function renderTable(orders) {
             </div>
         `;
         container.appendChild(card);
-    }
+    });
 }
-
 
 async function renderStatsCards(orders) {
     const totalOrders   = orders.length;
@@ -2236,8 +2265,8 @@ function recalcHizliHesap() {
     const dmoKesinti  = dmoBasket * 0.08;
     const risturn     = dmoBasket * 0.01;
     const damga_karar = dmoBasket * 0.01517;
-    const toplamGelir = dmoBasket + kdv;
-    const toplamGider = inokasBasket + tevkifat + dmoKesinti + risturn + giftTotal;
+    const toplamGelir = dmoBasket + kdv - tevkifat;
+    const toplamGider = inokasBasket + tevkifat + dmoKesinti + risturn + giftTotal + damga_karar;
     const netProfit   = toplamGelir - toplamGider;
     const profitPct   = dmoBasket > 0 ? (netProfit / dmoBasket) * 100 : 0;
 

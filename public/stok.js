@@ -4,7 +4,9 @@ let allMovements    = [];  // Stok hareketleri (Tab 2)
 let allPendingOrders = []; // Bekleyen siparişler (Tab 3)
 let allProductsCatalog = []; // Ürün master listesi (kar analizi görünürlüğü)
 let allProfitEvents = []; // Tarih kırılımında kar analizi için event listesi
+let productCategoryOptions = [];
 let internalOnlySkus = []; // Sadece ofis içi hareketi olan SKU listesi
+let showOnlyUnmappedStocks = false;
 let stockStats      = null;
 let currentStockTab = 'depo';
 let currentInsightTab = 'profit';
@@ -25,6 +27,8 @@ document.addEventListener('DOMContentLoaded', async () => {
 
 function setupStockUi() {
   document.getElementById('stockSearch')?.addEventListener('input', renderDepoTable);
+  document.getElementById('stockCategoryFilter')?.addEventListener('change', renderDepoTable);
+  document.getElementById('stockUnmappedFilterBtn')?.addEventListener('click', toggleUnmappedStockFilter);
   document.getElementById('pendingPoForm')?.addEventListener('submit', submitPendingPoForm);
   document.getElementById('poCompanyVkn')?.addEventListener('blur', autoFillCompanyByVkn);
   document.querySelectorAll('.insight-tab-btn').forEach((btn) => {
@@ -56,12 +60,56 @@ function setupStockUi() {
   addPendingPoLine();
 }
 
+function toggleUnmappedStockFilter() {
+  showOnlyUnmappedStocks = !showOnlyUnmappedStocks;
+  const btn = document.getElementById('stockUnmappedFilterBtn');
+  if (btn) {
+    btn.classList.toggle('active', showOnlyUnmappedStocks);
+    btn.textContent = "DB'de Olmayanları Filtrele";
+  }
+  renderDepoTable();
+}
+
 async function loadAllData() {
   await Promise.all([
+    ensureProductCategoryOptions(),
     loadStockSummary(),
     loadMovements(),
     loadPendingOrders()
   ]);
+}
+
+async function ensureProductCategoryOptions() {
+  if (Array.isArray(productCategoryOptions) && productCategoryOptions.length > 0) return;
+  try {
+    const res = await fetch('/api/products/category-map');
+    if (!res.ok) return;
+    const data = await res.json();
+    productCategoryOptions = Array.isArray(data?.categories)
+      ? data.categories.map((x) => String(x || '').trim()).filter(Boolean)
+      : [];
+  } catch {}
+}
+
+function renderProductCategorySelect(selected = '') {
+  const select = document.getElementById('pf-category');
+  if (!select) return;
+  const current = String(selected || '').trim();
+  const options = productCategoryOptions || [];
+  select.innerHTML = [
+    '<option value="">Kategori seçin</option>',
+    ...options.map((cat) => {
+      const sel = cat === current ? ' selected' : '';
+      return `<option value="${esc(cat)}"${sel}>${esc(cat)}</option>`;
+    })
+  ].join('');
+  if (current && !options.includes(current)) {
+    const extra = document.createElement('option');
+    extra.value = current;
+    extra.textContent = current;
+    extra.selected = true;
+    select.appendChild(extra);
+  }
 }
 
 // ─── TAB SWITCH ───────────────────────────────────────────────────────────────
@@ -83,6 +131,7 @@ async function loadStockSummary() {
     allProfitEvents = cached.profit_events || [];
     internalOnlySkus = cached.internal_only_skus || [];
     renderStockStats();
+    renderStockCategoryFilter();
     renderStockInsights();
     renderDepoTable();
   }
@@ -104,11 +153,33 @@ async function loadStockSummary() {
       internal_only_skus: internalOnlySkus
     });
     renderStockStats();
+    renderStockCategoryFilter();
     renderStockInsights();
     renderDepoTable();
   } catch (err) {
     console.error('Stok hatası:', err);
     if (!cached) showEmpty('stocksEmptyState', 'Stok verileri alınamadı.');
+  }
+}
+
+function renderStockCategoryFilter() {
+  const selectEl = document.getElementById('stockCategoryFilter');
+  if (!selectEl) return;
+  const currentVal = String(selectEl.value || '').trim();
+  const categories = [...new Set(
+    (allStocks || [])
+      .map((r) => String(r.category || '').trim())
+      .filter(Boolean)
+  )].sort((a, b) => a.localeCompare(b, 'tr'));
+
+  selectEl.innerHTML = [
+    '<option value="">Tüm Kategoriler</option>',
+    ...categories.map((cat) => `<option value="${esc(cat)}">${esc(cat)}</option>`)
+  ].join('');
+  if (currentVal && categories.includes(currentVal)) {
+    selectEl.value = currentVal;
+  } else {
+    selectEl.value = '';
   }
 }
 
@@ -219,12 +290,15 @@ function renderDepoTable() {
   const body       = document.getElementById('stocksTableBody');
   const emptyEl    = document.getElementById('stocksEmptyState');
   const search     = (document.getElementById('stockSearch')?.value || '').trim().toLocaleLowerCase('tr-TR');
+  const categoryFilter = String(document.getElementById('stockCategoryFilter')?.value || '').trim().toLocaleLowerCase('tr-TR');
   if (!body) return;
 
   const filtered = allStocks.filter(r =>
-    !search ||
-    String(r.product_name || '').toLocaleLowerCase('tr-TR').includes(search) ||
-    String(r.sku || '').toLocaleLowerCase('tr-TR').includes(search)
+    (!search ||
+      String(r.product_name || '').toLocaleLowerCase('tr-TR').includes(search) ||
+      String(r.sku || '').toLocaleLowerCase('tr-TR').includes(search)) &&
+    (!categoryFilter || String(r.category || '').toLocaleLowerCase('tr-TR') === categoryFilter) &&
+    (!showOnlyUnmappedStocks || !r.product_id)
   );
 
   body.innerHTML = '';
@@ -254,6 +328,7 @@ function renderDepoTable() {
     tr.innerHTML = `
       <td style="font-weight:600;">${esc(row.product_name)}</td>
       <td><span class="badge-sku">${esc(row.sku || '-')}</span></td>
+      <td class="stock-category-cell">${esc(row.category || '—')}</td>
       <td class="text-right text-success">${fmtQty(row.total_in)}</td>
       <td class="text-right text-danger">${fmtQty(row.total_out)}</td>
       <td class="text-right"><strong class="${stockClass}">${fmtQty(row.current_stock)}</strong></td>
@@ -1085,6 +1160,7 @@ async function openProductModal(productId) {
   document.getElementById('productEditModal').style.display = 'flex';
 
   try {
+    await ensureProductCategoryOptions();
     const res = await fetch(`/api/products/${productId}`);
     if (!res.ok) throw new Error('Ürün verisi alınamadı.');
     const product = await res.json();
@@ -1115,6 +1191,7 @@ function fillProductModal(p) {
     const el = document.getElementById(`pf-${key}`);
     if (el) el.value = p[key] ?? '';
   });
+  renderProductCategorySelect(p.category || '');
 
   // Timestamps — format nicely
   ['created_at', 'updated_at', 'dmo_fiyat_updated'].forEach(key => {
@@ -1207,22 +1284,9 @@ function updateStockRowInMemory(productId, payload) {
 
   // Update only the fields that exist in allStocks
   if (payload.product_name     !== undefined) allStocks[idx].product_name     = payload.product_name;
+  if (payload.category         !== undefined) allStocks[idx].category         = payload.category || '';
   if (payload.reserved_quantity !== undefined) allStocks[idx].reserved_quantity = Number(payload.reserved_quantity || 0);
   if (payload.gift_quantity    !== undefined) allStocks[idx].gift_quantity     = Number(payload.gift_quantity    || 0);
-
-  // Re-render only the affected row
-  const body = document.getElementById('stocksTableBody');
-  if (!body) return;
-  const rows = body.querySelectorAll('tr');
-  rows.forEach(tr => {
-    if (tr.dataset.productId === productId) {
-      const row = allStocks[idx];
-      const stockClass = Number(row.current_stock) <= 0 ? 'text-danger'
-                       : Number(row.current_stock) < 5  ? 'text-warning'
-                       : 'text-success';
-      tr.querySelector('td:first-child').textContent = esc(row.product_name);
-      tr.querySelector('td:nth-child(7)').textContent = fmtQty(row.reserved_quantity || 0);
-      tr.querySelector('td:nth-child(8)').textContent = fmtQty(row.gift_quantity || 0);
-    }
-  });
+  renderStockCategoryFilter();
+  renderDepoTable();
 }

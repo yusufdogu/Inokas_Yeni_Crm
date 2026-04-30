@@ -368,6 +368,22 @@ body {
 
 .toolbar input { flex: 1; max-width: 380px; }
 
+#stockCategoryFilter {
+  width: 240px;
+  min-width: 240px;
+  max-width: 240px;
+}
+
+#stockUnmappedFilterBtn {
+  white-space: nowrap;
+}
+
+#stockUnmappedFilterBtn.active {
+  background: #166534;
+  color: #f0fdf4;
+  border: 1px solid #14532d;
+}
+
 /* Stok hareketleri firma filtresi: sabit kutu + iç scroll + arama */
 .company-dropdown-wrap {
   position: relative;
@@ -630,6 +646,17 @@ body {
 
 .text-right { text-align: right; }
 .movement-date-cell { white-space: nowrap; min-width: 95px; }
+.stock-category-cell {
+  font-size: 0.74rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+}
+#stocksTableBody td.stock-category-cell,
+#stocksTableBody td:nth-child(3) {
+  font-size: 0.74rem !important;
+  font-weight: 700 !important;
+  line-height: 1.15;
+}
 
 /* ── BADGES ── */
 .badge-sku {
@@ -872,7 +899,25 @@ body {
   font-family: inherit;
 }
 
+.modal-field select {
+  padding: 8px 10px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  font-size: 13px;
+  color: #0f172a;
+  background: #ffffff;
+  transition: border-color 0.15s;
+  font-family: inherit;
+  height: 37px;
+}
+
 .modal-field input:focus {
+  outline: none;
+  border-color: #2563eb;
+  box-shadow: 0 0 0 3px rgba(37,99,235,0.08);
+}
+
+.modal-field select:focus {
   outline: none;
   border-color: #2563eb;
   box-shadow: 0 0 0 3px rgba(37,99,235,0.08);

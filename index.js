@@ -167,6 +167,7 @@ async function syncInvoiceItemInternalMeta(invoiceId, payloadItems) {
   if (dbItemsErr) throw dbItemsErr;
 
   const count = Math.min(dbItems?.length || 0, items.length);
+  const productCategoryUpdates = new Map();
   for (let i = 0; i < count; i += 1) {
     const rowId = dbItems[i]?.id;
     if (!rowId) continue;
@@ -174,6 +175,11 @@ async function syncInvoiceItemInternalMeta(invoiceId, payloadItems) {
     const isInternal = src.is_internal === true;
     const categoryRaw = String(src.internal_category || '').trim();
     const internalCategory = isInternal && categoryRaw ? categoryRaw : null;
+    const productCode = String(src.product_code || '').trim();
+    const productCategory = String(src.product_category || '').trim();
+    if (!isInternal && productCode && productCategory) {
+      productCategoryUpdates.set(productCode, productCategory);
+    }
     const { error: updErr } = await supabase
       .from('invoice_items')
       .update({
@@ -182,6 +188,14 @@ async function syncInvoiceItemInternalMeta(invoiceId, payloadItems) {
       })
       .eq('id', rowId);
     if (updErr) throw updErr;
+  }
+
+  for (const [productCode, category] of productCategoryUpdates.entries()) {
+    const { error: pErr } = await supabase
+      .from('products')
+      .update({ category, updated_at: new Date().toISOString() })
+      .eq('product_code', productCode);
+    if (pErr) throw pErr;
   }
 }
 
@@ -271,10 +285,13 @@ app.post('/api/save-invoice', async (req, res) => {
     if (invoiceError) throw invoiceError;
 
     // --- STEP C: INSERT ITEMS ---
-    const itemsToSave = fullData.items.map(item => ({
-      ...item,
-      invoice_id: invoiceData.id
-    }));
+    const itemsToSave = fullData.items.map(item => {
+      const { product_category, ...dbSafeItem } = item || {};
+      return {
+        ...dbSafeItem,
+        invoice_id: invoiceData.id
+      };
+    });
 
     const { error: itemsError } = await supabase
       .from('invoice_items')
@@ -358,6 +375,12 @@ app.get('/api/stocks/summary', async (req, res) => {
 
     if (error) throw error;
 
+    const isKargoLine = (item) => {
+      const haystack = `${item?.product_name || ''} ${item?.product_code || ''}`
+        .toLocaleUpperCase('tr-TR');
+      return haystack.includes('KARGO');
+    };
+
     const { data: productRows, error: productErr } = await supabase
       .from('products')
       .select('id, product_code, product_name, reserved_quantity, gift_quantity, brand, category, model');
@@ -384,6 +407,8 @@ app.get('/api/stocks/summary', async (req, res) => {
     const nonInternalSkuSet = new Set();
 
     (items || []).forEach((item) => {
+      if (item?.is_internal === true) return;
+      if (isKargoLine(item)) return;
       const invoice = item.invoices;
       if (!invoice) return;
 
@@ -703,12 +728,35 @@ app.get('/api/products/by-code', async (req, res) => {
     if (!code) return res.status(400).json({ error: 'Ürün kodu zorunlu' });
     const { data, error } = await supabase
       .from('products')
-      .select('id, product_code, product_name')
+      .select('id, product_code, product_name, category')
       .eq('product_code', code)
       .single();
     if (error || !data) return res.status(404).json({ error: 'Ürün bulunamadı' });
     res.json(data);
   } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/products/category-map', async (req, res) => {
+  try {
+    const { data, error } = await supabase
+      .from('products')
+      .select('product_code, category')
+      .not('product_code', 'is', null);
+    if (error) throw error;
+    const rows = (data || []).map((r) => ({
+      product_code: String(r.product_code || '').trim(),
+      category: String(r.category || '').trim()
+    })).filter((r) => r.product_code);
+    const categories = [...new Set(
+      rows
+        .map((r) => r.category)
+        .filter(Boolean)
+    )].sort((a, b) => a.localeCompare(b, 'tr'));
+    res.json({ rows, categories });
+  } catch (err) {
+    console.error('GET /api/products/category-map hatası:', err.message);
     res.status(500).json({ error: err.message });
   }
 });

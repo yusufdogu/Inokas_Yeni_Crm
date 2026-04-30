@@ -375,6 +375,12 @@ app.get('/api/stocks/summary', async (req, res) => {
 
     if (error) throw error;
 
+    const isKargoLine = (item) => {
+      const haystack = `${item?.product_name || ''} ${item?.product_code || ''}`
+        .toLocaleUpperCase('tr-TR');
+      return haystack.includes('KARGO');
+    };
+
     const { data: productRows, error: productErr } = await supabase
       .from('products')
       .select('id, product_code, product_name, reserved_quantity, gift_quantity, brand, category, model');
@@ -401,6 +407,8 @@ app.get('/api/stocks/summary', async (req, res) => {
     const nonInternalSkuSet = new Set();
 
     (items || []).forEach((item) => {
+      if (item?.is_internal === true) return;
+      if (isKargoLine(item)) return;
       const invoice = item.invoices;
       if (!invoice) return;
 

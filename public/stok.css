@@ -532,6 +532,15 @@ body {
   font-size: 0.82rem;
 }
 
+.mini-po-lines-table select {
+  width: 100%;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  padding: 7px 8px;
+  font-size: 0.82rem;
+  background: #fff;
+}
+
 .mini-po-grid input {
   border: 1px solid var(--border);
   border-radius: 8px;
@@ -601,6 +610,14 @@ body {
   border-color: #fecaca;
   background: #fee2e2;
   color: #991b1b;
+}
+
+.po-product-name-cell {
+  max-width: 95px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 600;
 }
 
 /* ── TABLE ── */

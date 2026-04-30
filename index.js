@@ -864,7 +864,14 @@ app.post('/api/purchase-orders', async (req, res) => {
     const items = rawItems
       .map((it) => ({
         product_code: String(it?.product_code || '').trim(),
-        ordered_qty: Number(it?.ordered_qty || 0)
+        ordered_qty: Number(it?.ordered_qty || 0),
+        unit_price_cur: it?.unit_price_cur === null || it?.unit_price_cur === undefined || it?.unit_price_cur === ''
+          ? null
+          : Number(it?.unit_price_cur),
+        currency: String(it?.currency || '').trim() || null,
+        line_total_cur: it?.line_total_cur === null || it?.line_total_cur === undefined || it?.line_total_cur === ''
+          ? null
+          : Number(it?.line_total_cur)
       }))
       .filter((it) => it.product_code && it.ordered_qty > 0);
 
@@ -900,35 +907,88 @@ app.post('/api/purchase-orders', async (req, res) => {
     const missingCode = uniqueCodes.find((code) => !productMap.has(code));
     if (missingCode) return res.status(400).json({ error: `Ürün kodu bulunamadı: ${missingCode}` });
 
-    const generatedPoNumber = `PO-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${Date.now().toString().slice(-6)}`;
+    const sourceCompanyName = String(company?.name || companyName || '').trim();
+    const firstWord = sourceCompanyName.split(/\s+/).find(Boolean) || 'FIRMA';
+    const normalizedFirstWord = firstWord
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^\p{L}\p{N}]/gu, '')
+      .toLocaleUpperCase('tr-TR') || 'FIRMA';
+    const poPrefix = `PO-${normalizedFirstWord}`;
+    const { data: existingPoRows, error: poFetchErr } = await supabase
+      .from('purchase_orders')
+      .select('po_number')
+      .ilike('po_number', `${poPrefix}-%`);
+    if (poFetchErr) throw poFetchErr;
+    const maxSeq = (existingPoRows || []).reduce((max, row) => {
+      const no = String(row?.po_number || '');
+      const m = no.match(new RegExp(`^${poPrefix.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}-([0-9]+)$`));
+      const n = m ? Number(m[1]) : 0;
+      return Number.isFinite(n) && n > max ? n : max;
+    }, 0);
+    const generatedPoNumber = `${poPrefix}-${maxSeq + 1}`;
     const poNumber = inputPoNumber || generatedPoNumber;
 
-    const { data: po, error: poErr } = await supabase
-      .from('purchase_orders')
-      .insert({
-        po_number: poNumber,
-        company_id: company.id,
-        status: 'Bekliyor'
-      })
-      .select('id, po_number')
-      .single();
+    let po = null;
+    let poErr = null;
+    let attemptSeq = maxSeq + 1;
+    const maxAttempts = inputPoNumber ? 1 : 5;
+    for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+      const attemptPoNumber = inputPoNumber || `${poPrefix}-${attemptSeq}`;
+      const result = await supabase
+        .from('purchase_orders')
+        .insert({
+          po_number: attemptPoNumber,
+          company_id: company.id,
+          status: 'Bekliyor'
+        })
+        .select('id, po_number')
+        .single();
+      po = result.data;
+      poErr = result.error;
+      if (!poErr) break;
+      // unique ihlali ise bir sonraki sıra ile tekrar dene
+      if (!inputPoNumber && String(poErr.code || '') === '23505') {
+        attemptSeq += 1;
+        continue;
+      }
+      throw poErr;
+    }
     if (poErr) throw poErr;
 
     const mergedByProduct = new Map();
     items.forEach((it) => {
       if (!mergedByProduct.has(it.product_code)) {
-        mergedByProduct.set(it.product_code, 0);
+        mergedByProduct.set(it.product_code, {
+          ordered_qty: 0,
+          line_total_cur: 0,
+          currency: null
+        });
       }
-      mergedByProduct.set(it.product_code, mergedByProduct.get(it.product_code) + it.ordered_qty);
+      const row = mergedByProduct.get(it.product_code);
+      row.ordered_qty += Number(it.ordered_qty || 0);
+      row.line_total_cur += Number(
+        it.line_total_cur !== null && it.line_total_cur !== undefined
+          ? it.line_total_cur
+          : (it.unit_price_cur !== null && it.unit_price_cur !== undefined ? Number(it.ordered_qty || 0) * Number(it.unit_price_cur || 0) : 0)
+      );
+      if (!row.currency && it.currency) row.currency = it.currency;
+      mergedByProduct.set(it.product_code, row);
     });
 
-    const itemRows = Array.from(mergedByProduct.entries()).map(([productCode, qty]) => {
+    const itemRows = Array.from(mergedByProduct.entries()).map(([productCode, row]) => {
       const product = productMap.get(productCode);
+      const qty = Number(row.ordered_qty || 0);
+      const lineTotal = row.line_total_cur > 0 ? Number(row.line_total_cur.toFixed(4)) : null;
+      const unitPrice = lineTotal !== null && qty > 0 ? Number((lineTotal / qty).toFixed(4)) : null;
       return {
         purchase_order_id: po.id,
         product_id: product.id,
         ordered_qty: qty,
-        received_qty: 0
+        received_qty: 0,
+        unit_price_cur: unitPrice,
+        currency: row.currency,
+        line_total_cur: lineTotal
       };
     });
 
@@ -948,9 +1008,23 @@ app.put('/api/purchase-order-items/:id', async (req, res) => {
   try {
     const id = String(req.params.id || '').trim();
     const orderedQty = Number(req.body?.ordered_qty);
+    const unitPriceRaw = req.body?.unit_price_cur;
+    const lineTotalRaw = req.body?.line_total_cur;
+    const currencyRaw = req.body?.currency;
+    const unitPrice = unitPriceRaw === null || unitPriceRaw === undefined || unitPriceRaw === '' ? null : Number(unitPriceRaw);
+    const lineTotal = lineTotalRaw === null || lineTotalRaw === undefined || lineTotalRaw === '' ? null : Number(lineTotalRaw);
+    const currency = currencyRaw === null || currencyRaw === undefined || String(currencyRaw).trim() === ''
+      ? null
+      : String(currencyRaw).trim().toUpperCase();
     if (!id) return res.status(400).json({ error: 'Kalem id zorunlu.' });
     if (!Number.isFinite(orderedQty) || orderedQty <= 0) {
       return res.status(400).json({ error: 'ordered_qty pozitif sayı olmalı.' });
+    }
+    if (unitPrice !== null && (!Number.isFinite(unitPrice) || unitPrice < 0)) {
+      return res.status(400).json({ error: 'unit_price_cur negatif olamaz.' });
+    }
+    if (lineTotal !== null && (!Number.isFinite(lineTotal) || lineTotal < 0)) {
+      return res.status(400).json({ error: 'line_total_cur negatif olamaz.' });
     }
 
     const { data: existing, error: findErr } = await supabase
@@ -968,7 +1042,12 @@ app.put('/api/purchase-order-items/:id', async (req, res) => {
 
     const { error: updErr } = await supabase
       .from('purchase_order_items')
-      .update({ ordered_qty: orderedQty })
+      .update({
+        ordered_qty: orderedQty,
+        unit_price_cur: unitPrice,
+        currency,
+        line_total_cur: lineTotal
+      })
       .eq('id', id);
     if (updErr) throw updErr;
 
@@ -1043,6 +1122,9 @@ app.get('/api/purchase-orders/all-pending', async (req, res) => {
         id,
         ordered_qty,
         received_qty,
+        unit_price_cur,
+        currency,
+        line_total_cur,
         purchase_order_id,
         purchase_orders (
           po_number,
@@ -1089,6 +1171,9 @@ app.get('/api/purchase-orders/pending-by-vkn', async (req, res) => {
         id,
         ordered_qty,
         received_qty,
+        unit_price_cur,
+        currency,
+        line_total_cur,
         purchase_order_id,
         purchase_orders!inner (
           po_number,

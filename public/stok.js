@@ -338,6 +338,17 @@ function renderDepoTable() {
       <td class="text-right">${fmtUsdOrDash(row.stock_usd)}</td>
     `;
     body.appendChild(tr);
+    const qtyInput = tr.querySelector('.po-ordered-input');
+    const unitInput = tr.querySelector('.po-unit-input');
+    const totalInput = tr.querySelector('.po-total-input');
+    const recalcTotal = () => {
+      if (!qtyInput || !unitInput || !totalInput) return;
+      const qty = Number(qtyInput.value || 0);
+      const unit = Number(unitInput.value || 0);
+      totalInput.value = (qty * unit).toFixed(2);
+    };
+    qtyInput?.addEventListener('input', recalcTotal);
+    unitInput?.addEventListener('input', recalcTotal);
   });
 }
 
@@ -698,6 +709,17 @@ function renderMovementsTable() {
       <td>${esc(m.currency || '—')}</td>
     `;
     body.appendChild(tr);
+    const qtyInput = tr.querySelector('.po-ordered-input');
+    const unitInput = tr.querySelector('.po-unit-input');
+    const totalInput = tr.querySelector('.po-total-input');
+    const recalcLineTotal = () => {
+      if (!qtyInput || !unitInput || !totalInput) return;
+      const qty = Number(qtyInput.value || 0);
+      const unit = Number(unitInput.value || 0);
+      totalInput.value = (qty * unit).toFixed(2);
+    };
+    qtyInput?.addEventListener('input', recalcLineTotal);
+    unitInput?.addEventListener('input', recalcLineTotal);
   });
 }
 
@@ -861,14 +883,16 @@ function renderPendingOrdersTable() {
     const received  = Number(po.received_qty) || 0;
     const remaining = ordered - received;
     const isCompleted = remaining <= 0;
-    const pct       = ordered > 0 ? Math.round((received / ordered) * 100) : 0;
+    const unitPrice = po.unit_price_cur === null || po.unit_price_cur === undefined ? '' : Number(po.unit_price_cur);
+    const currency = String(po.currency || '').trim();
+    const lineTotal = po.line_total_cur === null || po.line_total_cur === undefined ? '' : Number(po.line_total_cur);
 
     const tr = document.createElement('tr');
     tr.innerHTML = `
       <td><span class="badge-sku">${esc(po.purchase_orders?.po_number || '—')}</span></td>
       <td>${po.purchase_orders?.order_date || '—'}</td>
-      <td style="max-width:180px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="${esc(po.purchase_orders?.companies?.name || '')}">${esc(po.purchase_orders?.companies?.name || '—')}</td>
-      <td style="font-weight:500;">${esc(po.products?.product_name || '—')}</td>
+      <td style="max-width:95px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="${esc(po.purchase_orders?.companies?.name || '')}">${esc(po.purchase_orders?.companies?.name || '—')}</td>
+      <td class="po-product-name-cell" title="${esc(po.products?.product_name || '—')}">${esc(po.products?.product_name || '—')}</td>
       <td><span class="badge-sku">${esc(po.products?.product_code || '—')}</span></td>
       <td class="text-right">
         <input
@@ -879,27 +903,67 @@ function renderPendingOrdersTable() {
           value="${ordered}"
           data-po-id="${po.id}"
           data-original="${ordered}"
-          style="width:90px; text-align:right; border:1px solid #cbd5e1; border-radius:6px; padding:4px 6px;"
+          style="width:70px; text-align:right; border:1px solid #cbd5e1; border-radius:6px; padding:4px 6px;"
+        >
+      </td>
+      <td class="text-right">
+        <input
+          type="number"
+          min="0"
+          step="0.01"
+          class="po-unit-input"
+          value="${unitPrice}"
+          data-po-id="${po.id}"
+          data-original="${unitPrice}"
+          style="width:82px; text-align:right; border:1px solid #cbd5e1; border-radius:6px; padding:4px 6px;"
+        >
+      </td>
+      <td>
+        <select
+          class="po-cur-input"
+          data-po-id="${po.id}"
+          data-original="${currency}"
+          style="width:72px; border:1px solid #cbd5e1; border-radius:6px; padding:4px 6px;"
+        >
+          <option value="" ${!currency ? 'selected' : ''}>-</option>
+          <option value="TRY" ${currency === 'TRY' ? 'selected' : ''}>TRY</option>
+          <option value="USD" ${currency === 'USD' ? 'selected' : ''}>USD</option>
+          <option value="EUR" ${currency === 'EUR' ? 'selected' : ''}>EUR</option>
+        </select>
+      </td>
+      <td class="text-right">
+        <input
+          type="number"
+          min="0"
+          step="0.01"
+          class="po-total-input"
+          value="${lineTotal}"
+          data-po-id="${po.id}"
+          data-original="${lineTotal}"
+          style="width:92px; text-align:right; border:1px solid #cbd5e1; border-radius:6px; padding:4px 6px;"
         >
       </td>
       <td class="text-right text-success">${fmtQty(received)}</td>
       <td class="text-right"><strong class="${isCompleted ? 'text-success' : 'text-warning'}">${fmtQty(remaining)}</strong></td>
       <td>
-        <div style="display:flex; align-items:center; gap:6px;">
-          <div style="flex:1; background:#e2e8f0; border-radius:4px; height:8px; overflow:hidden;">
-            <div style="width:${pct}%; background:#22c55e; height:100%; border-radius:4px;"></div>
-          </div>
-          <span style="font-size:11px; color:#64748b; white-space:nowrap;">${pct}% ${isCompleted ? '• Tamamlandı' : ''}</span>
-        </div>
-      </td>
-      <td>
         <div class="po-actions">
-          <button type="button" class="po-btn po-btn--save" onclick="savePendingOrderItem('${po.id}', this)">Kaydet</button>
+          <button type="button" class="po-btn po-btn--save" onclick="savePendingOrderItem('${po.id}', this)">Güncelle</button>
           <button type="button" class="po-btn po-btn--delete" onclick="deletePendingOrderItem('${po.id}', this)">Sil</button>
         </div>
       </td>
     `;
     body.appendChild(tr);
+    const qtyInput = tr.querySelector('.po-ordered-input');
+    const unitInput = tr.querySelector('.po-unit-input');
+    const totalInput = tr.querySelector('.po-total-input');
+    const recalcLineTotal = () => {
+      if (!qtyInput || !unitInput || !totalInput) return;
+      const qty = Number(qtyInput.value || 0);
+      const unit = Number(unitInput.value || 0);
+      totalInput.value = (qty * unit).toFixed(2);
+    };
+    qtyInput?.addEventListener('input', recalcLineTotal);
+    unitInput?.addEventListener('input', recalcLineTotal);
   });
 }
 
@@ -958,7 +1022,9 @@ async function autoFillProductByCode(codeInput, nameInput) {
     const contentType = res.headers.get('content-type') || '';
     if (!contentType.includes('application/json')) return;
     const data = await res.json();
-    nameInput.value = data?.product_name || '';
+    if (data?.product_name) {
+      nameInput.value = data.product_name;
+    }
   } catch {}
 }
 
@@ -968,13 +1034,34 @@ function addPendingPoLine() {
   const tr = document.createElement('tr');
   tr.innerHTML = `
     <td><input type="text" class="po-line-code" placeholder="SKU" required></td>
-    <td><input type="text" class="po-line-name" placeholder="Ürün adı (otomatik)" readonly></td>
+    <td><input type="text" class="po-line-name" placeholder="Ürün adı (otomatik, bulunamazsa manuel girin)"></td>
     <td><input type="number" class="po-line-qty" min="1" step="1" placeholder="Miktar" required></td>
+    <td><input type="number" class="po-line-unit-price" min="0" step="0.01" placeholder="0,00"></td>
+    <td>
+      <select class="po-line-currency">
+        <option value="">Seçin</option>
+        <option value="TRY">TRY</option>
+        <option value="USD">USD</option>
+        <option value="EUR">EUR</option>
+      </select>
+    </td>
+    <td><input type="number" class="po-line-total" min="0" step="0.01" placeholder="0,00"></td>
     <td><button type="button" class="po-btn po-btn--delete" onclick="removePendingPoLine(this)">Sil</button></td>
   `;
   const codeInput = tr.querySelector('.po-line-code');
   const nameInput = tr.querySelector('.po-line-name');
+  const qtyInput = tr.querySelector('.po-line-qty');
+  const unitPriceInput = tr.querySelector('.po-line-unit-price');
+  const totalInput = tr.querySelector('.po-line-total');
   codeInput?.addEventListener('blur', () => autoFillProductByCode(codeInput, nameInput));
+  const recalcTotal = () => {
+    if (!totalInput) return;
+    const qty = Number(qtyInput?.value || 0);
+    const unitPrice = Number(unitPriceInput?.value || 0);
+    totalInput.value = (qty * unitPrice).toFixed(2);
+  };
+  qtyInput?.addEventListener('input', recalcTotal);
+  unitPriceInput?.addEventListener('input', recalcTotal);
   body.appendChild(tr);
 }
 
@@ -994,7 +1081,19 @@ async function submitPendingPoForm(e) {
     company_name: String(document.getElementById('poCompanyName')?.value || '').trim(),
     items: Array.from(document.querySelectorAll('#poLinesBody tr')).map((row) => ({
       product_code: String(row.querySelector('.po-line-code')?.value || '').trim(),
-      ordered_qty: Number(row.querySelector('.po-line-qty')?.value || 0)
+      ordered_qty: Number(row.querySelector('.po-line-qty')?.value || 0),
+      unit_price_cur: (() => {
+        const raw = String(row.querySelector('.po-line-unit-price')?.value || '').trim();
+        return raw === '' ? null : Number(raw);
+      })(),
+      currency: String(row.querySelector('.po-line-currency')?.value || '').trim() || null,
+      line_total_cur: (() => {
+        const raw = String(row.querySelector('.po-line-total')?.value || '').trim();
+        if (raw !== '') return Number(raw);
+        const qty = Number(row.querySelector('.po-line-qty')?.value || 0);
+        const unitPrice = Number(row.querySelector('.po-line-unit-price')?.value || 0);
+        return unitPrice > 0 ? Number((qty * unitPrice).toFixed(2)) : null;
+      })()
     })).filter(x => x.product_code && x.ordered_qty > 0)
   };
 
@@ -1036,21 +1135,47 @@ async function submitPendingPoForm(e) {
 
 async function savePendingOrderItem(poItemId, btnEl) {
   const input = document.querySelector(`.po-ordered-input[data-po-id="${poItemId}"]`);
+  const unitInput = document.querySelector(`.po-unit-input[data-po-id="${poItemId}"]`);
+  const curInput = document.querySelector(`.po-cur-input[data-po-id="${poItemId}"]`);
+  const totalInput = document.querySelector(`.po-total-input[data-po-id="${poItemId}"]`);
   if (!input) return;
   const orderedQty = Number(input.value || 0);
   const original = Number(input.dataset.original || 0);
+  const unitRaw = String(unitInput?.value || '').trim();
+  const totalRaw = String(totalInput?.value || '').trim();
+  const curRaw = String(curInput?.value || '').trim();
+  const unitPrice = unitRaw === '' ? null : Number(unitRaw);
+  const lineTotal = totalRaw === '' ? null : Number(totalRaw);
+  const currency = curRaw || null;
   if (!Number.isFinite(orderedQty) || orderedQty <= 0) {
     alert('Sipariş miktarı pozitif sayı olmalı.');
     return;
   }
-  if (orderedQty === original) return;
+  if (unitPrice !== null && (!Number.isFinite(unitPrice) || unitPrice < 0)) {
+    alert('Birim fiyat negatif olamaz.');
+    return;
+  }
+  if (lineTotal !== null && (!Number.isFinite(lineTotal) || lineTotal < 0)) {
+    alert('Toplam tutar negatif olamaz.');
+    return;
+  }
+  const sameQty = orderedQty === original;
+  const sameUnit = String(unitInput?.dataset.original || '') === unitRaw;
+  const sameCur = String(curInput?.dataset.original || '') === curRaw;
+  const sameTotal = String(totalInput?.dataset.original || '') === totalRaw;
+  if (sameQty && sameUnit && sameCur && sameTotal) return;
 
   btnEl.disabled = true;
   try {
     const res = await fetch(`/api/purchase-order-items/${encodeURIComponent(poItemId)}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ordered_qty: orderedQty })
+      body: JSON.stringify({
+        ordered_qty: orderedQty,
+        unit_price_cur: unitPrice,
+        currency,
+        line_total_cur: lineTotal
+      })
     });
     const contentType = res.headers.get('content-type') || '';
     if (!contentType.includes('application/json')) {
@@ -1063,6 +1188,9 @@ async function savePendingOrderItem(poItemId, btnEl) {
     const data = await res.json();
     if (!res.ok) throw new Error(data?.error || 'Güncelleme başarısız');
     input.dataset.original = String(orderedQty);
+    if (unitInput) unitInput.dataset.original = unitRaw;
+    if (curInput) curInput.dataset.original = curRaw;
+    if (totalInput) totalInput.dataset.original = totalRaw;
     sessionStorage.removeItem(PO_CACHE_KEY);
     sessionStorage.removeItem(STOCK_CACHE_KEY);
     await Promise.all([loadPendingOrders(), loadStockSummary()]);

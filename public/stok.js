@@ -4,6 +4,7 @@ let allMovements    = [];  // Stok hareketleri (Tab 2)
 let allPendingOrders = []; // Bekleyen siparişler (Tab 3)
 let allProductsCatalog = []; // Ürün master listesi (kar analizi görünürlüğü)
 let allProfitEvents = []; // Tarih kırılımında kar analizi için event listesi
+let internalOnlySkus = []; // Sadece ofis içi hareketi olan SKU listesi
 let stockStats      = null;
 let currentStockTab = 'depo';
 let currentInsightTab = 'profit';
@@ -12,7 +13,7 @@ const profitDrillState = { level: 'brand', brand: '', category: '' };
 const PROFIT_BAR_COLORS = ['#2563eb', '#0ea5e9', '#22c55e', '#f59e0b', '#ef4444', '#a855f7', '#14b8a6', '#f97316', '#06b6d4', '#84cc16'];
 let _skuMergeContext = null;
 
-const STOCK_CACHE_KEY     = 'inokas_stock_v2';
+const STOCK_CACHE_KEY     = 'inokas_stock_v3';
 const MOVEMENT_CACHE_KEY  = 'inokas_movements_v1';
 const PO_CACHE_KEY        = 'inokas_pending_po_v1';
 
@@ -80,6 +81,7 @@ async function loadStockSummary() {
     stockStats = cached.stats || null;
     allProductsCatalog = cached.product_catalog || [];
     allProfitEvents = cached.profit_events || [];
+    internalOnlySkus = cached.internal_only_skus || [];
     renderStockStats();
     renderStockInsights();
     renderDepoTable();
@@ -93,11 +95,13 @@ async function loadStockSummary() {
     stockStats = payload.stats || null;
     allProductsCatalog = payload.product_catalog || [];
     allProfitEvents = payload.profit_events || [];
+    internalOnlySkus = payload.internal_only_skus || [];
     writeCache(STOCK_CACHE_KEY, {
       data: allStocks,
       stats: stockStats,
       product_catalog: allProductsCatalog,
-      profit_events: allProfitEvents
+      profit_events: allProfitEvents,
+      internal_only_skus: internalOnlySkus
     });
     renderStockStats();
     renderStockInsights();
@@ -131,6 +135,7 @@ function getProfitBySkuInRange() {
   const { start, end } = getInsightDateRange();
   const map = new Map();
   (allProfitEvents || []).forEach((ev) => {
+    if (ev?.is_internal === true) return;
     const sku = String(ev.sku || '').trim();
     const d = String(ev.invoice_date || '').slice(0, 10);
     if (!sku || !d) return;
@@ -143,12 +148,13 @@ function getProfitBySkuInRange() {
 
 function buildProfitDrillRows() {
   const metricBySku = getProfitBySkuInRange();
+  const internalOnlySet = new Set((internalOnlySkus || []).map((x) => String(x || '').trim()).filter(Boolean));
 
   const source = [];
   const seen = new Set();
   (allProductsCatalog || []).forEach((p) => {
     const sku = String(p.sku || '').trim();
-    if (!sku || seen.has(sku)) return;
+    if (!sku || seen.has(sku) || internalOnlySet.has(sku)) return;
     seen.add(sku);
     source.push({
       sku,
@@ -162,7 +168,7 @@ function buildProfitDrillRows() {
   // Katalogda olmayan ama metrikte olan SKU'ları da kaçırma.
   (allStocks || []).forEach((r) => {
     const sku = String(r.sku || '').trim();
-    if (!sku || seen.has(sku)) return;
+    if (!sku || seen.has(sku) || internalOnlySet.has(sku)) return;
     seen.add(sku);
     source.push({
       sku,

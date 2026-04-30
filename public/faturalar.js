@@ -400,7 +400,9 @@ function viewInvoice(id) {
                 item.total_price_cur || 0, 
                 item.tax_rate || 20,
                 item.product_code || item.sku || '',
-                item.purchase_order_item_id || ''
+                item.purchase_order_item_id || '',
+                !!item.is_internal,
+                item.internal_category || ''
             );
         });
     } else {
@@ -826,7 +828,10 @@ function applyParsedPayloadToForm(pack) {
             item.unit_price_cur,
             item.total_price_cur,
             item.tax_rate,
-            item.product_code || ''
+            item.product_code || '',
+            '',
+            false,
+            ''
         );
     });
 }
@@ -2514,32 +2519,43 @@ async function saveInvoiceToDatabase(e) {
 
     // Ürün satırlarını ekrandan topla (Güncelleme + Yeni Kayıt akışında ortak kullanılacak)
     const lineRows = document.querySelectorAll('#lineItemsBody tr');
-    const itemsFromForm = Array.from(lineRows).map((row) => {
-        const cells = row.querySelectorAll('td');
-        const productName = row.querySelector('td:first-child input[type="text"]')?.value?.trim() || cells[0]?.innerText?.trim() || 'İsimsiz Ürün';
-        const qtyInput = row.querySelector('input[type="number"]');
-        const numberInputs = row.querySelectorAll('input[type="number"]');
-        const qty = parseFloat(qtyInput?.value || cells[2]?.innerText || 0) || 0;
-        const unitPrice = parseFloat(numberInputs[1]?.value || cells[3]?.innerText || 0) || 0;
-        const lineTotal = qty * unitPrice;
-        const taxRate = parseFloat(row.querySelector('.tax-rate-val')?.value || cells[5]?.innerText || 0) || 0;
-        const internalToggle = row.querySelector('.internal-toggle');
-        const isInternal = internalToggle ? !!internalToggle.checked : false;
-        const skuVal = row.querySelector('.line-sku-val')?.value?.trim() || '';
-        const poItemId = row.querySelector('.po-item-id-val')?.value || null;
-        return {
-            product_name: productName,
-            product_code: skuVal || null,
-            quantity: qty,
-            unit_code: 'ADET',
-            unit_price_cur: unitPrice,
-            tax_rate: taxRate,
-            total_price_cur: lineTotal,
-            currency: formCurrency,
-            is_internal: isInternal,
-            purchase_order_item_id: poItemId
-        };
-    }).filter(item => item.product_name && item.quantity > 0);
+    let itemsFromForm = [];
+    try {
+        itemsFromForm = Array.from(lineRows).map((row) => {
+            const cells = row.querySelectorAll('td');
+            const productName = row.querySelector('td:first-child input[type="text"]')?.value?.trim() || cells[0]?.innerText?.trim() || 'İsimsiz Ürün';
+            const qtyInput = row.querySelector('input[type="number"]');
+            const numberInputs = row.querySelectorAll('input[type="number"]');
+            const qty = parseFloat(qtyInput?.value || cells[2]?.innerText || 0) || 0;
+            const unitPrice = parseFloat(numberInputs[1]?.value || cells[3]?.innerText || 0) || 0;
+            const lineTotal = qty * unitPrice;
+            const taxRate = parseFloat(row.querySelector('.tax-rate-val')?.value || cells[5]?.innerText || 0) || 0;
+            const internalToggle = row.querySelector('.internal-toggle');
+            const isInternal = internalToggle ? !!internalToggle.checked : false;
+            const internalCategoryVal = row.querySelector('.internal-category-select')?.value?.trim() || '';
+            const skuVal = row.querySelector('.line-sku-val')?.value?.trim() || '';
+            const poItemId = row.querySelector('.po-item-id-val')?.value || null;
+            if (isInternal && !internalCategoryVal) {
+                throw new Error(`Ofis içi ürünlerde kategori zorunlu: ${productName}`);
+            }
+            return {
+                product_name: productName,
+                product_code: skuVal || null,
+                quantity: qty,
+                unit_code: 'ADET',
+                unit_price_cur: unitPrice,
+                tax_rate: taxRate,
+                total_price_cur: lineTotal,
+                currency: formCurrency,
+                is_internal: isInternal,
+                internal_category: isInternal ? internalCategoryVal : null,
+                purchase_order_item_id: poItemId
+            };
+        }).filter(item => item.product_name && item.quantity > 0);
+    } catch (mapErr) {
+        alert(mapErr.message || 'Ürün satırları doğrulanamadı.');
+        return;
+    }
 
     // GÜNCELLEME MODU: Düzenleme ekranında XML zorunluluğu yok
     if (invoiceId) {
@@ -2819,7 +2835,36 @@ function recalcInvoiceTotalsFromLines() {
     if (totalEl) totalEl.value = (totalNet + totalTax).toFixed(2);
 }
 
-function addLineItem(desc = '', qty = 1, price = 0, total = 0, taxRate = 20, sku = '', linkedPoItemId = '') {
+const INTERNAL_CATEGORY_OPTIONS = [
+    'teknoloji',
+    'araç & yakıt',
+    'elektrik & doğalgaz',
+    'iletişim',
+    'yemek & mutfak',
+    'güvenlik',
+    'diğer'
+];
+
+function addLineItem(
+    desc = '',
+    qty = 1,
+    price = 0,
+    total = 0,
+    taxRate = 20,
+    sku = '',
+    linkedPoItemId = '',
+    isInternal = false,
+    internalCategory = ''
+) {
+    const selectedCategory = String(internalCategory || '').trim().toLocaleLowerCase('tr-TR');
+    const internalCategoryOptionsHtml = [
+        '<option value="">Kategori seçin</option>',
+        ...INTERNAL_CATEGORY_OPTIONS.map((opt) => {
+            const selectedAttr = opt === selectedCategory ? ' selected' : '';
+            return `<option value="${opt}"${selectedAttr}>${opt}</option>`;
+        })
+    ].join('');
+
     const row = document.createElement('tr');
     row.innerHTML = `
         <td><input type="text" value="${desc}" placeholder="Ürün adı"></td>
@@ -2827,8 +2872,14 @@ function addLineItem(desc = '', qty = 1, price = 0, total = 0, taxRate = 20, sku
         <td><input type="number" value="${qty}" class="text-center"></td>
         <td><input type="number" value="${price}" step="0.01"></td>
         <td><input type="number" value="${total}" step="0.01" readonly></td>
-        <td class="text-center">
-            <input type="checkbox" class="internal-toggle" title="Şirket İçi Kullanım (Sarf)">
+        <td class="text-center line-internal-cell">
+            <label class="line-internal-toggle-row">
+                <input type="checkbox" class="internal-toggle" title="Şirket İçi Kullanım (Sarf)" ${isInternal ? 'checked' : ''}>
+                <span>Ofis İçi</span>
+            </label>
+            <select class="internal-category-select" style="display:${isInternal ? 'block' : 'none'};">
+                ${internalCategoryOptionsHtml}
+            </select>
             <input type="hidden" class="tax-rate-val" value="${taxRate}">
             <input type="hidden" class="po-item-id-val" value="${linkedPoItemId || ''}">
         </td>
@@ -2838,10 +2889,25 @@ function addLineItem(desc = '', qty = 1, price = 0, total = 0, taxRate = 20, sku
         </td>
     `;
     const skuInput   = row.querySelector('.line-sku-val');
+    const internalToggle = row.querySelector('.internal-toggle');
+    const internalCategorySelect = row.querySelector('.internal-category-select');
     if (skuInput) {
         skuInput.value = String(sku ?? '').trim();
         skuInput.addEventListener('input', () => checkPendingOrdersForRow(row));
     }
+    if (internalToggle && internalCategorySelect) {
+        const syncInternalCategoryUi = () => {
+            if (internalToggle.checked) {
+                internalCategorySelect.style.display = 'block';
+            } else {
+                internalCategorySelect.style.display = 'none';
+                internalCategorySelect.value = '';
+            }
+        };
+        internalToggle.addEventListener('change', syncInternalCategoryUi);
+        syncInternalCategoryUi();
+    }
+
     const qtyInput   = row.querySelector('td:nth-child(3) input[type="number"]');
     const priceInput = row.querySelector('td:nth-child(4) input[type="number"]');
     const totalInput = row.querySelector('td:nth-child(5) input[type="number"]');

@@ -155,6 +155,36 @@ app.get('/api/inokas-vkn', (req, res) => {
   res.json({ vkn });
 });
 
+async function syncInvoiceItemInternalMeta(invoiceId, payloadItems) {
+  const items = Array.isArray(payloadItems) ? payloadItems : [];
+  if (!invoiceId || items.length === 0) return;
+
+  const { data: dbItems, error: dbItemsErr } = await supabase
+    .from('invoice_items')
+    .select('id')
+    .eq('invoice_id', invoiceId)
+    .order('created_at', { ascending: true });
+  if (dbItemsErr) throw dbItemsErr;
+
+  const count = Math.min(dbItems?.length || 0, items.length);
+  for (let i = 0; i < count; i += 1) {
+    const rowId = dbItems[i]?.id;
+    if (!rowId) continue;
+    const src = items[i] || {};
+    const isInternal = src.is_internal === true;
+    const categoryRaw = String(src.internal_category || '').trim();
+    const internalCategory = isInternal && categoryRaw ? categoryRaw : null;
+    const { error: updErr } = await supabase
+      .from('invoice_items')
+      .update({
+        is_internal: isInternal,
+        internal_category: internalCategory
+      })
+      .eq('id', rowId);
+    if (updErr) throw updErr;
+  }
+}
+
 
 
 
@@ -252,6 +282,7 @@ app.post('/api/save-invoice', async (req, res) => {
       .select('id');
 
     if (itemsError) throw itemsError;
+    await syncInvoiceItemInternalMeta(invoiceData.id, fullData.items);
 
     // --- STEP D: UPDATE BACKORDER (PURCHASE ORDERS) IF LINKED ---
     if (shouldUpdateStock) {
@@ -313,6 +344,7 @@ app.get('/api/stocks/summary', async (req, res) => {
         id,
         product_name,
         product_code,
+        is_internal,
         quantity,
         unit_price_cur,
         currency,
@@ -348,6 +380,8 @@ app.get('/api/stocks/summary', async (req, res) => {
     );
 
     const grouped = {};
+    const internalSkuSet = new Set();
+    const nonInternalSkuSet = new Set();
 
     (items || []).forEach((item) => {
       const invoice = item.invoices;
@@ -355,6 +389,11 @@ app.get('/api/stocks/summary', async (req, res) => {
 
       const sku = item.product_code || null;
       const key = sku ? `SKU:${sku}` : `NAME:${item.product_name}`;
+      const isInternalItem = item.is_internal === true;
+      if (sku) {
+        if (isInternalItem) internalSkuSet.add(String(sku).trim());
+        else nonInternalSkuSet.add(String(sku).trim());
+      }
 
       if (!grouped[key]) {
         grouped[key] = {
@@ -393,6 +432,7 @@ app.get('/api/stocks/summary', async (req, res) => {
         id: item.id,
         qty,
         unitUsd,
+        isInternal: isInternalItem,
         invoiceDate: item.invoices?.invoice_date || null,
         direction: invoice.direction
       });
@@ -413,7 +453,7 @@ app.get('/api/stocks/summary', async (req, res) => {
 
         if (isIn) {
           row.total_in += ev.qty;
-          if (ev.unitUsd !== null) {
+          if (!ev.isInternal && ev.unitUsd !== null) {
             row.total_in_usd += ev.qty * ev.unitUsd;
             row.in_qty_for_avg_usd += ev.qty;
             row.fifo_lots.push({ remaining: ev.qty, unitUsd: ev.unitUsd });
@@ -422,7 +462,7 @@ app.get('/api/stocks/summary', async (req, res) => {
 
         if (isOut) {
           row.total_out += ev.qty;
-          if (ev.unitUsd !== null) {
+          if (!ev.isInternal && ev.unitUsd !== null) {
             row.total_out_usd += ev.qty * ev.unitUsd;
             row.out_qty_for_avg_usd += ev.qty;
             row.fifo_revenue_usd += ev.qty * ev.unitUsd;
@@ -443,13 +483,14 @@ app.get('/api/stocks/summary', async (req, res) => {
           }
 
           // Brüt karı sadece satış USD karşılığı biliniyorsa hesapla.
-          if (ev.unitUsd !== null) {
+          if (!ev.isInternal && ev.unitUsd !== null) {
             const thisOutRevenue = ev.qty * ev.unitUsd;
             const thisGross = (thisOutRevenue - thisOutFifoCost);
             row.fifo_gross_profit_usd += thisGross;
             profitEvents.push({
               sku: row.sku || null,
               invoice_date: ev.invoiceDate || null,
+              is_internal: true === ev.isInternal,
               gross_profit_usd: thisGross
             });
           }
@@ -522,11 +563,14 @@ app.get('/api/stocks/summary', async (req, res) => {
       }))
       .filter((p) => p.sku);
 
+    const internalOnlySkus = [...internalSkuSet].filter((sku) => !nonInternalSkuSet.has(sku));
+
     res.status(200).json({
       data: summary,
       stats,
       product_catalog: productCatalog,
-      profit_events: profitEvents
+      profit_events: profitEvents,
+      internal_only_skus: internalOnlySkus
     });
   } catch (err) {
     console.error("Stok Özet Hatası:", err.message);
@@ -1073,6 +1117,7 @@ app.put('/api/invoices/:id', async (req, res) => {
     });
 
     if (error) throw error;
+    await syncInvoiceItemInternalMeta(id, payloadItems);
 
     if (shouldUpdateStock) {
       const { data: afterItems, error: afterItemsError } = await supabase

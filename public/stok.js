@@ -484,6 +484,7 @@ async function submitSkuMergeForm(e) {
 }
 
 function renderStockStats() {
+  document.getElementById('stat-stock-value').innerText = fmtUsd(stockStats?.stock_usd ?? allStocks.reduce((a, r) => a + Number(r.stock_usd || 0), 0));
   document.getElementById('stat-product-count').innerText = String(allStocks.length);
   document.getElementById('stat-current').innerText   = fmtQty(stockStats?.current_qty   ?? allStocks.reduce((a, r) => a + Number(r.current_stock || 0), 0));
   document.getElementById('stat-total-in').innerText  = fmtQty(stockStats?.total_in_qty  ?? allStocks.reduce((a, r) => a + Number(r.total_in     || 0), 0));

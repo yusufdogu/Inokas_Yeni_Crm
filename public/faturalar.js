@@ -1907,6 +1907,9 @@ function renderDashboardCharts() {
     });
     const fmt = v => v >= 1e6 ? (v/1e6).toFixed(1)+'M' : v >= 1e3 ? (v/1e3).toFixed(0)+'K' : String(Math.round(v));
 
+    // TL karşılığı: kaynak tutar × kur (stat kartlarla aynı yöntem)
+    const toTl = inv => invPayableAmountSrc(inv) * invCalculationRate(inv);
+
     // Chart 1 — Monthly revenue (OUTGOING)
     const rev = {};
     last12.forEach(m => { rev[m.key] = 0; });
@@ -1914,7 +1917,7 @@ function renderDashboardCharts() {
         if (inv.direction !== 'OUTGOING' || !inv.invoice_date) return;
         const d = new Date(inv.invoice_date);
         const k = `${d.getFullYear()}-${d.getMonth()}`;
-        if (k in rev) rev[k] += Number(inv.total_amount_tl || 0);
+        if (k in rev) rev[k] += toTl(inv);
     });
     const c1 = document.getElementById('chartMonthlyRevenue');
     if (c1) {
@@ -1932,12 +1935,12 @@ function renderDashboardCharts() {
         });
     }
 
-    // Chart 2 — Top 5 companies by OUTGOING total
+    // Chart 2 — Top 5 companies by OUTGOING total (TL eşdeğeri)
     const byCompany = {};
     all.forEach(inv => {
         if (inv.direction !== 'OUTGOING') return;
         const name = inv.companies?.name || 'Bilinmeyen';
-        byCompany[name] = (byCompany[name] || 0) + Number(inv.total_amount_tl || 0);
+        byCompany[name] = (byCompany[name] || 0) + toTl(inv);
     });
     const top5 = Object.entries(byCompany).sort((a, b) => b[1] - a[1]).slice(0, 5);
     const shortName = n => n.split(/\s+/).slice(0, 2).join(' ');
@@ -1949,8 +1952,7 @@ function renderDashboardCharts() {
                 labels: top5.map(([n]) => shortName(n)),
                 datasets: [{ label: 'Toplam (TL)', data: top5.map(([, v]) => v),
                     backgroundColor: 'rgba(37,99,235,0.7)', borderColor: '#2563eb',
-                    borderWidth: 1, borderRadius: 6,
-                    datalabels: { display: false } }]
+                    borderWidth: 1, borderRadius: 6 }]
             },
             options: {
                 indexAxis: 'y', responsive: true,
@@ -1961,7 +1963,7 @@ function renderDashboardCharts() {
         });
     }
 
-    // Chart 3 — Gelen vs Giden monthly
+    // Chart 3 — Gelen vs Giden monthly (TL eşdeğeri)
     const gelen = {}, giden = {};
     last12.forEach(m => { gelen[m.key] = 0; giden[m.key] = 0; });
     all.forEach(inv => {
@@ -1969,8 +1971,8 @@ function renderDashboardCharts() {
         const d = new Date(inv.invoice_date);
         const k = `${d.getFullYear()}-${d.getMonth()}`;
         if (!(k in gelen)) return;
-        if (inv.direction === 'INCOMING') gelen[k] += Number(inv.total_amount_tl || 0);
-        else if (inv.direction === 'OUTGOING') giden[k] += Number(inv.total_amount_tl || 0);
+        if (inv.direction === 'INCOMING') gelen[k] += toTl(inv);
+        else if (inv.direction === 'OUTGOING') giden[k] += toTl(inv);
     });
     const c3 = document.getElementById('chartGelenGiden');
     if (c3) {

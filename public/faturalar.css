@@ -56,18 +56,12 @@ body {
 .tab-btn.active { border-color: var(--primary); box-shadow: 0 4px 12px rgba(37, 99, 235, 0.1); color: var(--primary); }
 
 /* Sekmeye göre aktif renk */
-#tabGelen.active {
-  background: #f97316; /* turuncu */
-  border-color: #f97316;
-  color: #ffffff;
-  box-shadow: 0 8px 18px rgba(249, 115, 22, 0.25);
-}
-
+#tabGelen.active,
 #tabGiden.active {
-  background: #a855f7; /* eflatun */
-  border-color: #a855f7;
+  background: #2563eb;
+  border-color: #2563eb;
   color: #ffffff;
-  box-shadow: 0 8px 18px rgba(168, 85, 247, 0.25);
+  box-shadow: 0 8px 18px rgba(37, 99, 235, 0.22);
 }
 
 /* --- INVOICE DASHBOARD --- */

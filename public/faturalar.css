@@ -1102,3 +1102,323 @@ body[data-view="giden"] #btnToggleShowAll:hover {
   .invoice-dashboard { grid-template-columns: 1fr; }
   .dash-card--wide { grid-column: span 1; }
 }
+
+/* ─── SPLIT PANEL ──────────────────────────────────────────────────────────── */
+.split-panel {
+  display: flex;
+  height: calc(100vh - 280px);
+  min-height: 560px;
+}
+
+/* ─── LEFT: Invoice Card List ──────────────────────────────────────────────── */
+.invoice-list-panel {
+  width: 320px;
+  min-width: 320px;
+  overflow-y: auto;
+  border-right: 1px solid var(--border);
+  flex-shrink: 0;
+  padding: 6px 8px;
+}
+
+.invoice-card {
+  padding: 13px 14px;
+  margin-bottom: 5px;
+  border: 1px solid #e9d5ff;
+  border-radius: 11px;
+  background: #f8f4ff;
+  cursor: pointer;
+  transition: background 0.15s ease, transform 0.15s ease, box-shadow 0.15s ease;
+}
+.invoice-card:hover {
+  background: #f0e8ff;
+  transform: scale(1.015);
+  box-shadow: 0 4px 12px rgba(124,58,237,0.1);
+}
+.invoice-card.active {
+  background: #ede9fe;
+  border-color: #7c3aed;
+  border-left: 3px solid #7c3aed;
+  padding-left: 11px;
+}
+
+.invoice-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 4px;
+}
+.invoice-card-no {
+  font-size: 13.5px;
+  font-weight: 700;
+  color: #0f172a;
+  letter-spacing: 0.1px;
+}
+.invoice-card-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.invoice-card-company {
+  font-size: 12px;
+  color: #64748b;
+  margin-bottom: 6px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.invoice-card-amount {
+  font-size: 15px;
+  font-weight: 800;
+  color: #0f172a;
+  margin-bottom: 3px;
+}
+.invoice-card-date {
+  font-size: 11px;
+  color: #94a3b8;
+}
+
+/* ─── RIGHT: Detail Panel ──────────────────────────────────────────────────── */
+.invoice-detail-panel {
+  flex: 1;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.detail-empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  padding: 40px;
+  text-align: center;
+  gap: 4px;
+  flex: 1;
+}
+
+.detail-content {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+}
+
+.detail-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 20px;
+  border-bottom: 1px solid var(--border);
+  flex-wrap: wrap;
+  gap: 10px;
+  flex-shrink: 0;
+  background: #fafafa;
+}
+
+/* ─── DETAIL TABS ──────────────────────────────────────────────────────────── */
+.detail-tab-bar {
+  display: flex;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+  background: #fff;
+}
+.detail-tab {
+  padding: 11px 22px;
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 600;
+  color: #64748b;
+  transition: color 0.15s, border-color 0.15s;
+  font-family: inherit;
+}
+.detail-tab:hover { color: var(--primary); }
+.detail-tab.active {
+  color: var(--primary);
+  border-bottom-color: var(--primary);
+}
+
+.detail-tab-pane {
+  padding: 20px;
+  overflow-y: auto;
+  flex: 1;
+}
+
+/* PDF tab: flex column so iframe fills remaining height */
+.detail-tab-pane--pdf {
+  padding: 0;
+  flex-direction: column;
+  align-items: stretch;
+}
+.detail-tab-pane--pdf #pdfNoXml,
+.detail-tab-pane--pdf #pdfLoading {
+  flex: 1;
+}
+.detail-tab-pane--pdf #pdfDetailIframe {
+  flex: 1;
+  min-height: 0;
+}
+
+@keyframes pdf-spin {
+  to { transform: rotate(360deg); }
+}
+
+/* ─── ANA SAYFA: DASHBOARD LAYOUT ─────────────────────────────────────────── */
+.simple-dashboard {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin-bottom: 0;
+}
+
+/* Stats row */
+.dash-stats-row {
+  display: flex;
+  gap: 12px;
+}
+
+.dash-stat-card {
+  flex: 1;
+  background: #fff;
+  border: 1px solid var(--border);
+  border-left: 4px solid #2563eb;
+  border-radius: 14px;
+  padding: 20px 24px;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.05);
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+.dash-stat-card:hover {
+  transform: scale(1.02);
+  box-shadow: 0 6px 16px rgba(37,99,235,0.1);
+}
+.dash-stat-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-sub);
+  letter-spacing: 0.5px;
+  margin-bottom: 6px;
+}
+.dash-stat-value {
+  font-size: 1.55rem;
+  font-weight: 800;
+  color: var(--text-main);
+  line-height: 1.1;
+}
+
+/* Actions row */
+.dash-actions-row {
+  display: flex;
+  gap: 12px;
+}
+
+.dash-action-btn {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 15px 20px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: #fff;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 700;
+  font-family: inherit;
+  transition: transform 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
+  text-align: left;
+}
+.dash-action-btn:hover {
+  transform: scale(1.025);
+}
+.dash-action-icon { font-size: 18px; flex-shrink: 0; }
+
+.dash-action-btn--purple { border-left: 4px solid #7c3aed; color: #7c3aed; }
+.dash-action-btn--purple:hover {
+  background: rgba(124,58,237,0.07);
+  box-shadow: 0 4px 14px rgba(124,58,237,0.12);
+}
+
+.dash-action-btn--green { border-left: 4px solid #059669; color: #059669; }
+.dash-action-btn--green:hover {
+  background: rgba(5,150,105,0.07);
+  box-shadow: 0 4px 14px rgba(5,150,105,0.12);
+}
+
+.dash-action-btn--orange { border-left: 4px solid #d97706; color: #d97706; }
+.dash-action-btn--orange:hover {
+  background: rgba(217,119,6,0.07);
+  box-shadow: 0 4px 14px rgba(217,119,6,0.12);
+}
+
+/* Charts */
+.dash-charts-section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.dash-chart-card {
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 16px 20px;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.04);
+}
+.dash-chart-pair {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+.dash-chart-title {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-sub);
+  letter-spacing: 0.4px;
+  margin-bottom: 12px;
+  text-transform: uppercase;
+}
+
+/* ─── FATURA LİSTE MODALI ──────────────────────────────────────────────────── */
+.fatura-list-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15,23,42,0.5);
+  z-index: 1100;
+  display: flex;
+  align-items: stretch;
+  justify-content: center;
+  padding: 24px;
+}
+
+.fatura-list-inner {
+  background: #fff;
+  border-radius: 20px;
+  width: 100%;
+  max-width: 1400px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  box-shadow: 0 25px 60px rgba(0,0,0,0.2);
+}
+
+.fatura-modal-topbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 20px;
+  border-bottom: 1px solid var(--border);
+  background: #fafafa;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+  position: relative;
+  z-index: 50;
+}
+
+.fatura-list-inner .split-panel {
+  flex: 1;
+  height: 0;
+  min-height: 0;
+}

@@ -271,7 +271,6 @@ function bindModalOutsideClose() {
     };
 
     bindOne('invoiceModal', closeInvoiceModal);
-    bindOne('invoiceDetailModal', closeInvoiceDetailModal);
 }
 
 
@@ -1236,6 +1235,7 @@ async function executeBulkUpload() {
 // --- HAFIZALI (CACHE) TABLO YENİLEME İŞLEMLERİ ---
 
 let allInvoicesCache = null; // Ana Depomuz (Veriler burada tutulacak)
+let currentDetailInvId = null; // Sağ panelde açık olan fatura ID'si
 const INVOICE_CACHE_KEY    = 'inokas_invoices_cache_v2';
 const PAYMENT_CLOSURE_CACHE_KEY = 'inokas_payment_closure_cache_v1';
 const FILTER_STATE_KEY     = 'inokas_filter_state_v1';
@@ -1548,7 +1548,6 @@ function writePaymentClosureToSession(closureMap) {
 
 // 1.(SADECE sayfa açıldığında veya "Yenile"ye basıldığında çalışır)
 async function refreshData(forceFetch = false) {
-    const tableBody = document.getElementById('invoiceTableBody');
     if (!forceFetch) {
         const cachedInvoices = readInvoicesFromSession();
         const cachedClosure = readPaymentClosureFromSession();
@@ -1560,7 +1559,8 @@ async function refreshData(forceFetch = false) {
         }
     }
 
-    tableBody.innerHTML = '<tr><td colspan="7" class="text-center">Faturalar sunucudan yükleniyor...</td></tr>';
+    const cardList = document.getElementById('invoiceCardList');
+    if (cardList) cardList.innerHTML = '<div style="padding:20px; text-align:center; color:#94a3b8; font-size:13px;">Yükleniyor...</div>';
 
     try {
         // Parametre vermiyoruz, tüm faturaları (Gelen+Giden) tek seferde istiyoruz
@@ -1676,9 +1676,7 @@ function renderCurrentView() {
 }
 
 function updateCompanyColumnHeader() {
-    const el = document.getElementById('companyColumnHeader');
-    if (!el) return;
-    el.textContent = currentView === 'gelen' ? 'Gönderen Firma' : 'Alıcı Firma';
+    // Tablo kaldırıldı, kart listesi kullanılıyor — no-op
 }
 
 // Tümünü Göster/Gizle toggle fonksiyonu
@@ -1840,103 +1838,181 @@ function updateSummaryCards(invoices) {
     const container = document.getElementById('summaryCardsContainer');
     if (!container) return;
 
-    const isIncoming = currentView === 'gelen';
     const totals = _sumByCurrency(invoices);
-    const totalQty = _extractTotalQty(invoices);
-    const uniqueSku = _extractUniqueSkuCount(invoices);
-    const closure = _avgClosureDays(invoices);
-    const closureAvgRounded = Math.round(closure.avg || 0);
-
-    const baseForShare = _buildDirectionBaseForShare();
-    const selectedUsdEq = invoices.reduce((a, inv) => a + _invPayableUsdEq(inv), 0);
-    const baseUsdEq = baseForShare.reduce((a, inv) => a + _invPayableUsdEq(inv), 0);
-    const sharePct = baseUsdEq > 0 ? Math.round((selectedUsdEq / baseUsdEq) * 1000) / 10 : 0;
-
-    const tryPaid = totals.TRY.paid;
-    const tryRemain = Math.max(totals.TRY.payable - totals.TRY.paid, 0);
-    const usdPaid = totals.USD.paid;
-    const usdRemain = Math.max(totals.USD.payable - totals.USD.paid, 0);
-
-    const captionPaid = isIncoming ? 'Ödenen' : 'Tahsil Edilen';
-    const captionRemain = isIncoming ? 'Kalan Borç' : 'Kalan Alacak';
-    const closureLabel = isIncoming ? 'Ortalama Odeme Kapanış Günü' : 'Ortalama Tahsilat Kapanış Günü';
-    const shareLabel = 'Firma Payi';
-    const paidCount = invoices.filter(inv => String(inv.status || '').toLowerCase() === 'paid').length;
-    const partialCount = invoices.filter(inv => String(inv.status || '').toLowerCase() === 'partial').length;
-    const unpaidCount = invoices.filter(inv => String(inv.status || 'unpaid').toLowerCase() === 'unpaid').length;
-    const totalCount = Math.max(invoices.length, 1);
-    const paidPct = Math.round((paidCount / totalCount) * 100);
-    const partialPct = Math.round((partialCount / totalCount) * 100);
-    const unpaidPct = Math.round((unpaidCount / totalCount) * 100);
-    const paidLabel = isIncoming ? 'ödendi' : 'tahsil';
-    const partialLabel = 'kısmi';
-    const unpaidLabel = isIncoming ? 'ödenmedi' : 'açık';
 
     container.innerHTML = `
-      <div class="dash-left-stack">
-        <div class="dash-card">
-          <div class="dash-label">Toplam Ürün Adedi</div>
-          <div class="dash-value dash-value--primary">${Number(totalQty || 0).toLocaleString('tr-TR')}</div>
+      <div class="dash-stats-row">
+        <div class="dash-stat-card">
+          <div class="dash-stat-label">USD TOPLAM</div>
+          <div class="dash-stat-value">${_fmtAmount(totals.USD.payable, 'USD')}</div>
         </div>
-        <div class="dash-card">
-          <div class="dash-label">Farklı Ürün Sayısı</div>
-          <div class="dash-value">${uniqueSku.toLocaleString('tr-TR')}</div>
+        <div class="dash-stat-card">
+          <div class="dash-stat-label">TL TOPLAM</div>
+          <div class="dash-stat-value">${_fmtAmount(totals.TRY.payable, 'TRY')}</div>
         </div>
-        <div class="dash-card">
-          <div class="dash-label">${closureLabel}</div>
-          <div class="dash-value dash-value--success">${closureAvgRounded} gun</div>
-        </div>
-      </div>
-
-      <div class="dash-right-top">
-        <div class="dash-card">
-          <div class="dash-label">TRY Özeti</div>
-          <div class="currency-split">
-            <div class="currency-pill"><div class="k">Toplam</div><div class="v">${_fmtAmount(totals.TRY.payable, 'TRY')}</div></div>
-            <div class="currency-pill"><div class="k">${captionPaid}</div><div class="v">${_fmtAmount(tryPaid, 'TRY')}</div></div>
-            <div class="currency-pill"><div class="k">${captionRemain}</div><div class="v">${_fmtAmount(tryRemain, 'TRY')}</div></div>
-          </div>
-        </div>
-        <div class="dash-card">
-          <div class="dash-label">USD Özeti</div>
-          <div class="currency-split">
-            <div class="currency-pill"><div class="k">Toplam</div><div class="v">${_fmtAmount(totals.USD.payable, 'USD')}</div></div>
-            <div class="currency-pill"><div class="k">${captionPaid}</div><div class="v">${_fmtAmount(usdPaid, 'USD')}</div></div>
-            <div class="currency-pill"><div class="k">${captionRemain}</div><div class="v">${_fmtAmount(usdRemain, 'USD')}</div></div>
-          </div>
+        <div class="dash-stat-card">
+          <div class="dash-stat-label">TOPLAM FATURA</div>
+          <div class="dash-stat-value">${invoices.length}</div>
         </div>
       </div>
-
-      <div class="dash-bottom">
-        <div class="dash-card">
-          <div class="dash-label">${shareLabel}</div>
-          <div class="donut-wrap">
-            <div class="donut-chart" style="--pct:${Math.max(0, Math.min(100, sharePct))};">
-              <div class="donut-center">%${sharePct.toFixed(1)}</div>
-            </div>
-          </div>
+      <div class="dash-actions-row">
+        <button class="dash-action-btn dash-action-btn--purple" onclick="openFaturaListModal()">
+          <span class="dash-action-icon">📒</span>
+          <span>Faturaları Göster</span>
+        </button>
+        <button class="dash-action-btn dash-action-btn--green" onclick="openInvoiceModal()">
+          <span class="dash-action-icon">➕</span>
+          <span>Fatura Ekle</span>
+        </button>
+        <button class="dash-action-btn dash-action-btn--orange" onclick="openBulkUploadModal()">
+          <span class="dash-action-icon">✅</span>
+          <span>Toplu XML</span>
+        </button>
+      </div>
+      <div class="dash-charts-section">
+        <div class="dash-chart-card">
+          <div class="dash-chart-title">Aylık Ciro — Giden Faturalar (TL)</div>
+          <canvas id="chartMonthlyRevenue" height="80"></canvas>
         </div>
-        <div class="dash-card">
-          <div class="status-bars">
-            <div class="status-row">
-              <div class="status-label">${paidLabel}</div>
-              <div class="status-track"><div class="status-fill status-fill--paid" style="width:${paidPct}%;"></div></div>
-              <div class="status-count">${paidCount}</div>
-            </div>
-            <div class="status-row">
-              <div class="status-label">${partialLabel}</div>
-              <div class="status-track"><div class="status-fill status-fill--partial" style="width:${partialPct}%;"></div></div>
-              <div class="status-count">${partialCount}</div>
-            </div>
-            <div class="status-row">
-              <div class="status-label">${unpaidLabel}</div>
-              <div class="status-track"><div class="status-fill status-fill--unpaid" style="width:${unpaidPct}%;"></div></div>
-              <div class="status-count">${unpaidCount}</div>
-            </div>
+        <div class="dash-chart-pair">
+          <div class="dash-chart-card">
+            <div class="dash-chart-title">En Çok Kazandıran 5 Müşteri</div>
+            <canvas id="chartTop5Companies" height="160"></canvas>
+          </div>
+          <div class="dash-chart-card">
+            <div class="dash-chart-title">Gelen vs Giden — Aylık (TL)</div>
+            <canvas id="chartGelenGiden" height="160"></canvas>
           </div>
         </div>
       </div>
     `;
+
+    renderDashboardCharts();
+}
+
+let _dashCharts = {};
+
+function renderDashboardCharts() {
+    if (typeof Chart === 'undefined' || !allInvoicesCache) return;
+
+    Object.values(_dashCharts).forEach(c => { try { c?.destroy(); } catch (e) {} });
+    _dashCharts = {};
+
+    const all = allInvoicesCache;
+    const TR = ['Oca','Şub','Mar','Nis','May','Haz','Tem','Ağu','Eyl','Eki','Kas','Ara'];
+    const now = new Date();
+    const last12 = Array.from({ length: 12 }, (_, i) => {
+        const d = new Date(now.getFullYear(), now.getMonth() - (11 - i), 1);
+        return { year: d.getFullYear(), month: d.getMonth(), key: `${d.getFullYear()}-${d.getMonth()}` };
+    });
+    const fmt = v => v >= 1e6 ? (v/1e6).toFixed(1)+'M' : v >= 1e3 ? (v/1e3).toFixed(0)+'K' : String(Math.round(v));
+
+    // Chart 1 — Monthly revenue (OUTGOING)
+    const rev = {};
+    last12.forEach(m => { rev[m.key] = 0; });
+    all.forEach(inv => {
+        if (inv.direction !== 'OUTGOING' || !inv.invoice_date) return;
+        const d = new Date(inv.invoice_date);
+        const k = `${d.getFullYear()}-${d.getMonth()}`;
+        if (k in rev) rev[k] += Number(inv.total_amount_tl || 0);
+    });
+    const c1 = document.getElementById('chartMonthlyRevenue');
+    if (c1) {
+        _dashCharts.rev = new Chart(c1, {
+            type: 'line',
+            data: {
+                labels: last12.map(m => `${TR[m.month]} ${m.year}`),
+                datasets: [{ label: 'Giden (TL)', data: last12.map(m => rev[m.key]),
+                    borderColor: '#2563eb', backgroundColor: 'rgba(37,99,235,0.07)',
+                    borderWidth: 2, pointRadius: 4, pointBackgroundColor: '#2563eb',
+                    fill: true, tension: 0.35 }]
+            },
+            options: { responsive: true, plugins: { legend: { display: false } },
+                scales: { y: { beginAtZero: true, ticks: { callback: fmt } } } }
+        });
+    }
+
+    // Chart 2 — Top 5 companies by OUTGOING total
+    const byCompany = {};
+    all.forEach(inv => {
+        if (inv.direction !== 'OUTGOING') return;
+        const name = inv.companies?.name || 'Bilinmeyen';
+        byCompany[name] = (byCompany[name] || 0) + Number(inv.total_amount_tl || 0);
+    });
+    const top5 = Object.entries(byCompany).sort((a, b) => b[1] - a[1]).slice(0, 5);
+    const shortName = n => n.split(/\s+/).slice(0, 2).join(' ');
+    const c2 = document.getElementById('chartTop5Companies');
+    if (c2) {
+        _dashCharts.top5 = new Chart(c2, {
+            type: 'bar',
+            data: {
+                labels: top5.map(([n]) => shortName(n)),
+                datasets: [{ label: 'Toplam (TL)', data: top5.map(([, v]) => v),
+                    backgroundColor: 'rgba(37,99,235,0.7)', borderColor: '#2563eb',
+                    borderWidth: 1, borderRadius: 6,
+                    datalabels: { display: false } }]
+            },
+            options: {
+                indexAxis: 'y', responsive: true,
+                plugins: { legend: { display: false },
+                    tooltip: { callbacks: { label: ctx => ' ' + new Intl.NumberFormat('tr-TR', { maximumFractionDigits: 0 }).format(ctx.parsed.x) + ' ₺' } } },
+                scales: { x: { beginAtZero: true, ticks: { callback: fmt } } }
+            }
+        });
+    }
+
+    // Chart 3 — Gelen vs Giden monthly
+    const gelen = {}, giden = {};
+    last12.forEach(m => { gelen[m.key] = 0; giden[m.key] = 0; });
+    all.forEach(inv => {
+        if (!inv.invoice_date) return;
+        const d = new Date(inv.invoice_date);
+        const k = `${d.getFullYear()}-${d.getMonth()}`;
+        if (!(k in gelen)) return;
+        if (inv.direction === 'INCOMING') gelen[k] += Number(inv.total_amount_tl || 0);
+        else if (inv.direction === 'OUTGOING') giden[k] += Number(inv.total_amount_tl || 0);
+    });
+    const c3 = document.getElementById('chartGelenGiden');
+    if (c3) {
+        _dashCharts.gg = new Chart(c3, {
+            type: 'bar',
+            data: {
+                labels: last12.map(m => `${TR[m.month]}'${String(m.year).slice(2)}`),
+                datasets: [
+                    { label: 'Gelen', data: last12.map(m => gelen[m.key]),
+                        backgroundColor: 'rgba(249,115,22,0.7)', borderColor: '#f97316',
+                        borderWidth: 1, borderRadius: 4 },
+                    { label: 'Giden', data: last12.map(m => giden[m.key]),
+                        backgroundColor: 'rgba(168,85,247,0.7)', borderColor: '#a855f7',
+                        borderWidth: 1, borderRadius: 4 }
+                ]
+            },
+            options: {
+                responsive: true,
+                plugins: { legend: { position: 'top', labels: { font: { size: 11 }, boxWidth: 12 } } },
+                scales: {
+                    x: { ticks: { font: { size: 10 } } },
+                    y: { beginAtZero: true, ticks: { callback: fmt } }
+                }
+            }
+        });
+    }
+}
+
+function openFaturaListModal() {
+    const modal = document.getElementById('faturaListModal');
+    if (!modal) return;
+    const title = document.getElementById('faturaModalTitle');
+    if (title) title.textContent = currentView === 'gelen' ? 'Gelen Faturalar' : 'Giden Faturalar';
+    modal.style.display = 'flex';
+    setInteracted(true);
+    renderCurrentView();
+}
+
+function closeFaturaListModal() {
+    const modal = document.getElementById('faturaListModal');
+    if (modal) modal.style.display = 'none';
+    closeInvoiceDetailModal();
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -2089,60 +2165,39 @@ function _outsideCompanyClick(e) {
 
 
 
-// 2. Sunum: Gelen verileri HTML tablosuna dönüştürür
+// 2. Sunum: Fatura kartlarını sol listeye render eder
 function renderInvoiceTable(invoices) {
-    const tableBody = document.getElementById('invoiceTableBody');
-    tableBody.innerHTML = ''; // Önce tabloyu temizle
+    const cardList = document.getElementById('invoiceCardList');
+    if (!cardList) return;
+    cardList.innerHTML = '';
 
     if (invoices.length === 0) {
-        tableBody.innerHTML = '<tr><td colspan="7" style="padding:40px; text-align:center; color:#94a3b8;">Lütfen faturaları görmek için arama yapın ya da filtreleme özelliklerini kullanın.</td></tr>';
+        cardList.innerHTML = '<div style="padding:40px 20px; text-align:center; color:#94a3b8; font-size:13px;">Lütfen faturaları görmek için arama yapın ya da filtreleme özelliklerini kullanın.</div>';
         return;
     }
 
     invoices.forEach(inv => {
-        const row = document.createElement('tr');
+        const card = document.createElement('div');
+        card.className = 'invoice-card';
+        if (inv.id === currentDetailInvId) card.classList.add('active');
+        card.dataset.invId = inv.id;
+        card.onclick = () => viewInvoiceDetails(inv.id);
 
-        // YENİ: Satırın her milimetrekaresini Tıklanabilir (Buton) yapıyoruz
-        row.style.cursor = "pointer";
-        row.onclick = () => viewInvoiceDetails(inv.id);
-
-        // Durum butonunun rengini ayarlamak (DB lowercase veya Capitalize olabilir → normalize et)
         const normStatus = (inv.status || '').toLowerCase();
-        let statusHtml = '<span class="status-badge warning">Ödenmedi</span>';
-        if (normStatus === 'paid') statusHtml = '<span class="status-badge success">Ödendi</span>';
-        else if (normStatus === 'partial') statusHtml = '<span class="status-badge info">Kısmi</span>';
+        const statusColor = normStatus === 'paid' ? '#059669' : normStatus === 'partial' ? '#d97706' : '#ef4444';
+        const companyName = inv.companies?.name || 'Bilinmeyen Firma';
+        const totalDisplay = formatMoneyDisplay(inv, invPayableAmountSrc(inv));
 
-        const netSrc = invNetAmountSrc(inv);
-        const taxSrc = invTaxAmountSrc(inv);
-        const totalSrc = invPayableAmountSrc(inv);
-        
-
-        // Gelen/Giden durumuna göre Gönderen ve Alıcıyı belirliyoruz
-        let senderName = "";
-        let receiverName = "";
-
-        if (inv.direction === 'INCOMING') {
-            senderName = inv.companies?.name || 'Bilinmeyen Firma';
-            receiverName = 'İNOKAS'; // Uzun isme gerek yok, tablo şık kalsın
-        } else {
-            senderName = 'İNOKAS';   // Uzun isme gerek yok, tablo şık kalsın
-            receiverName = inv.companies?.name || 'Bilinmeyen Firma';
-        }
-
-        // Tabloyu tek "Firma" kolonu ile sade gösteriyoruz:
-        // Gelen: gönderen firma | Giden: alıcı firma
-        const companyName = inv.direction === 'INCOMING' ? senderName : receiverName;
-
-        row.innerHTML = `
-            <td><strong>${inv.invoice_no}</strong></td>
-            <td><strong>${companyName}</strong></td>
-            <td>${inv.invoice_date}</td>
-            <td class="text-right">${formatMoneyDisplay(inv, netSrc)}</td>
-            <td class="text-right">${formatMoneyDisplay(inv, taxSrc)}</td>
-            <td class="text-right"><strong>${formatMoneyDisplay(inv, totalSrc)}</strong></td>
-            <td>${statusHtml}</td>
+        card.innerHTML = `
+            <div class="invoice-card-header">
+                <span class="invoice-card-no">${inv.invoice_no}</span>
+                <span class="invoice-card-dot" style="background:${statusColor};"></span>
+            </div>
+            <div class="invoice-card-company">${companyName}</div>
+            <div class="invoice-card-amount">${totalDisplay}</div>
+            <div class="invoice-card-date">${inv.invoice_date || ''}</div>
         `;
-        tableBody.appendChild(row);
+        cardList.appendChild(card);
     });
 }
 
@@ -2161,7 +2216,89 @@ function renderInvoiceTable(invoices) {
 
 
 function closeInvoiceDetailModal() {
-    document.getElementById('invoiceDetailModal').style.display = 'none';
+    document.getElementById('detailContent').style.display = 'none';
+    document.getElementById('detailEmptyState').style.display = 'flex';
+    currentDetailInvId = null;
+    document.querySelectorAll('.invoice-card.active').forEach(c => c.classList.remove('active'));
+}
+
+// ─── DETAY PANELİ TAB & PDF ───────────────────────────────────────────────────
+
+let lastActiveDetailTab = 1; // Tab 1 = PDF (varsayılan)
+
+function switchDetailTab(n) {
+    const btn1 = document.getElementById('detailTabBtn1');
+    const btn2 = document.getElementById('detailTabBtn2');
+    const tab1 = document.getElementById('detailTab1');
+    const tab2 = document.getElementById('detailTab2');
+    if (!btn1 || !btn2 || !tab1 || !tab2) return;
+
+    lastActiveDetailTab = n;
+    btn1.classList.toggle('active', n === 1);
+    btn2.classList.toggle('active', n === 2);
+    tab1.style.display = n === 1 ? 'flex' : 'none'; // Tab 1 = PDF (flex)
+    tab2.style.display = n === 2 ? 'block' : 'none'; // Tab 2 = Fatura Detayları (block)
+
+    if (n === 1) loadPdfTab();
+}
+
+async function loadPdfTab() {
+    const inv = currentDetailInvId ? (allInvoicesCache || []).find(i => i.id === currentDetailInvId) : null;
+    const noXml    = document.getElementById('pdfNoXml');
+    const loading  = document.getElementById('pdfLoading');
+    const iframe   = document.getElementById('pdfDetailIframe');
+    if (!noXml || !loading || !iframe) return;
+
+    noXml.style.display   = 'none';
+    loading.style.display = 'none';
+    iframe.style.display  = 'none';
+
+    if (!inv || !inv.xml_url || inv.approval_status !== 'pending') {
+        noXml.style.display = 'flex';
+        return;
+    }
+
+    loading.style.display = 'flex';
+    try {
+        const res = await fetch(inv.xml_url);
+        if (!res.ok) throw new Error('XML dosyası alınamadı (' + res.status + ')');
+        const xmlText = await res.text();
+        await renderXmlToPdfIframe(xmlText, iframe);
+        loading.style.display = 'none';
+        iframe.style.display  = 'block';
+    } catch (err) {
+        loading.style.display = 'none';
+        const msgEl = noXml.querySelector('p');
+        if (msgEl) msgEl.textContent = 'Hata: ' + err.message;
+        noXml.style.display = 'flex';
+    }
+}
+
+async function renderXmlToPdfIframe(xmlString, iframe) {
+    const parser  = new DOMParser();
+    const xmlDoc  = parser.parseFromString(xmlString, 'text/xml');
+
+    const nodes = xmlDoc.getElementsByTagName('cbc:EmbeddedDocumentBinaryObject');
+    let base64Xslt = null;
+    for (let i = 0; i < nodes.length; i++) {
+        const fn = nodes[i].getAttribute('filename') || '';
+        if (fn.toLowerCase().endsWith('.xslt')) { base64Xslt = nodes[i].textContent; break; }
+    }
+    if (!base64Xslt && nodes.length > 0) base64Xslt = nodes[0].textContent;
+    if (!base64Xslt) throw new Error('XML içinde XSLT şablonu bulunamadı.');
+
+    const decodedXslt = decodeURIComponent(escape(window.atob(base64Xslt))).replace(/^﻿/, '');
+    const xsltDoc     = parser.parseFromString(decodedXslt, 'text/xml');
+    const proc        = new XSLTProcessor();
+    proc.importStylesheet(xsltDoc);
+    const fragment = proc.transformToFragment(xmlDoc, document);
+    if (!fragment) throw new Error('XSLT dönüşümü başarısız oldu.');
+
+    const html      = new XMLSerializer().serializeToString(fragment);
+    const iframeDoc = iframe.contentDocument || iframe.contentWindow.document;
+    iframeDoc.open();
+    iframeDoc.write(html);
+    iframeDoc.close();
 }
 
 // ─── ÖDEME GEÇMİŞİ FONKSİYONLARI ────────────────────────────────────────────
@@ -2537,7 +2674,12 @@ async function viewInvoiceDetails(id) {
         };
     }
 
-    document.getElementById('invoiceDetailModal').style.display = 'flex';
+    // Paneli aç, aktif kartı işaretle
+    currentDetailInvId = id;
+    document.getElementById('detailEmptyState').style.display = 'none';
+    document.getElementById('detailContent').style.display = 'flex';
+    document.querySelectorAll('.invoice-card').forEach(c => c.classList.toggle('active', c.dataset.invId === id));
+    switchDetailTab(lastActiveDetailTab);
 }
 
 

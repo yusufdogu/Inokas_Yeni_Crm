@@ -250,13 +250,11 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     // filterCompany artık hidden input, değişikliği _setCompanyValue içinde yönetiliyor
-    document.getElementById('filterYear')?.addEventListener('change', onFilterChange);
-    document.getElementById('filterMonth')?.addEventListener('change', onFilterChange);
+    document.getElementById('filterDateStart')?.addEventListener('change', onFilterChange);
+    document.getElementById('filterDateEnd')?.addEventListener('change', onFilterChange);
     document.getElementById('filterStatus')?.addEventListener('change', onFilterChange);
     document.getElementById('filterCurrency')?.addEventListener('change', onFilterChange);
     document.getElementById('mainSearch')?.addEventListener('input', onFilterChange);
-    document.getElementById('filterCategory')?.addEventListener('change', onFilterChange);
-    document.getElementById('filterProduct')?.addEventListener('input', onFilterChange);
 });
 
 function bindModalOutsideClose() {
@@ -1250,13 +1248,13 @@ function saveFilterState() {
     try {
         const state = {
             company:      document.getElementById('filterCompany')?.value || '',
-            year:         document.getElementById('filterYear')?.value || '',
-            month:        document.getElementById('filterMonth')?.value || '',
+            dateStart:    document.getElementById('filterDateStart')?.value || '',
+            dateEnd:      document.getElementById('filterDateEnd')?.value || '',
             status:       document.getElementById('filterStatus')?.value || '',
             currency:     document.getElementById('filterCurrency')?.value || '',
             search:       document.getElementById('mainSearch')?.value || '',
-            category:     document.getElementById('filterCategory')?.value || '',
             product:      document.getElementById('filterProduct')?.value || '',
+            productLabel: document.getElementById('productDropdownLabel')?.textContent || 'Tüm Ürünler',
             companyLabel: document.getElementById('companyDropdownLabel')?.textContent || 'Firmalar',
             showAllGelen:     showAllState.gelen,
             showAllGiden:     showAllState.giden,
@@ -1275,13 +1273,17 @@ function restoreFilterState() {
         if (!raw) return;
         const s = JSON.parse(raw);
 
-        if (s.year)     { const el = document.getElementById('filterYear');     if (el) el.value = s.year; }
-        if (s.month)    { const el = document.getElementById('filterMonth');    if (el) el.value = s.month; }
-        if (s.status)   { const el = document.getElementById('filterStatus');   if (el) el.value = s.status; }
-        if (s.currency) { const el = document.getElementById('filterCurrency'); if (el) el.value = s.currency; }
-        if (s.search)   { const el = document.getElementById('mainSearch');     if (el) el.value = s.search; }
-        if (s.category) { const el = document.getElementById('filterCategory'); if (el) el.value = s.category; }
-        if (s.product)  { const el = document.getElementById('filterProduct');  if (el) el.value = s.product; }
+        if (s.dateStart) { const el = document.getElementById('filterDateStart'); if (el) el.value = s.dateStart; }
+        if (s.dateEnd)   { const el = document.getElementById('filterDateEnd');   if (el) el.value = s.dateEnd; }
+        if (s.status)    { const el = document.getElementById('filterStatus');    if (el) el.value = s.status; }
+        if (s.currency)  { const el = document.getElementById('filterCurrency');  if (el) el.value = s.currency; }
+        if (s.search)    { const el = document.getElementById('mainSearch');      if (el) el.value = s.search; }
+        if (s.product !== undefined) {
+            const hidden = document.getElementById('filterProduct');
+            const label  = document.getElementById('productDropdownLabel');
+            if (hidden) hidden.value = s.product;
+            if (label)  label.textContent = s.productLabel || (s.product || 'Tüm Ürünler');
+        }
 
         if (s.company !== undefined) {
             const hidden = document.getElementById('filterCompany');
@@ -1624,13 +1626,12 @@ function renderCurrentView() {
 
     // C. Filtreleri her durumda oku: dashboard daima filtreye göre güncellensin
     const companySelected = document.getElementById('filterCompany').value;
-    const yearSelected = document.getElementById('filterYear').value;
-    const monthSelected = document.getElementById('filterMonth').value;
+    const dateStart = document.getElementById('filterDateStart')?.value || '';
+    const dateEnd   = document.getElementById('filterDateEnd')?.value || '';
     const statusSelected = document.getElementById('filterStatus').value;
     const currencySelected = normalizeCurrencyCode(document.getElementById('filterCurrency').value);
     const searchText = document.getElementById('mainSearch').value;
-    const categorySelected = (document.getElementById('filterCategory')?.value || '').trim();
-    const productSearch = (document.getElementById('filterProduct')?.value || '').toLocaleLowerCase('tr-TR');
+    const productSelected = document.getElementById('filterProduct')?.value || '';
 
     // Arama metnini normalize et
     const searchTextLower = searchText.toLocaleLowerCase('tr-TR');
@@ -1651,29 +1652,19 @@ function renderCurrentView() {
         const valStatus = (inv.status || 'unpaid').toLowerCase();
         const matchStatus = !statusSelected || valStatus === statusSelected;
 
-        let matchYear = true;
-        let matchMonth = true;
-        if (yearSelected || monthSelected) {
-            const d = new Date(inv.invoice_date);
-            if (yearSelected) matchYear = d.getFullYear().toString() === yearSelected;
-            if (monthSelected) {
-                const faturaAyi = String(d.getMonth() + 1).padStart(2, '0');
-                matchMonth = faturaAyi === monthSelected;
-            }
+        let matchDate = true;
+        if (dateStart || dateEnd) {
+            const d = inv.invoice_date || '';
+            if (dateStart && d < dateStart) matchDate = false;
+            if (dateEnd   && d > dateEnd)   matchDate = false;
         }
 
-        const matchCategory = !categorySelected || (inv.invoice_items || []).some(it => {
-            const code = normalizeProductCodeForMatch(it.product_code || it.sku || '');
-            const cat = productCategoryByCodeMap.get(code) || String(it.internal_category || '').trim();
-            return cat.toLocaleLowerCase('tr-TR') === categorySelected.toLocaleLowerCase('tr-TR');
-        });
-
-        const matchProduct = !productSearch || (inv.invoice_items || []).some(it =>
-            String(it.product_code || it.sku || '').toLocaleLowerCase('tr-TR').includes(productSearch) ||
-            String(it.product_name || '').toLocaleLowerCase('tr-TR').includes(productSearch)
+        const matchProduct = !productSelected || (inv.invoice_items || []).some(it =>
+            String(it.product_code || it.sku || '').toLocaleLowerCase('tr-TR').includes(productSelected.toLocaleLowerCase('tr-TR')) ||
+            String(it.product_name || '').toLocaleLowerCase('tr-TR').includes(productSelected.toLocaleLowerCase('tr-TR'))
         );
 
-        return matchCompany && matchCurrency && matchSearch && matchStatus && matchYear && matchMonth && matchCategory && matchProduct;
+        return matchCompany && matchCurrency && matchSearch && matchStatus && matchDate && matchProduct;
     });
 
     // C2. Kullanıcı bu sekmede henüz bir şeye dokunmadıysa → tablo boş kalsın.
@@ -1711,17 +1702,14 @@ function toggleShowAll() {
     if (isShowAll()) {
         // Açıldı → filtreleri temizle; dashboard da tüm sekme verisine dönsün.
         document.getElementById('filterCompany').value = '';
-        document.getElementById('filterYear').value = '';
-        document.getElementById('filterMonth').value = '';
+        const elDs = document.getElementById('filterDateStart'); if (elDs) elDs.value = '';
+        const elDe = document.getElementById('filterDateEnd');   if (elDe) elDe.value = '';
         document.getElementById('filterStatus').value = '';
         document.getElementById('filterCurrency').value = '';
         document.getElementById('mainSearch').value = '';
-        const elCat = document.getElementById('filterCategory');
-        if (elCat) elCat.value = '';
-        const elProd = document.getElementById('filterProduct');
-        if (elProd) elProd.value = '';
-        const lbl = document.getElementById('companyDropdownLabel');
-        if (lbl) lbl.textContent = 'Firmalar';
+        const elProd = document.getElementById('filterProduct'); if (elProd) elProd.value = '';
+        const elProdLbl = document.getElementById('productDropdownLabel'); if (elProdLbl) elProdLbl.textContent = 'Tüm Ürünler';
+        const lbl = document.getElementById('companyDropdownLabel'); if (lbl) lbl.textContent = 'Firmalar';
         btn.innerText = 'Tümünü Gizle';
     } else {
         // Kapatıldı → bu sekme başlangıç durumuna dönsün
@@ -2033,10 +2021,7 @@ function openFaturaListModal() {
     if (title) title.textContent = currentView === 'gelen' ? 'Gelen Faturalar' : 'Giden Faturalar';
     modal.style.display = 'flex';
     setInteracted(true);
-    ensureProductCategoryLookupLoaded().then(() => {
-        populateCategoryFilter();
-        renderCurrentView();
-    }).catch(() => renderCurrentView());
+    renderCurrentView();
 }
 
 function closeFaturaListModal() {
@@ -2045,91 +2030,304 @@ function closeFaturaListModal() {
     closeInvoiceDetailModal();
 }
 
-function populateCategoryFilter() {
-    const sel = document.getElementById('filterCategory');
-    if (!sel) return;
-    const current = sel.value;
-    sel.innerHTML = '<option value="">Tüm Kategoriler</option>';
-    productCategoryOptionList.forEach(cat => {
-        const opt = document.createElement('option');
-        opt.value = cat;
-        opt.textContent = cat;
-        if (cat === current) opt.selected = true;
-        sel.appendChild(opt);
+// ─── ÜRÜN DROPDOWN (firma dropdown ile aynı mantık) ───────────────────────────
+
+let _productList = [];
+
+function _buildProductList() {
+    if (!allInvoicesCache) return;
+    const map = new Map();
+    allInvoicesCache.forEach(inv => {
+        (inv.invoice_items || []).forEach(item => {
+            const code = String(item.product_code || item.sku || '').trim();
+            const name = String(item.product_name || '').trim();
+            if (!name && !code) return;
+            const key = code || name;
+            if (!map.has(key)) map.set(key, { code, name });
+        });
     });
+    _productList = [...map.values()].sort((a, b) =>
+        (a.name || a.code).localeCompare(b.name || b.code, 'tr-TR')
+    );
 }
 
-let _listCharts = {};
+function _renderProductList(query) {
+    const list = document.getElementById('productDropdownList');
+    if (!list) return;
+    const currentVal = document.getElementById('filterProduct')?.value || '';
+    const filtered = query
+        ? _productList.filter(p =>
+            (p.name + ' ' + p.code).toLocaleLowerCase('tr-TR').includes(query))
+        : _productList;
 
-function renderListModalCharts(invoices) {
-    if (typeof Chart === 'undefined') return;
+    list.innerHTML = '';
+    const allLi = document.createElement('li');
+    allLi.textContent = 'Tüm Ürünler';
+    allLi.className = 'all-option' + (currentVal === '' ? ' selected' : '');
+    allLi.onclick = () => _setProductValue('', 'Tüm Ürünler');
+    list.appendChild(allLi);
 
-    Object.values(_listCharts).forEach(c => { try { c?.destroy(); } catch(e) {} });
-    _listCharts = {};
+    filtered.slice(0, 80).forEach(p => {
+        const li = document.createElement('li');
+        const display = p.name || p.code;
+        li.textContent = display;
+        if (p.code && p.name && p.code !== p.name) {
+            li.title = p.code;
+        }
+        if (currentVal === p.code || currentVal === p.name) li.classList.add('selected');
+        li.onclick = () => _setProductValue(p.code || p.name, display);
+        list.appendChild(li);
+    });
 
-    const emptyEl  = document.getElementById('listChartsEmpty');
+    if (filtered.length === 0 && query) {
+        const empty = document.createElement('li');
+        empty.textContent = 'Sonuç bulunamadı';
+        empty.style.cssText = 'color:#94a3b8; cursor:default; pointer-events:none;';
+        list.appendChild(empty);
+    }
+}
+
+function filterProductDropdown() {
+    const q = (document.getElementById('productDropdownSearch')?.value || '').toLocaleLowerCase('tr-TR');
+    _renderProductList(q);
+}
+
+function toggleProductDropdown() {
+    const panel  = document.getElementById('productDropdownPanel');
+    const search = document.getElementById('productDropdownSearch');
+    if (!panel) return;
+    const isOpen = panel.style.display !== 'none';
+    if (isOpen) {
+        _closeProductDropdown();
+    } else {
+        _buildProductList();
+        panel.style.display = 'block';
+        if (search) { search.value = ''; search.focus(); }
+        _renderProductList('');
+        setTimeout(() => document.addEventListener('click', _outsideProductClick), 0);
+    }
+}
+
+function _closeProductDropdown() {
+    const panel = document.getElementById('productDropdownPanel');
+    if (panel) panel.style.display = 'none';
+    document.removeEventListener('click', _outsideProductClick);
+}
+
+function _outsideProductClick(e) {
+    const wrap = document.getElementById('productDropdownWrap');
+    if (wrap && !wrap.contains(e.target)) _closeProductDropdown();
+}
+
+function _setProductValue(val, label) {
+    const hidden = document.getElementById('filterProduct');
+    const btn    = document.getElementById('productDropdownBtn');
+    const lbl    = document.getElementById('productDropdownLabel');
+    if (hidden) hidden.value = val;
+    if (lbl)    lbl.textContent = label || 'Tüm Ürünler';
+    if (btn)    btn.style.color = val ? '#0f172a' : '#374151';
+    _closeProductDropdown();
+    setInteracted(true);
+    if (isShowAll()) {
+        setShowAll(false);
+        const tog = document.getElementById('btnToggleShowAll');
+        if (tog) tog.innerText = 'Tümünü Göster';
+    }
+    saveFilterState();
+    renderCurrentView();
+}
+
+// ─── STOK / FIFO CACHE ────────────────────────────────────────────────────────
+
+let _stocksSummaryCache = null;
+let _stocksSummaryFetchedAt = 0;
+const STOCKS_CACHE_TTL_MS = 5 * 60 * 1000;
+
+async function ensureStocksSummaryLoaded() {
+    const now = Date.now();
+    if (_stocksSummaryCache && (now - _stocksSummaryFetchedAt) < STOCKS_CACHE_TTL_MS) return;
+    const res = await fetch('/api/stocks/summary');
+    if (!res.ok) throw new Error('Stok özeti alınamadı');
+    _stocksSummaryCache = await res.json();
+    _stocksSummaryFetchedAt = Date.now();
+}
+
+// ─── RAPOR PANELİ ─────────────────────────────────────────────────────────────
+
+let _reportOpenDetailTr = null;
+
+async function renderReportPanel(invoices) {
+    const emptyEl   = document.getElementById('listChartsEmpty');
     const contentEl = document.getElementById('listChartsContent');
     if (!emptyEl || !contentEl) return;
 
     if (!invoices || invoices.length === 0) {
-        emptyEl.style.display  = 'flex';
+        emptyEl.style.display   = 'flex';
         contentEl.style.display = 'none';
+        _reportOpenDetailTr = null;
         return;
     }
 
-    emptyEl.style.display  = 'none';
+    emptyEl.style.display   = 'none';
     contentEl.style.display = 'flex';
 
+    const isGiden = currentView === 'giden';
+    const fmt = n => n.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+    // Ürün bazlı aggregate
     const productMap = new Map();
     invoices.forEach(inv => {
         const rate  = invCalculationRate(inv);
         const isUSD = invBaseCurrencyIso(inv) !== 'TRY';
         (inv.invoice_items || []).forEach(item => {
-            const name = (String(item.product_name || item.product_code || '').trim());
+            const code = String(item.product_code || item.sku || '').trim();
+            const name = String(item.product_name || code || '').trim();
             if (!name || name.toUpperCase().includes('KARGO')) return;
-            const qty  = parseFloat(item.quantity) || 0;
-            const cur  = parseFloat(item.total_price_cur) || 0;
-            const usd  = isUSD ? cur : (rate > 0 ? cur / rate : 0);
-            const prev = productMap.get(name) || { qty: 0, usd: 0 };
-            productMap.set(name, { qty: prev.qty + qty, usd: prev.usd + usd });
+            const key = code || name;
+            const qty = parseFloat(item.quantity) || 0;
+            const cur = parseFloat(item.total_price_cur) || 0;
+            const usd = isUSD ? cur : (rate > 0 ? cur / rate : 0);
+            const dir = inv.direction;
+            const compName = inv.companies?.name || 'Bilinmeyen';
+
+            const prev = productMap.get(key) || { code, name, inQty: 0, outQty: 0, inUsd: 0, outUsd: 0, companies: new Map() };
+            if (dir === 'INCOMING') { prev.inQty += qty; prev.inUsd += usd; }
+            else                    { prev.outQty += qty; prev.outUsd += usd; }
+            const pc = prev.companies.get(compName) || { qty: 0, usd: 0 };
+            if (dir === 'INCOMING') { pc.qty += qty; pc.usd += usd; }
+            else                    { pc.qty += qty; pc.usd += usd; }
+            prev.companies.set(compName, pc);
+            productMap.set(key, prev);
         });
     });
 
-    const sorted = [...productMap.entries()].sort((a, b) => b[1].usd - a[1].usd).slice(0, 10);
-    const labels  = sorted.map(([n]) => n.length > 28 ? n.slice(0, 26) + '…' : n);
-    const qtyData = sorted.map(([, v]) => v.qty);
-    const usdData = sorted.map(([, v]) => Math.round(v.usd * 100) / 100);
+    const sorted = [...productMap.values()].sort((a, b) =>
+        (isGiden ? b.outUsd - a.outUsd : b.inUsd - a.inUsd)
+    );
 
-    const chartOpts = (label, color) => ({
-        type: 'bar',
-        options: {
-            indexAxis: 'y',
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: { legend: { display: false } },
-            scales: {
-                x: { beginAtZero: true, ticks: { font: { size: 11 } } },
-                y: { ticks: { font: { size: 11 } } }
+    // FIFO kâr (sadece giden)
+    const fifoMap = new Map();
+    if (isGiden) {
+        try {
+            await ensureStocksSummaryLoaded();
+            (_stocksSummaryCache?.products || []).forEach(p => {
+                fifoMap.set(String(p.product_code || '').trim().toUpperCase(), parseFloat(p.fifo_gross_profit_usd) || 0);
+            });
+        } catch(e) { /* sessizce geç */ }
+    }
+
+    // KPI satırı
+    const totalCompanies = new Set(invoices.map(i => i.companies?.name).filter(Boolean)).size;
+    const totalInQty  = sorted.reduce((s, p) => s + p.inQty, 0);
+    const totalOutQty = sorted.reduce((s, p) => s + p.outQty, 0);
+    const totalUsd    = sorted.reduce((s, p) => s + (isGiden ? p.outUsd : p.inUsd), 0);
+    const totalFifo   = isGiden ? [...fifoMap.values()].reduce((s, v) => s + v, 0) : null;
+
+    const summaryEl = document.getElementById('reportSummary');
+    if (summaryEl) {
+        const fifoClass = isGiden && totalFifo !== null
+            ? (totalFifo >= 0 ? 'report-kpi--profit' : 'report-kpi--loss')
+            : '';
+        summaryEl.innerHTML = `
+            <div class="report-kpi"><div class="report-kpi-label">FATURA</div><div class="report-kpi-value">${invoices.length}</div></div>
+            <div class="report-kpi"><div class="report-kpi-label">FİRMA</div><div class="report-kpi-value">${totalCompanies}</div></div>
+            <div class="report-kpi"><div class="report-kpi-label">ALINAN ADET</div><div class="report-kpi-value">${totalInQty.toLocaleString('tr-TR')}</div></div>
+            <div class="report-kpi"><div class="report-kpi-label">SATILAN ADET</div><div class="report-kpi-value">${totalOutQty.toLocaleString('tr-TR')}</div></div>
+            <div class="report-kpi report-kpi--money"><div class="report-kpi-label">${isGiden ? 'CİRO' : 'HARCAMA'} USD</div><div class="report-kpi-value">$${fmt(totalUsd)}</div></div>
+            ${isGiden && totalFifo !== null ? `<div class="report-kpi ${fifoClass}"><div class="report-kpi-label">FIFO KÂR</div><div class="report-kpi-value">$${fmt(totalFifo)}</div></div>` : ''}
+        `;
+    }
+
+    // Tablo başlığı
+    const thead = document.getElementById('reportThead');
+    if (thead) {
+        thead.innerHTML = `<tr class="report-thead-row">
+            <th class="report-th report-th-name">ÜRÜN</th>
+            <th class="report-th report-th-num">ALINAN</th>
+            <th class="report-th report-th-num">SATILAN</th>
+            <th class="report-th report-th-num">${isGiden ? 'CİRO USD' : 'HARCAMA USD'}</th>
+            ${isGiden ? '<th class="report-th report-th-num">FIFO KÂR</th>' : ''}
+        </tr>`;
+    }
+
+    // Tablo gövdesi
+    const tbody = document.getElementById('reportTableBody');
+    if (!tbody) return;
+    tbody.innerHTML = '';
+    _reportOpenDetailTr = null;
+
+    sorted.forEach(prod => {
+        const mainUsd = isGiden ? prod.outUsd : prod.inUsd;
+        const codeKey = prod.code.toUpperCase();
+        const fifoProfit = isGiden ? (fifoMap.has(codeKey) ? fifoMap.get(codeKey) : null) : null;
+        const companies  = [...prod.companies.entries()].sort((a, b) => b[1].usd - a[1].usd);
+        const colSpan    = isGiden ? 5 : 4;
+
+        // Ana satır
+        const tr = document.createElement('tr');
+        tr.className = 'report-row';
+        const fifoCell = isGiden
+            ? `<td class="report-td report-td-num ${fifoProfit !== null ? (fifoProfit >= 0 ? 'report-profit' : 'report-loss') : ''}">${fifoProfit !== null ? '$' + fmt(fifoProfit) : '—'}</td>`
+            : '';
+        tr.innerHTML = `
+            <td class="report-td report-td-name">
+                <span class="report-chevron">›</span>
+                <span class="report-prod-name">${prod.name}</span>
+                ${prod.code && prod.code !== prod.name ? `<span class="report-prod-code">${prod.code}</span>` : ''}
+            </td>
+            <td class="report-td report-td-num">${prod.inQty.toLocaleString('tr-TR')}</td>
+            <td class="report-td report-td-num">${prod.outQty.toLocaleString('tr-TR')}</td>
+            <td class="report-td report-td-num report-td-money">$${fmt(mainUsd)}</td>
+            ${fifoCell}
+        `;
+
+        // Detay satırı (accordion)
+        const detailTr = document.createElement('tr');
+        detailTr.className = 'report-detail-row';
+        detailTr.style.display = 'none';
+
+        const totalForPct = mainUsd || 1;
+        const compRowsHtml = companies.map(([name, data]) => {
+            const pct = ((data.usd / totalForPct) * 100).toFixed(1);
+            return `<tr class="report-comp-row">
+                <td class="report-comp-td report-comp-name">${name}</td>
+                <td class="report-comp-td report-comp-num">${data.qty.toLocaleString('tr-TR')}</td>
+                <td class="report-comp-td report-comp-num">$${fmt(data.usd)}</td>
+                <td class="report-comp-td report-comp-pct">${pct}%</td>
+                ${isGiden ? '<td></td>' : ''}
+            </tr>`;
+        }).join('');
+
+        detailTr.innerHTML = `<td colspan="${colSpan}" class="report-detail-cell">
+            <table class="report-comp-table">
+                <thead>
+                    <tr class="report-comp-head">
+                        <th class="report-comp-th">${isGiden ? 'MÜŞTERİ' : 'TEDARİKÇİ'}</th>
+                        <th class="report-comp-th report-comp-num">ADET</th>
+                        <th class="report-comp-th report-comp-num">USD</th>
+                        <th class="report-comp-th report-comp-num">PAY</th>
+                        ${isGiden ? '<th></th>' : ''}
+                    </tr>
+                </thead>
+                <tbody>${compRowsHtml}</tbody>
+            </table>
+        </td>`;
+
+        tr.onclick = () => {
+            if (_reportOpenDetailTr && _reportOpenDetailTr !== detailTr) {
+                _reportOpenDetailTr.style.display = 'none';
+                const prevTr = _reportOpenDetailTr.previousElementSibling;
+                if (prevTr) prevTr.querySelector('.report-chevron')?.classList.remove('open');
             }
-        },
-        data: {
-            labels,
-            datasets: [{ label, data: [], backgroundColor: color, borderRadius: 4 }]
-        }
-    });
+            const isOpen = detailTr.style.display !== 'none';
+            detailTr.style.display = isOpen ? 'none' : 'table-row';
+            tr.querySelector('.report-chevron')?.classList.toggle('open', !isOpen);
+            _reportOpenDetailTr = isOpen ? null : detailTr;
+        };
 
-    const c1 = document.getElementById('listChartQty');
-    if (c1) {
-        const cfg = chartOpts('Miktar', '#3b82f6');
-        cfg.data.datasets[0].data = qtyData;
-        _listCharts.qty = new Chart(c1, cfg);
-    }
-    const c2 = document.getElementById('listChartRevenue');
-    if (c2) {
-        const cfg = chartOpts('USD', '#10b981');
-        cfg.data.datasets[0].data = usdData;
-        _listCharts.rev = new Chart(c2, cfg);
-    }
+        tbody.appendChild(tr);
+        tbody.appendChild(detailTr);
+    });
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -2288,7 +2486,7 @@ function renderInvoiceTable(invoices) {
     if (!cardList) return;
     cardList.innerHTML = '';
 
-    renderListModalCharts(invoices);
+    renderReportPanel(invoices);
 
     if (invoices.length === 0) {
         cardList.innerHTML = '<div style="padding:40px 20px; text-align:center; color:#94a3b8; font-size:13px;">Lütfen faturaları görmek için arama yapın ya da filtreleme özelliklerini kullanın.</div>';

@@ -77,22 +77,9 @@
           </div>
           <input type="hidden" id="filterCompany" value="">
 
-          <select id="filterYear" onchange="renderCurrentView()" style="padding:8px 10px; border:1px solid #e2e8f0; border-radius:8px; font-size:13px; outline:none;">
-            <option value="" disabled selected>Yıllar</option>
-            <option value="">Tüm Yıllar</option>
-            <option value="2026">2026</option>
-            <option value="2025">2025</option>
-            <option value="2024">2024</option>
-          </select>
-
-          <select id="filterMonth" onchange="renderCurrentView()" style="padding:8px 10px; border:1px solid #e2e8f0; border-radius:8px; font-size:13px; outline:none;">
-            <option value="" disabled selected>Aylar</option>
-            <option value="">Tüm Aylar</option>
-            <option value="01">Ocak</option><option value="02">Şubat</option><option value="03">Mart</option>
-            <option value="04">Nisan</option><option value="05">Mayıs</option><option value="06">Haziran</option>
-            <option value="07">Temmuz</option><option value="08">Ağustos</option><option value="09">Eylül</option>
-            <option value="10">Ekim</option><option value="11">Kasım</option><option value="12">Aralık</option>
-          </select>
+          <input type="date" id="filterDateStart" onchange="renderCurrentView()" style="padding:7px 10px; border:1px solid #e2e8f0; border-radius:8px; font-size:13px; outline:none;" title="Başlangıç tarihi">
+          <span style="color:#94a3b8; font-size:13px; flex-shrink:0;">—</span>
+          <input type="date" id="filterDateEnd" onchange="renderCurrentView()" style="padding:7px 10px; border:1px solid #e2e8f0; border-radius:8px; font-size:13px; outline:none;" title="Bitiş tarihi">
 
           <select id="filterStatus" onchange="renderCurrentView()" style="padding:8px 10px; border:1px solid #e2e8f0; border-radius:8px; font-size:13px; outline:none;">
             <option value="" disabled selected>Durumlar</option>
@@ -109,11 +96,17 @@
             <option value="USD">USD</option>
           </select>
 
-          <select id="filterCategory" onchange="renderCurrentView()" style="padding:8px 10px; border:1px solid #e2e8f0; border-radius:8px; font-size:13px; outline:none;">
-            <option value="">Tüm Kategoriler</option>
-          </select>
-
-          <input type="text" id="filterProduct" oninput="renderCurrentView()" placeholder="Ürün ara..." style="padding:8px 12px; border:1px solid #e2e8f0; border-radius:8px; font-size:13px; outline:none; min-width:130px;">
+          <div id="productDropdownWrap" class="company-dropdown-wrap" style="width:200px; min-width:200px;">
+            <button type="button" id="productDropdownBtn" class="company-dropdown-btn" onclick="toggleProductDropdown()">
+              <span id="productDropdownLabel">Tüm Ürünler</span>
+              <svg width="12" height="12" viewBox="0 0 12 12" fill="none" style="flex-shrink:0"><path d="M2 4l4 4 4-4" stroke="#64748b" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </button>
+            <div id="productDropdownPanel" class="company-dropdown-panel" style="display:none;">
+              <input type="text" id="productDropdownSearch" class="company-dropdown-search" placeholder="Ürün veya kod ara..." oninput="filterProductDropdown()" autocomplete="off">
+              <ul id="productDropdownList" class="company-dropdown-list"></ul>
+            </div>
+          </div>
+          <input type="hidden" id="filterProduct" value="">
         </div>
 
         <button onclick="closeFaturaListModal()" style="background:none; border:none; font-size:22px; color:#94a3b8; cursor:pointer; padding:4px 8px; flex-shrink:0;">✕</button>
@@ -140,15 +133,14 @@
             <span style="font-size:13px; color:#cbd5e1;">Filtreleri kullanın veya "Tümünü Göster"e basın</span>
           </div>
 
-          <!-- Grafikler (JS tarafından render edilir) -->
-          <div id="listChartsContent" style="display:none; flex-direction:column; gap:16px; padding:16px; overflow-y:auto; height:100%; box-sizing:border-box;">
-            <div class="list-chart-card">
-              <div class="list-chart-title">Ürün Bazında Miktar (İlk 10)</div>
-              <canvas id="listChartQty"></canvas>
-            </div>
-            <div class="list-chart-card">
-              <div class="list-chart-title">Ürün Bazında Tutar (USD, İlk 10)</div>
-              <canvas id="listChartRevenue"></canvas>
+          <!-- Rapor (JS tarafından render edilir) -->
+          <div id="listChartsContent" style="display:none; flex-direction:column; height:100%; overflow:hidden;">
+            <div id="reportSummary" class="report-summary-row"></div>
+            <div class="report-table-wrap">
+              <table class="report-table">
+                <thead id="reportThead"></thead>
+                <tbody id="reportTableBody"></tbody>
+              </table>
             </div>
           </div>
         </div>
@@ -576,7 +568,7 @@
 
   <script src="nav-pill.js?v=nav-slide-3-ease"></script>
   <!-- ?v= bump on deploy so Railway/browser never serves stale faturalar.js -->
-  <script src="faturalar.js?v=20260506-detail-modal-charts"></script>
+  <script src="faturalar.js?v=20260506-report-panel"></script>
 </body>
 
 </html>

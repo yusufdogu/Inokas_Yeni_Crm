@@ -1426,22 +1426,6 @@ body[data-view="giden"] #btnToggleShowAll:hover {
   border-left: 1px solid var(--border);
 }
 
-.list-chart-card {
-  background: #fff;
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  padding: 14px 16px;
-  position: relative;
-  height: 280px;
-  display: flex;
-  flex-direction: column;
-  flex-shrink: 0;
-}
-
-.list-chart-card canvas {
-  flex: 1;
-  min-height: 0;
-}
 
 .list-chart-title {
   font-size: 12px;
@@ -1508,3 +1492,152 @@ body[data-view="giden"] #btnToggleShowAll:hover {
   padding: 16px 18px;
   flex-shrink: 0;
 }
+
+/* ─── RAPOR PANELİ ─────────────────────────────────────────────────────────── */
+
+/* KPI SATIRI */
+.report-summary-row {
+  display: flex;
+  gap: 0;
+  border-bottom: 2px solid #e2e8f0;
+  flex-shrink: 0;
+  background: #fff;
+}
+
+.report-kpi {
+  flex: 1;
+  padding: 14px 16px;
+  border-right: 1px solid #f1f5f9;
+  min-width: 0;
+}
+.report-kpi:last-child { border-right: none; }
+
+.report-kpi-label {
+  font-size: 10px;
+  font-weight: 700;
+  color: #94a3b8;
+  letter-spacing: 0.6px;
+  margin-bottom: 5px;
+  text-transform: uppercase;
+}
+
+.report-kpi-value {
+  font-size: 16px;
+  font-weight: 800;
+  color: #1e293b;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* CİRO / HARCAMA KPI'ı mavi */
+.report-kpi--money .report-kpi-value { color: #2563eb; }
+/* FIFO KÂR yeşil/kırmızı JS'de class ile eklenir */
+.report-kpi--profit .report-kpi-value { color: #16a34a; }
+.report-kpi--loss   .report-kpi-value { color: #ef4444; }
+
+/* TABLO */
+.report-table-wrap {
+  flex: 1;
+  overflow-y: auto;
+  min-height: 0;
+}
+
+.report-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.report-thead-row { position: sticky; top: 0; z-index: 2; }
+
+.report-th {
+  padding: 10px 14px;
+  text-align: left;
+  font-size: 11px;
+  font-weight: 700;
+  color: #475569;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  background: #f1f5f9;
+  border-bottom: 2px solid #cbd5e1;
+  white-space: nowrap;
+}
+.report-th-num  { text-align: right; }
+.report-th-name { width: 40%; }
+
+/* ANA SATIRLAR */
+.report-row {
+  cursor: pointer;
+  border-bottom: 1px solid #f1f5f9;
+  transition: background 0.12s;
+}
+.report-row:hover { background: #fafbff; }
+
+.report-td {
+  padding: 11px 14px;
+  color: #1e293b;
+  vertical-align: middle;
+}
+.report-td-num   { text-align: right; color: #334155; }
+.report-td-money { font-weight: 700; color: #0f172a; }
+.report-td-name  { display: flex; align-items: center; gap: 8px; }
+
+.report-chevron {
+  font-size: 15px;
+  color: #cbd5e1;
+  transition: transform 0.18s, color 0.18s;
+  flex-shrink: 0;
+  line-height: 1;
+}
+.report-chevron.open { transform: rotate(90deg); color: #60a5fa; }
+
+.report-prod-name { font-weight: 600; }
+.report-prod-code {
+  font-size: 11px;
+  color: #94a3b8;
+  font-family: ui-monospace, monospace;
+  background: #f1f5f9;
+  padding: 1px 6px;
+  border-radius: 4px;
+}
+
+.report-profit { color: #16a34a; font-weight: 700; }
+.report-loss   { color: #ef4444; font-weight: 700; }
+
+/* ACCORDION DETAY — sol mavi çizgi ile "iç tablo" hissi */
+.report-detail-row {}
+.report-detail-cell {
+  padding: 0;
+  border-bottom: 2px solid #bfdbfe;
+  border-left: 4px solid #93c5fd;
+  background: #f0f7ff;
+}
+
+.report-comp-table { width: 100%; border-collapse: collapse; }
+
+.report-comp-th {
+  padding: 7px 14px 7px 20px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #3b82f6;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  background: #dbeafe;
+  text-align: left;
+}
+.report-comp-th.report-comp-num { text-align: right; padding-left: 14px; }
+
+.report-comp-row { border-bottom: 1px solid #dbeafe; transition: background 0.1s; }
+.report-comp-row:last-child { border-bottom: none; }
+.report-comp-row:hover { background: #e0f2fe; }
+
+.report-comp-td {
+  padding: 8px 14px 8px 20px;
+  font-size: 12px;
+  color: #475569;
+  background: #f0f7ff;
+}
+.report-comp-name  { color: #1e3a5f; font-weight: 500; }
+.report-comp-num   { text-align: right; padding-left: 14px; }
+.report-comp-pct   { text-align: right; padding-left: 14px; color: #93c5fd; font-size: 11px; font-weight: 600; }

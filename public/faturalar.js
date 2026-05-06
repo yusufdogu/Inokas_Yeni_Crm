@@ -4,8 +4,8 @@ const FATURALAR_BUILD = '20260423-po-integration';
 console.info('[faturalar] bundle', FATURALAR_BUILD);
 
 const filterMemory = {
-    gelen: { search: '', company: '', currency: '', year: '', month: '', status: '' },
-    giden: { search: '', company: '', currency: '', year: '', month: '', status: '' }
+    gelen: { search: '', company: '', currency: '', year: '', month: '', status: '', category: '', product: '' },
+    giden: { search: '', company: '', currency: '', year: '', month: '', status: '', category: '', product: '' }
 };
 
 
@@ -255,6 +255,8 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('filterStatus')?.addEventListener('change', onFilterChange);
     document.getElementById('filterCurrency')?.addEventListener('change', onFilterChange);
     document.getElementById('mainSearch')?.addEventListener('input', onFilterChange);
+    document.getElementById('filterCategory')?.addEventListener('change', onFilterChange);
+    document.getElementById('filterProduct')?.addEventListener('input', onFilterChange);
 });
 
 function bindModalOutsideClose() {
@@ -271,6 +273,7 @@ function bindModalOutsideClose() {
     };
 
     bindOne('invoiceModal', closeInvoiceModal);
+    bindOne('invoiceDetailModal', closeInvoiceDetailModal);
 }
 
 
@@ -1252,6 +1255,8 @@ function saveFilterState() {
             status:       document.getElementById('filterStatus')?.value || '',
             currency:     document.getElementById('filterCurrency')?.value || '',
             search:       document.getElementById('mainSearch')?.value || '',
+            category:     document.getElementById('filterCategory')?.value || '',
+            product:      document.getElementById('filterProduct')?.value || '',
             companyLabel: document.getElementById('companyDropdownLabel')?.textContent || 'Firmalar',
             showAllGelen:     showAllState.gelen,
             showAllGiden:     showAllState.giden,
@@ -1275,6 +1280,8 @@ function restoreFilterState() {
         if (s.status)   { const el = document.getElementById('filterStatus');   if (el) el.value = s.status; }
         if (s.currency) { const el = document.getElementById('filterCurrency'); if (el) el.value = s.currency; }
         if (s.search)   { const el = document.getElementById('mainSearch');     if (el) el.value = s.search; }
+        if (s.category) { const el = document.getElementById('filterCategory'); if (el) el.value = s.category; }
+        if (s.product)  { const el = document.getElementById('filterProduct');  if (el) el.value = s.product; }
 
         if (s.company !== undefined) {
             const hidden = document.getElementById('filterCompany');
@@ -1622,6 +1629,8 @@ function renderCurrentView() {
     const statusSelected = document.getElementById('filterStatus').value;
     const currencySelected = normalizeCurrencyCode(document.getElementById('filterCurrency').value);
     const searchText = document.getElementById('mainSearch').value;
+    const categorySelected = (document.getElementById('filterCategory')?.value || '').trim();
+    const productSearch = (document.getElementById('filterProduct')?.value || '').toLocaleLowerCase('tr-TR');
 
     // Arama metnini normalize et
     const searchTextLower = searchText.toLocaleLowerCase('tr-TR');
@@ -1652,7 +1661,19 @@ function renderCurrentView() {
                 matchMonth = faturaAyi === monthSelected;
             }
         }
-        return matchCompany && matchCurrency && matchSearch && matchStatus && matchYear && matchMonth;
+
+        const matchCategory = !categorySelected || (inv.invoice_items || []).some(it => {
+            const code = normalizeProductCodeForMatch(it.product_code || it.sku || '');
+            const cat = productCategoryByCodeMap.get(code) || String(it.internal_category || '').trim();
+            return cat.toLocaleLowerCase('tr-TR') === categorySelected.toLocaleLowerCase('tr-TR');
+        });
+
+        const matchProduct = !productSearch || (inv.invoice_items || []).some(it =>
+            String(it.product_code || it.sku || '').toLocaleLowerCase('tr-TR').includes(productSearch) ||
+            String(it.product_name || '').toLocaleLowerCase('tr-TR').includes(productSearch)
+        );
+
+        return matchCompany && matchCurrency && matchSearch && matchStatus && matchYear && matchMonth && matchCategory && matchProduct;
     });
 
     // C2. Kullanıcı bu sekmede henüz bir şeye dokunmadıysa → tablo boş kalsın.
@@ -1695,6 +1716,10 @@ function toggleShowAll() {
         document.getElementById('filterStatus').value = '';
         document.getElementById('filterCurrency').value = '';
         document.getElementById('mainSearch').value = '';
+        const elCat = document.getElementById('filterCategory');
+        if (elCat) elCat.value = '';
+        const elProd = document.getElementById('filterProduct');
+        if (elProd) elProd.value = '';
         const lbl = document.getElementById('companyDropdownLabel');
         if (lbl) lbl.textContent = 'Firmalar';
         btn.innerText = 'Tümünü Gizle';
@@ -2008,13 +2033,103 @@ function openFaturaListModal() {
     if (title) title.textContent = currentView === 'gelen' ? 'Gelen Faturalar' : 'Giden Faturalar';
     modal.style.display = 'flex';
     setInteracted(true);
-    renderCurrentView();
+    ensureProductCategoryLookupLoaded().then(() => {
+        populateCategoryFilter();
+        renderCurrentView();
+    }).catch(() => renderCurrentView());
 }
 
 function closeFaturaListModal() {
     const modal = document.getElementById('faturaListModal');
     if (modal) modal.style.display = 'none';
     closeInvoiceDetailModal();
+}
+
+function populateCategoryFilter() {
+    const sel = document.getElementById('filterCategory');
+    if (!sel) return;
+    const current = sel.value;
+    sel.innerHTML = '<option value="">Tüm Kategoriler</option>';
+    productCategoryOptionList.forEach(cat => {
+        const opt = document.createElement('option');
+        opt.value = cat;
+        opt.textContent = cat;
+        if (cat === current) opt.selected = true;
+        sel.appendChild(opt);
+    });
+}
+
+let _listCharts = {};
+
+function renderListModalCharts(invoices) {
+    if (typeof Chart === 'undefined') return;
+
+    Object.values(_listCharts).forEach(c => { try { c?.destroy(); } catch(e) {} });
+    _listCharts = {};
+
+    const emptyEl  = document.getElementById('listChartsEmpty');
+    const contentEl = document.getElementById('listChartsContent');
+    if (!emptyEl || !contentEl) return;
+
+    if (!invoices || invoices.length === 0) {
+        emptyEl.style.display  = 'flex';
+        contentEl.style.display = 'none';
+        return;
+    }
+
+    emptyEl.style.display  = 'none';
+    contentEl.style.display = 'flex';
+
+    const productMap = new Map();
+    invoices.forEach(inv => {
+        const rate  = invCalculationRate(inv);
+        const isUSD = invBaseCurrencyIso(inv) !== 'TRY';
+        (inv.invoice_items || []).forEach(item => {
+            const name = (String(item.product_name || item.product_code || '').trim());
+            if (!name || name.toUpperCase().includes('KARGO')) return;
+            const qty  = parseFloat(item.quantity) || 0;
+            const cur  = parseFloat(item.total_price_cur) || 0;
+            const usd  = isUSD ? cur : (rate > 0 ? cur / rate : 0);
+            const prev = productMap.get(name) || { qty: 0, usd: 0 };
+            productMap.set(name, { qty: prev.qty + qty, usd: prev.usd + usd });
+        });
+    });
+
+    const sorted = [...productMap.entries()].sort((a, b) => b[1].usd - a[1].usd).slice(0, 10);
+    const labels  = sorted.map(([n]) => n.length > 28 ? n.slice(0, 26) + '…' : n);
+    const qtyData = sorted.map(([, v]) => v.qty);
+    const usdData = sorted.map(([, v]) => Math.round(v.usd * 100) / 100);
+
+    const chartOpts = (label, color) => ({
+        type: 'bar',
+        options: {
+            indexAxis: 'y',
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { display: false } },
+            scales: {
+                x: { beginAtZero: true, ticks: { font: { size: 11 } } },
+                y: { ticks: { font: { size: 11 } } }
+            }
+        },
+        data: {
+            labels,
+            datasets: [{ label, data: [], backgroundColor: color, borderRadius: 4 }]
+        }
+    });
+
+    const c1 = document.getElementById('listChartQty');
+    if (c1) {
+        const cfg = chartOpts('Miktar', '#3b82f6');
+        cfg.data.datasets[0].data = qtyData;
+        _listCharts.qty = new Chart(c1, cfg);
+    }
+    const c2 = document.getElementById('listChartRevenue');
+    if (c2) {
+        const cfg = chartOpts('USD', '#10b981');
+        cfg.data.datasets[0].data = usdData;
+        _listCharts.rev = new Chart(c2, cfg);
+    }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -2173,6 +2288,8 @@ function renderInvoiceTable(invoices) {
     if (!cardList) return;
     cardList.innerHTML = '';
 
+    renderListModalCharts(invoices);
+
     if (invoices.length === 0) {
         cardList.innerHTML = '<div style="padding:40px 20px; text-align:center; color:#94a3b8; font-size:13px;">Lütfen faturaları görmek için arama yapın ya da filtreleme özelliklerini kullanın.</div>';
         return;
@@ -2218,8 +2335,8 @@ function renderInvoiceTable(invoices) {
 
 
 function closeInvoiceDetailModal() {
-    document.getElementById('detailContent').style.display = 'none';
-    document.getElementById('detailEmptyState').style.display = 'flex';
+    const modal = document.getElementById('invoiceDetailModal');
+    if (modal) modal.style.display = 'none';
     currentDetailInvId = null;
     document.querySelectorAll('.invoice-card.active').forEach(c => c.classList.remove('active'));
 }
@@ -2676,12 +2793,12 @@ async function viewInvoiceDetails(id) {
         };
     }
 
-    // Paneli aç, aktif kartı işaretle
+    // Detay modalını aç, aktif kartı işaretle
     currentDetailInvId = id;
-    document.getElementById('detailEmptyState').style.display = 'none';
-    document.getElementById('detailContent').style.display = 'flex';
     document.querySelectorAll('.invoice-card').forEach(c => c.classList.toggle('active', c.dataset.invId === id));
-    switchDetailTab(lastActiveDetailTab);
+    const detailModal = document.getElementById('invoiceDetailModal');
+    if (detailModal) detailModal.style.display = 'flex';
+    loadPdfTab();
 }
 
 

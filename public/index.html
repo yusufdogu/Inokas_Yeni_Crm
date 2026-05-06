@@ -108,6 +108,12 @@
             <option value="TRY">TRY</option>
             <option value="USD">USD</option>
           </select>
+
+          <select id="filterCategory" onchange="renderCurrentView()" style="padding:8px 10px; border:1px solid #e2e8f0; border-radius:8px; font-size:13px; outline:none;">
+            <option value="">Tüm Kategoriler</option>
+          </select>
+
+          <input type="text" id="filterProduct" oninput="renderCurrentView()" placeholder="Ürün ara..." style="padding:8px 12px; border:1px solid #e2e8f0; border-radius:8px; font-size:13px; outline:none; min-width:130px;">
         </div>
 
         <button onclick="closeFaturaListModal()" style="background:none; border:none; font-size:22px; color:#94a3b8; cursor:pointer; padding:4px 8px; flex-shrink:0;">✕</button>
@@ -121,208 +127,211 @@
           </div>
         </div>
 
-        <!-- SAĞ: Detay Paneli -->
-        <div class="invoice-detail-panel" id="invoiceDetailPanel">
+        <!-- SAĞ: Grafik Paneli -->
+        <div class="list-charts-panel" id="listChartsPanel">
 
           <!-- Boş durum -->
-          <div id="detailEmptyState" class="detail-empty-state">
+          <div id="listChartsEmpty" class="detail-empty-state">
             <svg width="48" height="48" fill="none" stroke="#cbd5e1" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
                 d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
             </svg>
-            <p style="font-size:15px; font-weight:600; color:#94a3b8; margin-top:12px;">Fatura seçilmedi</p>
-            <span style="font-size:13px; color:#cbd5e1;">Sol listeden bir faturaya tıklayın</span>
+            <p style="font-size:15px; font-weight:600; color:#94a3b8; margin-top:12px;">Grafik için fatura seçin</p>
+            <span style="font-size:13px; color:#cbd5e1;">Filtreleri kullanın veya "Tümünü Göster"e basın</span>
           </div>
 
-          <!-- İçerik (fatura seçilince) -->
-          <div id="detailContent" class="detail-content" style="display:none;">
-
-            <!-- Başlık -->
-            <div class="detail-panel-header">
-              <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
-                <h2 style="margin:0; font-size:1.1rem; color:#0f172a; font-weight:800;">
-                  📚 <span id="detail_no_text">INV2026...</span>
-                </h2>
-                <span style="color:#ffffff; background:#0f172a; border-radius:999px; padding:3px 10px; display:inline-flex; align-items:center;">
-                  <span id="detail_company" style="font-size:0.9rem; font-weight:600; color:#ffffff;"></span>
-                </span>
-              </div>
-              <div style="display:flex; gap:8px;">
-                <button type="button" id="btnDeleteInvoice"
-                  style="background:#fee2e2; color:#ef4444; padding:6px 14px; border-radius:8px; border:none; font-weight:600; cursor:pointer; font-size:13px;">
-                  🗑️ Sil
-                </button>
-                <button type="button" id="btnEditInvoice"
-                  style="background:#2563eb; color:white; padding:6px 14px; border-radius:8px; border:none; font-weight:600; cursor:pointer; font-size:13px;">
-                  ✏️ Düzenle
-                </button>
-              </div>
+          <!-- Grafikler (JS tarafından render edilir) -->
+          <div id="listChartsContent" style="display:none; flex-direction:column; gap:16px; padding:16px; overflow-y:auto; height:100%; box-sizing:border-box;">
+            <div class="list-chart-card">
+              <div class="list-chart-title">Ürün Bazında Miktar (İlk 10)</div>
+              <canvas id="listChartQty"></canvas>
             </div>
-
-            <!-- Tab Bar -->
-            <div class="detail-tab-bar">
-              <button class="detail-tab active" id="detailTabBtn1" onclick="switchDetailTab(1)">📄 PDF Görüntüle</button>
-              <button class="detail-tab" id="detailTabBtn2" onclick="switchDetailTab(2)">📋 Fatura Detayları</button>
+            <div class="list-chart-card">
+              <div class="list-chart-title">Ürün Bazında Tutar (USD, İlk 10)</div>
+              <canvas id="listChartRevenue"></canvas>
             </div>
-
-            <!-- Tab 1: PDF Görüntüle -->
-            <div id="detailTab1" class="detail-tab-pane detail-tab-pane--pdf" style="display:none;">
-
-              <div id="pdfNoXml" class="detail-empty-state">
-                <svg width="48" height="48" fill="none" stroke="#cbd5e1" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
-                    d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
-                </svg>
-                <p style="font-size:15px; font-weight:600; color:#94a3b8; margin-top:12px;">PDF görünümü mevcut değil</p>
-                <span style="font-size:13px; color:#cbd5e1;">Bu fatura için XML dosyası yüklenmemiş.</span>
-              </div>
-
-              <div id="pdfLoading" class="detail-empty-state" style="display:none;">
-                <div style="width:40px; height:40px; border:3px solid #e2e8f0; border-top-color:#2563eb; border-radius:50%; animation:pdf-spin 0.7s linear infinite;"></div>
-                <p style="font-size:14px; font-weight:600; color:#2563eb; margin-top:12px;">XML yükleniyor ve işleniyor...</p>
-              </div>
-
-              <iframe id="pdfDetailIframe" style="width:100%; flex:1; border:none; display:none;"></iframe>
-
-            </div>
-
-            <!-- Tab 2: Fatura Detayları -->
-            <div id="detailTab2" class="detail-tab-pane" style="display:none;">
-
-              <div style="display: grid; grid-template-columns: 220px 1fr; gap: 20px; margin-bottom: 20px;">
-
-                <!-- SOL: Bilgi Kartları -->
-                <div style="display:flex; flex-direction:column; gap:8px;">
-
-                  <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:10px 14px;">
-                    <span style="font-size:10px; font-weight:800; color:#64748b; letter-spacing:0.5px; display:block;">TARİH</span>
-                    <div id="detail_date" style="font-weight:700; font-size:14px; color:#0f172a; margin-top:3px;">-</div>
-                  </div>
-
-                  <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:10px 14px;">
-                    <span style="font-size:10px; font-weight:800; color:#64748b; letter-spacing:0.5px; display:block;">VADE</span>
-                    <div id="detail_due_date" style="font-weight:700; font-size:14px; color:#0f172a; margin-top:3px;">-</div>
-                  </div>
-
-                  <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:10px 14px;">
-                    <span style="font-size:10px; font-weight:800; color:#64748b; letter-spacing:0.5px; display:block;">DÖVİZ KURU</span>
-                    <div id="detail_kur" style="font-weight:700; font-size:14px; color:#0f172a; margin-top:3px;">-</div>
-                  </div>
-
-                  <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:10px 14px;">
-                    <span style="font-size:10px; font-weight:800; color:#64748b; letter-spacing:0.5px; display:block;">MATRAH / KDV</span>
-                    <div style="font-weight:700; font-size:14px; color:#0f172a; margin-top:3px;">
-                      <span id="detail_net">-</span>
-                      <span style="color:#94a3b8; margin:0 4px;">/</span>
-                      <span id="detail_tax">-</span>
-                    </div>
-                  </div>
-
-                  <div style="background:#eff6ff; border:1px solid #bfdbfe; border-radius:10px; padding:10px 14px;">
-                    <span style="font-size:10px; font-weight:800; color:#1d4ed8; letter-spacing:0.5px; display:block;">GENEL TOPLAM</span>
-                    <div id="detail_total" style="font-weight:800; font-size:16px; color:#2563eb; margin-top:3px;">-</div>
-                  </div>
-
-                  <div style="background:#f0fdf4; border:1px solid #dcfce7; border-radius:10px; padding:10px 14px;">
-                    <span style="font-size:10px; font-weight:800; color:#166534; letter-spacing:0.5px; display:block;">TOPLAM ÖDENEN</span>
-                    <div id="detail_paid" style="font-weight:800; font-size:15px; color:#16a34a; margin-top:3px;">-</div>
-                  </div>
-
-                  <div style="background:#fff1f2; border:1px solid #ffe4e6; border-radius:10px; padding:10px 14px;">
-                    <span style="font-size:10px; font-weight:800; color:#be123c; letter-spacing:0.5px; display:block;">KALAN BORÇ</span>
-                    <div id="detail_remaining" style="font-weight:800; font-size:15px; color:#e11d48; margin-top:3px;">-</div>
-                  </div>
-
-                  <div id="detail_status" style="margin-top:2px;"></div>
-
-                </div>
-
-                <!-- SAĞ: Ödeme Geçmişi -->
-                <div style="display:flex; flex-direction:column; gap:12px;">
-
-                  <div style="display:flex; align-items:center; justify-content:space-between;">
-                    <h3 style="margin:0; font-size:15px; font-weight:800; color:#0f172a;">💳 Ödeme Geçmişi</h3>
-                    <button type="button" id="btnAddPayment"
-                      style="background:#2563eb; color:white; border:none; border-radius:8px; padding:6px 14px; font-size:13px; font-weight:600; cursor:pointer;">
-                      + Yeni Ödeme Ekle
-                    </button>
-                  </div>
-
-                  <!-- Yeni ödeme formu -->
-                  <div id="newPaymentForm" style="display:none; background:#f0f9ff; border:1px solid #bae6fd; border-radius:10px; padding:14px; gap:10px; flex-wrap:wrap; align-items:flex-end;">
-                    <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:flex-end; width:100%;">
-                      <div style="flex:1; min-width:130px;">
-                        <label style="font-size:11px; font-weight:700; color:#0369a1; display:block; margin-bottom:4px;">ÖDEME TARİHİ</label>
-                        <input type="date" id="pay_date" style="width:100%; padding:7px 10px; border:1px solid #7dd3fc; border-radius:6px; font-size:13px;" max="" onchange="">
-                      </div>
-                      <div style="flex:1; min-width:110px;">
-                        <label style="font-size:11px; font-weight:700; color:#0369a1; display:block; margin-bottom:4px;">TUTAR</label>
-                        <input type="number" id="pay_amount" step="0.01" placeholder="0.00" style="width:100%; padding:7px 10px; border:1px solid #7dd3fc; border-radius:6px; font-size:13px;">
-                      </div>
-                      <div style="flex:1; min-width:130px;">
-                        <label style="font-size:11px; font-weight:700; color:#0369a1; display:block; margin-bottom:4px;">NOT (İSTEĞE BAĞLI)</label>
-                        <input type="text" id="pay_notes" placeholder="Açıklama..." style="width:100%; padding:7px 10px; border:1px solid #7dd3fc; border-radius:6px; font-size:13px;">
-                      </div>
-                      <div style="display:flex; gap:6px;">
-                        <button type="button" id="btnSavePayment"
-                          style="background:#0ea5e9; color:white; border:none; border-radius:6px; padding:7px 16px; font-size:13px; font-weight:600; cursor:pointer;">Kaydet</button>
-                        <button type="button" id="btnCancelPayment"
-                          style="background:#f1f5f9; color:#64748b; border:1px solid #e2e8f0; border-radius:6px; padding:7px 12px; font-size:13px; cursor:pointer;">İptal</button>
-                      </div>
-                    </div>
-                  </div>
-
-                  <!-- Ödeme tablosu -->
-                  <div style="border:1px solid #e2e8f0; border-radius:10px; overflow:hidden; min-height:80px;">
-                    <table style="width:100%; border-collapse:collapse; font-size:13px;">
-                      <thead style="background:#f1f5f9; color:#64748b; font-weight:700; font-size:11px; letter-spacing:0.5px;">
-                        <tr>
-                          <th style="padding:10px 14px; text-align:left;">TARİH</th>
-                          <th style="padding:10px 14px; text-align:right;">TUTAR</th>
-                          <th style="padding:10px 14px; text-align:right;">KALAN</th>
-                          <th style="padding:10px 14px; text-align:left;">NOT</th>
-                          <th style="padding:10px 14px; text-align:center;">İŞLEM</th>
-                        </tr>
-                      </thead>
-                      <tbody id="detail_payments_body">
-                        <tr><td colspan="5" style="padding:20px; text-align:center; color:#94a3b8;">Henüz ödeme kaydı yok.</td></tr>
-                      </tbody>
-                    </table>
-                  </div>
-
-                </div>
-              </div>
-
-              <!-- Ürünler -->
-              <h3 style="font-size:15px; margin:0 0 10px 0; color:#0f172a; display:flex; align-items:center; gap:6px;">Ürünler</h3>
-              <div style="border:1px solid #e2e8f0; border-radius:10px; overflow:hidden;">
-                <table style="width:100%; border-collapse:collapse; text-align:left; font-size:13px;">
-                  <thead style="background:#f1f5f9; color:#64748b; font-weight:700; font-size:11px; letter-spacing:0.5px;">
-                    <tr>
-                      <th style="padding:12px 15px; border-bottom:1px solid #e2e8f0;">ÜRÜN ADI</th>
-                      <th style="padding:12px 15px; border-bottom:1px solid #e2e8f0;">ÜRÜN KODU</th>
-                      <th style="padding:12px 15px; border-bottom:1px solid #e2e8f0;">KATEGORİ</th>
-                      <th style="padding:12px 15px; border-bottom:1px solid #e2e8f0; text-align:center;">MİKTAR</th>
-                      <th style="padding:12px 15px; border-bottom:1px solid #e2e8f0; text-align:right;">BİRİM FİYAT</th>
-                      <th style="padding:12px 15px; border-bottom:1px solid #e2e8f0; text-align:center;">KDV</th>
-                      <th style="padding:12px 15px; border-bottom:1px solid #e2e8f0; text-align:right;">TOPLAM</th>
-                    </tr>
-                  </thead>
-                  <tbody id="detail_items_body" style="color:#1e293b;"></tbody>
-                </table>
-              </div>
-
-              <!-- İç Notlar -->
-              <div style="margin-top:16px; background:#f8fafc; border-radius:8px; padding:12px; border:1px solid #e2e8f0;">
-                <span style="font-size:11px; font-weight:700; color:#64748b;">📝 İÇ NOTLAR:</span>
-                <div id="detail_notes" style="font-size:13px; color:#334155; margin-top:5px; font-weight:500; max-height:100px; overflow-y:auto;">-</div>
-              </div>
-
-            </div>
-
           </div>
         </div>
 
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════════
+       FATURA DETAY MODALI (PDF + Bilgi yan yana)
+       ═══════════════════════════════════════════════════════════ -->
+  <div id="invoiceDetailModal" class="inv-detail-overlay" style="display:none;">
+    <div class="inv-detail-inner">
+
+      <!-- Üst başlık -->
+      <div class="inv-detail-header">
+        <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap; min-width:0; flex:1;">
+          <h2 style="margin:0; font-size:1.1rem; color:#0f172a; font-weight:800; white-space:nowrap;">
+            📚 <span id="detail_no_text">INV2026...</span>
+          </h2>
+          <span style="color:#fff; background:#0f172a; border-radius:999px; padding:3px 10px; display:inline-flex; align-items:center; overflow:hidden; max-width:240px;">
+            <span id="detail_company" style="font-size:0.85rem; font-weight:600; color:#fff; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;"></span>
+          </span>
+        </div>
+        <div style="display:flex; gap:8px; align-items:center; flex-shrink:0;">
+          <button type="button" id="btnDeleteInvoice"
+            style="background:#fee2e2; color:#ef4444; padding:6px 14px; border-radius:8px; border:none; font-weight:600; cursor:pointer; font-size:13px;">
+            🗑️ Sil
+          </button>
+          <button type="button" id="btnEditInvoice"
+            style="background:#2563eb; color:white; padding:6px 14px; border-radius:8px; border:none; font-weight:600; cursor:pointer; font-size:13px;">
+            ✏️ Düzenle
+          </button>
+          <button onclick="closeInvoiceDetailModal()" style="background:none; border:none; font-size:22px; color:#94a3b8; cursor:pointer; padding:4px 8px; line-height:1;">✕</button>
+        </div>
+      </div>
+
+      <!-- Gövde: sol PDF, sağ bilgiler -->
+      <div class="inv-detail-body">
+
+        <!-- SOL: PDF -->
+        <div class="inv-detail-pdf-pane">
+          <div id="pdfNoXml" class="detail-empty-state">
+            <svg width="48" height="48" fill="none" stroke="#cbd5e1" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+                d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+            </svg>
+            <p style="font-size:15px; font-weight:600; color:#94a3b8; margin-top:12px;">PDF görünümü mevcut değil</p>
+            <span style="font-size:13px; color:#cbd5e1;">Bu fatura için XML dosyası yüklenmemiş.</span>
+          </div>
+          <div id="pdfLoading" class="detail-empty-state" style="display:none;">
+            <div style="width:40px; height:40px; border:3px solid #e2e8f0; border-top-color:#2563eb; border-radius:50%; animation:pdf-spin 0.7s linear infinite;"></div>
+            <p style="font-size:14px; font-weight:600; color:#2563eb; margin-top:12px;">XML yükleniyor...</p>
+          </div>
+          <iframe id="pdfDetailIframe" style="width:100%; flex:1; border:none; display:none;"></iframe>
+        </div>
+
+        <!-- SAĞ: Fatura Bilgileri -->
+        <div class="inv-detail-info-pane">
+
+          <div style="display:flex; flex-direction:column; gap:8px; margin-bottom:16px;">
+
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
+              <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:10px 14px;">
+                <span style="font-size:10px; font-weight:800; color:#64748b; letter-spacing:0.5px; display:block;">TARİH</span>
+                <div id="detail_date" style="font-weight:700; font-size:14px; color:#0f172a; margin-top:3px;">-</div>
+              </div>
+              <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:10px 14px;">
+                <span style="font-size:10px; font-weight:800; color:#64748b; letter-spacing:0.5px; display:block;">VADE</span>
+                <div id="detail_due_date" style="font-weight:700; font-size:14px; color:#0f172a; margin-top:3px;">-</div>
+              </div>
+            </div>
+
+            <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:10px 14px;">
+              <span style="font-size:10px; font-weight:800; color:#64748b; letter-spacing:0.5px; display:block;">DÖVİZ KURU</span>
+              <div id="detail_kur" style="font-weight:700; font-size:14px; color:#0f172a; margin-top:3px;">-</div>
+            </div>
+
+            <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:10px 14px;">
+              <span style="font-size:10px; font-weight:800; color:#64748b; letter-spacing:0.5px; display:block;">MATRAH / KDV</span>
+              <div style="font-weight:700; font-size:14px; color:#0f172a; margin-top:3px;">
+                <span id="detail_net">-</span>
+                <span style="color:#94a3b8; margin:0 4px;">/</span>
+                <span id="detail_tax">-</span>
+              </div>
+            </div>
+
+            <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px;">
+              <div style="background:#eff6ff; border:1px solid #bfdbfe; border-radius:10px; padding:10px 14px;">
+                <span style="font-size:10px; font-weight:800; color:#1d4ed8; letter-spacing:0.5px; display:block;">GENEL TOPLAM</span>
+                <div id="detail_total" style="font-weight:800; font-size:15px; color:#2563eb; margin-top:3px;">-</div>
+              </div>
+              <div style="background:#f0fdf4; border:1px solid #dcfce7; border-radius:10px; padding:10px 14px;">
+                <span style="font-size:10px; font-weight:800; color:#166534; letter-spacing:0.5px; display:block;">TOPLAM ÖDENEN</span>
+                <div id="detail_paid" style="font-weight:800; font-size:15px; color:#16a34a; margin-top:3px;">-</div>
+              </div>
+              <div style="background:#fff1f2; border:1px solid #ffe4e6; border-radius:10px; padding:10px 14px;">
+                <span style="font-size:10px; font-weight:800; color:#be123c; letter-spacing:0.5px; display:block;">KALAN BORÇ</span>
+                <div id="detail_remaining" style="font-weight:800; font-size:15px; color:#e11d48; margin-top:3px;">-</div>
+              </div>
+            </div>
+
+            <div id="detail_status"></div>
+
+          </div>
+
+          <!-- Ödeme Geçmişi -->
+          <div style="display:flex; flex-direction:column; gap:10px; margin-bottom:16px;">
+            <div style="display:flex; align-items:center; justify-content:space-between;">
+              <h3 style="margin:0; font-size:15px; font-weight:800; color:#0f172a;">💳 Ödeme Geçmişi</h3>
+              <button type="button" id="btnAddPayment"
+                style="background:#2563eb; color:white; border:none; border-radius:8px; padding:6px 14px; font-size:13px; font-weight:600; cursor:pointer;">
+                + Yeni Ödeme Ekle
+              </button>
+            </div>
+
+            <div id="newPaymentForm" style="display:none; background:#f0f9ff; border:1px solid #bae6fd; border-radius:10px; padding:14px; gap:10px; flex-wrap:wrap; align-items:flex-end;">
+              <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:flex-end; width:100%;">
+                <div style="flex:1; min-width:130px;">
+                  <label style="font-size:11px; font-weight:700; color:#0369a1; display:block; margin-bottom:4px;">ÖDEME TARİHİ</label>
+                  <input type="date" id="pay_date" style="width:100%; padding:7px 10px; border:1px solid #7dd3fc; border-radius:6px; font-size:13px;" max="" onchange="">
+                </div>
+                <div style="flex:1; min-width:110px;">
+                  <label style="font-size:11px; font-weight:700; color:#0369a1; display:block; margin-bottom:4px;">TUTAR</label>
+                  <input type="number" id="pay_amount" step="0.01" placeholder="0.00" style="width:100%; padding:7px 10px; border:1px solid #7dd3fc; border-radius:6px; font-size:13px;">
+                </div>
+                <div style="flex:1; min-width:130px;">
+                  <label style="font-size:11px; font-weight:700; color:#0369a1; display:block; margin-bottom:4px;">NOT (İSTEĞE BAĞLI)</label>
+                  <input type="text" id="pay_notes" placeholder="Açıklama..." style="width:100%; padding:7px 10px; border:1px solid #7dd3fc; border-radius:6px; font-size:13px;">
+                </div>
+                <div style="display:flex; gap:6px;">
+                  <button type="button" id="btnSavePayment"
+                    style="background:#0ea5e9; color:white; border:none; border-radius:6px; padding:7px 16px; font-size:13px; font-weight:600; cursor:pointer;">Kaydet</button>
+                  <button type="button" id="btnCancelPayment"
+                    style="background:#f1f5f9; color:#64748b; border:1px solid #e2e8f0; border-radius:6px; padding:7px 12px; font-size:13px; cursor:pointer;">İptal</button>
+                </div>
+              </div>
+            </div>
+
+            <div style="border:1px solid #e2e8f0; border-radius:10px; overflow:hidden; min-height:80px;">
+              <table style="width:100%; border-collapse:collapse; font-size:13px;">
+                <thead style="background:#f1f5f9; color:#64748b; font-weight:700; font-size:11px; letter-spacing:0.5px;">
+                  <tr>
+                    <th style="padding:10px 14px; text-align:left;">TARİH</th>
+                    <th style="padding:10px 14px; text-align:right;">TUTAR</th>
+                    <th style="padding:10px 14px; text-align:right;">KALAN</th>
+                    <th style="padding:10px 14px; text-align:left;">NOT</th>
+                    <th style="padding:10px 14px; text-align:center;">İŞLEM</th>
+                  </tr>
+                </thead>
+                <tbody id="detail_payments_body">
+                  <tr><td colspan="5" style="padding:20px; text-align:center; color:#94a3b8;">Henüz ödeme kaydı yok.</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- Ürünler -->
+          <h3 style="font-size:15px; margin:0 0 10px 0; color:#0f172a;">Ürünler</h3>
+          <div style="border:1px solid #e2e8f0; border-radius:10px; overflow:hidden; margin-bottom:16px;">
+            <table style="width:100%; border-collapse:collapse; text-align:left; font-size:13px;">
+              <thead style="background:#f1f5f9; color:#64748b; font-weight:700; font-size:11px; letter-spacing:0.5px;">
+                <tr>
+                  <th style="padding:12px 15px; border-bottom:1px solid #e2e8f0;">ÜRÜN ADI</th>
+                  <th style="padding:12px 15px; border-bottom:1px solid #e2e8f0;">ÜRÜN KODU</th>
+                  <th style="padding:12px 15px; border-bottom:1px solid #e2e8f0;">KATEGORİ</th>
+                  <th style="padding:12px 15px; border-bottom:1px solid #e2e8f0; text-align:center;">MİKTAR</th>
+                  <th style="padding:12px 15px; border-bottom:1px solid #e2e8f0; text-align:right;">BİRİM FİYAT</th>
+                  <th style="padding:12px 15px; border-bottom:1px solid #e2e8f0; text-align:center;">KDV</th>
+                  <th style="padding:12px 15px; border-bottom:1px solid #e2e8f0; text-align:right;">TOPLAM</th>
+                </tr>
+              </thead>
+              <tbody id="detail_items_body" style="color:#1e293b;"></tbody>
+            </table>
+          </div>
+
+          <!-- İç Notlar -->
+          <div style="background:#f8fafc; border-radius:8px; padding:12px; border:1px solid #e2e8f0;">
+            <span style="font-size:11px; font-weight:700; color:#64748b;">📝 İÇ NOTLAR:</span>
+            <div id="detail_notes" style="font-size:13px; color:#334155; margin-top:5px; font-weight:500; max-height:100px; overflow-y:auto;">-</div>
+          </div>
+
+        </div>
       </div>
     </div>
   </div>
@@ -567,7 +576,7 @@
 
   <script src="nav-pill.js?v=nav-slide-3-ease"></script>
   <!-- ?v= bump on deploy so Railway/browser never serves stale faturalar.js -->
-  <script src="faturalar.js?v=20260505-dashboard-charts"></script>
+  <script src="faturalar.js?v=20260506-detail-modal-charts"></script>
 </body>
 
 </html>

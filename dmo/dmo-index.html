@@ -10,6 +10,10 @@
   <script src="/supabase-client.js"></script>
   <script src="/dmo/js/dmo-core.js"></script>
   <script src="/dmo/js/dmo-analytics.js"></script>
+
+  <script>
+    if (localStorage.getItem('inokas_auth') !== 'true') window.location.href = '/login.html';
+  </script>
   <link href="https://fonts.googleapis.com/css2?family=Geist+Mono:wght@400;600&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/dmo/css/core.css">
   <link rel="stylesheet" href="/dmo/css/layout.css">

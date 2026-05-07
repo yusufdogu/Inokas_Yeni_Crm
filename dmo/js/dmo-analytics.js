@@ -508,4 +508,6 @@ function closeChartModal() {
         chartModalInstance.destroy();
         chartModalInstance = null;
     }
+
+
 }

@@ -300,6 +300,7 @@ app.get('/', (req, res) => {
   res.setHeader('Expires', '0');
   res.type('html').send(getFaturalarIndexHtml());
 });
+app.get('/login', (req, res) => res.redirect('/login.html'));
 
 // DMO sayfası (ayrı klasör) erişimi
 app.use('/dmo', express.static(path.join(__dirname, 'dmo')));

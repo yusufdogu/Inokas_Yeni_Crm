@@ -413,33 +413,28 @@ async function submitSkuMergeForm(e) {
     }
     return;
   }
-  if (toSku === fromSku) {
-    if (msgEl) {
-      msgEl.textContent = 'Eski ve yeni kod aynı. Değişiklik yapılmadı.';
-      msgEl.className = 'modal-msg error';
-    }
-    return;
-  }
-
   try {
     if (submitBtn) submitBtn.disabled = true;
     if (msgEl) {
-      msgEl.textContent = 'Birleştiriliyor...';
+      msgEl.textContent = 'İşleniyor...';
       msgEl.className = 'modal-msg';
     }
 
-    const res = await fetch('/api/invoice-items/normalize-sku', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ from_code: fromSku, to_code: toSku })
-    });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data?.error || 'SKU güncelleme başarısız');
+    // Kod değişmiyorsa normalize adımını atla, direkt products kontrolüne geç
+    if (toSku !== fromSku) {
+      const res = await fetch('/api/invoice-items/normalize-sku', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ from_code: fromSku, to_code: toSku })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error || 'SKU güncelleme başarısız');
 
-    sessionStorage.removeItem(STOCK_CACHE_KEY);
-    sessionStorage.removeItem(MOVEMENT_CACHE_KEY);
-    sessionStorage.removeItem(PO_CACHE_KEY);
-    await loadAllData();
+      sessionStorage.removeItem(STOCK_CACHE_KEY);
+      sessionStorage.removeItem(MOVEMENT_CACHE_KEY);
+      sessionStorage.removeItem(PO_CACHE_KEY);
+      await loadAllData();
+    }
 
     let product = null;
     const byCodeRes = await fetch(`/api/products/by-code?code=${encodeURIComponent(toSku)}`);

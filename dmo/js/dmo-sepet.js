@@ -442,11 +442,11 @@ function recalcHizliHesap() {
     if (eurEl) eurEl.innerHTML = (rates.eur_try ? parseFloat(rates.eur_try).toFixed(2) + " ₺" : "—") + rateLabel;
     if (dmoEl) dmoEl.innerHTML = (rates.dmo_eur_try ? parseFloat(rates.dmo_eur_try).toFixed(4) + " ₺" : "—") + dmoRateLabel;
 
-    updateLimitBar(dmoBasket);
+    updateLimitBar(dmoBasket,tutarIndirimi);
 }
 
 
-function updateLimitBar(currentDMO = 0) {
+function updateLimitBar(currentDMO = 0,currentIndirim=0) {
     const pct       = Math.min((currentDMO / LIMIT) * 100, 100);
     const remaining = Math.max(LIMIT - currentDMO, 0);
 
@@ -455,7 +455,7 @@ function updateLimitBar(currentDMO = 0) {
     const barEl       = document.getElementById("hh_limit_bar");
     const textEl      = document.getElementById("hh_limit_text");
 
-    if (usedEl)      usedEl.textContent      = formatAmount(currentDMO) + " ₺";
+    if (usedEl)      usedEl.textContent      = formatAmount(currentDMO-currentIndirim) + " ₺";
     if (remainingEl) remainingEl.textContent = formatAmount(remaining)  + " ₺";
     if (barEl) {
         barEl.style.width      = pct + "%";

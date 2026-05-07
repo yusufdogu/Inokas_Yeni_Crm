@@ -82,6 +82,22 @@ async function fetchRatesFromDB() {
     }
 }
 
+async function ensureRatesExist() {
+    const rates = window._rates;
+
+    if (!rates.usd_try || !rates.eur_try) {
+        console.log('TCMB rates missing, fetching for the first time...');
+        await fetch('/api/dmo/fetch-tcmb-now', { method: 'POST' });
+        await fetchRatesFromDB();
+    }
+
+    if (!window._rates.dmo_eur_try) {
+        console.log('DMO rate missing, fetching for the first time...');
+        await fetch('/api/dmo/fetch-dmo-rate-now', { method: 'POST' });
+        await fetchRatesFromDB();
+    }
+}
+
 
 // ── STATS CARDS ───────────────────────────────────────────────────────────────
 async function renderStatsCards(orders) {

@@ -177,6 +177,18 @@ async function fetchAndSaveDMORate() {
     }
 }
 
+
+app.post('/api/dmo/fetch-tcmb-now', async (req, res) => {
+    await fetchAndSaveTCMBRates();
+    res.json({ ok: true });
+});
+
+app.post('/api/dmo/fetch-dmo-rate-now', async (req, res) => {
+    await fetchAndSaveDMORate();
+    res.json({ ok: true });
+});
+
+
 app.get('/api/dmo/rates', async (req, res) => {
     try {
         // Get most recent row with dmo_eur_try

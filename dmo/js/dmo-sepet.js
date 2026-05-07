@@ -600,6 +600,8 @@ document.addEventListener("DOMContentLoaded", async () => {
     if (!document.getElementById("hh_product_grid")) return;
 
     await fetchRatesFromDB(); // ensure rates are loaded before rendering
+    await fetchRatesFromDB();
+    await ensureRatesExist();
 
     const taslakId = new URLSearchParams(window.location.search).get("taslak");
     if (taslakId) {

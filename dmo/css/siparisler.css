@@ -1,0 +1,89 @@
+/* ── INVOICE CARDS GRID ──────────────────────────────────────────────────── */
+.invoice-cards-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 16px;
+    padding: 20px;
+}
+
+.invoice-card {
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    padding: 16px 20px;
+    cursor: pointer;
+    transition: box-shadow 0.2s, border-color 0.2s;
+}
+
+.invoice-card:hover {
+    box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+    border-color: #2563eb;
+}
+
+.invoice-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+}
+
+.invoice-card-no {
+    font-size: 13px;
+    font-weight: 800;
+    color: #2563eb;
+}
+
+.invoice-card-date {
+    font-size: 11px;
+    color: #94a3b8;
+    font-weight: 600;
+}
+
+.invoice-card-customer {
+    font-size: 13px;
+    font-weight: 600;
+    color: #0f172a;
+    margin-bottom: 12px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.invoice-card-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-top: 1px solid #e2e8f0;
+    padding-top: 10px;
+}
+
+.invoice-card-dmo {
+    font-size: 11px;
+    color: #64748b;
+}
+
+.invoice-card-profit {
+    font-size: 13px;
+    font-weight: 800;
+}
+
+/* ── FILTER TOOLBAR ──────────────────────────────────────────────────────── */
+.content-card { background: var(--card); border-radius: 16px; border: 1px solid var(--border); overflow: hidden; }
+.toolbar { padding: 1.5rem; display: flex; justify-content: space-between; border-bottom: 1px solid var(--border); background: #fafafa; }
+.search-group { display: flex; gap: 10px; }
+.toolbar input, .toolbar select { padding: 8px 12px; border: 1px solid var(--border); border-radius: 8px; outline: none; }
+
+.search-group select {
+  width: 140px;
+  min-width: 140px;
+  max-width: 140px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+#filterCompany {
+  width: 220px;
+  min-width: 220px;
+  max-width: 220px;
+}

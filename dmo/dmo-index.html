@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="tr">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DMO — İnokas CRM</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+  <script src="/supabase-client.js"></script>
+  <script src="/dmo/js/dmo-core.js"></script>
+  <script src="/dmo/js/dmo-analytics.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Geist+Mono:wght@400;600&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/dmo/css/core.css">
+  <link rel="stylesheet" href="/dmo/css/layout.css">
+  <link rel="stylesheet" href="/nav.css?v=nav-slide-4-gutter">
+</head>
+
+<body>
+
+  <nav class="topbar">
+    <div class="topbar-left">
+      <a href="/public" class="brand">
+        <div class="brand-dot"></div>
+        İnokas <span>CRM</span>
+      </a>
+    </div>
+    <div class="topbar-right">
+      <div class="nav-cluster">
+        <span class="nav-pill" id="navPill" aria-hidden="true"></span>
+        <div class="nav-links-row" role="navigation" aria-label="Ana menü">
+          <a href="/public" class="nav-link" data-nav-id="faturalar">Faturalar</a>
+          <a href="/stok.html" class="nav-link" data-nav-id="stok">Stok</a>
+          <a href="/dmo" class="nav-link active" data-nav-id="dmo">DMO</a>
+        </div>
+      </div>
+      <button type="button" class="nav-link nav-link--logout logout">Çıkış</button>
+    </div>
+  </nav>
+
+  <main class="main-container">
+
+    <!-- ── NAV BUTTONS ─────────────────────────────────────────────────── -->
+    <section style="display:flex; gap:16px; margin-bottom:24px;">
+
+      <a href="/dmo/pages/siparisler.html"
+          style="flex:1; padding:20px; background:white; border:1px solid #e2e8f0; border-radius:16px; cursor:pointer; display:flex; flex-direction:column; align-items:center; gap:8px; transition:all 0.2s; text-decoration:none;"
+          onmouseover="this.style.borderColor='#2563eb'; this.style.boxShadow='0 4px 12px rgba(37,99,235,0.1)'"
+          onmouseout="this.style.borderColor='#e2e8f0'; this.style.boxShadow='none'">
+          <span style="font-size:32px;">📋</span>
+          <span style="font-size:14px; font-weight:800; color:#0f172a;">Siparişleri Göster</span>
+          <span style="font-size:12px; color:#64748b;">Tüm siparişleri görüntüle ve filtrele</span>
+      </a>
+
+      <a href="/dmo/pages/yeni-siparis.html"
+          style="flex:1; padding:20px; background:white; border:1px solid #e2e8f0; border-radius:16px; cursor:pointer; display:flex; flex-direction:column; align-items:center; gap:8px; transition:all 0.2s; text-decoration:none;"
+          onmouseover="this.style.borderColor='#16a34a'; this.style.boxShadow='0 4px 12px rgba(22,163,74,0.1)'"
+          onmouseout="this.style.borderColor='#e2e8f0'; this.style.boxShadow='none'">
+          <span style="font-size:32px;">➕</span>
+          <span style="font-size:14px; font-weight:800; color:#0f172a;">Yeni Sipariş Ekle</span>
+          <span style="font-size:12px; color:#64748b;">PDF yükleyerek sipariş oluştur</span>
+      </a>
+
+      <a href="/dmo/pages/sepet-hesapla.html"
+          style="flex:1; padding:20px; background:white; border:1px solid #e2e8f0; border-radius:16px; cursor:pointer; display:flex; flex-direction:column; align-items:center; gap:8px; transition:all 0.2s; text-decoration:none;"
+          onmouseover="this.style.borderColor='#d97706'; this.style.boxShadow='0 4px 12px rgba(217,119,6,0.1)'"
+          onmouseout="this.style.borderColor='#e2e8f0'; this.style.boxShadow='none'">
+          <span style="font-size:32px;">⚡</span>
+          <span style="font-size:14px; font-weight:800; color:#0f172a;">DMO Sepet Hesapla</span>
+          <span style="font-size:12px; color:#64748b;">Hızlı karlılık analizi</span>
+      </a>
+
+    </section>
+
+    <!-- ── STAT CARDS ──────────────────────────────────────────────────── -->
+    <section class="stats-grid" id="summaryCardsContainer">
+
+        <div class="stat-card">
+            <label>Toplam DMO Tutar</label>
+            <h2 id="stat-total-debt">0,00 ₺</h2>
+            <small id="stat-supplier-count">0 Sipariş</small>
+        </div>
+
+        <div class="stat-card highlight-success">
+            <label>Toplam Maliyet</label>
+            <h2 id="stat-paid">0,00 ₺</h2>
+            <small id="stat-paid-count">İnokas Sepet</small>
+        </div>
+
+        <div class="stat-card highlight-warn">
+            <label>Toplam Kâr</label>
+            <h2 id="stat-overdue">0,00 ₺</h2>
+            <small id="stat-overdue-count">%0</small>
+        </div>
+
+        <!-- Collapsible Diğer Giderler -->
+        <div class="stat-card stat-card--flip" onclick="toggleGiderler()">
+            <div class="flip-card-inner" id="giderlerFlipInner">
+
+                <!-- FRONT -->
+                <div class="flip-card-front">
+                    <label>💡 Diğer Giderler</label>
+                    <h2 id="stat-diger-giderler">0,00 ₺</h2>
+                    <small style="color:#2563eb; font-weight:600;">Detay için tıklayın →</small>
+                </div>
+
+                <!-- BACK -->
+                <div class="flip-card-back">
+                    <label style="color:#ffffff; opacity:0.8; font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:0.05em;">Gider Detayı</label>
+                    <div style="margin-top:8px; display:flex; flex-direction:column; gap:6px;">
+                        <div style="display:flex; justify-content:space-between; align-items:center;">
+                            <span style="font-size:12px; color:rgba(255,255,255,0.75);">Tevkifat</span>
+                            <span id="stat-tevkifat" style="font-size:13px; font-weight:700; color:#ffffff;">0,00 ₺</span>
+                        </div>
+                        <div style="display:flex; justify-content:space-between; align-items:center;">
+                            <span style="font-size:12px; color:rgba(255,255,255,0.75);">Damga + Karar</span>
+                            <span id="stat-damga" style="font-size:13px; font-weight:700; color:#ffffff;">0,00 ₺</span>
+                        </div>
+                        <div style="display:flex; justify-content:space-between; align-items:center;">
+                            <span style="font-size:12px; color:rgba(255,255,255,0.75);">Risturn</span>
+                            <span id="stat-risturn-total" style="font-size:13px; font-weight:700; color:#ffffff;">0,00 ₺</span>
+                        </div>
+                    </div>
+                    <small style="color:rgba(255,255,255,0.6); margin-top:auto;">← Geri dön</small>
+                </div>
+
+            </div>
+        </div>
+
+    </section>
+
+    <!-- ── CHARTS ─────────────────────────────────────────────────────── -->
+    <section class="charts-grid" id="chartsGrid">
+        <!-- populated by JS -->
+    </section>
+
+  </main>
+
+  <div id="toast-container"></div>
+  <script src="/nav-pill.js?v=nav-slide-3-ease"></script>
+
+</body>
+
+</html>

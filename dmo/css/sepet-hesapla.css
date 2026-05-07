@@ -1,0 +1,127 @@
+/* ── FORM GROUP ──────────────────────────────────────────────────────────── */
+.form-group label { display: block; font-size: 0.85rem; font-weight: 700; margin-bottom: 6px; color: var(--text-sub); }
+.form-group input, .form-group select, .form-group textarea {
+  width: 100%; padding: 12px; border: 1px solid var(--border); border-radius: 10px; outline: none; font-family: inherit;
+}
+
+/* ── PRODUCT GRID ────────────────────────────────────────────────────────── */
+.hh-product-card {
+    background: white;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    padding: 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    cursor: pointer;
+    transition: all 0.15s;
+}
+
+.hh-product-card:hover {
+    border-color: #2563eb;
+    box-shadow: 0 4px 12px rgba(37,99,235,0.1);
+}
+
+.hh-product-card.in-sepet {
+    border-color: #16a34a;
+    background: #f0fdf4;
+}
+
+.hh-product-name {
+    font-size: 12px;
+    font-weight: 700;
+    color: #0f172a;
+    line-height: 1.4;
+}
+
+.hh-product-code {
+    font-size: 11px;
+    font-weight: 600;
+    color: #94a3b8;
+}
+
+.hh-product-price {
+    font-size: 13px;
+    font-weight: 800;
+    color: #2563eb;
+}
+
+/* ── SEPET ITEM ──────────────────────────────────────────────────────────── */
+.hh-sepet-item {
+    background: white;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    padding: 12px 14px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.hh-sepet-item-name {
+    flex: 1;
+    font-size: 12px;
+    font-weight: 700;
+    color: #0f172a;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.hh-sepet-item-qty {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.hh-qty-btn {
+    width: 24px;
+    height: 24px;
+    border-radius: 6px;
+    border: 1px solid #e2e8f0;
+    background: #f1f5f9;
+    font-size: 14px;
+    font-weight: 700;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.15s;
+}
+
+.hh-qty-btn:hover {
+    background: #2563eb;
+    color: white;
+    border-color: #2563eb;
+}
+
+.hh-qty-input {
+    width: 40px;
+    text-align: center;
+    border: 1px solid #e2e8f0;
+    border-radius: 6px;
+    padding: 2px 4px;
+    font-size: 13px;
+    font-weight: 700;
+    outline: none;
+}
+
+.hh-sepet-remove {
+    background: none;
+    border: none;
+    color: #94a3b8;
+    cursor: pointer;
+    font-size: 16px;
+    padding: 0;
+    transition: color 0.15s;
+}
+
+.hh-sepet-remove:hover { color: #dc2626; }
+
+/* ── PROFIT VALUE ────────────────────────────────────────────────────────── */
+.profit-value {
+    font-size: 15px;
+    font-weight: 800;
+    color: #0f172a;
+    padding: 4px 0;
+}

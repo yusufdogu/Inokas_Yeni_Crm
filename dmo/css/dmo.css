@@ -156,15 +156,7 @@ body {
     box-sizing: border-box;
 }
 
-#hizliHesapModal .modal-form-side {
-    height: 90vh;
-    max-height: 90vh;
-    overflow-y: auto;
-    box-sizing: border-box;
-    padding: 24px;
-    display: flex;
-    flex-direction: column;
-}
+
 
 /* YENİ: Yeniden tasarlanmış fatura modal layout */
 .invoice-modal-v2 {
@@ -256,7 +248,6 @@ body {
 .upload-icon { font-size: 3rem; display: block; margin-bottom: 1rem; }
 
 /* Right Pane: Form */
-.modal-form-side { padding: 2rem; overflow-y: auto; display: flex; flex-direction: column; }
 .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem; }
 .close-modal { background: none; border: none; font-size: 1.5rem; cursor: pointer; }
 
@@ -615,14 +606,16 @@ body {
   padding-top: 0.5rem;
   border-top: 1px solid var(--border);
 }
-/* ── CHARTS GRID ─────────────────────────────────────────────────────────── */
+
+
 #chartsGrid {
     display: grid;
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: 1fr 1fr;
     gap: 16px;
+    margin-bottom: 24px;
 }
 
-.chart-card {
+#chartsGrid .chart-card {
     background: #ffffff;
     border: 1px solid #e2e8f0;
     border-radius: 12px;
@@ -632,47 +625,206 @@ body {
     gap: 8px;
 }
 
-.chart-card.span-2 {
-    grid-column: span 2;
+#chartsGrid .chart-canvas-wrap {
+    position: relative;
+    height: 220px;
+    width: 100%;
 }
 
-.chart-card-header {
+#chartsGrid .chart-canvas-wrap canvas {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100% !important;
+    height: 100% !important;
+}
+
+
+/* ── SİPARİŞLER MODAL CHARTS ─────────────────────────────────────────────── */
+#siparislerChartsGrid .chart-card {
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    padding: 16px;
     display: flex;
-    align-items: center;
-    justify-content: space-between;
+    flex-direction: column;
+    gap: 8px;
 }
 
-.chart-title {
-    font-size: 12px;
-    font-weight: 700;
-    color: #0f172a;
-    margin: 0;
-}
-
-.chart-canvas-wrap {
+#siparislerChartsGrid .chart-canvas-wrap {
     position: relative;
     height: 200px;
+    width: 100%;
 }
 
-.chart-canvas-wrap canvas {
+#siparislerChartsGrid .chart-canvas-wrap canvas {
+    position: absolute;
+    top: 0;
+    left: 0;
     width:  100% !important;
     height: 100% !important;
 }
 
-.chart-expand-btn {
-    background:  none;
-    border:      none;
-    cursor:      pointer;
-    font-size:   16px;
-    color:       #94a3b8;
-    padding:     2px 4px;
-    border-radius: 4px;
-    transition:  color 0.15s;
-    line-height: 1;
+
+
+/* ── FLIP CARD ───────────────────────────────────────────────────────────── */
+.stat-card--flip {
+    perspective: 1000px;
+    cursor: pointer;
+    background: transparent;
+    border: none;
+    padding: 0;
+    box-shadow: none;
 }
 
-.chart-expand-btn:hover {
+.flip-card-inner {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    min-height: 110px;
+    transform-style: preserve-3d;
+    transition: transform 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.flip-card-inner.flipped {
+    transform: rotateY(180deg);
+}
+
+.flip-card-front,
+.flip-card-back {
+    position: absolute;
+    inset: 0;
+    backface-visibility: hidden;
+    -webkit-backface-visibility: hidden;
+    border-radius: 14px;
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.flip-card-front {
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+}
+
+.flip-card-front label {
+    font-size: 12px;
+    font-weight: 600;
+    color: #64748b;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.flip-card-front h2 {
+    font-size: 1.5rem;
+    font-weight: 800;
+    color: #0f172a;
+    margin: 4px 0;
+}
+
+.flip-card-back {
+    background: linear-gradient(135deg, #1e40af, #2563eb);
+    border: none;
+    transform: rotateY(180deg);
+    box-shadow: 0 4px 12px rgba(37,99,235,0.3);
+}
+
+
+/* ── DETAIL VIEW TABS ────────────────────────────────────────────────────── */
+.dv-tab {
+    padding: 10px 16px;
+    background: none;
+    border: none;
+    border-bottom: 2px solid transparent;
+    font-size: 13px;
+    font-weight: 600;
+    color: #64748b;
+    cursor: pointer;
+    transition: all 0.15s;
+}
+
+.dv-tab-active {
     color: #2563eb;
+    border-bottom-color: #2563eb;
+    font-weight: 800;
+}
+
+/* ── DETAIL INFO CARDS ───────────────────────────────────────────────────── */
+.dv-info-card {
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    padding: 10px 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+}
+
+.dv-info-label {
+    font-size: 10px;
+    font-weight: 800;
+    color: #94a3b8;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.dv-info-val {
+    font-size: 13px;
+    font-weight: 700;
+    color: #0f172a;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+#detail-pdf-side,
+#detail-taslak-side {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+}
+
+#detail-pdf-side > div,
+#detail-taslak-side > div {
+    height: 100%;
+    overflow-y: auto;
+    box-sizing: border-box;
+}
+
+#detail-right-tabbed {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    overflow: hidden;
+}
+
+#detail-right-tabbed > div:last-child {
+    flex: 1;
+    overflow: hidden;
+    position: relative;
+}
+
+#dv-pane-bilgi,
+#dv-pane-stats {
+    position: absolute;
+    inset: 0;
+    overflow-y: auto;
+    padding: 20px;
+}
+
+.dv-edit-input {
+    width: 100%;
+    margin-top: 4px;
+    padding: 4px 8px;
+    border: 1px solid #2563eb;
+    border-radius: 6px;
+    font-size: 13px;
+    font-weight: 600;
+    color: #0f172a;
+    outline: none;
+    box-sizing: border-box;
 }
 
 /* ── CHART MODAL ─────────────────────────────────────────────────────────── */
@@ -888,6 +1040,9 @@ body {
     overflow-y: auto;
     display: flex;
     flex-direction: column;
+    height: 100%;
+    box-sizing: border-box;
+    min-height: 0;
 }
 
 #toast-container {

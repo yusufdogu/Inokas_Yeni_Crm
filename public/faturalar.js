@@ -1,5 +1,5 @@
 // Filtrelerin Sekmelere Özel Hafızası (Her sekme kendi seçimini yazar)
-// index.html içindeki script ?v= ile aynı tut (deploy sonrası hangi bundle çalışıyor görmek için)
+// dmo-index.html içindeki script ?v= ile aynı tut (deploy sonrası hangi bundle çalışıyor görmek için)
 const FATURALAR_BUILD = '20260423-po-integration';
 console.info('[faturalar] bundle', FATURALAR_BUILD);
 

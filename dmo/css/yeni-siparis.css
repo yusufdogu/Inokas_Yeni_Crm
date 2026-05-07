@@ -1,0 +1,177 @@
+/* ── UPLOAD BOX ──────────────────────────────────────────────────────────── */
+.upload-box {
+  background: white;
+  border: 2px dashed var(--primary);
+  padding: 3rem;
+  border-radius: 20px;
+  text-align: center;
+  max-width: 400px;
+}
+
+.upload-icon { font-size: 3rem; display: block; margin-bottom: 1rem; }
+
+.upload-box.drag-over {
+    border-color: #2563eb;
+    background: #eff6ff;
+}
+
+/* ── GRID FORM ───────────────────────────────────────────────────────────── */
+.grid-form { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; padding: 1.5rem; overflow-y: auto; flex: 1; min-height: 0; }
+.span-2 { grid-column: span 2; }
+
+.form-group label { display: block; font-size: 0.85rem; font-weight: 700; margin-bottom: 6px; color: var(--text-sub); }
+.form-group input, .form-group select, .form-group textarea {
+  width: 100%; padding: 12px; border: 1px solid var(--border); border-radius: 10px; outline: none; font-family: inherit;
+}
+
+.input-highlight { font-weight: 800; font-size: 1.2rem; color: var(--primary); border-color: var(--primary) !important; }
+
+/* ── LINE ITEMS TABLE ────────────────────────────────────────────────────── */
+.line-items-wrapper { border: 1px solid var(--border); border-radius: 10px; overflow: hidden; margin-top: 10px; }
+
+.line-table { width: 100%; border-collapse: collapse; background: white; }
+.line-table th { background: #f8fafc; padding: 8px 4px; font-size: 0.75rem; text-transform: uppercase; color: var(--text-sub); text-align: left; }
+.line-table td { padding: 6px 4px; border-bottom: 1px solid var(--border); }
+.line-table input {
+    border: 1px solid transparent;
+    padding: 4px 2px;
+    background: transparent;
+    width: 100%;
+    border-radius: 4px;
+    transition: all 0.2s ease;
+}
+.line-table input:focus {
+    outline: none;
+    background: #eff6ff;
+    border-color: var(--primary);
+    box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.1);
+}
+.line-table input:hover:not(:focus) {
+    background: #f9fafb;
+}
+
+.text-right { text-align: right; }
+.section-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid var(--text-main); padding-bottom: 5px; }
+.btn-text { background: none; border: none; color: var(--primary); font-weight: 700; cursor: pointer; }
+
+/* ── PROFIT VALUE ────────────────────────────────────────────────────────── */
+.profit-value {
+    font-size: 15px;
+    font-weight: 800;
+    color: #0f172a;
+    padding: 4px 0;
+}
+
+/* ── ANALYSIS GRID ───────────────────────────────────────────────────────── */
+.analysis-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+}
+
+.analysis-card {
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    padding: 12px 16px;
+}
+
+.analysis-card label {
+    display: block;
+    font-size: 11px;
+    font-weight: 700;
+    color: #64748b;
+    margin-bottom: 6px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.analysis-card input {
+    width: 100%;
+    border: none;
+    background: transparent;
+    font-size: 15px;
+    font-weight: 700;
+    color: #0f172a;
+    outline: none;
+}
+
+.highlight-tax  { background: #fff7ed; border-color: #fed7aa; }
+.highlight-profit { background: #f0fdf4; border-color: #bbf7d0; }
+.highlight-percentage { background: #eff6ff; border-color: #bfdbfe; }
+
+/* ── PDF TABS ────────────────────────────────────────────────────────────── */
+.pdf-tabs-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    padding: 10px 12px;
+    background: #f1f5f9;
+    border-bottom: 1px solid #e2e8f0;
+}
+
+.pdf-tab {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 10px;
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    font-size: 12px;
+    font-weight: 600;
+    color: #475569;
+    cursor: pointer;
+    max-width: 180px;
+    transition: all 0.15s;
+}
+
+.pdf-tab:hover {
+    border-color: #2563eb;
+    color: #2563eb;
+}
+
+.pdf-tab-active {
+    background: #eff6ff;
+    border-color: #2563eb;
+    color: #2563eb;
+}
+
+.pdf-tab-name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 130px;
+}
+
+.pdf-tab-remove {
+    background: none;
+    border: none;
+    color: #94a3b8;
+    cursor: pointer;
+    font-size: 11px;
+    padding: 0;
+    line-height: 1;
+    flex-shrink: 0;
+}
+
+.pdf-tab-remove:hover { color: #dc2626; }
+
+.pdf-tab-add {
+    display: flex;
+    align-items: center;
+    padding: 5px 10px;
+    background: #f8fafc;
+    border: 1px dashed #94a3b8;
+    border-radius: 8px;
+    font-size: 12px;
+    font-weight: 600;
+    color: #64748b;
+    cursor: pointer;
+    transition: all 0.15s;
+}
+
+.pdf-tab-add:hover {
+    border-color: #2563eb;
+    color: #2563eb;
+}

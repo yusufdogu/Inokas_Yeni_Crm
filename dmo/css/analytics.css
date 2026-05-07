@@ -1,0 +1,124 @@
+/* ── DASHBOARD CHARTS GRID ───────────────────────────────────────────────── */
+#chartsGrid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin-bottom: 24px;
+}
+
+#chartsGrid .chart-card {
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+#chartsGrid .chart-canvas-wrap {
+    position: relative;
+    height: 220px;
+    width: 100%;
+}
+
+#chartsGrid .chart-canvas-wrap canvas {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100% !important;
+    height: 100% !important;
+}
+
+/* ── SİPARİŞLER PAGE CHARTS ──────────────────────────────────────────────── */
+#siparislerChartsGrid .chart-card {
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+#siparislerChartsGrid .chart-canvas-wrap {
+    position: relative;
+    height: 200px;
+    width: 100%;
+}
+
+#siparislerChartsGrid .chart-canvas-wrap canvas {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width:  100% !important;
+    height: 100% !important;
+}
+
+/* ── CHART EXPAND MODAL ──────────────────────────────────────────────────── */
+.chart-modal-overlay {
+    position:        fixed;
+    inset:           0;
+    background:      rgba(0,0,0,0.5);
+    display:         flex;
+    align-items:     center;
+    justify-content: center;
+    z-index:         2000;
+    padding:         24px;
+}
+
+.chart-modal-box {
+    background:    #ffffff;
+    border-radius: 16px;
+    width:         100%;
+    max-width:     900px;
+    max-height:    90vh;
+    display:       flex;
+    flex-direction: column;
+    box-shadow:    0 20px 60px rgba(0,0,0,0.2);
+    overflow:      hidden;
+}
+
+.chart-modal-header {
+    display:         flex;
+    align-items:     center;
+    justify-content: space-between;
+    padding:         16px 20px;
+    border-bottom:   1px solid #e2e8f0;
+    flex-shrink:     0;
+}
+
+.chart-modal-header h3 {
+    font-size:   15px;
+    font-weight: 700;
+    color:       #0f172a;
+    margin:      0;
+}
+
+.chart-modal-close {
+    background:    none;
+    border:        none;
+    font-size:     18px;
+    color:         #94a3b8;
+    cursor:        pointer;
+    padding:       4px 8px;
+    border-radius: 6px;
+    transition:    all 0.15s;
+}
+
+.chart-modal-close:hover {
+    background: #f1f5f9;
+    color:      #0f172a;
+}
+
+.chart-modal-body {
+    padding:  24px;
+    flex:     1;
+    position: relative;
+    height:   500px;
+}
+
+.chart-modal-body canvas {
+    width:  100% !important;
+    height: 100% !important;
+}

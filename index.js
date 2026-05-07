@@ -81,22 +81,48 @@ app.post('/api/dmo/parse-pdf', (req, res) => {
 
 async function fetchAndSaveTCMBRates() {
     try {
-        const res  = await fetch('https://www.tcmb.gov.tr/kurlar/today.xml');
-        const text = await res.text();
+        const usdRegex = /CurrencyCode="USD"[\s\S]*?<ForexBuying>([\d.]+)<\/ForexBuying>/;
+        const eurRegex = /CurrencyCode="EUR"[\s\S]*?<ForexBuying>([\d.]+)<\/ForexBuying>/;
 
-        const usdMatch = text.match(/<Currency Kod="USD"[^>]*>[\s\S]*?<ForexBuying>([\d.]+)<\/ForexBuying>/);
-        const eurMatch = text.match(/<Currency Kod="EUR"[^>]*>[\s\S]*?<ForexBuying>([\d.]+)<\/ForexBuying>/);
+        let usd_try = null;
+        let eur_try = null;
+        let foundDate = null;
 
-        if (!usdMatch || !eurMatch) {
-            console.error('TCMB: USD veya EUR bulunamadı');
+        for (let daysBack = 0; daysBack <= 5; daysBack++) {
+            const date = new Date();
+            date.setDate(date.getDate() - daysBack);
+            const dd   = String(date.getDate()).padStart(2, '0');
+            const mm   = String(date.getMonth() + 1).padStart(2, '0');
+            const yyyy = date.getFullYear();
+
+            const url = daysBack === 0
+                ? 'https://www.tcmb.gov.tr/kurlar/today.xml'
+                : `https://www.tcmb.gov.tr/kurlar/${yyyy}${mm}/${dd}${mm}${yyyy}.xml`;
+
+            const res  = await fetch(url);
+            const body = await res.text();
+
+            const usdMatch = body.match(usdRegex);
+            const eurMatch = body.match(eurRegex);
+
+            if (usdMatch && eurMatch) {
+                usd_try   = parseFloat(usdMatch[1]);
+                eur_try   = parseFloat(eurMatch[1]);
+                foundDate = `${yyyy}-${mm}-${dd}`;
+                console.log(`TCMB: ${foundDate} tarihli kur bulundu — USD ${usd_try} EUR ${eur_try}`);
+                break;
+            }
+
+            console.log(`TCMB: ${yyyy}-${mm}-${dd} verisi yok, bir önceki güne bakılıyor...`);
+        }
+
+        if (!usd_try || !eur_try || !foundDate) {
+            console.error('TCMB: Son 5 gün için kur verisi bulunamadı');
             return;
         }
 
-        const usd_try = parseFloat(usdMatch[1]);
-        const eur_try = parseFloat(eurMatch[1]);
-        const today   = new Date().toISOString().slice(0, 10); // "2026-05-07"
+        const today = new Date().toISOString().slice(0, 10);
 
-        // Check if today's row exists
         const { data: existing } = await supabase
             .from('rate_history')
             .select('id')
@@ -107,20 +133,19 @@ async function fetchAndSaveTCMBRates() {
         if (existing) {
             await supabase
                 .from('rate_history')
-                .update({ usd_try, eur_try })
+                .update({ usd_try, eur_try, rate_date: foundDate })
                 .eq('id', existing.id);
-            console.log(`TCMB güncellendi: USD ${usd_try} EUR ${eur_try}`);
+            console.log(`TCMB güncellendi: USD ${usd_try} EUR ${eur_try} (kur tarihi: ${foundDate})`);
         } else {
             await supabase
                 .from('rate_history')
-                .insert({ usd_try, eur_try });
-            console.log(`TCMB eklendi: USD ${usd_try} EUR ${eur_try}`);
+                .insert({ usd_try, eur_try, rate_date: foundDate });
+            console.log(`TCMB eklendi: USD ${usd_try} EUR ${eur_try} (kur tarihi: ${foundDate})`);
         }
     } catch (err) {
         console.error('TCMB fetch hatası:', err.message);
     }
 }
-
 async function fetchAndSaveDMORate() {
     try {
         // Find product 106776's id first
@@ -160,23 +185,35 @@ async function fetchAndSaveDMORate() {
             .lte('recorded_at', today + 'T23:59:59')
             .maybeSingle();
 
+        const dmo_rate_date = new Date().toISOString().slice(0, 10);
+
         if (existing) {
             await supabase
                 .from('rate_history')
-                .update({ dmo_eur_try })
+                .update({ dmo_eur_try, dmo_rate_date })
                 .eq('id', existing.id);
         } else {
             await supabase
                 .from('rate_history')
-                .insert({ dmo_eur_try });
+                .insert({ dmo_eur_try, dmo_rate_date });
         }
+        console.log(`DMO EUR/TRY güncellendi: ${dmo_eur_try} (tarih: ${dmo_rate_date})`);
 
-        console.log(`DMO EUR/TRY güncellendi: ${dmo_eur_try}`);
     } catch (err) {
         console.error('DMO rate fetch hatası:', err.message);
     }
 }
 
+
+app.get('/api/debug-tcmb', async (req, res) => {
+    try {
+        const res2 = await fetch('https://www.tcmb.gov.tr/kurlar/today.xml');
+        const text = await res2.text();
+        res.send(`<pre>STATUS: ${res2.status}\n\nBODY:\n${text.slice(0, 3000)}</pre>`);
+    } catch (err) {
+        res.send('ERROR: ' + err.message);
+    }
+});
 
 app.post('/api/dmo/fetch-tcmb-now', async (req, res) => {
     await fetchAndSaveTCMBRates();
@@ -211,9 +248,11 @@ app.get('/api/dmo/rates', async (req, res) => {
             .maybeSingle();
 
         res.json({
-            usd_try:     tcmbRow?.usd_try     || null,
-            eur_try:     tcmbRow?.eur_try     || null,
-            dmo_eur_try: dmoRow?.dmo_eur_try  || null,
+            usd_try:       tcmbRow?.usd_try      || null,
+            eur_try:       tcmbRow?.eur_try      || null,
+            dmo_eur_try:   dmoRow?.dmo_eur_try   || null,
+            rate_date:     tcmbRow?.rate_date    || null,
+            dmo_rate_date: dmoRow?.dmo_rate_date || null,
         });
     } catch (err) {
         console.error('rates endpoint hatası:', err.message);

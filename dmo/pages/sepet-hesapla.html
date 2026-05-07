@@ -100,9 +100,7 @@
     </div>
 
     <!-- RIGHT: Calculations -->
-    <div style="padding:24px; overflow-y:auto; display:flex; flex-direction:column; background:white;">
-
-      <h3 style="font-size:1rem; font-weight:800; color:#0f172a; margin-bottom:16px;">📊 Hesaplama</h3>
+    <div style="padding:24px; overflow-y:auto; display:flex; flex-direction:column; background:white; min-height:0;">
 
       <!-- Customer -->
       <div class="form-group" style="margin-bottom:16px;">
@@ -132,82 +130,87 @@
         <div style="background:#f8fafc; padding:10px 16px; font-size:11px; font-weight:800; color:#64748b; letter-spacing:0.5px; border-bottom:1px solid #e2e8f0;">GELİR TARAFI</div>
         <div style="background:#f8fafc; padding:10px 16px; font-size:11px; font-weight:800; color:#64748b; letter-spacing:0.5px; border-bottom:1px solid #e2e8f0; border-left:2px solid #e2e8f0;">GİDER TARAFI</div>
 
-        <!-- DMO Tutar / İnokas Maliyet -->
+        <!-- DMO Sepet / İnokas Maliyet -->
         <div style="padding:10px 16px; border-bottom:1px solid #e2e8f0; display:flex; justify-content:space-between; align-items:center;">
-          <label style="font-size:12px; font-weight:600; color:#64748b;">DMO Tutar</label>
-          <input type="number" id="hh_dmo_basket" readonly style="border:none; text-align:right; font-weight:700; font-size:13px; color:#0f172a; background:transparent; width:100px;">
+          <label style="font-size:12px; font-weight:600; color:#64748b;">DMO Sepet</label>
+          <span id="hh_dmo_basket" style="font-weight:700; font-size:13px; color:#0f172a;">—</span>
         </div>
         <div style="padding:10px 16px; border-bottom:1px solid #e2e8f0; border-left:2px solid #e2e8f0; display:flex; justify-content:space-between; align-items:center;">
           <label style="font-size:12px; font-weight:600; color:#64748b;">İnokas Maliyet</label>
-          <input type="number" id="hh_inokas_basket" readonly style="border:none; text-align:right; font-weight:700; font-size:13px; color:#0f172a; background:transparent; width:100px;">
+          <span id="hh_inokas_basket" style="font-weight:700; font-size:13px; color:#0f172a;">—</span>
         </div>
 
-        <!-- KDV / DMO Kesinti -->
-        <div style="padding:10px 16px; border-bottom:1px solid #e2e8f0; display:flex; justify-content:space-between; align-items:center;">
-          <label style="font-size:12px; font-weight:600; color:#64748b;">KDV (%20)</label>
-          <input type="number" id="hh_kdv" readonly style="border:none; text-align:right; font-weight:700; font-size:13px; color:#0f172a; background:transparent; width:100px;">
-        </div>
-        <div style="padding:10px 16px; border-bottom:1px solid #e2e8f0; border-left:2px solid #e2e8f0; display:flex; justify-content:space-between; align-items:center;">
-          <label style="font-size:12px; font-weight:600; color:#64748b;">DMO Kesinti (%8)</label>
-          <input type="number" id="hh_dmo_deduction" readonly style="border:none; text-align:right; font-weight:700; font-size:13px; color:#0f172a; background:transparent; width:100px;">
-        </div>
-
-        <!-- Tevkifat + Gerçek KDV / Risturn -->
+        <!-- KDV / Tutar İndirimi -->
         <div style="padding:10px 16px; border-bottom:1px solid #e2e8f0; display:flex; flex-direction:column; gap:4px;">
           <div style="display:flex; justify-content:space-between; align-items:center;">
-            <label style="font-size:11px; font-weight:600; color:#94a3b8;">Tevkifat</label>
-            <input type="number" id="hh_tevkifat" readonly style="border:none; text-align:right; font-weight:600; font-size:12px; color:#64748b; background:transparent; width:80px;">
+            <label style="font-size:11px; font-weight:600; color:#94a3b8;">KDV (%20)</label>
+            <span id="hh_kdv" style="font-weight:600; font-size:12px; color:#64748b;">—</span>
           </div>
           <div style="display:flex; justify-content:space-between; align-items:center;">
             <label style="font-size:12px; font-weight:700; color:#0f172a;">Gerçek KDV</label>
-            <input type="number" id="hh_gercek_kdv" readonly style="border:none; text-align:right; font-weight:700; font-size:13px; color:#0f172a; background:transparent; width:80px;">
+            <span id="hh_gercek_kdv" style="font-weight:700; font-size:13px; color:#0f172a;">—</span>
           </div>
         </div>
         <div style="padding:10px 16px; border-bottom:1px solid #e2e8f0; border-left:2px solid #e2e8f0; display:flex; justify-content:space-between; align-items:center;">
-          <label style="font-size:12px; font-weight:600; color:#64748b;">Risturn (%1)</label>
-          <input type="number" id="hh_risturn" readonly style="border:none; text-align:right; font-weight:700; font-size:13px; color:#0f172a; background:transparent; width:100px;">
+          <label style="font-size:12px; font-weight:600; color:#dc2626;">Tutar İndirimi</label>
+          <div style="text-align:right;">
+            <span id="hh_tutar_indirimi_pct" style="font-size:11px; font-weight:700; color:#dc2626; margin-right:6px;">%0</span>
+            <span id="hh_tutar_indirimi" style="font-weight:700; font-size:13px; color:#dc2626;">—</span>
+          </div>
         </div>
 
-        <!-- Damga -->
+        <!-- Empty / Vergiler accordion -->
         <div style="border-bottom:1px solid #e2e8f0; background:#fafafa;"></div>
-        <div style="padding:10px 16px; border-bottom:1px solid #e2e8f0; border-left:2px solid #e2e8f0; display:flex; justify-content:space-between; align-items:center;">
-          <label style="font-size:12px; font-weight:600; color:#64748b;">Damga + Karar</label>
-          <input type="number" id="hh_damga_karar" readonly style="border:none; text-align:right; font-weight:700; font-size:13px; color:#0f172a; background:transparent; width:100px;">
+        <div style="border-bottom:1px solid #e2e8f0; border-left:2px solid #e2e8f0;">
+          <div onclick="toggleVergiler()"
+            style="padding:10px 16px; display:flex; justify-content:space-between; align-items:center; cursor:pointer; user-select:none;">
+            <label style="font-size:12px; font-weight:600; color:#64748b; cursor:pointer;">
+              <span id="vergiler_arrow" style="font-size:10px; margin-right:4px;">▶</span>Vergiler
+            </label>
+            <span id="hh_vergiler_total" style="font-weight:700; font-size:13px; color:#0f172a;">—</span>
+          </div>
+          <div id="vergiler_detail" style="display:none; border-top:1px solid #f1f5f9; background:#f8fafc;">
+            <div style="padding:6px 16px 6px 28px; display:flex; justify-content:space-between; align-items:center;">
+              <label style="font-size:11px; font-weight:600; color:#94a3b8;">Tevkifat (%20)</label>
+              <span id="hh_tevkifat" style="font-size:12px; font-weight:600; color:#64748b;">—</span>
+            </div>
+            <div style="padding:6px 16px 6px 28px; display:flex; justify-content:space-between; align-items:center;">
+              <label style="font-size:11px; font-weight:600; color:#94a3b8;">Risturn (%1)</label>
+              <span id="hh_risturn" style="font-size:12px; font-weight:600; color:#64748b;">—</span>
+            </div>
+            <div style="padding:6px 16px 6px 28px; display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid #f1f5f9;">
+              <label style="font-size:11px; font-weight:600; color:#94a3b8;">Damga + Karar</label>
+              <span id="hh_damga_karar" style="font-size:12px; font-weight:600; color:#64748b;">—</span>
+            </div>
+          </div>
         </div>
 
-        <!-- Hediye -->
+        <!-- Empty / Hediye -->
         <div style="border-bottom:1px solid #e2e8f0; background:#fafafa;"></div>
         <div style="padding:10px 16px; border-bottom:1px solid #e2e8f0; border-left:2px solid #e2e8f0; display:flex; justify-content:space-between; align-items:center;">
           <label style="font-size:12px; font-weight:600; color:#64748b;">🎁 Hediye Toplam</label>
-          <input type="number" id="hh_gift_total" readonly style="border:none; text-align:right; font-weight:700; font-size:13px; color:#0f172a; background:transparent; width:100px;">
-        </div>
-
-        <!-- Toplam İndirim -->
-        <div style="padding:10px 16px; border-bottom:1px solid #e2e8f0; background:#fcfcfc;"></div>
-        <div style="padding:10px 16px; border-bottom:1px solid #e2e8f0; border-left:2px solid #e2e8f0; display:flex; justify-content:space-between; align-items:center;">
-          <label style="font-size:12px; font-weight:600; color:#64748b;">Toplam İndirim</label>
-          <input type="number" id="hh_discount_total" readonly style="border:none; text-align:right; font-weight:700; font-size:13px; color:#0f172a; background:transparent; width:100px;">
+          <span id="hh_gift_total" style="font-weight:700; font-size:13px; color:#0f172a;">—</span>
         </div>
 
         <!-- Toplam Gelir / Gider -->
         <div style="padding:12px 16px; border-bottom:1px solid #e2e8f0; display:flex; justify-content:space-between; align-items:center; background:#f1f5f9;">
           <label style="font-size:12px; font-weight:800; color:#0f172a;">Toplam Gelir</label>
-          <input type="text" id="hh_toplam_gelir" value="0,00" readonly style="border:none; text-align:right; font-weight:800; font-size:14px; color:#0f172a; background:transparent; width:100px;">
+          <span id="hh_toplam_gelir" style="font-weight:800; font-size:14px; color:#0f172a;">—</span>
         </div>
         <div style="padding:12px 16px; border-bottom:1px solid #e2e8f0; border-left:2px solid #e2e8f0; display:flex; justify-content:space-between; align-items:center; background:#f1f5f9;">
           <label style="font-size:12px; font-weight:800; color:#0f172a;">Toplam Gider</label>
-          <input type="text" id="hh_toplam_gider" value="0,00" readonly style="border:none; text-align:right; font-weight:800; font-size:14px; color:#0f172a; background:transparent; width:100px;">
+          <span id="hh_toplam_gider" style="font-weight:800; font-size:14px; color:#0f172a;">—</span>
         </div>
 
         <!-- Net Kar -->
         <div style="grid-column:span 2; padding:14px 16px; display:grid; grid-template-columns:1fr 1fr; gap:16px; background:#f8fafc;">
           <div style="border:1px solid #e2e8f0; border-radius:10px; padding:12px 16px; background:white; display:flex; justify-content:space-between; align-items:center;">
             <label style="font-size:12px; font-weight:800; color:#0f172a;">Net Kar</label>
-            <div id="hh_net_profit" style="font-size:16px; font-weight:800; color:#10b981;">0,00 ₺</div>
+            <div id="hh_net_profit" style="font-size:16px; font-weight:800; color:#10b981;">—</div>
           </div>
           <div style="border:1px solid #e2e8f0; border-radius:10px; padding:12px 16px; background:white; display:flex; justify-content:space-between; align-items:center;">
             <label style="font-size:12px; font-weight:800; color:#0f172a;">Kar %</label>
-            <div id="hh_profit_pct" style="font-size:16px; font-weight:800; color:#10b981;">%0</div>
+            <div id="hh_profit_pct" style="font-size:16px; font-weight:800; color:#10b981;">—</div>
           </div>
         </div>
 

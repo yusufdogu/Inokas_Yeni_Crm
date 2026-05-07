@@ -132,7 +132,6 @@ function renderHHProductTable() {
                     <th style="padding:10px 8px; text-align:right;">MARJ %</th>
                     <th style="padding:10px 8px; text-align:center;">ADET</th>
                     <th style="padding:10px 8px; text-align:center;">🎁 ADET</th>
-                    <th style="padding:10px 8px; text-align:center;">İndirim %</th>
                     <th style="padding:10px 8px; text-align:center;"></th>
                 </tr>
             </thead>
@@ -180,12 +179,11 @@ function renderHHRow(p, usdRate, tab) {
     const marj      = realDMO > 0 ? ((realDMO - malTL) / realDMO * 100) : 0;
     const marjColor = marj >= 0 ? "#16a34a" : "#dc2626";
 
-    let qty, giftQty, discount, actionBtn;
+    let qty, giftQty, actionBtn;
 
     if (tab === "sepet") {
         qty      = hhSepet[p.dmo_code]?.quantity     || 0;
         giftQty  = hhSepet[p.dmo_code]?.giftQuantity || 0;
-        discount = hhSepet[p.dmo_code]?.discount     || 0;
         actionBtn = `<button onclick="removeFromSepet('${p.dmo_code}')"
             style="padding:4px 10px; background:#fee2e2; color:#dc2626; border:1px solid #fecaca; border-radius:6px; font-size:11px; font-weight:700; cursor:pointer; white-space:nowrap;">
             Çıkar</button>`;
@@ -193,7 +191,6 @@ function renderHHRow(p, usdRate, tab) {
         const item = hhItems[p.dmo_code] || {};
         qty      = item.quantity     || 0;
         giftQty  = item.giftQuantity || 0;
-        discount = item.discount     || 0;
         const hasQty = qty > 0 || giftQty > 0;
         actionBtn = hasQty
             ? `<button onclick="addToSepet('${p.dmo_code}')"
@@ -204,7 +201,6 @@ function renderHHRow(p, usdRate, tab) {
 
     const qtyInput      = tab === "sepet" ? `oninput="updateSepetItem('${p.dmo_code}', this.value, 'qty')"` : `oninput="updateHHItem('${p.dmo_code}', this.value, 'qty')"`;
     const giftInput     = tab === "sepet" ? `oninput="updateSepetItem('${p.dmo_code}', this.value, 'gift')"` : `oninput="updateHHItem('${p.dmo_code}', this.value, 'gift')"`;
-    const discountInput = tab === "sepet" ? `oninput="updateSepetItem('${p.dmo_code}', this.value, 'disc')"` : `oninput="updateHHItem('${p.dmo_code}', this.value, 'disc')"`;
 
     return `
         <tr style="border-bottom:1px solid #e2e8f0; background:${tab === "sepet" ? "#f0fdf4" : "white"};">
@@ -225,10 +221,7 @@ function renderHHRow(p, usdRate, tab) {
                 <input type="number" min="0" placeholder="0" value="${giftQty}" ${giftInput}
                     style="width:60px; padding:4px 6px; border:1px solid #fed7aa; border-radius:6px; text-align:center; font-size:12px; background:#fff7ed;">
             </td>
-            <td style="padding:8px; text-align:center;">
-                <input type="number" min="0" placeholder="0" value="${discount}" ${discountInput}
-                    style="width:60px; padding:4px 6px; border:1px solid #e2e8f0; border-radius:6px; text-align:center; font-size:12px;">
-            </td>
+            
             <td style="padding:8px; text-align:center;">${actionBtn}</td>
         </tr>`;
 }
@@ -245,7 +238,6 @@ function addToSepet(dmoCode) {
         ...product,
         quantity:     item.quantity     || 0,
         giftQuantity: item.giftQuantity || 0,
-        discount:     item.discount     || 0,
     };
 
     delete hhItems[dmoCode];
@@ -261,7 +253,6 @@ function removeFromSepet(dmoCode) {
     hhItems[dmoCode] = {
         quantity:     hhSepet[dmoCode].quantity     || 0,
         giftQuantity: hhSepet[dmoCode].giftQuantity || 0,
-        discount:     hhSepet[dmoCode].discount     || 0,
     };
 
     if (hhItems[dmoCode].quantity === 0 && hhItems[dmoCode].giftQuantity === 0) {
@@ -278,8 +269,7 @@ function updateSepetItem(dmoCode, value, col) {
     const qty = parseInt(value) || 0;
 
     if (col === "gift")      hhSepet[dmoCode].giftQuantity = qty;
-    else if (col === "qty")  hhSepet[dmoCode].quantity     = qty;
-    else                     hhSepet[dmoCode].discount      = qty;
+    if (col === "qty")  hhSepet[dmoCode].quantity     = qty;
 
     if (hhSepet[dmoCode].quantity === 0 && hhSepet[dmoCode].giftQuantity === 0) {
         removeFromSepet(dmoCode);
@@ -304,13 +294,11 @@ function updateHHItem(dmoCode, value, col) {
             maliyet_usd:        product.maliyet_usd,
             quantity:           0,
             giftQuantity:       0,
-            discount:           0,
         };
     }
 
     if (col === "gift")      hhItems[dmoCode].giftQuantity = quantity;
-    else if (col === "qty")  hhItems[dmoCode].quantity     = quantity;
-    else                     hhItems[dmoCode].discount      = quantity;
+    if (col === "qty")  hhItems[dmoCode].quantity     = quantity;
 
     if (hhItems[dmoCode].quantity === 0 && hhItems[dmoCode].giftQuantity === 0) {
         delete hhItems[dmoCode];
@@ -355,16 +343,31 @@ function updateHHTabUI() {
         sepetBtn.style.color        = hhActiveTab === "sepet" ? "#2563eb" : "#64748b";
     }
 }
-
+function getTutarIndirimPct(basket) {
+    if (basket <= 375000)           return 0;
+    if (basket <= 750000)           return 0.01;
+    if (basket <= 1125000)          return 0.02;
+    if (basket <= 1500000)          return 0.03;
+    if (basket <= 1875000)          return 0.04;
+    if (basket <= 2250000)          return 0.05;
+    if (basket <= 2625000)          return 0.06;
+    return                                 0.07;
+}
+function toggleVergiler() {
+    const detail = document.getElementById("vergiler_detail");
+    const arrow  = document.getElementById("vergiler_arrow");
+    const isOpen = detail.style.display !== "none";
+    detail.style.display = isOpen ? "none" : "block";
+    arrow.textContent    = isOpen ? "▶" : "▼";
+}
 // ── RECALCULATE ───────────────────────────────────────────────────────────────
 function recalcHizliHesap() {
     const rates   = getCurrentRates();
     const usdRate = parseFloat(rates.usd_try) || 0;
 
-    let dmoBasket     = 0;
-    let inokasBasket  = 0;
-    let giftTotal     = 0;
-    let discountTotal = 0;
+    let dmoBasket    = 0;
+    let inokasBasket = 0;
+    let giftTotal    = 0;
 
     Object.values(hhSepet).forEach(item => {
         const dmoFiyat = parseFloat(item.dmo_fiyat_try || 0);
@@ -374,50 +377,54 @@ function recalcHizliHesap() {
         dmoBasket    += dmoFiyat * (item.quantity     || 0);
         inokasBasket += malTL   * (item.quantity     || 0);
         giftTotal    += malTL   * (item.giftQuantity || 0);
-        discountTotal += (dmoFiyat * (item.quantity || 0) * (item.discount || 0)) / 100;
     });
 
-    const kdv         = dmoBasket * 0.20;
-    const tevkifat    = kdv * 0.20;
-    const gercekKdv   = kdv - tevkifat;
-    const risturn     = dmoBasket * 0.01;
-    const damga_karar = dmoBasket * 0.01517;
-    const toplamGelir = dmoBasket + kdv;
-    const toplamGider = inokasBasket + tevkifat + risturn + giftTotal + damga_karar + discountTotal;
-    const netProfit   = toplamGelir - toplamGider;
-    const profitPct   = dmoBasket > 0 ? (netProfit / dmoBasket) * 100 : 0;
+    // Step 2 — tutar indirimi
+    const tutarIndirimPct  = getTutarIndirimPct(dmoBasket);
+    const tutarIndirimi    = dmoBasket * tutarIndirimPct;
 
-    const setVal = (id, val) => {
+    // Step 3 — real basket after discount
+    const realDmoBasket    = dmoBasket - tutarIndirimi;
+
+    // Step 4 — all taxes on realDmoBasket
+    const kdv              = realDmoBasket * 0.20;
+    const tevkifat         = kdv * 0.20;
+    const gercekKdv        = kdv - tevkifat;
+    const risturn          = realDmoBasket * 0.01;
+    const damgaKarar       = realDmoBasket * 0.01517;
+    const vergilerTotal    = tevkifat + risturn + damgaKarar;
+
+    // Step 5 — totals
+    const toplamGelir      = realDmoBasket + gercekKdv;
+    const toplamGider      = inokasBasket + tutarIndirimi + vergilerTotal + giftTotal;
+    const netProfit        = toplamGelir - toplamGider;
+    const profitPct        = toplamGelir > 0 ? (netProfit / toplamGelir) * 100 : 0;
+
+    // ── UPDATE DOM ────────────────────────────────────────────────────────────
+    const fmt = v => formatAmount(v.toFixed(2)) + " ₺";
+    const set = (id, val) => {
         const el = document.getElementById(id);
-        if (el) el.value = isNaN(val) ? "0.00" : val.toFixed(2);
+        if (el) el.textContent = val;
     };
 
-    setVal("hh_dmo_basket",    dmoBasket);
-    setVal("hh_inokas_basket", inokasBasket);
-    setVal("hh_kdv",           kdv);
-    setVal("hh_tevkifat",      tevkifat);
-    setVal("hh_gercek_kdv",    gercekKdv);
-    setVal("hh_risturn",       risturn);
-    setVal("hh_damga_karar",   damga_karar);
-    setVal("hh_gift_total",    giftTotal);
-    setVal("hh_discount_total", discountTotal);
-
-    const usdEl = document.getElementById("hh_rate_usd");
-    const eurEl = document.getElementById("hh_rate_eur");
-    const dmoEl = document.getElementById("hh_rate_dmo");
-    if (usdEl) usdEl.textContent = rates.usd_try     ? parseFloat(rates.usd_try).toFixed(2)     + " ₺" : "—";
-    if (eurEl) eurEl.textContent = rates.eur_try     ? parseFloat(rates.eur_try).toFixed(2)     + " ₺" : "—";
-    if (dmoEl) dmoEl.textContent = rates.dmo_eur_try ? parseFloat(rates.dmo_eur_try).toFixed(4) + " ₺" : "—";
-
-    const gelirEl = document.getElementById("hh_toplam_gelir");
-    const giderEl = document.getElementById("hh_toplam_gider");
-    if (gelirEl) gelirEl.value = formatAmount(toplamGelir.toFixed(2));
-    if (giderEl) giderEl.value = formatAmount(toplamGider.toFixed(2));
+    set("hh_dmo_basket",         fmt(dmoBasket));
+    set("hh_inokas_basket",      fmt(inokasBasket));
+    set("hh_kdv",                fmt(kdv));
+    set("hh_gercek_kdv",         fmt(gercekKdv));
+    set("hh_tutar_indirimi",     fmt(tutarIndirimi));
+    set("hh_tutar_indirimi_pct", "%" + (tutarIndirimPct * 100).toFixed(0));
+    set("hh_tevkifat",           fmt(tevkifat));
+    set("hh_risturn",            fmt(risturn));
+    set("hh_damga_karar",        fmt(damgaKarar));
+    set("hh_vergiler_total",     fmt(vergilerTotal));
+    set("hh_gift_total",         fmt(giftTotal));
+    set("hh_toplam_gelir",       fmt(toplamGelir));
+    set("hh_toplam_gider",       fmt(toplamGider));
 
     const profitEl  = document.getElementById("hh_net_profit");
     const percentEl = document.getElementById("hh_profit_pct");
     if (profitEl) {
-        profitEl.textContent = formatAmount(netProfit.toFixed(2)) + " ₺";
+        profitEl.textContent = fmt(netProfit);
         profitEl.style.color = netProfit >= 0 ? "#16a34a" : "#dc2626";
     }
     if (percentEl) {
@@ -425,8 +432,19 @@ function recalcHizliHesap() {
         percentEl.style.color = profitPct >= 0 ? "#16a34a" : "#dc2626";
     }
 
+    // Rate display
+    const usdEl = document.getElementById("hh_rate_usd");
+    const eurEl = document.getElementById("hh_rate_eur");
+    const dmoEl = document.getElementById("hh_rate_dmo");
+    const rateLabel    = rates.rate_date     ? `<div style="font-size:9px; color:#94a3b8; margin-top:2px;">${rates.rate_date}</div>`     : "";
+    const dmoRateLabel = rates.dmo_rate_date ? `<div style="font-size:9px; color:#94a3b8; margin-top:2px;">${rates.dmo_rate_date}</div>` : "";
+    if (usdEl) usdEl.innerHTML = (rates.usd_try ? parseFloat(rates.usd_try).toFixed(2) + " ₺" : "—") + rateLabel;
+    if (eurEl) eurEl.innerHTML = (rates.eur_try ? parseFloat(rates.eur_try).toFixed(2) + " ₺" : "—") + rateLabel;
+    if (dmoEl) dmoEl.innerHTML = (rates.dmo_eur_try ? parseFloat(rates.dmo_eur_try).toFixed(4) + " ₺" : "—") + dmoRateLabel;
+
     updateLimitBar(dmoBasket);
 }
+
 
 function updateLimitBar(currentDMO = 0) {
     const pct       = Math.min((currentDMO / LIMIT) * 100, 100);
@@ -503,33 +521,40 @@ async function saveHizliHesapAsTaslak() {
         return;
     }
 
-    const usdRate      = getCurrentRates().usd_try;
-    const dmoBasket    = parseFloat(document.getElementById("hh_dmo_basket")?.value)    || 0;
-    const inokasBasket = parseFloat(document.getElementById("hh_inokas_basket")?.value) || 0;
-    const kdv          = parseFloat(document.getElementById("hh_kdv")?.value)           || 0;
-    const tevkifat     = parseFloat(document.getElementById("hh_tevkifat")?.value)      || 0;
-    const gercekKdv    = parseFloat(document.getElementById("hh_gercek_kdv")?.value)    || 0;
-    const risturn      = parseFloat(document.getElementById("hh_risturn")?.value)       || 0;
-    const toplamGelir  = parseFloat(document.getElementById("hh_toplam_gelir")?.value)  || 0;
-    const toplamGider  = parseFloat(document.getElementById("hh_toplam_gider")?.value)  || 0;
-    const netProfit    = toplamGelir - toplamGider;
-    const profitPct    = dmoBasket > 0 ? (netProfit / dmoBasket) * 100 : 0;
+    const usdRate          = getCurrentRates().usd_try;
+    const getText          = id => parseFloat(document.getElementById(id)?.textContent?.replace(/\./g, "").replace(",", ".").replace(" ₺", "")) || 0;
+    const dmoBasket        = getText("hh_dmo_basket");
+    const inokasBasket     = getText("hh_inokas_basket");
+    const kdv              = getText("hh_kdv");
+    const tevkifat         = getText("hh_tevkifat");
+    const gercekKdv        = getText("hh_gercek_kdv");
+    const risturn          = getText("hh_risturn");
+    const tutarIndirimi    = getText("hh_tutar_indirimi");
+    const toplamGelir      = getText("hh_toplam_gelir");
+    const toplamGider      = getText("hh_toplam_gider");
+    const netProfit        = toplamGelir - toplamGider;
+    const profitPct        = toplamGelir > 0 ? (netProfit / toplamGelir) * 100 : 0;
+    const tutarIndirimPct  = getTutarIndirimPct(dmoBasket);
+    const realDmoBasket    = dmoBasket - tutarIndirimi;
 
     const orderPayload = {
-        customer_name:       document.getElementById("hh_customer_name")?.value || null,
-        usd_rate:            usdRate,
-        dmo_basket_total:    dmoBasket,
-        inokas_basket_total: inokasBasket,
-        kdv_amount:          kdv,
-        tevkifat:            tevkifat,
-        gercek_kdv:          gercekKdv,
-        risturn_amount:      risturn,
-        toplam_gelir:        toplamGelir,
-        toplam_gider:        toplamGider,
-        net_profit:          netProfit,
-        profit_percentage:   profitPct,
-        status:              "Taslak",
-    };
+            customer_name:        document.getElementById("hh_customer_name")?.value || null,
+            usd_rate:             usdRate,
+            dmo_basket_total:     dmoBasket,
+            real_dmo_basket:      realDmoBasket,
+            tutar_indirimi:       tutarIndirimi,
+            tutar_indirimi_pct:   tutarIndirimPct * 100,
+            inokas_basket_total:  inokasBasket,
+            kdv_amount:           kdv,
+            tevkifat:             tevkifat,
+            gercek_kdv:           gercekKdv,
+            risturn_amount:       risturn,
+            toplam_gelir:         toplamGelir,
+            toplam_gider:         toplamGider,
+            net_profit:           netProfit,
+            profit_percentage:    profitPct,
+            status:               "Taslak",
+        };
 
     try {
         showToast("Taslak kaydediliyor...", "info");
@@ -599,7 +624,6 @@ async function saveHizliHesapAsTaslak() {
 document.addEventListener("DOMContentLoaded", async () => {
     if (!document.getElementById("hh_product_grid")) return;
 
-    await fetchRatesFromDB(); // ensure rates are loaded before rendering
     await fetchRatesFromDB();
     await ensureRatesExist();
 

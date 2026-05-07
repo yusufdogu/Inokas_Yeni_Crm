@@ -73,9 +73,11 @@ async function fetchRatesFromDB() {
         const res  = await fetch('/api/dmo/rates');
         const data = await res.json();
         window._rates = {
-            usd_try:     parseFloat(data.usd_try)     || 0,
-            eur_try:     parseFloat(data.eur_try)     || 0,
-            dmo_eur_try: parseFloat(data.dmo_eur_try) || 0,
+            usd_try:       parseFloat(data.usd_try)     || 0,
+            eur_try:       parseFloat(data.eur_try)     || 0,
+            dmo_eur_try:   parseFloat(data.dmo_eur_try) || 0,
+            rate_date:     data.rate_date               || null,
+            dmo_rate_date: data.dmo_rate_date           || null,
         };
     } catch (err) {
         console.error('Kurlar alınamadı:', err.message);

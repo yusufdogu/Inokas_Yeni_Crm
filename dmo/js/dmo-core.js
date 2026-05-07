@@ -123,7 +123,6 @@ async function renderStatsCards(orders) {
     document.getElementById("stat-damga").textContent          = formatAmount(totalDamga)    + " ₺";
     document.getElementById("stat-risturn-total").textContent  = formatAmount(totalRisturn)  + " ₺";
 
-    await fetchAndRenderRates();
 }
 
 // ── DASHBOARD INIT ────────────────────────────────────────────────────────────

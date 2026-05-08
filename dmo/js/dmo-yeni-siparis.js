@@ -200,11 +200,13 @@ function normalizeLineItem(item = {}) {
         "TESLIM SURESI (GUN)":                     String(pickItemValue(item, ["TESLIM SURESI (GÜN)", "TESLIM SURESI (GUN)"], "0")),
         "KAT.SÖZ.FIY.(TL)":                        dmoFiyat,
         "ALIMA ESAS INDIRMLI BIRIM FIYAT":         indirimFiyat,
+        // TOPLAM column = total discount % applied (e.g. "3,00" means 3%)
+        "TOPLAM INDIRIM":                          toplamIndirim,
         "MIKTAR":                                  String(miktar),
         "TUTARI (TL)":                             String(toplam),
+        // Raw discount amount (INDIRIM ORANLARI TUTAR) and ilave tutar kept for reference
         "TUTAR":                                   tutar,
         "ILAVE TUTAR":                             ilaveTutar,
-        "TOPLAM":                                  toplamIndirim,
     };
 }
 
@@ -215,6 +217,7 @@ function fillForm(data) {
     setField("customer_no",       data.musteri_no);
     setField("order_date",        parseOrderDate(data.tarih));
     setField("stamp_tax",         parseAmount(data.karar_siparis_damga_vergisi));
+
 
     window._lastParsedItems = (data.malzeme_tablosu || []).map(normalizeLineItem);
     renderLineItems(window._lastParsedItems);
@@ -230,6 +233,9 @@ function fillForm(data) {
             setField("last_order_date", orderDate.toISOString().slice(0, 10));
         }
     }
+
+    // Auto-switch to stats tab after PDF is parsed
+    switchYSTab('stats');
 }
 
 function setField(id, value) {
@@ -313,7 +319,7 @@ function buildLineItemRow(item, index) {
     const malzemeAdi   = item["MALZEMENIN CINSI(VARSA MARKA VE MODELI)"] || "";
     const malzemeKodu  = item["MALZEME_KODU"] || "";
     const dmoFiyat     = parseFloat(item["KAT.SÖZ.FIY.(TL)"])               || 0;
-    const indirimPct   = parseFloat(item["TOPLAM INDIRIM"])                  || 0;
+    const indirimPct   = parseFloat(item["TOPLAM"])                  || 0;
     const indirimFiyat = parseFloat(item["ALIMA ESAS INDIRMLI BIRIM FIYAT"]) || 0;
     const miktar       = parseFloat(item["MIKTAR"] || "0")                   || 0;
     const toplam       = parseFloat(item["TUTARI (TL)"])                     || 0;
@@ -360,6 +366,7 @@ function updateLineItemField(index, field, value) {
     if (field === "adi")          item["MALZEMENIN CINSI(VARSA MARKA VE MODELI)"] = String(value || "").trim();
     if (field === "kodu")         item["MALZEME_KODU"] = String(value || "").trim();
     if (field === "dmoFiyat")     item["KAT.SÖZ.FIY.(TL)"] = String(value || "0");
+    if (field === "indirimPct")   item["TOPLAM"] = String(value || "0");
     if (field === "indirimFiyat") item["ALIMA ESAS INDIRMLI BIRIM FIYAT"] = String(value || "0");
     if (field === "miktar")       item["MIKTAR"] = String(value || "0");
 
@@ -448,9 +455,19 @@ function calculateProfit() {
     const netProfit   = toplamGelir - toplamGider;
     const profitPct   = dmoBasket > 0 ? (netProfit / dmoBasket) * 100 : 0;
 
+    // İndirim Kaybı: how much discount was applied in total across all lines.
+    // Uses the TOPLAM column (total discount %) from the PDF when available,
+    // otherwise falls back to (catalogPrice - discountedPrice) * qty.
     const indirimKaybi = (window._lastParsedItems || []).reduce((sum, item) => {
-        return sum + ((parseFloat(item["KAT.SÖZ.FIY.(TL)"]) || 0) * (parseFloat(item["MIKTAR"]) || 0));
-    }, 0) - dmoBasket;
+        const dmoFiyat     = parseFloat(item["KAT.SÖZ.FIY.(TL)"])               || 0;
+        const indirimFiyat = parseFloat(item["ALIMA ESAS INDIRMLI BIRIM FIYAT"]) || 0;
+        const miktar       = parseFloat(item["MIKTAR"])                           || 0;
+        const toplamPct    = parseFloat(item["TOPLAM INDIRIM"])                   || 0;
+        if (toplamPct > 0 && dmoFiyat > 0) {
+            return sum + (dmoFiyat * (toplamPct / 100) * miktar);
+        }
+        return sum + ((dmoFiyat - indirimFiyat) * miktar);
+    }, 0);
 
     setField("kdv_tax",           kdv.toFixed(2));
     setField("inv_tevkifat",      tevkifat.toFixed(2));
@@ -726,6 +743,26 @@ async function saveOrder() {
     } catch (err) {
         console.error("saveOrder error:", err);
         showModalAlert("Beklenmeyen hata: " + err.message, "error");
+    }
+}
+
+
+function switchYSTab(tab) {
+    const bilgiBtn  = document.getElementById("ys-tab-bilgi");
+    const statsBtn  = document.getElementById("ys-tab-stats");
+    const bilgiPane = document.getElementById("ys-pane-bilgi");
+    const statsPane = document.getElementById("ys-pane-stats");
+
+    if (tab === "bilgi") {
+        if (bilgiBtn) { bilgiBtn.style.borderBottomColor = "#2563eb"; bilgiBtn.style.color = "#2563eb"; bilgiBtn.style.fontWeight = "700"; }
+        if (statsBtn) { statsBtn.style.borderBottomColor = "transparent"; statsBtn.style.color = "#64748b"; statsBtn.style.fontWeight = "500"; }
+        if (bilgiPane) bilgiPane.style.display = "flex";
+        if (statsPane) statsPane.style.display = "none";
+    } else {
+        if (statsBtn) { statsBtn.style.borderBottomColor = "#2563eb"; statsBtn.style.color = "#2563eb"; statsBtn.style.fontWeight = "700"; }
+        if (bilgiBtn) { bilgiBtn.style.borderBottomColor = "transparent"; bilgiBtn.style.color = "#64748b"; bilgiBtn.style.fontWeight = "500"; }
+        if (bilgiPane) bilgiPane.style.display = "none";
+        if (statsPane) statsPane.style.display = "flex";
     }
 }
 

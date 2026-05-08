@@ -328,10 +328,6 @@ function buildStatsGridHTML() {
                     <span id="dv-gercek-kdv" style="font-weight:700; font-size:13px; color:#0f172a;">—</span>
                 </div>
             </div>
-            <div style="padding:10px 16px; border-bottom:1px solid #e2e8f0; border-left:2px solid #e2e8f0; display:flex; justify-content:space-between;">
-                <label style="font-size:12px; color:#64748b; font-weight:600;">DMO Kesinti (%8)</label>
-                <span id="dv-kesinti" style="font-weight:700; font-size:13px; color:#0f172a;">—</span>
-            </div>
 
             <div style="padding:10px 16px; border-bottom:1px solid #e2e8f0;"></div>
             <div style="padding:10px 16px; border-bottom:1px solid #e2e8f0; border-left:2px solid #e2e8f0; display:flex; justify-content:space-between;">

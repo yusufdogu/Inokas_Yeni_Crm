@@ -67,50 +67,121 @@
         <iframe id="pdfViewer" src="" style="display:none; width:100%; flex:1; min-height:0; border:none;"></iframe>
 
       </div>
+      <!-- END LEFT -->
 
-      <!-- RIGHT: Form -->
+      <!-- RIGHT: Tabbed -->
       <div style="display:flex; flex-direction:column; overflow:hidden; background:white;">
 
-        <div id="modalAlert" style="display:none; padding:12px 16px; margin:12px 16px 0; border-radius:8px; font-weight:600; font-size:13px; align-items:center; gap:8px;"></div>
+        <!-- Tab bar -->
+        <div style="display:flex; border-bottom:1px solid #e2e8f0; flex-shrink:0; padding:0 20px;">
+          <button id="ys-tab-bilgi" onclick="switchYSTab('bilgi')"
+            style="padding:10px 16px; background:none; border:none; border-bottom:2px solid #2563eb; font-size:13px; font-weight:700; color:#2563eb; cursor:pointer; font-family:inherit;">
+            <i class="ti ti-info-circle" style="font-size:14px; margin-right:4px;"></i>Bilgi
+          </button>
+          <button id="ys-tab-stats" onclick="switchYSTab('stats')"
+            style="padding:10px 16px; background:none; border:none; border-bottom:2px solid transparent; font-size:13px; font-weight:500; color:#64748b; cursor:pointer; font-family:inherit;">
+            <i class="ti ti-chart-bar" style="font-size:14px; margin-right:4px;"></i>İstatistik
+          </button>
+        </div>
 
-        <form id="dmoSiparisForm" class="grid-form">
+        <!-- ═══════════════════════════════════════════════
+             BİLGİ PANE — order fields + line items table
+             ═══════════════════════════════════════════════ -->
+        <div id="ys-pane-bilgi" style="flex:1; overflow:hidden; display:flex; flex-direction:column;">
 
-          <div class="form-group">
-            <label>Satış Sipariş No</label>
-            <input type="text" id="sales_order_no" class="input-highlight">
-          </div>
+          <div id="modalAlert" style="display:none; padding:12px 16px; margin:12px 16px 0; border-radius:8px; font-weight:600; font-size:13px; align-items:center; gap:8px;"></div>
 
-          <div class="form-group">
-            <label>Satın Alma Sipariş No</label>
-            <input type="text" id="purchase_order_no" class="input-highlight">
-          </div>
+          <form id="dmoSiparisForm" class="grid-form">
 
-          <div class="form-group">
-            <label>Müşteri (Kurum)</label>
-            <input type="text" id="customer_name">
-          </div>
+            <!-- Order fields -->
+            <div class="form-group">
+              <label>Sipariş No</label>
+              <input type="text" id="order_no" placeholder="ORD-2024-001">
+            </div>
+            <div class="form-group">
+              <label>Sipariş Tarihi</label>
+              <input type="date" id="order_date">
+            </div>
 
-          <div class="form-group">
-            <label>Müşteri No</label>
-            <input type="text" id="customer_no">
-          </div>
+            <div class="form-group">
+              <label>Kurum / Müşteri</label>
+              <input type="text" id="customer_name" placeholder="Kurum adı">
+            </div>
+            <div class="form-group">
+              <label>İhale / Referans No</label>
+              <input type="text" id="reference_no" placeholder="İhale numarası">
+            </div>
 
-          <div class="form-group">
-            <label>Sipariş Tarihi</label>
-            <input type="date" id="order_date">
-          </div>
+            <div class="form-group">
+              <label>DMO Sepet (₺)</label>
+              <input type="number" id="dmo_basket_bilgi" class="input-highlight" placeholder="0.00">
+            </div>
+            <div class="form-group">
+              <label>İnokas Sepet (₺)</label>
+              <input type="number" id="inokas_basket_bilgi" class="input-highlight" placeholder="0.00">
+            </div>
 
-          <div class="form-group">
-            <label>Son Gönderim Tarihi</label>
-            <input type="date" id="last_order_date">
-          </div>
+            <div class="form-group">
+              <label>Durum</label>
+              <select id="order_status">
+                <option value="beklemede">Beklemede</option>
+                <option value="onaylandi">Onaylandı</option>
+                <option value="iptal">İptal</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Notlar</label>
+              <textarea id="order_notes" rows="2" placeholder="Ek notlar..."></textarea>
+            </div>
 
-          <!-- Analysis Grid -->
-          <div class="analysis-grid span-2" style="display:grid; grid-template-columns:1fr 1fr; gap:0; border:1px solid #e2e8f0; border-radius:12px; overflow:hidden;">
+            <!-- Line Items -->
+            <div class="form-section span-2" style="margin-top:8px;">
+              <div class="section-header">
+                <h3 style="font-size:13px; font-weight:700; color:#0f172a;">
+                  <i class="ti ti-package" style="font-size:14px; margin-right:6px;"></i>Sipariş Kalemleri
+                </h3>
+                <button type="button" class="btn btn-secondary"
+                  style="padding:5px 10px; font-size:12px; display:flex; align-items:center; gap:4px;"
+                  onclick="addLineItem()">
+                  <i class="ti ti-plus" style="font-size:13px;"></i>Kalem Ekle
+                </button>
+              </div>
+              <table class="line-table">
+                <thead>
+                  <tr>
+                    <th>Katalog Kod</th>
+                    <th>Ürün Adı</th>
+                    <th>Ürün Kodu</th>
+                    <th width="90">DMO B.Fiyat</th>
+                    <th width="70">İndirim %</th>
+                    <th width="90">İnd. B.Fiyat</th>
+                    <th width="60">Adet</th>
+                    <th width="90">Maliyet (₺)</th>
+                    <th width="90">Toplam</th>
+                    <th width="60">İşlem</th>
+                  </tr>
+                </thead>
+                <tbody id="lineItemsBody"></tbody>
+              </table>
+            </div>
+            <!-- END Line Items -->
 
+          </form>
+        </div>
+        <!-- END BİLGİ PANE -->
+
+        <!-- ═══════════════════════════════════════════════
+             İSTATİSTİK PANE — analysis grid only
+             ═══════════════════════════════════════════════ -->
+        <div id="ys-pane-stats" style="display:none; flex:1; overflow-y:auto; padding:20px;">
+
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:0; border:1px solid #e2e8f0; border-radius:12px; overflow:hidden;">
+
+            <!-- Header -->
             <div style="background:#f8fafc; padding:8px 14px; font-size:11px; font-weight:700; color:#64748b; letter-spacing:0.5px; border-bottom:1px solid #e2e8f0; text-transform:uppercase;">GELİR TARAFI</div>
             <div style="background:#f8fafc; padding:8px 14px; font-size:11px; font-weight:700; color:#64748b; letter-spacing:0.5px; border-bottom:1px solid #e2e8f0; border-left:2px solid #e2e8f0; text-transform:uppercase;">GİDER TARAFI</div>
 
+            <!-- DMO Sepet | İnokas Sepet -->
             <div style="padding:8px 14px; border-bottom:1px solid #e2e8f0; display:flex; justify-content:space-between; align-items:center;">
               <label style="font-size:12px; font-weight:600; color:#64748b;">DMO Sepet</label>
               <input type="number" id="dmo_basket" readonly style="border:none; text-align:right; font-weight:700; font-size:13px; color:#0f172a; background:transparent; width:120px;">
@@ -120,6 +191,7 @@
               <input type="number" id="inokas_basket" readonly style="border:none; text-align:right; font-weight:700; font-size:13px; color:#0f172a; background:transparent; width:120px;">
             </div>
 
+            <!-- KDV | Damga + Karar -->
             <div style="padding:8px 14px; border-bottom:1px solid #e2e8f0; display:flex; justify-content:space-between; align-items:center;">
               <label style="font-size:12px; font-weight:600; color:#64748b;">KDV (%20)</label>
               <input type="number" id="kdv_tax" readonly style="border:none; text-align:right; font-weight:700; font-size:13px; color:#0f172a; background:transparent; width:120px;">
@@ -129,6 +201,7 @@
               <input type="number" id="stamp_tax" readonly style="border:none; text-align:right; font-weight:700; font-size:13px; color:#0f172a; background:transparent; width:120px;">
             </div>
 
+            <!-- Tevkifat / Gerçek KDV | empty -->
             <div style="padding:8px 14px; border-bottom:1px solid #e2e8f0; display:flex; flex-direction:column; gap:4px;">
               <div style="display:flex; justify-content:space-between; align-items:center;">
                 <label style="font-size:11px; font-weight:600; color:#94a3b8;">Tevkifat (%20)</label>
@@ -139,22 +212,22 @@
                 <input type="number" id="inv_gercek_kdv" readonly style="border:none; text-align:right; font-weight:700; font-size:13px; color:#0f172a; background:transparent; width:100px;">
               </div>
             </div>
-            <div style="padding:8px 14px; border-bottom:1px solid #e2e8f0; border-left:2px solid #e2e8f0; display:flex; justify-content:space-between; align-items:center;">
-              <label style="font-size:12px; font-weight:600; color:#64748b;">DMO Kesinti (%8)</label>
-              <input type="number" id="inv_dmo_kesinti" readonly style="border:none; text-align:right; font-weight:700; font-size:13px; color:#0f172a; background:transparent; width:120px;">
-            </div>
+            <div style="padding:8px 14px; border-bottom:1px solid #e2e8f0; border-left:2px solid #e2e8f0;"></div>
 
+            <!-- empty | Risturn -->
             <div style="padding:8px 14px; border-bottom:1px solid #e2e8f0;"></div>
             <div style="padding:8px 14px; border-bottom:1px solid #e2e8f0; border-left:2px solid #e2e8f0; display:flex; justify-content:space-between; align-items:center;">
               <label style="font-size:12px; font-weight:600; color:#64748b;">Risturn (%1)</label>
               <input type="number" id="inv_risturn" readonly style="border:none; text-align:right; font-weight:700; font-size:13px; color:#0f172a; background:transparent; width:120px;">
             </div>
 
+            <!-- İndirim Kaybı (full width) -->
             <div style="grid-column:span 2; padding:8px 14px; border-bottom:1px solid #e2e8f0; background:#fffbf5; display:flex; justify-content:space-between; align-items:center;">
               <label style="font-size:12px; font-weight:700; color:#92400e;">İndirim Kaybı</label>
               <input type="number" id="inv_indirim_kaybi" readonly style="border:none; text-align:right; font-weight:700; font-size:13px; color:#92400e; background:transparent; width:120px;">
             </div>
 
+            <!-- Toplam Gelir | Toplam Gider -->
             <div style="padding:10px 14px; border-bottom:1px solid #e2e8f0; display:flex; justify-content:space-between; align-items:center;">
               <label style="font-size:12px; font-weight:800; color:#0f172a;">Toplam Gelir</label>
               <input type="number" id="inv_toplam_gelir" readonly style="border:none; text-align:right; font-weight:800; font-size:14px; color:#0f172a; background:transparent; width:120px;">
@@ -164,6 +237,7 @@
               <input type="number" id="inv_toplam_gider" readonly style="border:none; text-align:right; font-weight:800; font-size:14px; color:#0f172a; background:transparent; width:120px;">
             </div>
 
+            <!-- Net Kar + Kar % -->
             <div style="grid-column:span 2; padding:12px 14px; display:grid; grid-template-columns:1fr 1fr; gap:12px; background:#f8fafc;">
               <div style="border:1px solid #e2e8f0; border-radius:8px; padding:10px 14px; background:white; display:flex; justify-content:space-between; align-items:center;">
                 <label style="font-size:12px; font-weight:800; color:#0f172a;">Net Kar</label>
@@ -176,42 +250,22 @@
             </div>
 
           </div>
+          <!-- END analysis grid -->
 
-          <!-- Line Items -->
-          <div class="form-section span-2">
-            <div class="section-header">
-              <h3 style="font-size:13px; font-weight:700; color:#0f172a;">
-                <i class="ti ti-package" style="font-size:14px; margin-right:6px;"></i>Sipariş Kalemleri
-              </h3>
-              <button type="button" class="btn btn-secondary" style="padding:5px 10px; font-size:12px; display:flex; align-items:center; gap:4px;" onclick="addLineItem()">
-                <i class="ti ti-plus" style="font-size:13px;"></i>Kalem Ekle
-              </button>
-            </div>
-            <table class="line-table">
-              <thead>
-                <tr>
-                  <th>Katalog Kod</th>
-                  <th>Ürün Adı</th>
-                  <th>Ürün Kodu</th>
-                  <th width="90">DMO B.Fiyat</th>
-                  <th width="70">İndirim %</th>
-                  <th width="90">İnd. B.Fiyat</th>
-                  <th width="60">Adet</th>
-                  <th width="90">Maliyet (₺)</th>
-                  <th width="90">Toplam</th>
-                  <th width="60">İşlem</th>
-                </tr>
-              </thead>
-              <tbody id="lineItemsBody"></tbody>
-            </table>
-          </div>
+        </div>
+        <!-- END İSTATİSTİK PANE -->
 
-        </form>
       </div>
+      <!-- END RIGHT -->
 
     </div>
+    <!-- END Two-column split -->
+
   </div>
+  <!-- END page-area -->
+
 </div>
+<!-- END app-shell -->
 
 <div id="toast-container"></div>
 <script src="/dmo/js/sidebar.js"></script>

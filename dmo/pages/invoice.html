@@ -9,56 +9,46 @@
   <script src="/supabase-client.js"></script>
   <script src="/dmo/js/dmo-core.js"></script>
   <script src="/dmo/js/dmo-invoice.js"></script>
-  <script>
-    if (localStorage.getItem('inokas_auth') !== 'true') window.location.href = '/login.html';
-  </script>
-  <link href="https://fonts.googleapis.com/css2?family=Geist+Mono:wght@400;600&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.x/dist/tabler-icons.min.css">
   <link rel="stylesheet" href="/dmo/css/core.css">
-  <link rel="stylesheet" href="/dmo/css/layout.css">
+  <link rel="stylesheet" href="/dmo/css/sidebar.css">
   <link rel="stylesheet" href="/dmo/css/invoice.css">
-  <link rel="stylesheet" href="/nav.css?v=nav-slide-4-gutter">
 </head>
 
 <body>
+<div class="app-shell">
 
-  <nav class="topbar">
-    <div class="topbar-left">
-      <a href="/" class="brand">
-        <div class="brand-dot"></div>
-        İnokas <span>CRM</span>
-      </a>
-    </div>
-    <div class="topbar-right">
-      <div class="nav-cluster">
-        <span class="nav-pill" id="navPill" aria-hidden="true"></span>
-        <div class="nav-links-row" role="navigation" aria-label="Ana menü">
-          <a href="/" class="nav-link" data-nav-id="faturalar">Faturalar</a>
-          <a href="/stok.html" class="nav-link" data-nav-id="stok">Stok</a>
-          <a href="/dmo/" class="nav-link active" data-nav-id="dmo">DMO</a>
+  <div id="sidebar-container"></div>
+
+  <div class="page-area">
+
+    <!-- Header -->
+    <div class="page-header">
+      <div class="page-header-left">
+        <button class="sb-toggle-btn" onclick="toggleSidebar()">
+          <i class="ti ti-menu-2"></i>
+        </button>
+        <a href="/dmo/pages/siparisler.html"
+          style="display:flex; align-items:center; gap:6px; background:#f1f5f9; border:none; border-radius:8px; padding:6px 12px; font-size:12px; font-weight:700; color:#475569; text-decoration:none; white-space:nowrap;">
+          <i class="ti ti-arrow-left" style="font-size:13px;"></i>
+          Siparişler
+        </a>
+        <div>
+          <p class="page-header-title" id="invoice-page-title">Sipariş Detayı</p>
         </div>
       </div>
-      <button type="button" class="nav-link nav-link--logout logout">Çıkış</button>
-    </div>
-  </nav>
-
-  <main class="main-container" style="padding:0; height:calc(100vh - 56px); display:flex; flex-direction:column; overflow:hidden;">
-
-    <!-- PAGE HEADER -->
-    <div style="padding:14px 20px; border-bottom:1px solid #e2e8f0; flex-shrink:0; display:flex; align-items:center; gap:12px; background:white;">
-      <a href="/dmo/pages/siparisler.html"
-        style="display:flex; align-items:center; gap:6px; background:#f1f5f9; border:none; border-radius:8px; padding:6px 12px; font-size:12px; font-weight:700; color:#475569; text-decoration:none;">
-        ← Siparişler
-      </a>
-      <h2 id="invoice-page-title" style="margin:0; font-size:1rem; font-weight:800; color:#0f172a; flex:1;">Sipariş Detayı</h2>
-      <span id="invoice-status-badge" style="font-size:12px; font-weight:700; padding:4px 12px; border-radius:99px; background:#f1f5f9; color:#64748b;"></span>
+      <span id="invoice-status-badge"
+        style="font-size:12px; font-weight:700; padding:4px 12px; border-radius:99px; background:#f1f5f9; color:#64748b; white-space:nowrap;">
+      </span>
     </div>
 
-    <!-- DETAIL CONTENT — fills remaining height -->
+    <!-- Detail content -->
     <div id="invoice-detail-wrapper" style="flex:1; overflow:hidden; min-height:0; position:relative;">
 
-      <!-- LOADING STATE -->
+      <!-- Loading -->
       <div id="invoice-loading" style="display:flex; align-items:center; justify-content:center; height:100%; flex-direction:column; gap:12px; color:#94a3b8;">
-        <span style="font-size:32px;">⏳</span>
+        <i class="ti ti-loader" style="font-size:32px;"></i>
         <span style="font-size:14px; font-weight:600;">Yükleniyor...</span>
       </div>
 
@@ -69,7 +59,7 @@
         <div style="border-right:1px solid #e2e8f0; overflow:hidden; position:relative;">
           <iframe id="detail-pdf-iframe" src="" style="display:none; width:100%; height:100%; border:none;"></iframe>
           <div id="detail-no-pdf-placeholder" style="display:flex; align-items:center; justify-content:center; height:100%; flex-direction:column; gap:8px; color:#94a3b8;">
-            <span style="font-size:40px;">📄</span>
+            <i class="ti ti-file-off" style="font-size:40px;"></i>
             <span style="font-size:13px; font-weight:600;">PDF bulunamadı</span>
           </div>
         </div>
@@ -79,61 +69,64 @@
 
           <!-- Tab bar -->
           <div style="display:flex; border-bottom:1px solid #e2e8f0; flex-shrink:0; padding:0 20px;">
-            <button id="dv-tab-bilgi" onclick="switchDetailTab('bilgi')" class="dv-tab dv-tab-active">ℹ️ Bilgi</button>
-            <button id="dv-tab-stats" onclick="switchDetailTab('stats')" class="dv-tab">📊 İstatistik</button>
+            <button id="dv-tab-bilgi" onclick="switchDetailTab('bilgi')" class="dv-tab dv-tab-active">
+              <i class="ti ti-info-circle" style="font-size:14px; margin-right:4px;"></i>Bilgi
+            </button>
+            <button id="dv-tab-stats" onclick="switchDetailTab('stats')" class="dv-tab">
+              <i class="ti ti-chart-bar" style="font-size:14px; margin-right:4px;"></i>İstatistik
+            </button>
           </div>
 
-          <!-- Sliding pane container -->
+          <!-- Sliding panes -->
           <div style="flex:1; overflow:hidden; position:relative;">
 
             <!-- Bilgi pane -->
             <div id="dv-pane-bilgi" style="position:absolute; inset:0; overflow-y:auto; padding:20px; transition:transform 0.3s ease; transform:translateX(0);">
 
-              <!-- Info rows -->
-              <div style="display:flex; flex-direction:column; gap:10px; margin-bottom:16px;">
-                <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
-                  <div class="dv-info-card"><span class="dv-info-label">Satış Sipariş No</span><span id="dv-order-no" class="dv-info-val">—</span><input id="dv-edit-order-no" class="dv-edit-input" style="display:none;"></div>
-                  <div class="dv-info-card"><span class="dv-info-label">Satınalma No</span><span id="dv-purchase-no" class="dv-info-val">—</span><input id="dv-edit-purchase-no" class="dv-edit-input" style="display:none;"></div>
-                  <div class="dv-info-card"><span class="dv-info-label">Müşteri</span><span id="dv-company" class="dv-info-val">—</span><input id="dv-edit-company" class="dv-edit-input" style="display:none;"></div>
-                  <div class="dv-info-card"><span class="dv-info-label">Müşteri No</span><span id="dv-customer-no" class="dv-info-val">—</span><input id="dv-edit-customer-no" class="dv-edit-input" style="display:none;"></div>
-                  <div class="dv-info-card"><span class="dv-info-label">Sipariş Tarihi</span><span id="dv-date" class="dv-info-val">—</span><input id="dv-edit-date" type="date" class="dv-edit-input" style="display:none;"></div>
-                  <div class="dv-info-card"><span class="dv-info-label">Son Teslimat</span><span id="dv-due-date" class="dv-info-val">—</span><input id="dv-edit-due-date" type="date" class="dv-edit-input" style="display:none;"></div>
-                  <div class="dv-info-card">
-                    <span class="dv-info-label">Durum</span>
-                    <span id="dv-status" class="dv-info-val">—</span>
-                    <select id="dv-edit-status" class="dv-edit-input" style="display:none;">
-                      <option value="Sipariş Alındı">Sipariş Alındı</option>
-                      <option value="Tamamlandı">Tamamlandı</option>
-                      <option value="İptal">İptal</option>
-                    </select>
-                  </div>
+              <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:16px;">
+                <div class="dv-info-card"><span class="dv-info-label">Satış Sipariş No</span><span id="dv-order-no" class="dv-info-val">—</span><input id="dv-edit-order-no" class="dv-edit-input" style="display:none;"></div>
+                <div class="dv-info-card"><span class="dv-info-label">Satınalma No</span><span id="dv-purchase-no" class="dv-info-val">—</span><input id="dv-edit-purchase-no" class="dv-edit-input" style="display:none;"></div>
+                <div class="dv-info-card"><span class="dv-info-label">Müşteri</span><span id="dv-company" class="dv-info-val">—</span><input id="dv-edit-company" class="dv-edit-input" style="display:none;"></div>
+                <div class="dv-info-card"><span class="dv-info-label">Müşteri No</span><span id="dv-customer-no" class="dv-info-val">—</span><input id="dv-edit-customer-no" class="dv-edit-input" style="display:none;"></div>
+                <div class="dv-info-card"><span class="dv-info-label">Sipariş Tarihi</span><span id="dv-date" class="dv-info-val">—</span><input id="dv-edit-date" type="date" class="dv-edit-input" style="display:none;"></div>
+                <div class="dv-info-card"><span class="dv-info-label">Son Teslimat</span><span id="dv-due-date" class="dv-info-val">—</span><input id="dv-edit-due-date" type="date" class="dv-edit-input" style="display:none;"></div>
+                <div class="dv-info-card">
+                  <span class="dv-info-label">Durum</span>
+                  <span id="dv-status" class="dv-info-val">—</span>
+                  <select id="dv-edit-status" class="dv-edit-input" style="display:none;">
+                    <option value="Sipariş Alındı">Sipariş Alındı</option>
+                    <option value="Tamamlandı">Tamamlandı</option>
+                    <option value="İptal">İptal</option>
+                  </select>
                 </div>
               </div>
 
-              <!-- Regular items -->
-              <div style="font-size:12px; font-weight:800; color:#64748b; margin-bottom:8px; text-transform:uppercase;">📦 Sipariş Kalemleri</div>
+              <div style="font-size:11px; font-weight:700; color:#94a3b8; margin-bottom:8px; text-transform:uppercase; letter-spacing:0.04em;">
+                <i class="ti ti-package" style="font-size:13px; margin-right:4px;"></i>Sipariş Kalemleri
+              </div>
               <table style="width:100%; border-collapse:collapse; font-size:12px; margin-bottom:16px;">
-                <thead style="background:#f1f5f9;">
+                <thead style="background:#f8fafc;">
                   <tr>
-                    <th style="padding:8px 12px; text-align:left; color:#64748b; font-weight:700;">ÜRÜN</th>
-                    <th style="padding:8px 12px; text-align:center; color:#64748b; font-weight:700;">ADET</th>
-                    <th style="padding:8px 12px; text-align:right; color:#64748b; font-weight:700;">BİRİM</th>
-                    <th style="padding:8px 12px; text-align:right; color:#64748b; font-weight:700;">TOPLAM</th>
+                    <th style="padding:8px 12px; text-align:left; color:#64748b; font-weight:600; font-size:11px;">ÜRÜN</th>
+                    <th style="padding:8px 12px; text-align:center; color:#64748b; font-weight:600; font-size:11px;">ADET</th>
+                    <th style="padding:8px 12px; text-align:right; color:#64748b; font-weight:600; font-size:11px;">BİRİM</th>
+                    <th style="padding:8px 12px; text-align:right; color:#64748b; font-weight:600; font-size:11px;">TOPLAM</th>
                   </tr>
                 </thead>
                 <tbody id="dv-items-body"></tbody>
               </table>
 
-              <!-- Gift items -->
               <div id="dv-gift-section" style="display:none;">
-                <div style="font-size:12px; font-weight:800; color:#64748b; margin-bottom:8px; text-transform:uppercase;">🎁 Hediye Kalemleri</div>
+                <div style="font-size:11px; font-weight:700; color:#94a3b8; margin-bottom:8px; text-transform:uppercase; letter-spacing:0.04em;">
+                  🎁 Hediye Kalemleri
+                </div>
                 <table style="width:100%; border-collapse:collapse; font-size:12px;">
                   <thead style="background:#fff7ed;">
                     <tr>
-                      <th style="padding:8px 12px; text-align:left; color:#64748b; font-weight:700;">ÜRÜN</th>
-                      <th style="padding:8px 12px; text-align:center; color:#64748b; font-weight:700;">ADET</th>
-                      <th style="padding:8px 12px; text-align:right; color:#64748b; font-weight:700;">BİRİM</th>
-                      <th style="padding:8px 12px; text-align:right; color:#64748b; font-weight:700;">TOPLAM</th>
+                      <th style="padding:8px 12px; text-align:left; color:#64748b; font-weight:600; font-size:11px;">ÜRÜN</th>
+                      <th style="padding:8px 12px; text-align:center; color:#64748b; font-weight:600; font-size:11px;">ADET</th>
+                      <th style="padding:8px 12px; text-align:right; color:#64748b; font-weight:600; font-size:11px;">BİRİM</th>
+                      <th style="padding:8px 12px; text-align:right; color:#64748b; font-weight:600; font-size:11px;">TOPLAM</th>
                     </tr>
                   </thead>
                   <tbody id="dv-gift-items-body"></tbody>
@@ -141,14 +134,28 @@
               </div>
 
               <!-- Action buttons -->
-              <div id="dv-btn-bar" style="display:flex; gap:10px; justify-content:flex-end; margin-top:16px; padding-top:16px; border-top:1px solid #e2e8f0;">
-                <button id="dv-btn-delete" style="background:#fee2e2; color:#ef4444; padding:8px 20px; border-radius:8px; border:none; font-weight:600; cursor:pointer;">🗑️ Sil</button>
-                <button id="dv-btn-edit" style="background:#2563eb; color:white; padding:8px 20px; border-radius:8px; border:none; font-weight:600; cursor:pointer;">✏️ Düzenlemeyi Etkinleştir</button>
-                <button id="dv-btn-add-pdf" style="display:none; background:#f0fdf4; color:#16a34a; padding:8px 20px; border-radius:8px; border:1px solid #bbf7d0; font-weight:600; cursor:pointer;">📄 PDF Ekle</button>
+              <div id="dv-btn-bar" style="display:flex; gap:8px; justify-content:flex-end; margin-top:16px; padding-top:16px; border-top:1px solid #e2e8f0;">
+                <button id="dv-btn-delete"
+                  style="display:flex; align-items:center; gap:6px; background:#fee2e2; color:#ef4444; padding:7px 16px; border-radius:8px; border:none; font-weight:600; cursor:pointer; font-size:13px; font-family:inherit;">
+                  <i class="ti ti-trash" style="font-size:14px;"></i>Sil
+                </button>
+                <button id="dv-btn-edit"
+                  style="display:flex; align-items:center; gap:6px; background:#2563eb; color:white; padding:7px 16px; border-radius:8px; border:none; font-weight:600; cursor:pointer; font-size:13px; font-family:inherit;">
+                  <i class="ti ti-pencil" style="font-size:14px;"></i>Düzenlemeyi Etkinleştir
+                </button>
+                <button id="dv-btn-add-pdf" style="display:none; align-items:center; gap:6px; background:#f0fdf4; color:#16a34a; padding:7px 16px; border-radius:8px; border:1px solid #bbf7d0; font-weight:600; cursor:pointer; font-size:13px; font-family:inherit;">
+                  <i class="ti ti-file-plus" style="font-size:14px;"></i>PDF Ekle
+                </button>
               </div>
-              <div id="dv-edit-bar" style="display:none; gap:10px; justify-content:flex-end; margin-top:8px;">
-                <button id="dv-btn-cancel-edit" style="background:#f1f5f9; color:#475569; padding:8px 20px; border-radius:8px; border:none; font-weight:600; cursor:pointer;">İptal</button>
-                <button id="dv-btn-save-edit" style="background:#16a34a; color:white; padding:8px 20px; border-radius:8px; border:none; font-weight:600; cursor:pointer;">💾 Kaydet</button>
+              <div id="dv-edit-bar" style="display:none; gap:8px; justify-content:flex-end; margin-top:8px;">
+                <button id="dv-btn-cancel-edit"
+                  style="display:flex; align-items:center; gap:6px; background:#f1f5f9; color:#475569; padding:7px 16px; border-radius:8px; border:none; font-weight:600; cursor:pointer; font-size:13px; font-family:inherit;">
+                  İptal
+                </button>
+                <button id="dv-btn-save-edit"
+                  style="display:flex; align-items:center; gap:6px; background:#16a34a; color:white; padding:7px 16px; border-radius:8px; border:none; font-weight:600; cursor:pointer; font-size:13px; font-family:inherit;">
+                  <i class="ti ti-device-floppy" style="font-size:14px;"></i>Kaydet
+                </button>
               </div>
 
             </div>
@@ -167,84 +174,89 @@
 
         <!-- Left: info -->
         <div style="border-right:1px solid #e2e8f0; overflow-y:auto; padding:20px;">
-          <div style="display:flex; flex-direction:column; gap:10px; margin-bottom:16px;">
-            <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
-              <div class="dv-info-card"><span class="dv-info-label">Satış Sipariş No</span><span id="dv-t-order-no" class="dv-info-val">—</span></div>
-              <div class="dv-info-card"><span class="dv-info-label">Satınalma No</span><span id="dv-t-purchase-no" class="dv-info-val">—</span></div>
-              <div class="dv-info-card"><span class="dv-info-label">Müşteri</span><span id="dv-t-company" class="dv-info-val">—</span></div>
-              <div class="dv-info-card"><span class="dv-info-label">Müşteri No</span><span id="dv-t-customer-no" class="dv-info-val">—</span></div>
-              <div class="dv-info-card"><span class="dv-info-label">Sipariş Tarihi</span><span id="dv-t-date" class="dv-info-val">—</span></div>
-              <div class="dv-info-card"><span class="dv-info-label">Durum</span><span id="dv-t-status" class="dv-info-val">—</span></div>
-            </div>
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:16px;">
+            <div class="dv-info-card"><span class="dv-info-label">Satış Sipariş No</span><span id="dv-t-order-no" class="dv-info-val">—</span></div>
+            <div class="dv-info-card"><span class="dv-info-label">Satınalma No</span><span id="dv-t-purchase-no" class="dv-info-val">—</span></div>
+            <div class="dv-info-card"><span class="dv-info-label">Müşteri</span><span id="dv-t-company" class="dv-info-val">—</span></div>
+            <div class="dv-info-card"><span class="dv-info-label">Müşteri No</span><span id="dv-t-customer-no" class="dv-info-val">—</span></div>
+            <div class="dv-info-card"><span class="dv-info-label">Sipariş Tarihi</span><span id="dv-t-date" class="dv-info-val">—</span></div>
+            <div class="dv-info-card"><span class="dv-info-label">Durum</span><span id="dv-t-status" class="dv-info-val">—</span></div>
           </div>
 
-          <div style="font-size:12px; font-weight:800; color:#64748b; margin-bottom:8px; text-transform:uppercase;">📦 Sipariş Kalemleri</div>
+          <div style="font-size:11px; font-weight:700; color:#94a3b8; margin-bottom:8px; text-transform:uppercase; letter-spacing:0.04em;">
+            <i class="ti ti-package" style="font-size:13px; margin-right:4px;"></i>Sipariş Kalemleri
+          </div>
           <table style="width:100%; border-collapse:collapse; font-size:12px; margin-bottom:16px;">
-            <thead style="background:#f1f5f9;">
+            <thead style="background:#f8fafc;">
               <tr>
-                <th style="padding:8px 12px; text-align:left; color:#64748b; font-weight:700;">ÜRÜN</th>
-                <th style="padding:8px 12px; text-align:center; color:#64748b; font-weight:700;">ADET</th>
-                <th style="padding:8px 12px; text-align:right; color:#64748b; font-weight:700;">BİRİM</th>
-                <th style="padding:8px 12px; text-align:right; color:#64748b; font-weight:700;">TOPLAM</th>
+                <th style="padding:8px 12px; text-align:left; color:#64748b; font-weight:600; font-size:11px;">ÜRÜN</th>
+                <th style="padding:8px 12px; text-align:center; color:#64748b; font-weight:600; font-size:11px;">ADET</th>
+                <th style="padding:8px 12px; text-align:right; color:#64748b; font-weight:600; font-size:11px;">BİRİM</th>
+                <th style="padding:8px 12px; text-align:right; color:#64748b; font-weight:600; font-size:11px;">TOPLAM</th>
               </tr>
             </thead>
             <tbody id="dv-t-items-body"></tbody>
           </table>
 
           <div id="dv-t-gift-section" style="display:none;">
-            <div style="font-size:12px; font-weight:800; color:#64748b; margin-bottom:8px; text-transform:uppercase;">🎁 Hediye Kalemleri</div>
+            <div style="font-size:11px; font-weight:700; color:#94a3b8; margin-bottom:8px; text-transform:uppercase; letter-spacing:0.04em;">🎁 Hediye Kalemleri</div>
             <table style="width:100%; border-collapse:collapse; font-size:12px;">
               <thead style="background:#fff7ed;">
                 <tr>
-                  <th style="padding:8px 12px; text-align:left; color:#64748b; font-weight:700;">ÜRÜN</th>
-                  <th style="padding:8px 12px; text-align:center; color:#64748b; font-weight:700;">ADET</th>
-                  <th style="padding:8px 12px; text-align:right; color:#64748b; font-weight:700;">BİRİM</th>
-                  <th style="padding:8px 12px; text-align:right; color:#64748b; font-weight:700;">TOPLAM</th>
+                  <th style="padding:8px 12px; text-align:left; color:#64748b; font-weight:600; font-size:11px;">ÜRÜN</th>
+                  <th style="padding:8px 12px; text-align:center; color:#64748b; font-weight:600; font-size:11px;">ADET</th>
+                  <th style="padding:8px 12px; text-align:right; color:#64748b; font-weight:600; font-size:11px;">BİRİM</th>
+                  <th style="padding:8px 12px; text-align:right; color:#64748b; font-weight:600; font-size:11px;">TOPLAM</th>
                 </tr>
               </thead>
               <tbody id="dv-t-gift-items-body"></tbody>
             </table>
           </div>
 
-          <div style="display:flex; gap:10px; justify-content:flex-end; margin-top:16px; padding-top:16px; border-top:1px solid #e2e8f0;">
-            <button id="dv-t-btn-delete" style="background:#fee2e2; color:#ef4444; padding:8px 20px; border-radius:8px; border:none; font-weight:600; cursor:pointer;">🗑️ Sil</button>
-            <button id="dv-t-btn-edit" style="background:#2563eb; color:white; padding:8px 20px; border-radius:8px; border:none; font-weight:600; cursor:pointer;">✏️ Düzenle</button>
-            <button id="dv-t-btn-add-pdf" style="background:#f0fdf4; color:#16a34a; padding:8px 20px; border-radius:8px; border:1px solid #bbf7d0; font-weight:600; cursor:pointer;">📄 PDF Ekle</button>
+          <div style="display:flex; gap:8px; justify-content:flex-end; margin-top:16px; padding-top:16px; border-top:1px solid #e2e8f0;">
+            <button id="dv-t-btn-delete"
+              style="display:flex; align-items:center; gap:6px; background:#fee2e2; color:#ef4444; padding:7px 16px; border-radius:8px; border:none; font-weight:600; cursor:pointer; font-size:13px; font-family:inherit;">
+              <i class="ti ti-trash" style="font-size:14px;"></i>Sil
+            </button>
+            <button id="dv-t-btn-edit"
+              style="display:flex; align-items:center; gap:6px; background:#2563eb; color:white; padding:7px 16px; border-radius:8px; border:none; font-weight:600; cursor:pointer; font-size:13px; font-family:inherit;">
+              <i class="ti ti-pencil" style="font-size:14px;"></i>Düzenle
+            </button>
+            <button id="dv-t-btn-add-pdf"
+              style="display:flex; align-items:center; gap:6px; background:#f0fdf4; color:#16a34a; padding:7px 16px; border-radius:8px; border:1px solid #bbf7d0; font-weight:600; cursor:pointer; font-size:13px; font-family:inherit;">
+              <i class="ti ti-file-plus" style="font-size:14px;"></i>PDF Ekle
+            </button>
           </div>
         </div>
 
         <!-- Right: stats -->
-        <div id="detail-right-stats" style="display:flex; flex-direction:column; overflow-y:auto; padding:20px;">
-          <!-- Stats grid injected here -->
-        </div>
+        <div id="detail-right-stats" style="display:flex; flex-direction:column; overflow-y:auto; padding:20px; min-height:0;"></div>
 
       </div>
 
-    </div><!-- end invoice-detail-wrapper -->
+    </div>
 
-  </main>
+  </div>
+</div>
 
-  <div id="toast-container"></div>
-  <script src="/nav-pill.js?v=nav-slide-3-ease"></script>
+<div id="toast-container"></div>
+<script src="/dmo/js/sidebar.js"></script>
 
-  <script>
-    // Read order ID from URL and load the detail view
-    document.addEventListener("DOMContentLoaded", async () => {
-      const orderId = new URLSearchParams(window.location.search).get("id");
-      if (!orderId) {
-        document.getElementById("invoice-loading").innerHTML = `
-          <span style="font-size:32px;">⚠️</span>
-          <span style="font-size:14px; font-weight:600; color:#ef4444;">Sipariş ID bulunamadı.</span>
-          <a href="/dmo/pages/siparisler.html" style="font-size:13px; color:#2563eb; font-weight:600;">← Siparişlere dön</a>
-        `;
-        return;
-      }
-
-      await loadDetailView(orderId);
-      document.getElementById("invoice-loading").style.display = "none";
-    });
-  </script>
+<script>
+  document.addEventListener("DOMContentLoaded", async () => {
+    const orderId = new URLSearchParams(window.location.search).get("id");
+    if (!orderId) {
+      document.getElementById("invoice-loading").innerHTML = `
+        <i class="ti ti-alert-triangle" style="font-size:32px; color:#f59e0b;"></i>
+        <span style="font-size:14px; font-weight:600; color:#ef4444;">Sipariş ID bulunamadı.</span>
+        <a href="/dmo/pages/siparisler.html" style="font-size:13px; color:#2563eb; font-weight:600;">← Siparişlere dön</a>
+      `;
+      return;
+    }
+    await loadDetailView(orderId);
+    document.getElementById("invoice-loading").style.display = "none";
+  });
+</script>
 
 </body>
-
 </html>

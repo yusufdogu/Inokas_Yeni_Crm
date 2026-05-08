@@ -261,60 +261,79 @@ function populateCompanyFilter(orders) {
 
 // ── RENDER INVOICE CARDS ──────────────────────────────────────────────────────
 async function renderTable(orders) {
-    const container = document.getElementById("invoiceCardsContainer");
-    container.innerHTML = "";
+    const tbody = document.getElementById("sp-tbody");
+    const empty = document.getElementById("sp-empty");
+    if (!tbody) return;
 
-    if (orders.length === 0) {
-        container.innerHTML = `
-            <div style="grid-column:1/-1; text-align:center; padding:40px; color:#94a3b8;">
-                Sipariş bulunamadı
-            </div>`;
-        return;
+    window._lastFilteredOrders = orders;
+
+    // Update KPIs
+    const totalDMO    = orders.reduce((s, o) => s + (o.dmo_basket_total || 0), 0);
+    const totalProfit = orders.reduce((s, o) => s + (o.net_profit       || 0), 0);
+    const kpiTotal    = document.getElementById("kpi-total");
+    const kpiAmount   = document.getElementById("kpi-amount");
+    const kpiProfit   = document.getElementById("kpi-profit");
+    if (kpiTotal)  kpiTotal.textContent  = orders.length;
+    if (kpiAmount) kpiAmount.textContent = formatAmount(totalDMO) + " ₺";
+    if (kpiProfit) {
+        kpiProfit.textContent = formatAmount(totalProfit) + " ₺";
+        kpiProfit.style.color = totalProfit >= 0 ? "#16a34a" : "#dc2626";
     }
 
+    // Update header count
+    const countEl = document.getElementById("sp-order-count");
+    if (countEl) countEl.textContent = orders.length + " sipariş";
+
+    if (orders.length === 0) {
+        tbody.innerHTML = "";
+        if (empty) empty.style.display = "block";
+        return;
+    }
+    if (empty) empty.style.display = "none";
+
     const statusColors = {
-        "Taslak":         { bg: "#f8fafc", color: "#64748b", border: "#e2e8f0" },
-        "Sipariş Alındı": { bg: "#eff6ff", color: "#2563eb", border: "#bfdbfe" },
-        "Tamamlandı":     { bg: "#f0fdf4", color: "#16a34a", border: "#bbf7d0" },
-        "İptal":          { bg: "#fef2f2", color: "#dc2626", border: "#fecaca" },
+        "Taslak":         { bg: "#f1f5f9", color: "#64748b" },
+        "Sipariş Alındı": { bg: "#dbeafe", color: "#1d4ed8" },
+        "Tamamlandı":     { bg: "#dcfce7", color: "#166534" },
+        "İptal":          { bg: "#fee2e2", color: "#991b1b" },
     };
 
-    orders.forEach(order => {
-        const profitColor = order.net_profit >= 0 ? "#16a34a" : "#dc2626";
-        const status      = order.status || "Taslak";
-        const sc          = statusColors[status] || statusColors["Taslak"];
-
-        const card = document.createElement("div");
-        card.className = "invoice-card";
-        card.onclick   = () => window.location.href = `/dmo/pages/invoice.html?id=${order.id}`;
-        card.innerHTML = `
-            <div class="invoice-card-header">
-                <span class="invoice-card-no">#${order.sales_order_no || "Taslak"}</span>
-                <span class="invoice-card-date">${formatDate(order.order_date)}</span>
-            </div>
-            <div class="invoice-card-customer">${order.customer_name || "-"}</div>
-            <div style="margin-bottom:8px;">
-                <span style="font-size:11px; font-weight:700; padding:2px 8px; border-radius:99px; background:${sc.bg}; color:${sc.color}; border:1px solid ${sc.border};">
-                    ${status}
-                </span>
-            </div>
-            <div class="invoice-card-footer">
-                <span class="invoice-card-dmo">DMO: ${formatAmount(order.dmo_basket_total)} ₺</span>
-                <span class="invoice-card-profit" style="color:${profitColor}">
+    tbody.innerHTML = orders.map(order => {
+        const sc          = statusColors[order.status] || statusColors["Taslak"];
+        const profitColor = (order.net_profit || 0) >= 0 ? "#16a34a" : "#dc2626";
+        return `
+            <tr style="border-bottom:1px solid #f1f5f9; cursor:pointer; transition:background 0.1s;"
+                onclick="window.location.href='/dmo/pages/invoice.html?id=${order.id}'"
+                onmouseover="this.style.background='#f8fafc'"
+                onmouseout="this.style.background=''"
+            >
+                <td style="padding:10px 12px 10px 0; font-weight:600; color:#2563eb; white-space:nowrap;">
+                    #${order.sales_order_no || "Taslak"}
+                </td>
+                <td style="padding:10px 12px 10px 0; color:#0f172a; max-width:200px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">
+                    ${order.customer_name || "—"}
+                </td>
+                <td style="padding:10px 12px 10px 0; color:#94a3b8; white-space:nowrap; font-size:12px;">
+                    ${formatDate(order.order_date)}
+                </td>
+                <td style="padding:10px 12px 10px 0;">
+                    <span style="padding:3px 8px; border-radius:99px; font-size:11px; font-weight:600; background:${sc.bg}; color:${sc.color};">
+                        ${order.status || "Taslak"}
+                    </span>
+                </td>
+                <td style="padding:10px 0; text-align:right; font-weight:600; color:#0f172a; white-space:nowrap;">
+                    ${formatAmount(order.dmo_basket_total)} ₺
+                </td>
+                <td style="padding:10px 0; text-align:right; font-weight:700; color:${profitColor}; white-space:nowrap;">
                     ${formatAmount(order.net_profit)} ₺
-                    <small style="font-weight:500; font-size:11px;">
-                        %${order.profit_percentage?.toFixed(1)}
-                    </small>
-                </span>
-            </div>
+                </td>
+            </tr>
         `;
-        container.appendChild(card);
-    });
+    }).join("");
 }
-
 // ── PAGE INIT ─────────────────────────────────────────────────────────────────
 document.addEventListener("DOMContentLoaded", async () => {
-    if (!document.getElementById("invoiceCardsContainer")) return;
+    if (!document.getElementById("sp-tbody") && !document.getElementById("invoiceCardsContainer")) return;
 
     // Set default date range: last 3 months
     const end   = new Date();

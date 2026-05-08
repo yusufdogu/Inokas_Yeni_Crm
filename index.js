@@ -202,8 +202,13 @@ async function fetchAndSaveDMORate() {
     } catch (err) {
         console.error('DMO rate fetch hatası:', err.message);
     }
+
+
 }
 
+app.get('/dmo/sidebar-snippet.html', (req, res) => {
+    res.sendFile(path.join(__dirname, 'dmo', 'sidebar-snippet.html'));
+});
 
 app.get('/api/debug-tcmb', async (req, res) => {
     try {

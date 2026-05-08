@@ -5,144 +5,154 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>DMO — İnokas CRM</title>
+
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
   <script src="/supabase-client.js"></script>
   <script src="/dmo/js/dmo-core.js"></script>
   <script src="/dmo/js/dmo-analytics.js"></script>
-
-  <script>
-    if (localStorage.getItem('inokas_auth') !== 'true') window.location.href = '/login.html';
-  </script>
-  <link href="https://fonts.googleapis.com/css2?family=Geist+Mono:wght@400;600&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.x/dist/tabler-icons.min.css">
   <link rel="stylesheet" href="/dmo/css/core.css">
+  <link rel="stylesheet" href="/dmo/css/sidebar.css">
   <link rel="stylesheet" href="/dmo/css/layout.css">
-  <link rel="stylesheet" href="/nav.css?v=nav-slide-4-gutter">
+  <link rel="stylesheet" href="/dmo/css/analytics.css">
 </head>
 
 <body>
+<div class="app-shell">
 
-  <nav class="topbar">
-    <div class="topbar-left">
-      <a href="/public" class="brand">
-        <div class="brand-dot"></div>
-        İnokas <span>CRM</span>
-      </a>
-    </div>
-    <div class="topbar-right">
-      <div class="nav-cluster">
-        <span class="nav-pill" id="navPill" aria-hidden="true"></span>
-        <div class="nav-links-row" role="navigation" aria-label="Ana menü">
-          <a href="/public" class="nav-link" data-nav-id="faturalar">Faturalar</a>
-          <a href="/stok.html" class="nav-link" data-nav-id="stok">Stok</a>
-          <a href="/dmo" class="nav-link active" data-nav-id="dmo">DMO</a>
+  <div id="sidebar-container"></div>
+
+  <div class="page-area">
+
+    <!-- Header -->
+    <div class="page-header">
+      <div class="page-header-left">
+        <button class="sb-toggle-btn" onclick="toggleSidebar()">
+          <i class="ti ti-menu-2"></i>
+        </button>
+        <div>
+          <p class="page-header-title">DMO Dashboard</p>
+          <p class="page-header-sub">Genel özet</p>
         </div>
       </div>
-      <button type="button" class="nav-link nav-link--logout logout">Çıkış</button>
+      <a href="/dmo/pages/yeni-siparis.html" class="page-action-btn">
+        <i class="ti ti-plus"></i>
+        Yeni Sipariş
+      </a>
     </div>
-  </nav>
 
-  <main class="main-container">
+    <!-- Scrollable content -->
+    <div class="page-content" style="padding:20px;">
 
-    <!-- ── NAV BUTTONS ─────────────────────────────────────────────────── -->
-    <section style="display:flex; gap:16px; margin-bottom:24px;">
+      <!-- Quick nav cards -->
+      <section style="display:grid; grid-template-columns:repeat(3,1fr); gap:12px; margin-bottom:24px;">
 
-      <a href="/dmo/pages/siparisler.html"
-          style="flex:1; padding:20px; background:white; border:1px solid #e2e8f0; border-radius:16px; cursor:pointer; display:flex; flex-direction:column; align-items:center; gap:8px; transition:all 0.2s; text-decoration:none;"
-          onmouseover="this.style.borderColor='#2563eb'; this.style.boxShadow='0 4px 12px rgba(37,99,235,0.1)'"
+        <a href="/dmo/pages/siparisler.html"
+          style="padding:18px 20px; background:white; border:1px solid #e2e8f0; border-radius:14px; display:flex; align-items:center; gap:14px; text-decoration:none; transition:all 0.15s;"
+          onmouseover="this.style.borderColor='#2563eb'; this.style.boxShadow='0 4px 12px rgba(37,99,235,0.08)'"
           onmouseout="this.style.borderColor='#e2e8f0'; this.style.boxShadow='none'">
-          <span style="font-size:32px;">📋</span>
-          <span style="font-size:14px; font-weight:800; color:#0f172a;">Siparişleri Göster</span>
-          <span style="font-size:12px; color:#64748b;">Tüm siparişleri görüntüle ve filtrele</span>
-      </a>
+          <div style="width:40px; height:40px; background:#eff6ff; border-radius:10px; display:flex; align-items:center; justify-content:center; flex-shrink:0;">
+            <i class="ti ti-list" style="font-size:20px; color:#2563eb;"></i>
+          </div>
+          <div>
+            <div style="font-size:14px; font-weight:700; color:#0f172a;">Siparişler</div>
+            <div style="font-size:12px; color:#94a3b8;">Görüntüle ve filtrele</div>
+          </div>
+        </a>
 
-      <a href="/dmo/pages/yeni-siparis.html"
-          style="flex:1; padding:20px; background:white; border:1px solid #e2e8f0; border-radius:16px; cursor:pointer; display:flex; flex-direction:column; align-items:center; gap:8px; transition:all 0.2s; text-decoration:none;"
-          onmouseover="this.style.borderColor='#16a34a'; this.style.boxShadow='0 4px 12px rgba(22,163,74,0.1)'"
+        <a href="/dmo/pages/yeni-siparis.html"
+          style="padding:18px 20px; background:white; border:1px solid #e2e8f0; border-radius:14px; display:flex; align-items:center; gap:14px; text-decoration:none; transition:all 0.15s;"
+          onmouseover="this.style.borderColor='#16a34a'; this.style.boxShadow='0 4px 12px rgba(22,163,74,0.08)'"
           onmouseout="this.style.borderColor='#e2e8f0'; this.style.boxShadow='none'">
-          <span style="font-size:32px;">➕</span>
-          <span style="font-size:14px; font-weight:800; color:#0f172a;">Yeni Sipariş Ekle</span>
-          <span style="font-size:12px; color:#64748b;">PDF yükleyerek sipariş oluştur</span>
-      </a>
+          <div style="width:40px; height:40px; background:#f0fdf4; border-radius:10px; display:flex; align-items:center; justify-content:center; flex-shrink:0;">
+            <i class="ti ti-file-upload" style="font-size:20px; color:#16a34a;"></i>
+          </div>
+          <div>
+            <div style="font-size:14px; font-weight:700; color:#0f172a;">Yeni Sipariş</div>
+            <div style="font-size:12px; color:#94a3b8;">PDF ile oluştur</div>
+          </div>
+        </a>
 
-      <a href="/dmo/pages/sepet-hesapla.html"
-          style="flex:1; padding:20px; background:white; border:1px solid #e2e8f0; border-radius:16px; cursor:pointer; display:flex; flex-direction:column; align-items:center; gap:8px; transition:all 0.2s; text-decoration:none;"
-          onmouseover="this.style.borderColor='#d97706'; this.style.boxShadow='0 4px 12px rgba(217,119,6,0.1)'"
+        <a href="/dmo/pages/sepet-hesapla.html"
+          style="padding:18px 20px; background:white; border:1px solid #e2e8f0; border-radius:14px; display:flex; align-items:center; gap:14px; text-decoration:none; transition:all 0.15s;"
+          onmouseover="this.style.borderColor='#d97706'; this.style.boxShadow='0 4px 12px rgba(217,119,6,0.08)'"
           onmouseout="this.style.borderColor='#e2e8f0'; this.style.boxShadow='none'">
-          <span style="font-size:32px;">⚡</span>
-          <span style="font-size:14px; font-weight:800; color:#0f172a;">DMO Sepet Hesapla</span>
-          <span style="font-size:12px; color:#64748b;">Hızlı karlılık analizi</span>
-      </a>
+          <div style="width:40px; height:40px; background:#fffbeb; border-radius:10px; display:flex; align-items:center; justify-content:center; flex-shrink:0;">
+            <i class="ti ti-shopping-cart" style="font-size:20px; color:#d97706;"></i>
+          </div>
+          <div>
+            <div style="font-size:14px; font-weight:700; color:#0f172a;">Sepet Hesapla</div>
+            <div style="font-size:12px; color:#94a3b8;">Hızlı karlılık analizi</div>
+          </div>
+        </a>
 
-    </section>
+      </section>
 
-    <!-- ── STAT CARDS ──────────────────────────────────────────────────── -->
-    <section class="stats-grid" id="summaryCardsContainer">
+      <!-- Stat cards -->
+      <section id="summaryCardsContainer" style="display:grid; grid-template-columns:repeat(3,1fr) 220px; gap:12px; margin-bottom:24px;">
 
         <div class="stat-card">
-            <label>Toplam DMO Tutar</label>
-            <h2 id="stat-total-debt">0,00 ₺</h2>
-            <small id="stat-supplier-count">0 Sipariş</small>
+          <label>Toplam DMO Tutar</label>
+          <h2 id="stat-total-debt">—</h2>
+          <small id="stat-supplier-count">0 Sipariş</small>
         </div>
 
         <div class="stat-card highlight-success">
-            <label>Toplam Maliyet</label>
-            <h2 id="stat-paid">0,00 ₺</h2>
-            <small id="stat-paid-count">İnokas Sepet</small>
+          <label>Toplam Maliyet</label>
+          <h2 id="stat-paid">—</h2>
+          <small id="stat-paid-count">İnokas Sepet</small>
         </div>
 
         <div class="stat-card highlight-warn">
-            <label>Toplam Kâr</label>
-            <h2 id="stat-overdue">0,00 ₺</h2>
-            <small id="stat-overdue-count">%0</small>
+          <label>Toplam Kâr</label>
+          <h2 id="stat-overdue">—</h2>
+          <small id="stat-overdue-count">%0</small>
         </div>
 
-        <!-- Collapsible Diğer Giderler -->
+        <!-- Flip card -->
         <div class="stat-card stat-card--flip" onclick="toggleGiderler()">
-            <div class="flip-card-inner" id="giderlerFlipInner">
-
-                <!-- FRONT -->
-                <div class="flip-card-front">
-                    <label>💡 Diğer Giderler</label>
-                    <h2 id="stat-diger-giderler">0,00 ₺</h2>
-                    <small style="color:#2563eb; font-weight:600;">Detay için tıklayın →</small>
-                </div>
-
-                <!-- BACK -->
-                <div class="flip-card-back">
-                    <label style="color:#ffffff; opacity:0.8; font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:0.05em;">Gider Detayı</label>
-                    <div style="margin-top:8px; display:flex; flex-direction:column; gap:6px;">
-                        <div style="display:flex; justify-content:space-between; align-items:center;">
-                            <span style="font-size:12px; color:rgba(255,255,255,0.75);">Tevkifat</span>
-                            <span id="stat-tevkifat" style="font-size:13px; font-weight:700; color:#ffffff;">0,00 ₺</span>
-                        </div>
-                        <div style="display:flex; justify-content:space-between; align-items:center;">
-                            <span style="font-size:12px; color:rgba(255,255,255,0.75);">Damga + Karar</span>
-                            <span id="stat-damga" style="font-size:13px; font-weight:700; color:#ffffff;">0,00 ₺</span>
-                        </div>
-                        <div style="display:flex; justify-content:space-between; align-items:center;">
-                            <span style="font-size:12px; color:rgba(255,255,255,0.75);">Risturn</span>
-                            <span id="stat-risturn-total" style="font-size:13px; font-weight:700; color:#ffffff;">0,00 ₺</span>
-                        </div>
-                    </div>
-                    <small style="color:rgba(255,255,255,0.6); margin-top:auto;">← Geri dön</small>
-                </div>
-
+          <div class="flip-card-inner" id="giderlerFlipInner">
+            <div class="flip-card-front">
+              <label>Diğer Giderler</label>
+              <h2 id="stat-diger-giderler">—</h2>
+              <small style="color:#2563eb; font-weight:600;">Detay →</small>
             </div>
+            <div class="flip-card-back">
+              <label style="color:rgba(255,255,255,0.7); font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:0.05em;">Gider Detayı</label>
+              <div style="margin-top:8px; display:flex; flex-direction:column; gap:6px;">
+                <div style="display:flex; justify-content:space-between;">
+                  <span style="font-size:12px; color:rgba(255,255,255,0.7);">Tevkifat</span>
+                  <span id="stat-tevkifat" style="font-size:13px; font-weight:700; color:white;">—</span>
+                </div>
+                <div style="display:flex; justify-content:space-between;">
+                  <span style="font-size:12px; color:rgba(255,255,255,0.7);">Damga + Karar</span>
+                  <span id="stat-damga" style="font-size:13px; font-weight:700; color:white;">—</span>
+                </div>
+                <div style="display:flex; justify-content:space-between;">
+                  <span style="font-size:12px; color:rgba(255,255,255,0.7);">Risturn</span>
+                  <span id="stat-risturn-total" style="font-size:13px; font-weight:700; color:white;">—</span>
+                </div>
+              </div>
+              <small style="color:rgba(255,255,255,0.5); margin-top:auto;">← Geri dön</small>
+            </div>
+          </div>
         </div>
 
-    </section>
+      </section>
 
-    <!-- ── CHARTS ─────────────────────────────────────────────────────── -->
-    <section class="charts-grid" id="chartsGrid">
+      <!-- Charts -->
+      <section id="chartsGrid" style="display:grid; grid-template-columns:1fr 1fr; gap:14px;">
         <!-- populated by JS -->
-    </section>
+      </section>
 
-  </main>
+    </div>
+  </div>
+</div>
 
-  <div id="toast-container"></div>
-  <script src="/nav-pill.js?v=nav-slide-3-ease"></script>
+<div id="toast-container"></div>
+<script src="/dmo/js/sidebar.js"></script>
 
 </body>
-
 </html>

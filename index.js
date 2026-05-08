@@ -294,6 +294,24 @@ app.post('/api/dmo/scrape-dmo-prices', async (req, res) => {
   }
 });
 
+app.post('/api/invoices/sync-now', async (req, res) => {
+    try {
+        runSync(); // fire and forget — don't await, it takes too long for a request
+        res.json({ ok: true, message: 'Sync started in background.' });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.post('/api/invoices/recheck-now', async (req, res) => {
+    try {
+        runDailyRecheck(); // fire and forget
+        res.json({ ok: true, message: 'Re-check started in background.' });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
 app.get('/', (req, res) => {
   res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
   res.setHeader('Pragma', 'no-cache');
@@ -1857,7 +1875,27 @@ cron.schedule('40 12 * * *', () => {
     console.log('Cron: TCMB rates fetching...');
     fetchAndSaveTCMBRates();
 });
+const { runSync, runDailyRecheck } = require('./services/sync-service');
 
+// Every hour — fetch new invoices (auto-detects initial vs incremental)
+cron.schedule('0 * * * *', async () => {
+    console.log('Cron: Invoice sync starting...');
+    try {
+        await runSync();
+    } catch (err) {
+        console.error('Cron: Invoice sync failed:', err.message);
+    }
+});
+
+// Every day at 06:00 Turkey time (03:00 UTC) — re-check pending/waiting invoices
+cron.schedule('0 3 * * *', async () => {
+    console.log('Cron: Daily invoice re-check starting...');
+    try {
+        await runDailyRecheck();
+    } catch (err) {
+        console.error('Cron: Daily re-check failed:', err.message);
+    }
+});
 
 app.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);

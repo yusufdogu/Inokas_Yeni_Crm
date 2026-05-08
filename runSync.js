@@ -1,10 +1,12 @@
 // runSync.js
-require('dotenv').config(); // Load your .env first
-const { syncGidenInvoices } = require('./services/sync-service');
+require('dotenv').config();
+
+const { syncGelenInvoices, syncGidenInvoices } = require('./services/sync-service');
 
 async function main() {
     try {
         console.log("📂 Initializing Data Sync...");
+        await syncGelenInvoices();
         await syncGidenInvoices();
         console.log("✨ All tasks completed successfully.");
         process.exit(0);
@@ -15,5 +17,3 @@ async function main() {
 }
 
 main();
-
-

@@ -1,322 +1,440 @@
-// sync-service.js (Part 1)
+require('dotenv').config();
+
 const logoApi = require('./logo-api');
+const { parseUblFromBase64, setProductCodeLookup } = require('./ubl-parser');
+const AdmZip = require('adm-zip');
 const { createClient } = require('@supabase/supabase-js');
 
-// 3. Initialize Supabase with the SERVICE ROLE KEY
-const supabaseUrl = process.env.SUPABASE_URL;
-const supabaseKey = process.env.SUPABASE_KEY; // Use the secret one here!
+const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_KEY);
+const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 
-if (!supabaseKey || !supabaseUrl) {
-    console.error("❌ Critical Error: Supabase URL or Key is missing from .env");
+if (!process.env.SUPABASE_URL || !process.env.SUPABASE_KEY) {
+    console.error('❌ Critical Error: Supabase URL or Key is missing from .env');
     process.exit(1);
 }
 
-const supabase = createClient(supabaseUrl, supabaseKey);
-const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
-/**
- * Helper function to create a delay
- * @param {number} ms - Milliseconds to wait
- */
+// ─── helpers ────────────────────────────────────────────────────────────────
 
-const { XMLParser } = require('fast-xml-parser');
+async function uploadXmlToStorage(base64Content, uuid) {
+    try {
+        const zip = new AdmZip(Buffer.from(base64Content, 'base64'));
+        const xmlEntry = zip.getEntries().find(e => e.entryName.endsWith('.xml'));
+        if (!xmlEntry) { console.warn(`⚠️ No XML entry in zip for ${uuid}`); return null; }
 
-// Initialize the parser to handle UBL namespaces
-const parser = new XMLParser({
-    ignoreAttributes: false,
-    attributeNamePrefix: ""
-});
-const ublParser= require('./ubl-parser');
+        const xmlBuffer = xmlEntry.getData();
+        const fileName = `${uuid}.xml`;
 
-const val = (obj) => (obj && typeof obj === 'object' ? obj['#text'] : obj);
+        const { error: uploadError } = await supabase.storage
+            .from('invoice-xml')
+            .upload(fileName, xmlBuffer, { contentType: 'application/xml', upsert: true });
 
-// Helper to safely extract VKN/TCKN from an array of IDs
-const extractVkn = (partyNode) => {
-    if (!partyNode) return null;
-    const ids = partyNode['cac:PartyIdentification'] || partyNode['PartyIdentification'];
-    if (!ids) return null;
+        if (uploadError) { console.warn(`⚠️ XML upload failed for ${uuid}:`, uploadError.message); return null; }
 
-    const idArray = Array.isArray(ids) ? ids : [ids];
-    for (const idObj of idArray) {
-        const idNode = idObj['cbc:ID'] || idObj['ID'];
-        if (idNode) {
-            const scheme = idNode['schemeID']; // Fast-xml-parser puts attributes directly on the #text object if configured correctly
-            if (scheme === 'VKN' || scheme === 'TCKN') {
-                return val(idNode);
-            }
-        }
+        const { data: urlData } = await supabase.storage
+            .from('invoice-xml')
+            .createSignedUrl(fileName, 60 * 60 * 24 * 365 * 10); // 10 years
+
+        return urlData?.signedUrl || null;
+    } catch (err) {
+        console.warn(`⚠️ uploadXmlToStorage error for ${uuid}:`, err.message);
+        return null;
     }
-    // Fallback to the first ID if no scheme matches
-    return val(idArray[0]['cbc:ID'] || idArray[0]['ID']);
-};
-
-async function syncGelenInvoices() {
-    const UNIT_MAP = {
-    'C62': 'Adet',
-    'KGM': 'Kilogram',
-    'MTR': 'Metre',
-    'M4': 'Parça',
-    'DAY': 'Gün',
-    'HUR': 'Saat',
-    'LTR': 'Litre'
-    };
-    console.log("🚀 Starting Full Historical Sync...");
-    let currentPage = 1;
-    let hasMore = true;
-    let totalSynced = 0;
-
-    while (hasMore) {
-        console.log(`\n--- 📂 Fetching Page ${currentPage} ---`);
-        const invoices = await logoApi.getGelenInvoiceList(currentPage, 15);
-
-        if (!invoices || invoices.length === 0) {
-            hasMore = false;
-            break;
-        }
-        for (const inv of invoices) {
-            try {
-                const currentId = inv.uuId;
-
-                if (!currentId) {
-                    console.warn(`⚠️ Skipping ${inv.invoiceId || 'Unknown'}: No valid UUID/ID found in API response.`);
-                    continue;
-                }
-                // 1. FAST DB CHECK (Skip if already exists)
-                const {data: exists} = await supabase
-                    .from('invoices')
-                    .select('id')
-                    .eq('efatura_uuid', currentId)
-                    .maybeSingle();
-
-                if (exists) {
-                    console.log(`⏩ Skipping ${inv.invoiceId}: Already in Database.`);
-                    continue;
-                }
-
-                // 2. FETCH & PARSE
-                const base64Content = await logoApi.getInvoiceUBL(currentId);
-
-                // 🛑 ADD THIS GUARD
-                if (!base64Content) {
-                    console.warn(`⚠️ skipping ${inv.invoiceId}: No UBL content found.`);
-                    continue; // Move to the next invoice in the loop
-                }
-
-                const ubl = ublParser.parseUblFromBase64(base64Content);
-                if (!ubl) continue;
-
-                // 3. SECURITY & DIRECTION CHECK (Mirroring Manual Logic)
-                const supplierParty = ubl['cac:AccountingSupplierParty']?.['cac:Party'] || ubl['AccountingSupplierParty']?.['Party'];
-
-                const supplierVkn = extractVkn(supplierParty);
-
-
-                // Supplier Name (Check for Array in PartyName too, just in case)
-                const partyNameNode = supplierParty['cac:PartyName']?.['cbc:Name'] || supplierParty['PartyName']?.['Name'];
-                const supplierName = val(Array.isArray(partyNameNode) ? partyNameNode[0] : partyNameNode) ||
-                    val(supplierParty['cbc:RegistrationName']) || "Bilinmeyen Firma";
-
-                // 4. SYNC COMPANY (Supplier)
-                const {data: company, error: coError} = await supabase
-                    .from('companies')
-                    .upsert({
-                        name: supplierName,
-                        vkn_tckn: String(supplierVkn),
-                        is_supplier: true, // Since this is syncGelenInvoices
-                        is_active: true
-                    }, {onConflict: 'vkn_tckn'})
-                    .select().single();
-
-                if (coError) throw new Error(`Company Sync: ${coError.message}`);
-
-                // 1. Get the primary currency (USD/EUR etc.) from the exchange rate block, fallback to DocumentCurrencyCode
-                const currency = val(ubl['cac:PricingExchangeRate']?.['cbc:SourceCurrencyCode']) || val(ubl['cbc:DocumentCurrencyCode']) || 'TRY';
-
-                // 2. Safely parse the CalculationRate, ensuring we default to 1.0 for TRY invoices
-                const kur = parseFloat(val(ubl['cac:PricingExchangeRate']?.['cbc:CalculationRate'])) || 1.0;
-
-                // Get Notes
-                const noteNodes = ubl['cbc:Note'] || ubl['Note'];
-                let notesStr = "";
-                if (noteNodes) {
-                    const noteArray = Array.isArray(noteNodes) ? noteNodes : [noteNodes];
-                    notesStr = noteArray.map(n => val(n)).join('\n');
-                }
-
-                // Get Totals from the correct tags
-                const netAmountCur = parseFloat(val(ubl['cac:LegalMonetaryTotal']?.['cbc:TaxExclusiveAmount']) || 0);
-                const totalAmountCur = parseFloat(val(ubl['cac:LegalMonetaryTotal']?.['cbc:PayableAmount']) || 0);
-
-                // Fix: Get Tax from TaxTotal
-                const taxTotalNode = ubl['cac:TaxTotal'] || ubl['TaxTotal'];
-                let taxAmountCur = 0;
-                if (taxTotalNode) {
-                    const taxNode = Array.isArray(taxTotalNode) ? taxTotalNode[0] : taxTotalNode;
-                    taxAmountCur = parseFloat(val(taxNode['cbc:TaxAmount']) || 0);
-                } else {
-                    // Fallback if TaxTotal is completely missing
-                    taxAmountCur = parseFloat((totalAmountCur - netAmountCur).toFixed(2));
-                }
-                // 6. SYNC INVOICE HEADER
-                const {data: dbInvoice, error: invError} = await supabase
-                    .from('invoices')
-                    .upsert({
-                        efatura_uuid: ubl['cbc:UUID'] || ubl['UUID'],
-                        invoice_no: ubl['cbc:ID'] || ubl['ID'],
-                        company_id: company.id,
-                        direction: 'INCOMING',
-                        invoice_date: ubl['cbc:IssueDate'] || ubl['IssueDate'],
-                        currency: currency,
-                        exchange_rate: kur,
-                        total_currency: totalAmountCur,
-                        net_amount_tl: (netAmountCur * kur).toFixed(2),
-                        tax_amount_tl: (taxAmountCur * kur).toFixed(2),
-                        total_amount_tl: (totalAmountCur * kur).toFixed(2),
-                        status: 'Unpaid',
-                        invoice_type: ubl['cbc:InvoiceTypeCode']
-                    }, {onConflict: 'efatura_uuid'})
-                    .select().single();
-
-                if (invError) throw new Error(`Invoice Sync: ${invError.message}`);
-
-                // 7. SYNC INVOICE ITEMS
-                const lineTag = ubl['cac:InvoiceLine'] || ubl['InvoiceLine'];
-                const ublLines = Array.isArray(lineTag) ? lineTag : [lineTag];
-
-                const itemsToSave = ublLines.map(line => {
-                    const item = line['cac:Item'] || line['Item'];
-                    const qty = parseFloat(val(line['cbc:InvoicedQuantity'] || line['InvoicedQuantity']));
-                    const price = parseFloat(val(line['cac:Price']?.['cbc:PriceAmount'] || line['Price']?.['PriceAmount']));
-                    const unitCode = (line['cbc:InvoicedQuantity'] || line['InvoicedQuantity'])?.['unitCode'];
-
-                    return {
-                        invoice_id: dbInvoice.id,
-                        product_name: val(item['cbc:Description']) || val(item['cbc:Name']) || 'İsimsiz Ürün',
-                        sku: val(item['cac:SellersItemIdentification']?.['cbc:ID']) || null,
-                        quantity: qty,
-                        unit: UNIT_MAP[unitCode] || 'Adet', // Standardizing as per manual parser
-                        unit_price_cur: price,
-                        tax_rate: parseInt(val(line['cac:TaxTotal']?.['cac:TaxSubtotal']?.['cbc:Percent']) || 20),
-                        total_price_cur: parseFloat(val(line['cbc:LineExtensionAmount']) || (qty * price)),
-                        is_internal: false
-                    };
-                });
-
-                const {error: itemError} = await supabase.from('invoice_items').insert(itemsToSave);
-                if (itemError) console.error(`❌ Items Error for ${inv.invoiceId}:`, itemError.message);
-                else {
-                    totalSynced++;
-                    console.log(`✅ ${inv.invoiceId} Synced Successfully.`);
-                }
-
-                await sleep(400);
-
-            } catch (error) {
-                console.error(`❌ Error processing ${inv.invoiceId}:`, error.message);
-            }
-        }
-        currentPage++;
-        await sleep(400); // Break between pages
-    }
-    console.log(`\n✨ Finished. Total Synced: ${totalSynced}`);
 }
 
-async function syncGidenInvoices() {
-    console.log("🚀 Starting Outgoing (Sales) Invoice Sync...");
+async function loadProductCodes() {
+    const { data } = await supabase.from('products').select('product_code');
+    if (data) setProductCodeLookup(data.map(p => p.product_code));
+    console.log(`📦 Loaded ${data?.length || 0} product codes for SKU matching`);
+}
+
+async function upsertCompany(companyData) {
+    const { data, error } = await supabase
+        .from('companies')
+        .upsert(companyData, { onConflict: 'vkn_tckn' })
+        .select().single();
+    if (error) throw new Error(`Company sync failed: ${error.message}`);
+    return data;
+}
+
+async function upsertInvoice(invoiceData) {
+    const { data, error } = await supabase
+        .from('invoices')
+        .upsert(invoiceData, { onConflict: 'efatura_uuid' })
+        .select().single();
+    if (error) throw new Error(`Invoice sync failed: ${error.message}`);
+    return data;
+}
+
+async function insertItems(items, invoiceId) {
+    if (!items.length) return;
+
+    // Delete existing items first to avoid duplicates on re-run
+    await supabase.from('invoice_items').delete().eq('invoice_id', invoiceId);
+
+    const rows = items.map(item => ({ ...item, invoice_id: invoiceId, is_internal: false }));
+    const { error } = await supabase.from('invoice_items').insert(rows);
+    if (error) console.error(`❌ Items insert failed for invoice ${invoiceId}:`, error.message);
+}
+
+// Auto-create product if it doesn't exist, then return product_id
+async function resolveProductId(item) {
+    if (!item.product_code) return null;
+
+    const { data: existing } = await supabase
+        .from('products')
+        .select('id')
+        .eq('product_code', item.product_code)
+        .maybeSingle();
+
+    if (existing) return existing.id;
+
+    const { data: created, error } = await supabase
+        .from('products')
+        .insert({
+            product_code: item.product_code,
+            product_name: item.product_name,
+            brand:        item.brand_name || null,
+            needs_review: true,
+            source:       'api',
+        })
+        .select('id').single();
+
+    if (error) {
+        console.warn(`⚠️ Could not auto-create product ${item.product_code}:`, error.message);
+        return null;
+    }
+
+    console.log(`🆕 Auto-created product: ${item.product_code} — ${item.product_name}`);
+    return created.id;
+}
+
+// Detect if this is the first ever sync — if invoices table is empty, do full historical load
+async function isInitialSync() {
+    const { count } = await supabase
+        .from('invoices')
+        .select('id', { count: 'exact', head: true });
+    return (count === 0);
+}
+
+// ─── gelen sync ─────────────────────────────────────────────────────────────
+
+async function syncGelenInvoices(startDate) {
+    console.log('\n🚀 Starting Gelen Invoice Sync...');
+    console.log(`📅 Date range: ${startDate} → now`);
+    await loadProductCodes();
+
     let currentPage = 1;
     let hasMore = true;
     let totalSynced = 0;
 
     while (hasMore) {
-        console.log(`\n--- 📂 Fetching Outgoing Page ${currentPage} ---`);
-        const invoices = await logoApi.getGidenInvoiceList(currentPage, 100);
+        console.log(`\n--- 📂 Fetching Gelen Page ${currentPage} ---`);
+        const invoices = await logoApi.getGelenInvoiceList(currentPage, 100, startDate);
+        console.log(`--- 📂 Got ${invoices.length} invoices ---`);
 
-        if (!invoices || invoices.length === 0) {
-            hasMore = false;
-            break;
-        }
+        if (!invoices || invoices.length === 0) { hasMore = false; break; }
 
         for (const inv of invoices) {
             try {
-                // 1. Check if already in DB using the official Invoice Number
+                const uuid = inv.uuId;
+                if (!uuid) { console.warn(`⚠️ Skipping ${inv.invoiceId || 'Unknown'}: No UUID.`); continue; }
+
+                // Dedup — also check if xml_url is missing
                 const { data: exists } = await supabase
-                    .from('invoices')
-                    .select('id')
-                    .eq('invoice_no', inv.id)
-                    .maybeSingle();
+                    .from('invoices').select('id, xml_url')
+                    .eq('efatura_uuid', uuid).maybeSingle();
 
-                if (exists) continue;
-
-                // 2. Fetch UBL (Using the invoiceNumber as per Logo Outgoing docs)
-                const base64Content = await logoApi.getGidenInvoiceUBL(inv.id);
-                if (!base64Content) {
-                    console.warn(`⚠️ Skipping ${inv.id}: UBL content null.`);
+                if (exists) {
+                    if (!exists.xml_url) {
+                        console.log(`📎 ${inv.invoiceId}: In DB but missing XML, uploading...`);
+                        const base64Content = await logoApi.getInvoiceUBL(uuid);
+                        if (base64Content) {
+                            const xmlUrl = await uploadXmlToStorage(base64Content, uuid);
+                            if (xmlUrl) await supabase.from('invoices').update({ xml_url: xmlUrl }).eq('id', exists.id);
+                        }
+                    } else {
+                        console.log(`⏩ Skipping ${inv.invoiceId}: Already in DB.`);
+                    }
                     continue;
                 }
 
-                const ubl = ublParser.parseUblFromBase64(base64Content);
-                if (!ubl) continue;
+                // Fetch UBL
+                const base64Content = await logoApi.getInvoiceUBL(uuid);
+                if (!base64Content) { console.warn(`⚠️ Skipping ${inv.invoiceId}: No UBL content.`); continue; }
 
-                // 3. Identify Parties (Inokas is Supplier, Firm is Customer)
-                const customerParty = ubl['cac:AccountingCustomerParty']?.['cac:Party'] || ubl['AccountingCustomerParty']?.['Party'];
-                const customerVkn = extractVkn(customerParty);
-                const customerName = val(customerParty['cac:PartyName']?.['cbc:Name'] || customerParty['PartyName']?.['Name']) ||
-                                     val(customerParty['cbc:RegistrationName']) || inv.firmName || "Bilinmeyen Müşteri";
+                // Upload XML to storage
+                const xmlUrl = await uploadXmlToStorage(base64Content, uuid);
 
-                // Sync Customer Company
-                // 3. SYNC CUSTOMER COMPANY
-                const { data: company, error: coError } = await supabase
-                    .from('companies')
-                    .upsert({
-                        name: inv.firmName || "Bilinmeyen Müşteri",
-                        vkn_tckn: String(inv.firmVknNo),
-                        is_client: true, // This is a sales invoice
-                        is_active: true
-                    }, { onConflict: 'vkn_tckn' }).select().single();
+                // Parse
+                const parsed = parseUblFromBase64(base64Content, 'gelen');
+                if (!parsed) { console.warn(`⚠️ Skipping ${inv.invoiceId}: Parse failed.`); continue; }
 
-                if (coError) throw coError;
+                const { company: companyData, invoice: invoiceData, items } = parsed;
 
-                // Exchange Rates & Financials
-                // 1. Get the primary currency (USD/EUR etc.) from the exchange rate block, fallback to DocumentCurrencyCode
-                const currency = val(ubl['cac:PricingExchangeRate']?.['cbc:SourceCurrencyCode']) || val(ubl['cbc:DocumentCurrencyCode']) || 'TRY';
+                // Sync company
+                const company = await upsertCompany(companyData);
 
-                // 2. Safely parse the CalculationRate, ensuring we default to 1.0 for TRY invoices
-                const kur = parseFloat(val(ubl['cac:PricingExchangeRate']?.['cbc:CalculationRate'])) || 1.0;
+                // Sync invoice — statusCode 1 = Acceptance (finalized), 0 = pending
+                const isFinalized = inv.statusCode === 1;
+                const dbInvoice = await upsertInvoice({
+                    ...invoiceData,
+                    company_id:             company.id,
+                    approval_status:        'pending',
+                    source:                 'api',
+                    xml_url:                xmlUrl,
+                    gib_status_code:        inv.statusCode ?? null,
+                    gib_status_description: inv.status || null,
+                });
 
-                // 5. SAVE INVOICE
-                const { data: dbInvoice, error: invError } = await supabase
-                    .from('invoices')
-                    .upsert({
-                        efatura_uuid: ubl['cbc:UUID'] || ubl['UUID'],
-                        invoice_no: inv.invoiceNumber,
-                        company_id: company.id,
-                        direction: 'OUTGOING',
-                        invoice_date: inv.date,
-                        currency: currency,
-                        exchange_rate: kur,
-                        total_currency: inv.total,
-                        net_amount_tl: (inv.taxableAmount * kur).toFixed(2),
-                        tax_amount_tl: (inv.totalVatAmount * kur).toFixed(2),
-                        total_amount_tl: inv.totalTL, // Already calculated by Logo
-                        status: 'Unpaid',
-                        invoice_type: inv.invoiceType
-                    }, { onConflict: 'efatura_uuid' }).select().single();
-
-                if (invError) throw invError;
-
-                // Sync Items
-                // (Same mapping as Incoming, ensuring quantity results in stock reduction later)
-                // ... [Item mapping code remains the same]
+                // Resolve product IDs and sync items
+                const resolvedItems = await Promise.all(
+                    items.map(async item => ({
+                        ...item,
+                        product_id: await resolveProductId(item),
+                    }))
+                );
+                await insertItems(resolvedItems, dbInvoice.id);
 
                 totalSynced++;
-                console.log(`✅ [Outgoing] Synced: ${inv.invoiceNumber}`);
+                console.log(`✅ ${inv.invoiceId} synced (status: ${inv.status || 'unknown'}).`);
                 await sleep(400);
 
             } catch (err) {
-                console.error(`❌ Failed Outgoing ${inv.invoiceNumber}:`, err.message);
+                console.error(`❌ Error processing ${inv.invoiceId}:`, err.message);
             }
         }
+
+        if (invoices.length < 100) { hasMore = false; break; }
+        currentPage++;
+        await sleep(400);
+    }
+
+    console.log(`\n✨ Gelen sync finished. Total synced: ${totalSynced}`);
+}
+
+// ─── giden sync ─────────────────────────────────────────────────────────────
+
+async function syncGidenInvoices(startDate) {
+    console.log('\n🚀 Starting Giden Invoice Sync...');
+    console.log(`📅 Date range: ${startDate} → now`);
+    await loadProductCodes();
+
+    let currentPage = 1;
+    let hasMore = true;
+    let totalSynced = 0;
+
+    while (hasMore) {
+        console.log(`\n--- 📂 Fetching Giden Page ${currentPage} ---`);
+        const invoices = await logoApi.getGidenInvoiceList(currentPage, 100, startDate);
+        console.log(`--- 📂 Got ${invoices.length} invoices ---`);
+
+        if (!invoices || invoices.length === 0) { hasMore = false; break; }
+
+        for (const inv of invoices) {
+            try {
+                // Dedup — also check if xml_url is missing
+                const { data: exists } = await supabase
+                    .from('invoices').select('id, xml_url')
+                    .eq('invoice_no', inv.invoiceNumber).maybeSingle();
+
+                if (exists) {
+                    if (!exists.xml_url) {
+                        console.log(`📎 ${inv.invoiceNumber}: In DB but missing XML, uploading...`);
+                        const base64Content = await logoApi.getGidenInvoiceUBL(inv.id);
+                        if (base64Content) {
+                            const parsed = parseUblFromBase64(base64Content, 'giden');
+                            const xmlUrl = await uploadXmlToStorage(base64Content, parsed?.invoice?.efatura_uuid || inv.id);
+                            if (xmlUrl) await supabase.from('invoices').update({ xml_url: xmlUrl }).eq('id', exists.id);
+                        }
+                    } else {
+                        console.log(`⏩ Skipping ${inv.invoiceNumber}: Already in DB.`);
+                    }
+                    continue;
+                }
+
+                // Fetch UBL
+                const base64Content = await logoApi.getGidenInvoiceUBL(inv.id);
+                if (!base64Content) { console.warn(`⚠️ Skipping ${inv.id}: No UBL content.`); continue; }
+
+                // Parse first to get UUID for storage filename
+                const parsed = parseUblFromBase64(base64Content, 'giden');
+                if (!parsed) { console.warn(`⚠️ Skipping ${inv.id}: Parse failed.`); continue; }
+
+                const { company: companyData, invoice: invoiceData, items } = parsed;
+
+                // Upload XML to storage using UUID from parsed data
+                const xmlUrl = await uploadXmlToStorage(base64Content, invoiceData.efatura_uuid || inv.id);
+
+                // Sync company (customer for outgoing)
+                const company = await upsertCompany(companyData);
+
+                // Sync invoice
+                const dbInvoice = await upsertInvoice({
+                    ...invoiceData,
+                    company_id:             company.id,
+                    approval_status:        'pending',
+                    source:                 'api',
+                    xml_url:                xmlUrl,
+                    gib_status_code:        inv.eStatus ?? null,
+                    gib_status_description: inv.eStatusDescription || null,
+                    e_reply_status:         inv.eReplyDescription || null,
+                    e_reply_text:           inv.eReplayText || null,
+                });
+
+                // Resolve product IDs and sync items
+                const resolvedItems = await Promise.all(
+                    items.map(async item => ({
+                        ...item,
+                        product_id: await resolveProductId(item),
+                    }))
+                );
+                await insertItems(resolvedItems, dbInvoice.id);
+
+                totalSynced++;
+                console.log(`✅ [Giden] ${inv.invoiceNumber} synced (eStatus: ${inv.eStatus} — ${inv.eStatusDescription}).`);
+                await sleep(400);
+
+            } catch (err) {
+                console.error(`❌ Error processing ${inv.invoiceNumber || inv.id}:`, err.message);
+            }
+        }
+
+        if (invoices.length < 100) { hasMore = false; break; }
         currentPage++;
         await sleep(1000);
     }
+
+    console.log(`\n✨ Giden sync finished. Total synced: ${totalSynced}`);
 }
-module.exports = { syncGidenInvoices };
+
+// ─── daily re-check: gelen pending invoices ──────────────────────────────────
+
+async function recheckPendingGelenInvoices() {
+    console.log('\n🔄 Re-checking pending Gelen invoices...');
+
+    const { data: pendingInvoices, error } = await supabase
+        .from('invoices')
+        .select('id, invoice_no, efatura_uuid, gib_status_code')
+        .eq('direction', 'INCOMING')
+        .eq('source', 'api')
+        .eq('approval_status', 'pending');
+
+    if (error) { console.error('❌ Failed to fetch pending invoices:', error.message); return; }
+    if (!pendingInvoices?.length) { console.log('✅ No pending Gelen invoices to re-check.'); return; }
+
+    console.log(`📋 Found ${pendingInvoices.length} pending Gelen invoices to re-check.`);
+
+    for (const inv of pendingInvoices) {
+        try {
+            const status = await logoApi.getGelenInvoiceStatus(inv.efatura_uuid);
+            if (!status) { console.warn(`⚠️ Could not fetch status for ${inv.invoice_no}`); continue; }
+
+            const updates = {
+                gib_status_code:        status.statusCode,
+                gib_status_description: status.status,
+            };
+
+            // statusCode 1 = Acceptance — mark as approved
+            if (status.statusCode === 1) {
+                updates.approval_status = 'approved';
+                console.log(`✅ ${inv.invoice_no}: Now accepted — marking approved.`);
+            } else if (status.rejectNot) {
+                // Has a rejection note — mark as rejected
+                updates.approval_status = 'rejected';
+                console.log(`❌ ${inv.invoice_no}: Rejected — ${status.rejectNot}`);
+            } else {
+                console.log(`⏳ ${inv.invoice_no}: Still pending (statusCode: ${status.statusCode}).`);
+            }
+
+            await supabase.from('invoices').update(updates).eq('id', inv.id);
+            await sleep(300);
+
+        } catch (err) {
+            console.error(`❌ Re-check error for ${inv.invoice_no}:`, err.message);
+        }
+    }
+
+    console.log('✨ Gelen re-check finished.');
+}
+
+// ─── daily re-check: giden reply status ─────────────────────────────────────
+
+async function recheckGidenReplyStatus() {
+    console.log('\n🔄 Re-checking Giden invoice reply statuses...');
+
+    // Only check invoices where reply is still waiting
+    const { data: waitingInvoices, error } = await supabase
+        .from('invoices')
+        .select('id, invoice_no')
+        .eq('direction', 'OUTGOING')
+        .eq('source', 'api')
+        .eq('e_reply_status', 'WAITING FOR RESPONSE');
+
+    if (error) { console.error('❌ Failed to fetch Giden invoices:', error.message); return; }
+    if (!waitingInvoices?.length) { console.log('✅ No Giden invoices waiting for reply.'); return; }
+
+    console.log(`📋 Found ${waitingInvoices.length} Giden invoices waiting for buyer reply.`);
+
+    for (const inv of waitingInvoices) {
+        try {
+            const status = await logoApi.getGidenInvoiceStatus(inv.invoice_no);
+            if (!status) { console.warn(`⚠️ Could not fetch status for ${inv.invoice_no}`); continue; }
+
+            const updates = {
+                gib_status_code:        status.eStatus,
+                gib_status_description: status.eStatusDescription,
+                e_reply_status:         status.eReplyDescription || null,
+                e_reply_text:           status.eReplayText || null,
+            };
+
+            if (status.isCancelled) {
+                updates.approval_status = 'rejected';
+                console.log(`❌ ${inv.invoice_no}: Cancelled.`);
+            } else if (status.eReplyDescription !== 'WAITING FOR RESPONSE') {
+                console.log(`📬 ${inv.invoice_no}: Reply received — ${status.eReplyDescription}`);
+            } else {
+                console.log(`⏳ ${inv.invoice_no}: Still waiting for buyer reply.`);
+            }
+
+            await supabase.from('invoices').update(updates).eq('id', inv.id);
+            await sleep(300);
+
+        } catch (err) {
+            console.error(`❌ Re-check error for ${inv.invoice_no}:`, err.message);
+        }
+    }
+
+    console.log('✨ Giden reply re-check finished.');
+}
+
+// ─── main entry points ───────────────────────────────────────────────────────
+
+// Called by hourly cron — detects initial vs incremental automatically
+async function runSync() {
+    const initial = await isInitialSync();
+
+    if (initial) {
+        console.log('🌱 Initial sync detected — fetching all invoices from 2020...');
+        await syncGelenInvoices(logoApi.FULL_SYNC_START);
+        await syncGidenInvoices(logoApi.FULL_SYNC_START);
+    } else {
+        console.log('⚡ Incremental sync — fetching last 48 hours...');
+        await syncGelenInvoices(logoApi.getLast48Hours());
+        await syncGidenInvoices(logoApi.getLast48Hours());
+    }
+}
+
+// Called by daily cron — re-checks pending/waiting statuses
+async function runDailyRecheck() {
+    await recheckPendingGelenInvoices();
+    await recheckGidenReplyStatus();
+}
+
+module.exports = {
+    runSync,
+    runDailyRecheck,
+    syncGelenInvoices,
+    syncGidenInvoices,
+    recheckPendingGelenInvoices,
+    recheckGidenReplyStatus,
+};

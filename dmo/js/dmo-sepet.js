@@ -123,8 +123,6 @@ function renderHHProductTable() {
                 <tr style="background:#f1f5f9; color:#64748b; font-weight:700; font-size:11px;">
                     <th style="padding:10px 8px; text-align:left;">DMO KOD</th>
                     <th style="padding:10px 8px; text-align:left;">ÜRÜN</th>
-                    <th style="padding:10px 8px; text-align:left;">ÜRÜN KOD</th>
-                    <th style="padding:10px 8px; text-align:left;">MODEL</th>
                     <th style="padding:10px 8px; text-align:left;">STOK</th>
                     <th style="padding:10px 8px; text-align:right;">DMO FİYAT</th>
                     <th style="padding:10px 8px; text-align:right;">ALIŞ EUR→TL</th>
@@ -132,7 +130,6 @@ function renderHHProductTable() {
                     <th style="padding:10px 8px; text-align:right;">MARJ %</th>
                     <th style="padding:10px 8px; text-align:center;">ADET</th>
                     <th style="padding:10px 8px; text-align:center;">🎁 ADET</th>
-                    <th style="padding:10px 8px; text-align:center;"></th>
                 </tr>
             </thead>
             <tbody>`;
@@ -206,8 +203,6 @@ function renderHHRow(p, usdRate, tab) {
         <tr style="border-bottom:1px solid #e2e8f0; background:${tab === "sepet" ? "#f0fdf4" : "white"};">
             <td style="padding:8px; font-weight:700; color:#2563eb;">${p.dmo_code || "-"}</td>
             <td style="padding:8px; color:#0f172a; max-width:200px;"><div style="font-weight:600; line-height:1.3;">${p.product_name || "-"}</div></td>
-            <td style="padding:8px; font-weight:700; color:#2563eb;">${p.product_code || "-"}</td>
-            <td style="padding:8px; color:#64748b;">${p.model || "-"}</td>
             <td style="padding:8px; color:#64748b;">${p.stock_on_hand || "-"}</td>
             <td style="padding:8px; text-align:right; font-weight:600;">${dmoFiyat > 0 ? `${formatAmount(dmoFiyat)} ₺ → ${formatAmount(realDMO)} ₺` : "-"}</td>
             <td style="padding:8px; text-align:right; color:#64748b;">${alisEur > 0 ? `€${alisEur} → ${formatAmount(alisTL)} ₺` : "-"}</td>

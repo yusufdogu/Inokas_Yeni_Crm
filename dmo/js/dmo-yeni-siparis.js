@@ -54,17 +54,25 @@ async function addPDFs(files) {
     let addedCount  = 0;
     let failedCount = 0;
 
-    for (let i = 0; i < files.length; i++) {
-        const file = files[i];
-        try {
-            const data = await parseSinglePdf(file);
-            pdfs.push({ file, blobUrl: URL.createObjectURL(file), parsedData: data, name: file.name });
+    const results = await Promise.allSettled(
+        Array.from(files).map(file => parseSinglePdf(file).then(data => ({ file, data })))
+    );
+
+    results.forEach(result => {
+        if (result.status === "fulfilled") {
+            const { file, data } = result.value;
+            pdfs.push({
+                file,
+                blobUrl:    URL.createObjectURL(file),
+                parsedData: data,
+                name:       file.name,
+            });
             addedCount++;
-        } catch (err) {
+        } else {
             failedCount++;
-            showToast(`${file.name} ayrıştırılamadı: ${err.message}`, "error");
+            showToast(`Bir PDF ayrıştırılamadı: ${result.reason?.message}`, "error");
         }
-    }
+    });
 
     if (addedCount > 0) {
         if (activePdfIndex === null) activePdfIndex = 0;
@@ -192,6 +200,9 @@ function normalizeLineItem(item = {}) {
     const tutar         = String(rawTutar).includes(",")      ? parseAmount(rawTutar)      : parseFloat(rawTutar)      || 0;
     const ilaveTutar    = String(rawIlaveTutar).includes(",") ? parseAmount(rawIlaveTutar) : parseFloat(rawIlaveTutar) || 0;
     const toplamIndirim = String(rawToplamInd).includes(",")  ? parseAmount(rawToplamInd)  : parseFloat(rawToplamInd)  || 0;
+    const indirimPct = dmoFiyat > 0 && tutar > 0
+        ? parseFloat(((tutar / dmoFiyat) * 100).toFixed(2))
+        : 0;
 
     return {
         "KATALOG KOD NO":                          katalogKod,
@@ -199,14 +210,13 @@ function normalizeLineItem(item = {}) {
         "MALZEME_KODU":                            malzemeKodu,
         "TESLIM SURESI (GUN)":                     String(pickItemValue(item, ["TESLIM SURESI (GÜN)", "TESLIM SURESI (GUN)"], "0")),
         "KAT.SÖZ.FIY.(TL)":                        dmoFiyat,
+        "TOPLAM INDIRIM":                          indirimPct,
         "ALIMA ESAS INDIRMLI BIRIM FIYAT":         indirimFiyat,
-        // TOPLAM column = total discount % applied (e.g. "3,00" means 3%)
-        "TOPLAM INDIRIM":                          toplamIndirim,
         "MIKTAR":                                  String(miktar),
         "TUTARI (TL)":                             String(toplam),
-        // Raw discount amount (INDIRIM ORANLARI TUTAR) and ilave tutar kept for reference
         "TUTAR":                                   tutar,
         "ILAVE TUTAR":                             ilaveTutar,
+        "TOPLAM":                                  toplamIndirim,
     };
 }
 
@@ -217,7 +227,6 @@ function fillForm(data) {
     setField("customer_no",       data.musteri_no);
     setField("order_date",        parseOrderDate(data.tarih));
     setField("stamp_tax",         parseAmount(data.karar_siparis_damga_vergisi));
-
 
     window._lastParsedItems = (data.malzeme_tablosu || []).map(normalizeLineItem);
     renderLineItems(window._lastParsedItems);
@@ -235,7 +244,7 @@ function fillForm(data) {
     }
 
     // Auto-switch to stats tab after PDF is parsed
-    switchYSTab('stats');
+    switchYSTab('bilgi');
 }
 
 function setField(id, value) {
@@ -564,6 +573,7 @@ async function uploadPDFToStorage(file, salesOrderNo) {
 
 // ── SAVE ORDER ────────────────────────────────────────────────────────────────
 async function saveOrder() {
+    snapshotForm(); // flush current form state into pdfs[activePdfIndex]
     const salesOrderNo = document.getElementById("sales_order_no")?.value?.trim();
     if (!salesOrderNo) {
         showModalAlert("Satış Sipariş No bulunamadı!", "error");
@@ -574,7 +584,7 @@ async function saveOrder() {
     const dmoBasket       = parseFloat(document.getElementById("dmo_basket")?.value)    || 0;
     const inokasBasket    = parseFloat(document.getElementById("inokas_basket")?.value) || 0;
     const stampTax        = parseFloat(document.getElementById("stamp_tax")?.value)     || 0;
-    const m               = computeInvoiceMetrics(dmoBasket, inokasBasket, stampTax);
+    const m                  = computeInvoiceMetrics(dmoBasket, inokasBasket, stampTax);
     const usdRate         = parseFloat(document.getElementById("usd_rate")?.value);
 
     try {
@@ -659,9 +669,19 @@ async function saveOrder() {
             if (failedItems > 0) {
                 showModalAlert(`Güncellendi fakat ${failedItems} kalem hatalı!`, "warn");
             } else {
-                showModalAlert("Taslak → Sipariş Alındı! ✓", "success");
+                showModalAlert("Sipariş başarıyla kaydedildi! ✓", "success");
                 setTimeout(() => {
-                    if (window._onOrderSaved) window._onOrderSaved();
+                    // Remove the saved PDF tab
+                    removePdf(activePdfIndex);
+
+                    // If more PDFs remain, stay on the page
+                    if (pdfs.length > 0) {
+                        showModalAlert("", "info");
+                        clearModalAlert();
+                    } else {
+                        // All PDFs saved — redirect
+                        if (window._onOrderSaved) window._onOrderSaved();
+                    }
                 }, 1000);
             }
             return;
@@ -736,6 +756,7 @@ async function saveOrder() {
         } else {
             showModalAlert("Sipariş başarıyla kaydedildi! ✓", "success");
             setTimeout(() => {
+                removePdf(activePdfIndex);
                 if (window._onOrderSaved) window._onOrderSaved();
             }, 1000);
         }
@@ -748,24 +769,67 @@ async function saveOrder() {
 
 
 function switchYSTab(tab) {
-    const bilgiBtn  = document.getElementById("ys-tab-bilgi");
-    const statsBtn  = document.getElementById("ys-tab-stats");
-    const bilgiPane = document.getElementById("ys-pane-bilgi");
-    const statsPane = document.getElementById("ys-pane-stats");
+    const bilgiTab   = document.getElementById("ys-tab-bilgi");
+    const statsTab   = document.getElementById("ys-tab-stats");
+    const bilgiPane  = document.getElementById("ys-pane-bilgi");
+    const statsPane  = document.getElementById("ys-pane-stats");
 
     if (tab === "bilgi") {
-        if (bilgiBtn) { bilgiBtn.style.borderBottomColor = "#2563eb"; bilgiBtn.style.color = "#2563eb"; bilgiBtn.style.fontWeight = "700"; }
-        if (statsBtn) { statsBtn.style.borderBottomColor = "transparent"; statsBtn.style.color = "#64748b"; statsBtn.style.fontWeight = "500"; }
-        if (bilgiPane) bilgiPane.style.display = "flex";
-        if (statsPane) statsPane.style.display = "none";
+        bilgiTab.style.borderBottom  = "2px solid #2563eb";
+        bilgiTab.style.color         = "#2563eb";
+        bilgiTab.style.fontWeight    = "700";
+        statsTab.style.borderBottom  = "2px solid transparent";
+        statsTab.style.color         = "#64748b";
+        statsTab.style.fontWeight    = "500";
+        bilgiPane.style.display      = "flex";
+        statsPane.style.display      = "none";
     } else {
-        if (statsBtn) { statsBtn.style.borderBottomColor = "#2563eb"; statsBtn.style.color = "#2563eb"; statsBtn.style.fontWeight = "700"; }
-        if (bilgiBtn) { bilgiBtn.style.borderBottomColor = "transparent"; bilgiBtn.style.color = "#64748b"; bilgiBtn.style.fontWeight = "500"; }
-        if (bilgiPane) bilgiPane.style.display = "none";
-        if (statsPane) statsPane.style.display = "flex";
+        statsTab.style.borderBottom  = "2px solid #2563eb";
+        statsTab.style.color         = "#2563eb";
+        statsTab.style.fontWeight    = "700";
+        bilgiTab.style.borderBottom  = "2px solid transparent";
+        bilgiTab.style.color         = "#64748b";
+        bilgiTab.style.fontWeight    = "500";
+        bilgiPane.style.display      = "none";
+        statsPane.style.display      = "block";
+        renderYSStats();
     }
 }
 
+function renderYSStats() {
+    const container = document.getElementById("ys-stats-grid");
+    if (!container) return;
+    container.innerHTML = buildStatsGridHTML();
+
+    const dmoBasket    = parseFloat(document.getElementById("dmo_basket")?.value)    || 0;
+    const inokasBasket = parseFloat(document.getElementById("inokas_basket")?.value) || 0;
+    const stampTax     = parseFloat(document.getElementById("stamp_tax")?.value)     || 0;
+
+    const m = computeInvoiceMetrics(dmoBasket, inokasBasket, stampTax);
+    const fmt = v => formatAmount(v.toFixed(2)) + " ₺";
+    const set = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
+
+    set("dv-dmo-basket",    fmt(dmoBasket));
+    set("dv-inokas-basket", fmt(inokasBasket));
+    set("dv-kdv",           fmt(m.kdv));
+    set("dv-stamp",         fmt(stampTax));
+    set("dv-tevkifat",      fmt(m.tevkifat));
+    set("dv-gercek-kdv",    fmt(m.gercekKdv));
+    set("dv-risturn",       fmt(m.risturn));
+    set("dv-toplam-gelir",  fmt(m.toplamGelir));
+    set("dv-toplam-gider",  fmt(m.toplamGider));
+
+    const profitEl    = document.getElementById("dv-profit");
+    const profitPctEl = document.getElementById("dv-profit-pct");
+    if (profitEl) {
+        profitEl.textContent = fmt(m.netProfit);
+        profitEl.style.color = m.netProfit >= 0 ? "#16a34a" : "#dc2626";
+    }
+    if (profitPctEl) {
+        profitPctEl.textContent = m.profitPct.toFixed(2) + "%";
+        profitPctEl.style.color = m.profitPct >= 0 ? "#16a34a" : "#dc2626";
+    }
+}
 // ── PAGE INIT ─────────────────────────────────────────────────────────────────
 document.addEventListener("DOMContentLoaded", async () => {
     if (!document.getElementById("dmoSiparisForm")) return;

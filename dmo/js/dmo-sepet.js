@@ -450,7 +450,7 @@ function updateLimitBar(currentDMO = 0,currentIndirim=0) {
     const barEl       = document.getElementById("hh_limit_bar");
     const textEl      = document.getElementById("hh_limit_text");
 
-    if (usedEl)      usedEl.textContent      = formatAmount(currentDMO-currentIndirim) + " ₺";
+    if (usedEl)      usedEl.textContent      = formatAmount(currentDMO) + " ₺";
     if (remainingEl) remainingEl.textContent = formatAmount(remaining)  + " ₺";
     if (barEl) {
         barEl.style.width      = pct + "%";

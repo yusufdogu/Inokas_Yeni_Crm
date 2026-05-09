@@ -10,6 +10,7 @@
   <script src="/supabase-client.js"></script>
   <script src="/dmo/js/dmo-core.js"></script>
   <script src="/dmo/js/dmo-yeni-siparis.js"></script>
+  <script src="/dmo/js/dmo-invoice.js"></script>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.x/dist/tabler-icons.min.css">
   <link rel="stylesheet" href="/dmo/css/core.css">
@@ -84,54 +85,41 @@
           </button>
         </div>
 
-        <!-- ═══════════════════════════════════════════════
-             BİLGİ PANE — order fields + line items table
-             ═══════════════════════════════════════════════ -->
+        <!-- BİLGİ PANE -->
         <div id="ys-pane-bilgi" style="flex:1; overflow:hidden; display:flex; flex-direction:column;">
 
           <div id="modalAlert" style="display:none; padding:12px 16px; margin:12px 16px 0; border-radius:8px; font-weight:600; font-size:13px; align-items:center; gap:8px;"></div>
 
           <form id="dmoSiparisForm" class="grid-form">
 
-            <!-- Order fields -->
             <div class="form-group">
-              <label>Sipariş No</label>
-              <input type="text" id="order_no" placeholder="ORD-2024-001">
+              <label>Satış Sipariş No</label>
+              <input type="text" id="sales_order_no" class="input-highlight">
             </div>
+
+            <div class="form-group">
+              <label>Satın Alma Sipariş No</label>
+              <input type="text" id="purchase_order_no" class="input-highlight">
+            </div>
+
+            <div class="form-group">
+              <label>Müşteri (Kurum)</label>
+              <input type="text" id="customer_name">
+            </div>
+
+            <div class="form-group">
+              <label>Müşteri No</label>
+              <input type="text" id="customer_no">
+            </div>
+
             <div class="form-group">
               <label>Sipariş Tarihi</label>
               <input type="date" id="order_date">
             </div>
 
             <div class="form-group">
-              <label>Kurum / Müşteri</label>
-              <input type="text" id="customer_name" placeholder="Kurum adı">
-            </div>
-            <div class="form-group">
-              <label>İhale / Referans No</label>
-              <input type="text" id="reference_no" placeholder="İhale numarası">
-            </div>
-
-            <div class="form-group">
-              <label>DMO Sepet (₺)</label>
-              <input type="number" id="dmo_basket_bilgi" class="input-highlight" placeholder="0.00">
-            </div>
-            <div class="form-group">
-              <label>İnokas Sepet (₺)</label>
-              <input type="number" id="inokas_basket_bilgi" class="input-highlight" placeholder="0.00">
-            </div>
-
-            <div class="form-group">
-              <label>Durum</label>
-              <select id="order_status">
-                <option value="beklemede">Beklemede</option>
-                <option value="onaylandi">Onaylandı</option>
-                <option value="iptal">İptal</option>
-              </select>
-            </div>
-            <div class="form-group">
-              <label>Notlar</label>
-              <textarea id="order_notes" rows="2" placeholder="Ek notlar..."></textarea>
+              <label>Son Gönderim Tarihi</label>
+              <input type="date" id="last_order_date">
             </div>
 
             <!-- Line Items -->
@@ -164,24 +152,19 @@
                 <tbody id="lineItemsBody"></tbody>
               </table>
             </div>
-            <!-- END Line Items -->
 
           </form>
         </div>
         <!-- END BİLGİ PANE -->
 
-        <!-- ═══════════════════════════════════════════════
-             İSTATİSTİK PANE — analysis grid only
-             ═══════════════════════════════════════════════ -->
+        <!-- İSTATİSTİK PANE -->
         <div id="ys-pane-stats" style="display:none; flex:1; overflow-y:auto; padding:20px;">
 
           <div style="display:grid; grid-template-columns:1fr 1fr; gap:0; border:1px solid #e2e8f0; border-radius:12px; overflow:hidden;">
 
-            <!-- Header -->
             <div style="background:#f8fafc; padding:8px 14px; font-size:11px; font-weight:700; color:#64748b; letter-spacing:0.5px; border-bottom:1px solid #e2e8f0; text-transform:uppercase;">GELİR TARAFI</div>
             <div style="background:#f8fafc; padding:8px 14px; font-size:11px; font-weight:700; color:#64748b; letter-spacing:0.5px; border-bottom:1px solid #e2e8f0; border-left:2px solid #e2e8f0; text-transform:uppercase;">GİDER TARAFI</div>
 
-            <!-- DMO Sepet | İnokas Sepet -->
             <div style="padding:8px 14px; border-bottom:1px solid #e2e8f0; display:flex; justify-content:space-between; align-items:center;">
               <label style="font-size:12px; font-weight:600; color:#64748b;">DMO Sepet</label>
               <input type="number" id="dmo_basket" readonly style="border:none; text-align:right; font-weight:700; font-size:13px; color:#0f172a; background:transparent; width:120px;">
@@ -191,7 +174,6 @@
               <input type="number" id="inokas_basket" readonly style="border:none; text-align:right; font-weight:700; font-size:13px; color:#0f172a; background:transparent; width:120px;">
             </div>
 
-            <!-- KDV | Damga + Karar -->
             <div style="padding:8px 14px; border-bottom:1px solid #e2e8f0; display:flex; justify-content:space-between; align-items:center;">
               <label style="font-size:12px; font-weight:600; color:#64748b;">KDV (%20)</label>
               <input type="number" id="kdv_tax" readonly style="border:none; text-align:right; font-weight:700; font-size:13px; color:#0f172a; background:transparent; width:120px;">
@@ -201,7 +183,6 @@
               <input type="number" id="stamp_tax" readonly style="border:none; text-align:right; font-weight:700; font-size:13px; color:#0f172a; background:transparent; width:120px;">
             </div>
 
-            <!-- Tevkifat / Gerçek KDV | empty -->
             <div style="padding:8px 14px; border-bottom:1px solid #e2e8f0; display:flex; flex-direction:column; gap:4px;">
               <div style="display:flex; justify-content:space-between; align-items:center;">
                 <label style="font-size:11px; font-weight:600; color:#94a3b8;">Tevkifat (%20)</label>
@@ -212,22 +193,16 @@
                 <input type="number" id="inv_gercek_kdv" readonly style="border:none; text-align:right; font-weight:700; font-size:13px; color:#0f172a; background:transparent; width:100px;">
               </div>
             </div>
-            <div style="padding:8px 14px; border-bottom:1px solid #e2e8f0; border-left:2px solid #e2e8f0;"></div>
-
-            <!-- empty | Risturn -->
-            <div style="padding:8px 14px; border-bottom:1px solid #e2e8f0;"></div>
             <div style="padding:8px 14px; border-bottom:1px solid #e2e8f0; border-left:2px solid #e2e8f0; display:flex; justify-content:space-between; align-items:center;">
               <label style="font-size:12px; font-weight:600; color:#64748b;">Risturn (%1)</label>
               <input type="number" id="inv_risturn" readonly style="border:none; text-align:right; font-weight:700; font-size:13px; color:#0f172a; background:transparent; width:120px;">
             </div>
 
-            <!-- İndirim Kaybı (full width) -->
             <div style="grid-column:span 2; padding:8px 14px; border-bottom:1px solid #e2e8f0; background:#fffbf5; display:flex; justify-content:space-between; align-items:center;">
               <label style="font-size:12px; font-weight:700; color:#92400e;">İndirim Kaybı</label>
               <input type="number" id="inv_indirim_kaybi" readonly style="border:none; text-align:right; font-weight:700; font-size:13px; color:#92400e; background:transparent; width:120px;">
             </div>
 
-            <!-- Toplam Gelir | Toplam Gider -->
             <div style="padding:10px 14px; border-bottom:1px solid #e2e8f0; display:flex; justify-content:space-between; align-items:center;">
               <label style="font-size:12px; font-weight:800; color:#0f172a;">Toplam Gelir</label>
               <input type="number" id="inv_toplam_gelir" readonly style="border:none; text-align:right; font-weight:800; font-size:14px; color:#0f172a; background:transparent; width:120px;">
@@ -237,7 +212,6 @@
               <input type="number" id="inv_toplam_gider" readonly style="border:none; text-align:right; font-weight:800; font-size:14px; color:#0f172a; background:transparent; width:120px;">
             </div>
 
-            <!-- Net Kar + Kar % -->
             <div style="grid-column:span 2; padding:12px 14px; display:grid; grid-template-columns:1fr 1fr; gap:12px; background:#f8fafc;">
               <div style="border:1px solid #e2e8f0; border-radius:8px; padding:10px 14px; background:white; display:flex; justify-content:space-between; align-items:center;">
                 <label style="font-size:12px; font-weight:800; color:#0f172a;">Net Kar</label>
@@ -250,7 +224,6 @@
             </div>
 
           </div>
-          <!-- END analysis grid -->
 
         </div>
         <!-- END İSTATİSTİK PANE -->
@@ -271,9 +244,33 @@
 <script src="/dmo/js/sidebar.js"></script>
 
 <script>
+  function switchYSTab(tab) {
+    const bilgiTab  = document.getElementById("ys-tab-bilgi");
+    const statsTab  = document.getElementById("ys-tab-stats");
+    const bilgiPane = document.getElementById("ys-pane-bilgi");
+    const statsPane = document.getElementById("ys-pane-stats");
+
+    if (tab === "bilgi") {
+      bilgiTab.style.cssText  = "padding:10px 16px; background:none; border:none; border-bottom:2px solid #2563eb; font-size:13px; font-weight:700; color:#2563eb; cursor:pointer; font-family:inherit;";
+      statsTab.style.cssText  = "padding:10px 16px; background:none; border:none; border-bottom:2px solid transparent; font-size:13px; font-weight:500; color:#64748b; cursor:pointer; font-family:inherit;";
+      bilgiPane.style.display = "flex";
+      statsPane.style.display = "none";
+    } else {
+      statsTab.style.cssText  = "padding:10px 16px; background:none; border:none; border-bottom:2px solid #2563eb; font-size:13px; font-weight:700; color:#2563eb; cursor:pointer; font-family:inherit;";
+      bilgiTab.style.cssText  = "padding:10px 16px; background:none; border:none; border-bottom:2px solid transparent; font-size:13px; font-weight:500; color:#64748b; cursor:pointer; font-family:inherit;";
+      bilgiPane.style.display = "none";
+      statsPane.style.display = "block";
+      // Trigger recalculation so stats pane shows latest values
+      calculateProfit();
+    }
+  }
+
   document.addEventListener("DOMContentLoaded", () => {
     window._onOrderSaved = () => {
-      window.location.href = "/dmo/pages/siparisler.html";
+        if (pdfs.length === 0) {
+            window.location.href = "/dmo/pages/siparisler.html";
+        }
+        // if pdfs still remain, stay on page — removePdf already handled the tab
     };
   });
 </script>

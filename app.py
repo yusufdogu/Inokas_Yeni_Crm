@@ -33,6 +33,25 @@ def clean_cell(cell):
         return None
     return cell.replace("\n", " ").strip()
 
+
+def find_text_bbox(page, search_text):
+    if not search_text:
+        return None
+    search_text = str(search_text).strip()
+    words = page.extract_words()
+
+    # Try joining consecutive words to find multi-word matches
+    for i in range(len(words)):
+        for j in range(i + 1, min(i + 8, len(words) + 1)):
+            chunk = " ".join(w["text"] for w in words[i:j])
+            if search_text.lower() == chunk.lower() or search_text.lower() in chunk.lower():
+                return {
+                    "x0": min(w["x0"]     for w in words[i:j]),
+                    "y0": min(w["top"]    for w in words[i:j]),
+                    "x1": max(w["x1"]     for w in words[i:j]),
+                    "y1": max(w["bottom"] for w in words[i:j]),
+                }
+    return None
 # ── PARSER ──────────────────────────────────────────────────────────────────
 
 def extract_data(pdf_file):
@@ -122,6 +141,72 @@ def extract_data(pdf_file):
 
             print("Merged headers:", merged_header, flush=True)
             print("First data row:", data_rows[0] if data_rows else [], flush=True)
+
+        # ── HIGHLIGHTS ───────────────────────────────────────────────────────
+        highlights = []
+        page1 = pdf.pages[0]
+        page2 = pdf.pages[1]
+
+        # Page 1 fields
+        fields_p1 = [
+            (results.get("satis_siparis_no"), "Satış Sipariş No"),
+            (results.get("satinalma_siparis_no"), "Satınalma No"),
+            (results.get("tarih"), "Tarih"),
+            (results.get("karar_siparis_damga_vergisi"), "Damga Vergisi"),
+        ]
+        for value, label in fields_p1:
+            if not value:
+                continue
+            bbox = find_text_bbox(page1, str(value))
+            if bbox:
+                highlights.append({
+                    "page": 0,
+                    "label": label,
+                    **bbox
+                })
+
+        # Page 2 fields — müşteri
+        fields_p2 = [
+            (results.get("musteri_no"), "Müşteri No"),
+            (results.get("musteri_adi"), "Müşteri Adı"),
+        ]
+        for value, label in fields_p2:
+            if not value:
+                continue
+            bbox = find_text_bbox(page2, str(value))
+            if bbox:
+                highlights.append({
+                    "page": 1,
+                    "label": label,
+                    **bbox
+                })
+
+        # Page 2 — line item katalog codes, prices, quantities
+        for row in results.get("malzeme_tablosu", []):
+            for field_key, label in [
+                ("KATALOG KOD NO", "Katalog Kod"),
+                ("MIKTAR", "Miktar"),
+                ("KAT.SÖZ.FIY.(TL)", "Katalog Fiyat"),
+                ("ALIMA ESAS INDIRMLI BIRIM FIYAT", "İndirimli Fiyat"),
+                ("TUTARI (TL)", "Tutar"),
+                ("INDIRIM ORANLARI TUTAR", "İndirim"),
+            ]:
+                value = row.get(field_key)
+                if not value:
+                    continue
+                bbox = find_text_bbox(page2, str(value))
+                if bbox:
+                    highlights.append({
+                        "page": 1,
+                        "label": label,
+                        **bbox
+                    })
+        #print("HIGHLIGHTS FOUND:", len(highlights), highlights[:3], flush=True)
+        results["highlights"] = highlights
+        results["page_sizes"] = [
+            {"width": p.width, "height": p.height}
+            for p in pdf.pages
+        ]
 
     return results
 

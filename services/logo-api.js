@@ -43,7 +43,7 @@ async function login() {
 // ─── date helpers ────────────────────────────────────────────────────────────
 
 // Full historical start date — used on first run
-const FULL_SYNC_START = '2020-01-01T00:00:00';
+const FULL_SYNC_START = '2026-01-01T00:00:00';
 
 // 48 hours ago — used on subsequent hourly runs
 function getLast48Hours() {

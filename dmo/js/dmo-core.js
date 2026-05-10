@@ -17,7 +17,7 @@ const filterState = {
     product:   "",
     dateStart: "",
     dateEnd:   "",
-    status:    "",
+    status:    "Sipariş Alındı",
     category:  "",
     minBasket: null,
     maxBasket: null,

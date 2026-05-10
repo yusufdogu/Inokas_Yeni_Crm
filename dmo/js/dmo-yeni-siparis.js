@@ -26,6 +26,7 @@ async function loadUrunler() {
     urunlerLoaded = true;
 }
 
+
 // ── PDF UPLOAD & PARSE ────────────────────────────────────────────────────────
 async function parseSinglePdf(file) {
     const formData = new FormData();
@@ -85,6 +86,96 @@ async function addPDFs(files) {
     }
 }
 
+// ── PDF.JS RENDERER ───────────────────────────────────────────────────────────
+let _pdfDoc      = null;
+let _highlights  = [];
+let _pageSizes   = [];
+
+async function renderPDFWithHighlights(blobUrl, highlights, pageSizes) {
+    _highlights = highlights || [];
+    _pageSizes  = pageSizes  || [];
+
+    console.log('HIGHLIGHTS:', JSON.stringify(_highlights));
+    console.log('PAGE SIZES:', JSON.stringify(_pageSizes));
+
+    const pdfjsLib = window.pdfjsLib;
+    pdfjsLib.GlobalWorkerOptions.workerSrc =
+        'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+    _pdfDoc = await pdfjsLib.getDocument(blobUrl).promise;
+
+    const container = document.getElementById("pdfPagesContainer");
+    container.innerHTML = "";
+
+    for (let pageNum = 1; pageNum <= _pdfDoc.numPages; pageNum++) {
+        await renderSinglePage(pageNum, container);
+    }
+}
+
+async function renderSinglePage(pageNum, container) {
+    const page     = await _pdfDoc.getPage(pageNum);
+    const dpr      = window.devicePixelRatio || 1;
+
+    // Fit to container width
+    const containerWidth = document.getElementById("pdfViewer").clientWidth - 16;
+    const unscaledVp     = page.getViewport({ scale: 1 });
+    const scale          = containerWidth / unscaledVp.width;
+    const viewport       = page.getViewport({ scale });
+
+    // Wrapper div for positioning canvas + highlight canvas
+    const wrapper = document.createElement("div");
+    wrapper.style.cssText = `position:relative; width:${viewport.width}px; height:${viewport.height}px; flex-shrink:0;`;
+
+    // PDF canvas
+    const canvas    = document.createElement("canvas");
+    canvas.width    = viewport.width  * dpr;
+    canvas.height   = viewport.height * dpr;
+    canvas.style.cssText = `display:block; width:${viewport.width}px; height:${viewport.height}px;`;
+
+    // Highlight canvas
+    const hlCanvas    = document.createElement("canvas");
+    hlCanvas.width    = viewport.width  * dpr;
+    hlCanvas.height   = viewport.height * dpr;
+    hlCanvas.style.cssText = `position:absolute; top:0; left:0; width:${viewport.width}px; height:${viewport.height}px; pointer-events:none;`;
+
+    wrapper.appendChild(canvas);
+    wrapper.appendChild(hlCanvas);
+    container.appendChild(wrapper);
+
+    // Render PDF page
+    const ctx = canvas.getContext("2d");
+    ctx.scale(dpr, dpr);
+    await page.render({ canvasContext: ctx, viewport }).promise;
+
+    // Draw highlights for this page
+    drawHighlightsOnCanvas(hlCanvas, pageNum - 1, viewport, dpr);
+}
+
+function drawHighlightsOnCanvas(hlCanvas, pageIndex, viewport, dpr) {
+    const ctx       = hlCanvas.getContext("2d");
+    const pdfHeight = _pageSizes[pageIndex]?.height || (viewport.height / viewport.scale);
+    const scale     = viewport.scale;
+
+    ctx.clearRect(0, 0, hlCanvas.width, hlCanvas.height);
+    ctx.scale(dpr, dpr);
+
+    ctx.fillStyle   = "rgba(255, 220, 0, 0.35)";
+    ctx.strokeStyle = "rgba(220, 160, 0, 0.8)";
+    ctx.lineWidth   = 1.5;
+
+    const pageHighlights = _highlights.filter(h => h.page === pageIndex);
+
+    pageHighlights.forEach(h => {
+        const x  = h.x0 * scale;
+        const y  = (pdfHeight - h.y1) * scale;
+        const w  = (h.x1 - h.x0) * scale;
+        const ht = (h.y1 - h.y0) * scale;
+
+        ctx.fillRect(x - 2, y - 2, w + 4, ht + 4);
+        ctx.strokeRect(x - 2, y - 2, w + 4, ht + 4);
+    });
+}
+
 // ── SNAPSHOT FORM ─────────────────────────────────────────────────────────────
 function snapshotForm() {
     if (activePdfIndex === null || !pdfs[activePdfIndex]) return;
@@ -101,7 +192,7 @@ function snapshotForm() {
 }
 
 // ── SWITCH TAB ────────────────────────────────────────────────────────────────
-function switchTab(index) {
+async function switchTab(index) {
     if (activePdfIndex !== null && activePdfIndex !== index) snapshotForm();
     activePdfIndex = index;
     const pdf = pdfs[index];
@@ -109,18 +200,31 @@ function switchTab(index) {
 
     const pdfViewer      = document.getElementById("pdfViewer");
     const pdfPlaceholder = document.getElementById("pdfPlaceholder");
-    pdfViewer.src                = pdf.blobUrl;
     pdfViewer.style.display      = "block";
     pdfPlaceholder.style.display = "none";
 
     fillForm(pdf.parsedData);
     renderPdfTabs();
-}
 
+    pdfViewer.src = pdf.blobUrl;
+}
+async function changePDFPage(delta) {
+    if (!_pdfDoc) return;
+    const newPage = _currentPage + delta;
+    if (newPage < 1 || newPage > _pdfDoc.numPages) return;
+    _currentPage = newPage;
+    await renderPage(_currentPage);
+
+    const nav   = document.getElementById("pdf-page-nav");
+    const label = document.getElementById("pdf-page-label");
+    if (nav)   nav.style.display = _pdfDoc.numPages > 1 ? "flex" : "none";
+    if (label) label.textContent = `Sayfa ${_currentPage} / ${_pdfDoc.numPages}`;
+}
 // ── REMOVE PDF ────────────────────────────────────────────────────────────────
 function removePdf(index) {
     URL.revokeObjectURL(pdfs[index].blobUrl);
     pdfs.splice(index, 1);
+    document.getElementById("pdfPagesContainer").innerHTML = "";
 
     if (pdfs.length === 0) {
         activePdfIndex = null;
@@ -321,6 +425,23 @@ function renderLineItems(items) {
     }
 
     calculateDMOBasket(window._lastParsedItems.filter(i => !i.is_gift));
+    // Check for missing maliyet
+    const missingMaliyet = (window._lastParsedItems || [])
+        .filter(i => !i.is_gift)
+        .filter(i => {
+            const mal = getLineItemMaliyetTL(i);
+            return mal === null || mal === 0;
+        })
+        .map(i => i["KATALOG KOD NO"] || "?");
+
+    if (missingMaliyet.length > 0) {
+        showModalAlert(
+            `Şu ürünler için maliyet bulunamadı: <strong>${missingMaliyet.join(", ")}</strong> — Karlılık hesabı eksik olabilir.`,
+            "warn"
+        );
+    } else {
+        clearModalAlert();
+    }
 }
 
 function buildLineItemRow(item, index) {
@@ -343,7 +464,11 @@ function buildLineItemRow(item, index) {
         <td><input type="number" step="0.01" min="0" value="${indirimPct}"   oninput="updateLineItemField(${index}, 'indirimPct',   this.value)"></td>
         <td><input type="number" step="0.01" min="0" value="${indirimFiyat}" oninput="updateLineItemField(${index}, 'indirimFiyat', this.value)"></td>
         <td><input type="number" step="1"    min="0" value="${miktar}"       oninput="updateLineItemField(${index}, 'miktar',       this.value)"></td>
-        <td class="text-right">${maliyetTL !== null ? formatAmount(maliyetTL) : "-"}</td>
+        <td class="text-right" style="${maliyetTL === null || maliyetTL === 0 ? 'color:#dc2626; font-weight:700;' : ''}">
+            ${maliyetTL !== null && maliyetTL > 0
+                ? formatAmount(maliyetTL)
+                : '<span title="Bu ürün için maliyet bilgisi bulunamadı">⚠️ —</span>'}
+        </td>
         <td class="text-right">${formatAmount(toplam)}</td>
         <td class="text-right">
             <button type="button" class="btn btn-secondary" style="padding:4px 8px; font-size:11px;" onclick="removeLineItem(${index})">Sil</button>
@@ -496,6 +621,7 @@ function calculateProfit() {
         percentEl.textContent = profitPct.toFixed(2) + "%";
         percentEl.style.color = profitPct >= 0 ? "#16a34a" : "#dc2626";
     }
+    updateYSStats();
 }
 
 // ── MODAL ALERT ───────────────────────────────────────────────────────────────
@@ -767,6 +893,83 @@ async function saveOrder() {
     }
 }
 
+function toggleYSVergiler() {
+    const detail = document.getElementById("ys-vergiler-detail");
+    const arrow  = document.getElementById("ys-vergiler-arrow");
+    const isOpen = detail.style.display !== "none";
+    detail.style.display  = isOpen ? "none" : "block";
+    arrow.style.transform = isOpen ? "" : "rotate(90deg)";
+}
+function updateYSStats() {
+    const items        = window._lastParsedItems || [];
+    const regularItems = items.filter(i => !i.is_gift);
+    const giftItems    = items.filter(i =>  i.is_gift);
+
+    // DMO basket = sum of catalog price × qty (before discount)
+    const dmoBasket = regularItems.reduce((s, i) =>
+        s + (parseFloat(i["KAT.SÖZ.FIY.(TL)"] || 0) * (parseFloat(i["MIKTAR"]) || 0)), 0);
+
+    // Actual basket = sum of discounted price × qty (TUTARI TL)
+    const actualBasket = regularItems.reduce((s, i) =>
+        s + (parseFloat(i["TUTARI (TL)"] || 0)), 0);
+
+    // Tutar indirimi = difference between catalog and actual
+    const tutarIndirimi    = dmoBasket - actualBasket;
+    const tutarIndirimPct  = dmoBasket > 0 ? (tutarIndirimi / dmoBasket * 100) : 0;
+
+    // Inokas basket
+    const inokasBasket = parseFloat(document.getElementById("inokas_basket")?.value) || 0;
+
+    // Gift total
+    const usdRate   = parseFloat(getCurrentRates().usd_try) || 0;
+    const giftTotal = giftItems.reduce((s, i) => {
+        const kod  = parseInt(i["KATALOG KOD NO"] || "0");
+        const qty  = parseFloat(i["MIKTAR"] || "0");
+        const urun = URUNLER[kod];
+        return s + (urun ? urun.maliyet_usd * qty * usdRate : 0);
+    }, 0);
+
+    // Taxes on actualBasket
+    const kdv          = actualBasket * 0.20;
+    const tevkifat     = kdv * 0.20;
+    const gercekKdv    = kdv - tevkifat;
+    const risturn      = actualBasket * 0.01;
+    const damgaKarar   = actualBasket * 0.01517;
+    const vergilerTotal = tevkifat + risturn + damgaKarar;
+
+    const toplamGelir  = actualBasket + gercekKdv;
+    const toplamGider  = inokasBasket + tutarIndirimi + vergilerTotal + giftTotal;
+    const netProfit    = toplamGelir - toplamGider;
+    const profitPct    = toplamGelir > 0 ? (netProfit / toplamGelir * 100) : 0;
+
+    const fmt = v => formatAmount(v.toFixed(2)) + " ₺";
+    const set = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
+
+    set("ys-dmo-basket",        fmt(dmoBasket));
+    set("ys-inokas-basket",     fmt(inokasBasket));
+    set("ys-kdv",               fmt(kdv));
+    set("ys-gercek-kdv",        fmt(gercekKdv));
+    set("ys-tutar-indirimi",    fmt(tutarIndirimi));
+    set("ys-tutar-indirimi-pct", "%" + tutarIndirimPct.toFixed(1));
+    set("ys-tevkifat",          fmt(tevkifat));
+    set("ys-risturn",           fmt(risturn));
+    set("ys-damga-karar",       fmt(damgaKarar));
+    set("ys-vergiler-total",    fmt(vergilerTotal));
+    set("ys-gift-total",        fmt(giftTotal));
+    set("ys-toplam-gelir",      fmt(toplamGelir));
+    set("ys-toplam-gider",      fmt(toplamGider));
+
+    const profitEl  = document.getElementById("ys-net-profit");
+    const percentEl = document.getElementById("ys-profit-pct");
+    if (profitEl) {
+        profitEl.textContent = fmt(netProfit);
+        profitEl.style.color = netProfit >= 0 ? "#16a34a" : "#dc2626";
+    }
+    if (percentEl) {
+        percentEl.textContent = profitPct.toFixed(2) + "%";
+        percentEl.style.color = profitPct >= 0 ? "#16a34a" : "#dc2626";
+    }
+}
 
 function switchYSTab(tab) {
     const bilgiTab   = document.getElementById("ys-tab-bilgi");
@@ -792,7 +995,6 @@ function switchYSTab(tab) {
         bilgiTab.style.fontWeight    = "500";
         bilgiPane.style.display      = "none";
         statsPane.style.display      = "block";
-        renderYSStats();
     }
 }
 

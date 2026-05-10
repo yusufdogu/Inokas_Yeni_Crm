@@ -236,7 +236,7 @@ function addToSepet(dmoCode) {
     };
 
     delete hhItems[dmoCode];
-    hhActiveTab = "sepet";
+    hhActiveTab = "urunler";
     updateHHTabUI();
     renderHHProductTable();
     recalcHizliHesap();

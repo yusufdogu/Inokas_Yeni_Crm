@@ -148,37 +148,53 @@ async function loadDetailView(orderId) {
 
 // ── FILL DETAIL STATS ─────────────────────────────────────────────────────────
 function fillDetailStats(order) {
-    const m = computeInvoiceMetrics(
-        order.dmo_basket_total    || 0,
-        order.inokas_basket_total || 0,
-        order.stamp_tax           || 0
-    );
+    const dmoBasket    = order.dmo_basket_total    || 0;
+    const inokasBasket = order.inokas_basket_total || 0;
+    const stampTax     = order.stamp_tax           || 0;
+    const tutarIndirimi    = order.tutar_indirimi      || 0;
+    const tutarIndirimPct  = order.tutar_indirimi_pct  || 0;
+    const realDmoBasket    = dmoBasket - tutarIndirimi;
 
-    const fmt   = v => formatAmount(v) + " ₺";
-    const setEl = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
+    const kdv          = realDmoBasket * 0.20;
+    const tevkifat     = kdv * 0.20;
+    const gercekKdv    = kdv - tevkifat;
+    const risturn      = realDmoBasket * 0.01;
+    const damgaKarar   = realDmoBasket * 0.01517;
+    const vergilerTotal = tevkifat + risturn + damgaKarar;
+    const giftTotal    = order.gift_total || 0;
+    const toplamGelir  = realDmoBasket + gercekKdv;
+    const toplamGider  = inokasBasket + tutarIndirimi + vergilerTotal + giftTotal;
+    const netProfit    = order.net_profit          || (toplamGelir - toplamGider);
+    const profitPct    = order.profit_percentage   || (toplamGelir > 0 ? (netProfit / toplamGelir) * 100 : 0);
 
-    setEl("dv-dmo-basket",    fmt(order.dmo_basket_total    || 0));
-    setEl("dv-inokas-basket", fmt(order.inokas_basket_total || 0));
-    setEl("dv-kdv",           fmt(m.kdv));
-    setEl("dv-stamp",         fmt(order.stamp_tax           || 0));
-    setEl("dv-tevkifat",      fmt(m.tevkifat));
-    setEl("dv-gercek-kdv",    fmt(m.gercekKdv));
-    setEl("dv-risturn",       fmt(m.risturn));
-    setEl("dv-toplam-gelir",  fmt(m.toplamGelir));
-    setEl("dv-toplam-gider",  fmt(m.toplamGider));
+    const fmt = v => formatAmount(v.toFixed(2)) + " ₺";
+    const set = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
 
-    const profitEl    = document.getElementById("dv-profit");
-    const profitPctEl = document.getElementById("dv-profit-pct");
+    set("dv-dmo-basket",        fmt(dmoBasket));
+    set("dv-inokas-basket",     fmt(inokasBasket));
+    set("dv-kdv",               fmt(kdv));
+    set("dv-gercek-kdv",        fmt(gercekKdv));
+    set("dv-tutar-indirimi",    fmt(tutarIndirimi));
+    set("dv-tutar-indirimi-pct", tutarIndirimPct > 0 ? "%" + tutarIndirimPct.toFixed(1) : "—");
+    set("dv-tevkifat",          fmt(tevkifat));
+    set("dv-risturn",           fmt(risturn));
+    set("dv-damga-karar",       fmt(damgaKarar));
+    set("dv-vergiler-total",    fmt(vergilerTotal));
+    set("dv-gift-total",        fmt(giftTotal));
+    set("dv-toplam-gelir",      fmt(toplamGelir));
+    set("dv-toplam-gider",      fmt(toplamGider));
+
+    const profitEl  = document.getElementById("dv-profit");
+    const percentEl = document.getElementById("dv-profit-pct");
     if (profitEl) {
-        profitEl.textContent = fmt(m.netProfit);
-        profitEl.style.color = m.netProfit >= 0 ? "#16a34a" : "#dc2626";
+        profitEl.textContent = fmt(netProfit);
+        profitEl.style.color = netProfit >= 0 ? "#16a34a" : "#dc2626";
     }
-    if (profitPctEl) {
-        profitPctEl.textContent = m.profitPct.toFixed(2) + "%";
-        profitPctEl.style.color = m.profitPct >= 0 ? "#16a34a" : "#dc2626";
+    if (percentEl) {
+        percentEl.textContent = profitPct.toFixed(2) + "%";
+        percentEl.style.color = profitPct >= 0 ? "#16a34a" : "#dc2626";
     }
 }
-
 // ── SWITCH DETAIL TAB ─────────────────────────────────────────────────────────
 function switchDetailTab(tab) {
     const bilgiTab  = document.getElementById("dv-tab-bilgi");
@@ -296,68 +312,92 @@ async function deleteOrder(orderId) {
 // ── BUILD STATS GRID HTML ─────────────────────────────────────────────────────
 function buildStatsGridHTML() {
     return `
-        <div style="display:grid; grid-template-columns:1fr 1fr; gap:0; border:1px solid #e2e8f0; border-radius:16px; overflow:hidden;">
-            <div style="background:#f8fafc; padding:10px 16px; font-size:11px; font-weight:800; color:#64748b; border-bottom:1px solid #e2e8f0;">GELİR TARAFI</div>
-            <div style="background:#f8fafc; padding:10px 16px; font-size:11px; font-weight:800; color:#64748b; border-bottom:1px solid #e2e8f0; border-left:2px solid #e2e8f0;">GİDER TARAFI</div>
+        <div style="display:grid; grid-template-columns:1fr 1fr; border:1px solid #e2e8f0; border-radius:12px; overflow:hidden;">
 
-            <div style="padding:10px 16px; border-bottom:1px solid #e2e8f0; display:flex; justify-content:space-between;">
-                <label style="font-size:12px; color:#64748b; font-weight:600;">DMO Sepet</label>
+            <div style="background:#f8fafc; padding:8px 14px; font-size:11px; font-weight:700; color:#64748b; letter-spacing:0.5px; border-bottom:1px solid #e2e8f0; text-transform:uppercase;">GELİR</div>
+            <div style="background:#f8fafc; padding:8px 14px; font-size:11px; font-weight:700; color:#64748b; letter-spacing:0.5px; border-bottom:1px solid #e2e8f0; border-left:2px solid #e2e8f0; text-transform:uppercase;">GİDER</div>
+
+            <div style="padding:8px 14px; border-bottom:1px solid #e2e8f0; display:flex; justify-content:space-between; align-items:center;">
+                <label style="font-size:12px; font-weight:600; color:#64748b;">DMO Sepet</label>
                 <span id="dv-dmo-basket" style="font-weight:700; font-size:13px; color:#0f172a;">—</span>
             </div>
-            <div style="padding:10px 16px; border-bottom:1px solid #e2e8f0; border-left:2px solid #e2e8f0; display:flex; justify-content:space-between;">
-                <label style="font-size:12px; color:#64748b; font-weight:600;">İnokas Sepet</label>
+            <div style="padding:8px 14px; border-bottom:1px solid #e2e8f0; border-left:2px solid #e2e8f0; display:flex; justify-content:space-between; align-items:center;">
+                <label style="font-size:12px; font-weight:600; color:#64748b;">İnokas Maliyet</label>
                 <span id="dv-inokas-basket" style="font-weight:700; font-size:13px; color:#0f172a;">—</span>
             </div>
 
-            <div style="padding:10px 16px; border-bottom:1px solid #e2e8f0; display:flex; justify-content:space-between;">
-                <label style="font-size:12px; color:#64748b; font-weight:600;">KDV (%20)</label>
-                <span id="dv-kdv" style="font-weight:700; font-size:13px; color:#0f172a;">—</span>
-            </div>
-            <div style="padding:10px 16px; border-bottom:1px solid #e2e8f0; border-left:2px solid #e2e8f0; display:flex; justify-content:space-between;">
-                <label style="font-size:12px; color:#64748b; font-weight:600;">Damga + Karar</label>
-                <span id="dv-stamp" style="font-weight:700; font-size:13px; color:#0f172a;">—</span>
-            </div>
-
-            <div style="padding:10px 16px; border-bottom:1px solid #e2e8f0; display:flex; flex-direction:column; gap:4px;">
-                <div style="display:flex; justify-content:space-between;">
-                    <label style="font-size:11px; color:#94a3b8; font-weight:600;">Tevkifat (%20)</label>
-                    <span id="dv-tevkifat" style="font-weight:600; font-size:12px; color:#64748b;">—</span>
+            <div style="padding:8px 14px; border-bottom:1px solid #e2e8f0; display:flex; flex-direction:column; gap:3px;">
+                <div style="display:flex; justify-content:space-between; align-items:center;">
+                    <label style="font-size:11px; font-weight:600; color:#94a3b8;">KDV (%20)</label>
+                    <span id="dv-kdv" style="font-weight:600; font-size:12px; color:#64748b;">—</span>
                 </div>
-                <div style="display:flex; justify-content:space-between;">
-                    <label style="font-size:12px; color:#0f172a; font-weight:700;">Gerçek KDV</label>
+                <div style="display:flex; justify-content:space-between; align-items:center;">
+                    <label style="font-size:12px; font-weight:700; color:#0f172a;">Gerçek KDV</label>
                     <span id="dv-gercek-kdv" style="font-weight:700; font-size:13px; color:#0f172a;">—</span>
                 </div>
             </div>
-
-            <div style="padding:10px 16px; border-bottom:1px solid #e2e8f0;"></div>
-            <div style="padding:10px 16px; border-bottom:1px solid #e2e8f0; border-left:2px solid #e2e8f0; display:flex; justify-content:space-between;">
-                <label style="font-size:12px; color:#64748b; font-weight:600;">Risturn (%1)</label>
-                <span id="dv-risturn" style="font-weight:700; font-size:13px; color:#0f172a;">—</span>
+            <div style="padding:8px 14px; border-bottom:1px solid #e2e8f0; border-left:2px solid #e2e8f0; display:flex; justify-content:space-between; align-items:center;">
+                <label style="font-size:12px; font-weight:600; color:#dc2626;">Tutar İndirimi</label>
+                <div style="text-align:right;">
+                    <span id="dv-tutar-indirimi-pct" style="font-size:11px; font-weight:700; color:#dc2626; margin-right:4px;">—</span>
+                    <span id="dv-tutar-indirimi" style="font-weight:700; font-size:13px; color:#dc2626;">—</span>
+                </div>
             </div>
 
-            <div style="padding:12px 16px; border-bottom:1px solid #e2e8f0; display:flex; justify-content:space-between;">
+            <div style="border-bottom:1px solid #e2e8f0; background:#fafafa;"></div>
+            <div style="border-bottom:1px solid #e2e8f0; border-left:2px solid #e2e8f0;">
+                <div onclick="toggleDVVergiler()"
+                    style="padding:8px 14px; display:flex; justify-content:space-between; align-items:center; cursor:pointer; user-select:none;">
+                    <label style="font-size:12px; font-weight:600; color:#64748b; cursor:pointer; display:flex; align-items:center; gap:4px;">
+                        <i class="ti ti-chevron-right" id="dv-vergiler-arrow" style="font-size:11px; transition:transform 0.2s;"></i>Vergiler
+                    </label>
+                    <span id="dv-vergiler-total" style="font-weight:700; font-size:13px; color:#0f172a;">—</span>
+                </div>
+                <div id="dv-vergiler-detail" style="display:none; border-top:1px solid #f1f5f9; background:#f8fafc;">
+                    <div style="padding:5px 14px 5px 26px; display:flex; justify-content:space-between;">
+                        <label style="font-size:11px; font-weight:600; color:#94a3b8;">Tevkifat (%20)</label>
+                        <span id="dv-tevkifat" style="font-size:12px; font-weight:600; color:#64748b;">—</span>
+                    </div>
+                    <div style="padding:5px 14px 5px 26px; display:flex; justify-content:space-between;">
+                        <label style="font-size:11px; font-weight:600; color:#94a3b8;">Risturn (%1)</label>
+                        <span id="dv-risturn" style="font-size:12px; font-weight:600; color:#64748b;">—</span>
+                    </div>
+                    <div style="padding:5px 14px 5px 26px; display:flex; justify-content:space-between; border-bottom:1px solid #f1f5f9;">
+                        <label style="font-size:11px; font-weight:600; color:#94a3b8;">Damga + Karar</label>
+                        <span id="dv-damga-karar" style="font-size:12px; font-weight:600; color:#64748b;">—</span>
+                    </div>
+                </div>
+            </div>
+
+            <div style="border-bottom:1px solid #e2e8f0; background:#fafafa;"></div>
+            <div style="padding:8px 14px; border-bottom:1px solid #e2e8f0; border-left:2px solid #e2e8f0; display:flex; justify-content:space-between; align-items:center;">
+                <label style="font-size:12px; font-weight:600; color:#64748b;">🎁 Hediye Toplam</label>
+                <span id="dv-gift-total" style="font-weight:700; font-size:13px; color:#0f172a;">—</span>
+            </div>
+
+            <div style="padding:10px 14px; border-bottom:1px solid #e2e8f0; display:flex; justify-content:space-between; align-items:center; background:#f1f5f9;">
                 <label style="font-size:12px; font-weight:800; color:#0f172a;">Toplam Gelir</label>
                 <span id="dv-toplam-gelir" style="font-weight:800; font-size:14px; color:#0f172a;">—</span>
             </div>
-            <div style="padding:12px 16px; border-bottom:1px solid #e2e8f0; border-left:2px solid #e2e8f0; display:flex; justify-content:space-between;">
+            <div style="padding:10px 14px; border-bottom:1px solid #e2e8f0; border-left:2px solid #e2e8f0; display:flex; justify-content:space-between; align-items:center; background:#f1f5f9;">
                 <label style="font-size:12px; font-weight:800; color:#0f172a;">Toplam Gider</label>
                 <span id="dv-toplam-gider" style="font-weight:800; font-size:14px; color:#0f172a;">—</span>
             </div>
 
-            <div style="grid-column:span 2; padding:14px 16px; display:grid; grid-template-columns:1fr 1fr; gap:12px; background:#f8fafc;">
-                <div style="border:1px solid #e2e8f0; border-radius:10px; padding:12px 16px; background:white; display:flex; justify-content:space-between; align-items:center;">
-                    <label style="font-size:12px; font-weight:800; color:#0f172a;">Net Kar (₺)</label>
-                    <div id="dv-profit" style="font-size:16px; font-weight:800;"></div>
+            <div style="grid-column:span 2; padding:12px 14px; display:grid; grid-template-columns:1fr 1fr; gap:10px; background:#f8fafc;">
+                <div style="border:1px solid #e2e8f0; border-radius:8px; padding:10px 14px; background:white; display:flex; justify-content:space-between; align-items:center;">
+                    <label style="font-size:12px; font-weight:800; color:#0f172a;">Net Kar</label>
+                    <div id="dv-profit" style="font-size:15px; font-weight:800;">—</div>
                 </div>
-                <div style="border:1px solid #e2e8f0; border-radius:10px; padding:12px 16px; background:white; display:flex; justify-content:space-between; align-items:center;">
+                <div style="border:1px solid #e2e8f0; border-radius:8px; padding:10px 14px; background:white; display:flex; justify-content:space-between; align-items:center;">
                     <label style="font-size:12px; font-weight:800; color:#0f172a;">Kar %</label>
-                    <div id="dv-profit-pct" style="font-size:16px; font-weight:800;"></div>
+                    <div id="dv-profit-pct" style="font-size:15px; font-weight:800;">—</div>
                 </div>
             </div>
+
         </div>
     `;
 }
-
 // ── COMPUTE INVOICE METRICS (needed by fillDetailStats) ───────────────────────
 function computeInvoiceMetrics(dmoBasket, inokasBasket, stampTax) {
     const kdv         = dmoBasket * 0.20;
@@ -370,4 +410,12 @@ function computeInvoiceMetrics(dmoBasket, inokasBasket, stampTax) {
     const netProfit   = toplamGelir - toplamGider;
     const profitPct   = toplamGelir > 0 ? (netProfit / toplamGelir) * 100 : 0;
     return { kdv, tevkifat, gercekKdv, dmoKesinti, risturn, toplamGelir, toplamGider, netProfit, profitPct };
+}
+
+function toggleDVVergiler() {
+    const detail = document.getElementById("dv-vergiler-detail");
+    const arrow  = document.getElementById("dv-vergiler-arrow");
+    const isOpen = detail.style.display !== "none";
+    detail.style.display  = isOpen ? "none" : "block";
+    arrow.style.transform = isOpen ? "" : "rotate(90deg)";
 }

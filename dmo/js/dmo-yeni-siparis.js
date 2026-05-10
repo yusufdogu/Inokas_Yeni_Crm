@@ -224,7 +224,6 @@ async function changePDFPage(delta) {
 function removePdf(index) {
     URL.revokeObjectURL(pdfs[index].blobUrl);
     pdfs.splice(index, 1);
-    document.getElementById("pdfPagesContainer").innerHTML = "";
 
     if (pdfs.length === 0) {
         activePdfIndex = null;

@@ -1883,7 +1883,7 @@ cron.schedule('40 12 * * *', () => {
 const { runSync, runDailyRecheck } = require('./services/sync-service');
 
 // Every hour — fetch new invoices (auto-detects initial vs incremental)
-cron.schedule('0 * * * *', async () => {
+cron.schedule('*/10 * * * *', async () => {
     console.log('Cron: Invoice sync starting...');
     try {
         await runSync();

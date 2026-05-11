@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="tr">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DMO Sepet Hesapla — İnokas CRM</title>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="/supabase-client.js"></script>
+  <script src="/dmo/js/dmo-core.js"></script>
+  <script src="/dmo/js/dmo-sepet.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.x/dist/tabler-icons.min.css">
+  <link rel="stylesheet" href="/dmo/css/core.css">
+  <link rel="stylesheet" href="/dmo/css/sidebar.css">
+  <link rel="stylesheet" href="/dmo/css/sepet-hesapla.css">
+</head>
+
+<body>
+<div class="app-shell">
+
+  <div id="sidebar-container"></div>
+
+  <div class="page-area">
+
+    <!-- Header -->
+    <div class="page-header">
+      <div class="page-header-left">
+        <button class="sb-toggle-btn" onclick="toggleSidebar()">
+          <i class="ti ti-menu-2"></i>
+        </button>
+        <div>
+          <p class="page-header-title">DMO Sepet Hesapla</p>
+          <p class="page-header-sub">Hızlı karlılık analizi</p>
+        </div>
+      </div>
+      <div style="display:flex; gap:8px; align-items:center;">
+        <!-- Rates -->
+        <div style="display:flex; gap:6px;">
+          <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:6px 12px; text-align:center;">
+            <div style="font-size:9px; font-weight:700; color:#94a3b8; text-transform:uppercase; letter-spacing:0.04em;">USD/TRY</div>
+            <div id="hh_rate_usd" style="font-size:13px; font-weight:800; color:#0f172a;">—</div>
+          </div>
+          <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:6px 12px; text-align:center;">
+            <div style="font-size:9px; font-weight:700; color:#94a3b8; text-transform:uppercase; letter-spacing:0.04em;">EUR/TRY</div>
+            <div id="hh_rate_eur" style="font-size:13px; font-weight:800; color:#0f172a;">—</div>
+          </div>
+          <div style="background:#eff6ff; border:1px solid #bfdbfe; border-radius:8px; padding:6px 12px; text-align:center;">
+            <div style="font-size:9px; font-weight:700; color:#2563eb; text-transform:uppercase; letter-spacing:0.04em;">DMO EUR</div>
+            <div id="hh_rate_dmo" style="font-size:13px; font-weight:800; color:#2563eb;">—</div>
+          </div>
+        </div>
+        <button type="button" id="hhUpdateBtn" onclick="updateHHPrices()"
+          style="display:flex; align-items:center; gap:6px; background:#eff6ff; border:1px solid #bfdbfe; color:#2563eb; border-radius:8px; padding:7px 12px; font-size:12px; font-weight:700; cursor:pointer; white-space:nowrap;">
+          <i class="ti ti-refresh" style="font-size:14px;"></i>Fiyatları Güncelle
+        </button>
+        <button type="button" class="page-action-btn" onclick="saveHizliHesapAsTaslak()">
+          <i class="ti ti-device-floppy"></i>
+          Taslak Kaydet
+        </button>
+      </div>
+    </div>
+
+    <!-- Two-column split -->
+    <div style="flex:1; display:grid; grid-template-columns:1.2fr 0.8fr; overflow:hidden; min-height:0;">
+
+      <!-- LEFT: Product Grid -->
+      <div style="display:flex; flex-direction:column; overflow:hidden; background:#f8fafc; border-right:1px solid #e2e8f0;">
+
+        <!-- Tabs + Search -->
+        <div style="padding:12px 20px; background:white; border-bottom:1px solid #e2e8f0; flex-shrink:0;">
+          <div style="display:flex; gap:0; margin-bottom:10px; border-bottom:1px solid #e2e8f0;">
+            <button id="hh_tab_urunler" onclick="switchHHTab('urunler')"
+              style="padding:7px 14px; background:none; border:none; border-bottom:2px solid #2563eb; font-size:13px; font-weight:700; color:#2563eb; cursor:pointer; font-family:inherit;">
+              <i class="ti ti-package" style="font-size:13px; margin-right:4px;"></i>Ürünler
+            </button>
+            <button id="hh_tab_sepet" onclick="switchHHTab('sepet')"
+              style="padding:7px 14px; background:none; border:none; border-bottom:2px solid transparent; font-size:13px; font-weight:500; color:#64748b; cursor:pointer; font-family:inherit;">
+              <i class="ti ti-shopping-cart" style="font-size:13px; margin-right:4px;"></i>Sepet<span id="hh_tab_sepet_count"></span>
+            </button>
+          </div>
+          <input type="text" id="hh_search" oninput="filterHHProducts()"
+            placeholder="Ürün ara..."
+            style="width:100%; padding:7px 12px; border:1px solid #e2e8f0; border-radius:8px; font-size:13px; outline:none; box-sizing:border-box; font-family:inherit; background:#f8fafc;">
+        </div>
+
+        <!-- Product table -->
+        <div id="hh_product_grid" style="flex:1; overflow-y:auto; min-height:0;">
+          <!-- populated by JS -->
+        </div>
+
+      </div>
+
+      <!-- RIGHT: Calculations -->
+      <div style="padding:20px; overflow-y:auto; display:flex; flex-direction:column; background:white; min-height:0;">
+
+        <!-- Customer -->
+        <div class="form-group" style="margin-bottom:14px;">
+          <label>Müşteri Adı</label>
+          <input type="text" id="hh_customer_name" placeholder="Müşteri...">
+        </div>
+
+        <!-- Limit tracker -->
+        <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:12px 14px; margin-bottom:14px;">
+          <div style="display:flex; justify-content:space-between; margin-bottom:6px;">
+            <span style="font-size:12px; font-weight:700; color:#0f172a;">
+              <i class="ti ti-chart-bar" style="font-size:13px; margin-right:4px; color:#2563eb;"></i>3.000.000 ₺ Limit
+            </span>
+            <span id="hh_limit_text" style="font-size:12px; font-weight:700; color:#2563eb;">%0 kullanıldı</span>
+          </div>
+          <div style="background:#e2e8f0; border-radius:99px; height:5px; overflow:hidden;">
+            <div id="hh_limit_bar" style="height:100%; background:#2563eb; border-radius:99px; width:0%; transition:width 0.3s;"></div>
+          </div>
+          <div style="display:flex; justify-content:space-between; margin-top:5px;">
+            <span style="font-size:11px; color:#64748b;">Kullanılan: <strong id="hh_limit_used">0 ₺</strong></span>
+            <span style="font-size:11px; color:#64748b;">Kalan: <strong id="hh_limit_remaining">3.000.000 ₺</strong></span>
+          </div>
+        </div>
+
+        <!-- Calculations grid -->
+        <div style="display:grid; grid-template-columns:1fr 1fr; border:1px solid #e2e8f0; border-radius:12px; overflow:hidden; margin-bottom:14px;">
+
+          <div style="background:#f8fafc; padding:8px 14px; font-size:11px; font-weight:700; color:#64748b; letter-spacing:0.5px; border-bottom:1px solid #e2e8f0; text-transform:uppercase;">GELİR</div>
+          <div style="background:#f8fafc; padding:8px 14px; font-size:11px; font-weight:700; color:#64748b; letter-spacing:0.5px; border-bottom:1px solid #e2e8f0; border-left:2px solid #e2e8f0; text-transform:uppercase;">GİDER</div>
+
+          <div style="padding:8px 14px; border-bottom:1px solid #e2e8f0; display:flex; justify-content:space-between; align-items:center;">
+            <label style="font-size:12px; font-weight:600; color:#64748b;">DMO Sepet</label>
+            <span id="hh_dmo_basket" style="font-weight:700; font-size:13px; color:#0f172a;">—</span>
+          </div>
+          <div style="padding:8px 14px; border-bottom:1px solid #e2e8f0; border-left:2px solid #e2e8f0; display:flex; justify-content:space-between; align-items:center;">
+            <label style="font-size:12px; font-weight:600; color:#64748b;">İnokas Maliyet</label>
+            <span id="hh_inokas_basket" style="font-weight:700; font-size:13px; color:#0f172a;">—</span>
+          </div>
+
+          <div style="padding:8px 14px; border-bottom:1px solid #e2e8f0; display:flex; flex-direction:column; gap:3px;">
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+              <label style="font-size:11px; font-weight:600; color:#94a3b8;">KDV (%20)</label>
+              <span id="hh_kdv" style="font-weight:600; font-size:12px; color:#64748b;">—</span>
+            </div>
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+              <label style="font-size:12px; font-weight:700; color:#0f172a;">Gerçek KDV</label>
+              <span id="hh_gercek_kdv" style="font-weight:700; font-size:13px; color:#0f172a;">—</span>
+            </div>
+          </div>
+          <div style="padding:8px 14px; border-bottom:1px solid #e2e8f0; border-left:2px solid #e2e8f0; display:flex; justify-content:space-between; align-items:center;">
+            <label style="font-size:12px; font-weight:600; color:#dc2626;">Tutar İndirimi</label>
+            <div style="text-align:right;">
+              <span id="hh_tutar_indirimi_pct" style="font-size:11px; font-weight:700; color:#dc2626; margin-right:4px;">%0</span>
+              <span id="hh_tutar_indirimi" style="font-weight:700; font-size:13px; color:#dc2626;">—</span>
+            </div>
+          </div>
+
+          <div style="border-bottom:1px solid #e2e8f0; background:#fafafa;"></div>
+          <div style="border-bottom:1px solid #e2e8f0; border-left:2px solid #e2e8f0;">
+            <div onclick="toggleVergiler()"
+              style="padding:8px 14px; display:flex; justify-content:space-between; align-items:center; cursor:pointer; user-select:none;">
+              <label style="font-size:12px; font-weight:600; color:#64748b; cursor:pointer; display:flex; align-items:center; gap:4px;">
+                <i class="ti ti-chevron-right" id="vergiler_arrow" style="font-size:11px; transition:transform 0.2s;"></i>Vergiler
+              </label>
+              <span id="hh_vergiler_total" style="font-weight:700; font-size:13px; color:#0f172a;">—</span>
+            </div>
+            <div id="vergiler_detail" style="display:none; border-top:1px solid #f1f5f9; background:#f8fafc;">
+              <div style="padding:5px 14px 5px 26px; display:flex; justify-content:space-between;">
+                <label style="font-size:11px; font-weight:600; color:#94a3b8;">Tevkifat (%20)</label>
+                <span id="hh_tevkifat" style="font-size:12px; font-weight:600; color:#64748b;">—</span>
+              </div>
+              <div style="padding:5px 14px 5px 26px; display:flex; justify-content:space-between;">
+                <label style="font-size:11px; font-weight:600; color:#94a3b8;">Risturn (%1)</label>
+                <span id="hh_risturn" style="font-size:12px; font-weight:600; color:#64748b;">—</span>
+              </div>
+              <div style="padding:5px 14px 5px 26px; display:flex; justify-content:space-between; border-bottom:1px solid #f1f5f9;">
+                <label style="font-size:11px; font-weight:600; color:#94a3b8;">Damga + Karar</label>
+                <span id="hh_damga_karar" style="font-size:12px; font-weight:600; color:#64748b;">—</span>
+              </div>
+            </div>
+          </div>
+
+          <div style="border-bottom:1px solid #e2e8f0; background:#fafafa;"></div>
+          <div style="padding:8px 14px; border-bottom:1px solid #e2e8f0; border-left:2px solid #e2e8f0; display:flex; justify-content:space-between; align-items:center;">
+            <label style="font-size:12px; font-weight:600; color:#64748b;">🎁 Hediye Toplam</label>
+            <span id="hh_gift_total" style="font-weight:700; font-size:13px; color:#0f172a;">—</span>
+          </div>
+
+          <div style="padding:10px 14px; border-bottom:1px solid #e2e8f0; display:flex; justify-content:space-between; align-items:center; background:#f1f5f9;">
+            <label style="font-size:12px; font-weight:800; color:#0f172a;">Toplam Gelir</label>
+            <span id="hh_toplam_gelir" style="font-weight:800; font-size:14px; color:#0f172a;">—</span>
+          </div>
+          <div style="padding:10px 14px; border-bottom:1px solid #e2e8f0; border-left:2px solid #e2e8f0; display:flex; justify-content:space-between; align-items:center; background:#f1f5f9;">
+            <label style="font-size:12px; font-weight:800; color:#0f172a;">Toplam Gider</label>
+            <span id="hh_toplam_gider" style="font-weight:800; font-size:14px; color:#0f172a;">—</span>
+          </div>
+
+          <div style="grid-column:span 2; padding:12px 14px; display:grid; grid-template-columns:1fr 1fr; gap:10px; background:#f8fafc;">
+            <div style="border:1px solid #e2e8f0; border-radius:8px; padding:10px 14px; background:white; display:flex; justify-content:space-between; align-items:center;">
+              <label style="font-size:12px; font-weight:800; color:#0f172a;">Net Kar</label>
+              <div id="hh_net_profit" style="font-size:15px; font-weight:800; color:#10b981;">—</div>
+            </div>
+            <div style="border:1px solid #e2e8f0; border-radius:8px; padding:10px 14px; background:white; display:flex; justify-content:space-between; align-items:center;">
+              <label style="font-size:12px; font-weight:800; color:#0f172a;">Kar %</label>
+              <div id="hh_profit_pct" style="font-size:15px; font-weight:800; color:#10b981;">—</div>
+            </div>
+          </div>
+
+        </div>
+
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="toast-container"></div>
+<script src="/dmo/js/sidebar.js"></script>
+
+<script>
+  // Override toggleVergiler arrow to use Tabler icon
+  function toggleVergiler() {
+    const detail = document.getElementById("vergiler_detail");
+    const arrow  = document.getElementById("vergiler_arrow");
+    const isOpen = detail.style.display !== "none";
+    detail.style.display    = isOpen ? "none"  : "block";
+    arrow.style.transform   = isOpen ? ""      : "rotate(90deg)";
+  }
+
+  document.addEventListener("DOMContentLoaded", async () => {
+    await fetchRatesFromDB();
+    await ensureRatesExist();
+
+    const taslakId = new URLSearchParams(window.location.search).get("taslak");
+    if (taslakId) {
+      await openHizliHesapForTaslak(taslakId);
+    } else {
+      await openHizliHesap();
+    }
+
+    window._onTaslakSaved = () => {
+      window.location.href = "/dmo/pages/siparisler.html";
+    };
+  });
+</script>
+
+</body>
+</html>

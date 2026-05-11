@@ -1,0 +1,136 @@
+/* ── TOPBAR ───────────────────────────────────────────────────────────────── */
+.topbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0 2rem;
+  height: 64px;
+  background: var(--card);
+  border-bottom: 1px solid var(--border);
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+
+.brand { font-weight: 800; font-size: 1.25rem; text-decoration: none; color: var(--text-main); display: flex; align-items: center; gap: 8px; }
+.brand span { color: var(--primary); }
+.brand-dot { width: 10px; height: 10px; background: var(--primary); border-radius: 50%; }
+
+/* ── MAIN CONTAINER ──────────────────────────────────────────────────────── */
+.main-container { max-width: 1400px; margin: 2rem auto; padding: 0 1rem; }
+
+/* ── TAB BUTTONS ─────────────────────────────────────────────────────────── */
+.view-switcher { display: flex; gap: 1rem; margin-bottom: 2rem; }
+.tab-btn {
+  flex: 1; padding: 1rem; border: 1px solid var(--border); background: var(--card); border-radius: 12px;
+  cursor: pointer; font-weight: 700; display: flex; align-items: center; justify-content: center; gap: 10px; transition: 0.3s;
+}
+.tab-btn.active { border-color: var(--primary); box-shadow: 0 4px 12px rgba(37, 99, 235, 0.1); color: var(--primary); }
+
+/* ── STATS GRID ──────────────────────────────────────────────────────────── */
+.stats-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr) 220px;
+    grid-template-rows: auto auto;
+    gap: 1.5rem;
+    margin-bottom: 2rem;
+}
+
+.stat-card { background: var(--card); padding: 1.5rem; border-radius: 16px; border: 1px solid var(--border); }
+.stat-card label { font-size: 0.85rem; font-weight: 600; color: var(--text-sub); }
+.stat-card h2 { font-size: 1.75rem; margin: 4px 0; }
+
+/* ── FLIP CARD ───────────────────────────────────────────────────────────── */
+.stat-card--flip {
+    perspective: 1000px;
+    cursor: pointer;
+    background: transparent;
+    border: none;
+    padding: 0;
+    box-shadow: none;
+}
+
+.flip-card-inner {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    min-height: 110px;
+    transform-style: preserve-3d;
+    transition: transform 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.flip-card-inner.flipped {
+    transform: rotateY(180deg);
+}
+
+.flip-card-front,
+.flip-card-back {
+    position: absolute;
+    inset: 0;
+    backface-visibility: hidden;
+    -webkit-backface-visibility: hidden;
+    border-radius: 14px;
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.flip-card-front {
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+}
+
+.flip-card-front label {
+    font-size: 12px;
+    font-weight: 600;
+    color: #64748b;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.flip-card-front h2 {
+    font-size: 1.5rem;
+    font-weight: 800;
+    color: #0f172a;
+    margin: 4px 0;
+}
+
+.flip-card-back {
+    background: linear-gradient(135deg, #1e40af, #2563eb);
+    border: none;
+    transform: rotateY(180deg);
+    box-shadow: 0 4px 12px rgba(37,99,235,0.3);
+}
+
+/* ── DMO SPLIT LAYOUT ────────────────────────────────────────────────────── */
+.dmo-layout {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    overflow: hidden;
+}
+
+.pdf-preview-side {
+    background: #f1f5f9;
+    border-right: 1px solid #e2e8f0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+}
+
+.modal-form-side {
+    padding: 2rem;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    box-sizing: border-box;
+    min-height: 0;
+}
+
+/* ── MODAL HEADER / FOOTER ───────────────────────────────────────────────── */
+.modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem; }
+.close-modal  { background: none; border: none; font-size: 1.5rem; cursor: pointer; }
+.modal-footer { display: flex; justify-content: flex-end; gap: 1rem; margin-top: 2rem; padding-top: 1rem; border-top: 1px solid var(--border); }

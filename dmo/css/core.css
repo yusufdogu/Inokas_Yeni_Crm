@@ -1,0 +1,74 @@
+/* ── VARIABLES ───────────────────────────────────────────────────────────── */
+:root {
+  --primary: #2563eb;
+  --success: #059669;
+  --danger: #dc2626;
+  --warn: #d97706;
+  --bg: #f8fafc;
+  --card: #ffffff;
+  --border: #e2e8f0;
+  --text-main: #1e293b;
+  --text-sub: #64748b;
+  --accent-light: #eff6ff;
+}
+
+/* ── RESET ───────────────────────────────────────────────────────────────── */
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+html { height: 100%; }
+
+body {
+  height: 100%;
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  background-color: var(--bg);
+  color: var(--text-main);
+  line-height: 1.5;
+}
+
+/* ── BUTTONS ─────────────────────────────────────────────────────────────── */
+.btn { border: none; padding: 10px 20px; border-radius: 8px; font-weight: 700; cursor: pointer; transition: 0.2s; }
+.btn-primary { background: var(--primary); color: white; }
+.btn-primary:hover { background: #1d4ed8; }
+.btn-secondary { background: #f1f5f9; color: var(--text-main); }
+.btn-success { background: var(--success); color: white; }
+.btn-lg { padding: 14px 28px; font-size: 15px; }
+
+/* ── STAT CARD HIGHLIGHTS ────────────────────────────────────────────────── */
+.stat-card.highlight-warn    { border-left: 4px solid #d97706; }
+.stat-card.highlight-tax     { border-left: 4px solid #d97706; }
+.stat-card.highlight-success { border-left: 4px solid #059669; }
+
+.text-danger  { color: var(--danger); }
+.text-success { color: var(--success); }
+.text-warn    { color: var(--warn); }
+
+/* ── TOAST ───────────────────────────────────────────────────────────────── */
+#toast-container {
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    z-index: 9999;
+}
+
+.toast {
+    padding: 12px 20px;
+    border-radius: 10px;
+    font-size: 13px;
+    font-weight: 600;
+    color: white;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    animation: slideIn 0.2s ease;
+}
+
+.toast-info    { background: #2563eb; }
+.toast-success { background: #16a34a; }
+.toast-error   { background: #dc2626; }
+.toast-warn    { background: #d97706; }
+
+@keyframes slideIn {
+    from { transform: translateX(100%); opacity: 0; }
+    to   { transform: translateX(0);   opacity: 1; }
+}

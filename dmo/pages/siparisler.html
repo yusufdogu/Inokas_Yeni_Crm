@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="tr">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Siparişler — İnokas CRM</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+  <script src="/supabase-client.js"></script>
+  <script src="/dmo/js/dmo-core.js"></script>
+  <script src="/dmo/js/dmo-siparisler.js"></script>
+  <script src="/dmo/js/dmo-analytics.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/noUiSlider/15.7.1/nouislider.min.js"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/noUiSlider/15.7.1/nouislider.min.css">
+
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.x/dist/tabler-icons.min.css">
+  <link rel="stylesheet" href="/dmo/css/core.css">
+  <link rel="stylesheet" href="/dmo/css/sidebar.css">
+  <link rel="stylesheet" href="/dmo/css/siparisler.css">
+  <link rel="stylesheet" href="/dmo/css/analytics.css">
+</head>
+
+<body>
+<div class="app-shell">
+
+  <div id="sidebar-container"></div>
+
+  <div class="page-area">
+
+    <!-- Header -->
+    <div class="page-header">
+      <div class="page-header-left">
+        <button class="sb-toggle-btn" onclick="toggleSidebar()">
+          <i class="ti ti-menu-2"></i>
+        </button>
+        <div>
+          <p class="page-header-title">Siparişler</p>
+          <p class="page-header-sub" id="sp-order-count">Yükleniyor...</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Filters -->
+    <div style="padding:10px 20px; background:white; border-bottom:1px solid #e2e8f0; flex-shrink:0;">
+      <div style="display:flex; gap:6px; flex-wrap:wrap; align-items:center;">
+
+        <div style="position:relative; flex:2; min-width:140px;">
+          <input type="text" id="mainSearch" onkeyup="handleMainSearch()"
+            placeholder="Firma, sipariş no..."
+            style="width:100%; padding:6px 10px; height:32px; border:1px solid #e2e8f0; border-radius:7px; font-size:12px; outline:none; font-family:inherit; box-sizing:border-box;"
+            autocomplete="off">
+          <div id="companyDropdown" style="display:none; position:absolute; top:100%; left:0; right:0; background:white; border:1px solid #e2e8f0; border-radius:8px; box-shadow:0 4px 12px rgba(0,0,0,0.1); z-index:100; max-height:200px; overflow-y:auto;"></div>
+        </div>
+
+        <div style="position:relative; flex:2; min-width:140px;">
+          <input type="text" id="filterProduct" onkeyup="handleProductSearch()"
+            placeholder="Ürün, DMO kodu..."
+            style="width:100%; padding:6px 10px; height:32px; border:1px solid #e2e8f0; border-radius:7px; font-size:12px; outline:none; font-family:inherit; box-sizing:border-box;"
+            autocomplete="off">
+          <div id="productDropdown" style="display:none; position:absolute; top:100%; left:0; right:0; background:white; border:1px solid #e2e8f0; border-radius:8px; box-shadow:0 4px 12px rgba(0,0,0,0.1); z-index:100; max-height:200px; overflow-y:auto;"></div>
+        </div>
+
+        <div style="display:flex; flex-direction:column; gap:4px; min-width:180px;">
+          <div style="display:flex; justify-content:space-between;">
+            <span id="sliderMinLabel" style="font-size:11px; color:#64748b;">0 ₺</span>
+            <span id="sliderMaxLabel" style="font-size:11px; color:#64748b;">3.000.000 ₺</span>
+          </div>
+          <div id="basketSlider"></div>
+        </div>
+
+        <select id="filterStatus" onchange="renderCurrentView(); updateAdvancedBadge()"
+          style="flex:1; min-width:120px; padding:6px 10px; height:32px; border:1px solid #e2e8f0; border-radius:7px; font-size:12px; outline:none; font-family:inherit;">
+          <option value="">Tüm Durumlar</option>
+          <option value="Taslak">Taslak</option>
+          <option value="Sipariş Alındı" selected>Sipariş Alındı</option>
+          <option value="Tamamlandı">Tamamlandı</option>
+          <option value="İptal">İptal</option>
+        </select>
+
+        <select id="filterCategory" onchange="renderCurrentView(); updateAdvancedBadge()" ...>
+          <option value="">Tüm Kategoriler</option>
+        </select>
+
+        <input type="date" id="filterDateStart" onchange="renderCurrentView(); updateAdvancedBadge()"
+          style="flex:1; min-width:120px; padding:6px 10px; height:32px; border:1px solid #e2e8f0; border-radius:7px; font-size:12px; outline:none; font-family:inherit; box-sizing:border-box;">
+
+        <input type="date" id="filterDateEnd" onchange="renderCurrentView(); updateAdvancedBadge()"
+          style="flex:1; min-width:120px; padding:6px 10px; height:32px; border:1px solid #e2e8f0; border-radius:7px; font-size:12px; outline:none; font-family:inherit; box-sizing:border-box;">
+
+        <button onclick="clearAllFilters()" title="Temizle"
+          style="height:32px; width:32px; display:flex; align-items:center; justify-content:center; border:1px solid #e2e8f0; border-radius:7px; background:white; cursor:pointer; color:#64748b; flex-shrink:0;">
+          <i class="ti ti-trash" style="font-size:15px;"></i>
+        </button>
+
+      </div>
+    </div>
+
+    <!-- Content -->
+    <div class="page-content-split">
+
+      <!-- KPIs -->
+      <div style="display:grid; grid-template-columns:repeat(3,1fr); gap:8px; padding:14px 20px; flex-shrink:0;">
+        <div style="background:white; border:1px solid #e2e8f0; border-radius:10px; padding:10px 16px;">
+          <p style="margin:0 0 4px; font-size:11px; color:#94a3b8; font-weight:600; text-transform:uppercase; letter-spacing:0.04em;">Toplam Sipariş</p>
+          <p style="margin:0; font-size:20px; font-weight:700; color:#0f172a;" id="kpi-total">—</p>
+        </div>
+        <div style="background:white; border:1px solid #e2e8f0; border-radius:10px; padding:10px 16px;">
+          <p style="margin:0 0 4px; font-size:11px; color:#94a3b8; font-weight:600; text-transform:uppercase; letter-spacing:0.04em;">Toplam DMO Tutar</p>
+          <p style="margin:0; font-size:20px; font-weight:700; color:#0f172a;" id="kpi-amount">—</p>
+        </div>
+        <div style="background:white; border:1px solid #e2e8f0; border-radius:10px; padding:10px 16px;">
+          <p style="margin:0 0 4px; font-size:11px; color:#94a3b8; font-weight:600; text-transform:uppercase; letter-spacing:0.04em;">Toplam Kâr</p>
+          <p style="margin:0; font-size:20px; font-weight:700; color:#16a34a;" id="kpi-profit">—</p>
+        </div>
+      </div>
+
+      <!-- Table -->
+      <div style="flex:1; overflow-y:auto; padding:0 20px 12px; min-height:0;">
+        <table style="width:100%; border-collapse:collapse; font-size:13px;">
+          <thead>
+            <tr style="border-bottom:1px solid #e2e8f0;">
+              <th style="padding:8px 12px 8px 0; text-align:left; font-size:11px; font-weight:600; color:#94a3b8; text-transform:uppercase; letter-spacing:0.04em; white-space:nowrap;">Sipariş No</th>
+              <th style="padding:8px 12px 8px 0; text-align:left; font-size:11px; font-weight:600; color:#94a3b8; text-transform:uppercase; letter-spacing:0.04em;">Firma</th>
+              <th style="padding:8px 12px 8px 0; text-align:left; font-size:11px; font-weight:600; color:#94a3b8; text-transform:uppercase; letter-spacing:0.04em; white-space:nowrap;">Tarih</th>
+              <th style="padding:8px 12px 8px 0; text-align:left; font-size:11px; font-weight:600; color:#94a3b8; text-transform:uppercase; letter-spacing:0.04em;">Durum</th>
+              <th style="padding:8px 0; text-align:right; font-size:11px; font-weight:600; color:#94a3b8; text-transform:uppercase; letter-spacing:0.04em; white-space:nowrap;">DMO Tutar</th>
+              <th style="padding:8px 0; text-align:right; font-size:11px; font-weight:600; color:#94a3b8; text-transform:uppercase; letter-spacing:0.04em; white-space:nowrap;">Net Kâr</th>
+            </tr>
+          </thead>
+          <tbody id="sp-tbody"></tbody>
+        </table>
+        <p id="sp-empty" style="display:none; text-align:center; color:#94a3b8; padding:40px 0; font-size:13px;">Sipariş bulunamadı</p>
+      </div>
+
+      <!-- Analiz bar -->
+      <div onclick="toggleAnaliz()"
+        style="padding:10px 20px; background:white; border-top:1px solid #e2e8f0; display:flex; align-items:center; justify-content:space-between; cursor:pointer; flex-shrink:0; user-select:none;">
+        <div style="display:flex; align-items:center; gap:8px; color:#64748b;">
+          <i class="ti ti-chart-bar" style="font-size:16px;"></i>
+          <span style="font-size:13px; font-weight:600;">Analiz</span>
+          <span id="sp-filter-hint" style="font-size:11px; color:#94a3b8;"></span>
+        </div>
+        <i class="ti ti-chevron-down" id="sp-chevron" style="font-size:16px; color:#94a3b8; transition:transform 0.2s;"></i>
+      </div>
+
+      <!-- Charts -->
+      <div id="sp-charts-section" style="display:none; border-top:1px solid #e2e8f0; background:white; padding:16px 20px; flex-shrink:0; overflow-y:auto;">
+        <div id="siparislerChartsGrid" style="display:grid; grid-template-columns:1fr 1fr; gap:14px;"></div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<select id="filterCompany" style="display:none;"></select>
+<div id="toast-container"></div>
+
+<script src="/dmo/js/sidebar.js"></script>
+<script>
+  let _analizOpen = false;
+
+  function toggleAnaliz() {
+    _analizOpen = !_analizOpen;
+    document.getElementById('sp-charts-section').style.display = _analizOpen ? 'block' : 'none';
+    document.getElementById('sp-chevron').style.transform      = _analizOpen ? 'rotate(180deg)' : 'rotate(0)';
+    if (_analizOpen) loadCharts(window._lastFilteredOrders || []);
+  }
+</script>
+
+</body>
+</html>

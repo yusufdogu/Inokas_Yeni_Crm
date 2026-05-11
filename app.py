@@ -33,6 +33,7 @@ def clean_cell(cell):
         return None
     return cell.replace("\n", " ").strip()
 
+
 # ── PARSER ──────────────────────────────────────────────────────────────────
 
 def extract_data(pdf_file):
@@ -123,6 +124,8 @@ def extract_data(pdf_file):
             print("Merged headers:", merged_header, flush=True)
             print("First data row:", data_rows[0] if data_rows else [], flush=True)
 
+
+
     return results
 
 
@@ -199,51 +202,6 @@ def parse_pdf():
     except Exception as e:
         traceback.print_exc()
         return jsonify({"error": str(e)}), 500
-
-
-
-@app.route("/usd-eur-rate", methods=["GET"])
-def get_tcmb_kur():
-    url      = "https://www.tcmb.gov.tr/kurlar/today.xml"
-    response = requests.get(url)
-
-    if response.status_code != 200:
-        return jsonify({"error": "TCMB verisi çekilemedi"}), 500
-
-    root    = ET.fromstring(response.content)
-    results = {}
-
-    for code in ["USD", "EUR"]:
-        node = root.find(f".//Currency[@Kod='{code}']")
-        if node is not None:
-            results[code] = node.find("ForexBuying").text
-
-    usd = float(results.get("USD", 0))
-    eur = float(results.get("EUR", 0))
-
-    # ── Only insert if rates changed ──────────────────────────────────────────
-    try:
-        last = db.table("rate_history") \
-            .select("usd_try, eur_try") \
-            .order("recorded_at") \
-            .limit(1) \
-            .execute()
-
-        last_data = last.data
-
-        if not last_data or \
-           round(float(last_data["usd_try"] or 0), 2) != round(usd, 2) or \
-           round(float(last_data["eur_try"] or 0), 2) != round(eur, 2):
-            db.table("rate_history").insert({
-                "usd_try": usd,
-                "eur_try": eur,
-            }).execute()
-
-    except Exception as e:
-        print("Rate history kaydedilemedi:", e)
-
-    return jsonify(results)
-
 
 
 @app.route("/find-dmo-url", methods=["POST"])

@@ -1,29 +1,39 @@
+Chart.defaults.color       = '#94a3b8';
+Chart.defaults.borderColor = '#334155';
 // ── CHARTS ───────────────────────────────────────────────────────────────────
 
-let chartInstances     = {};
 let chartModalInstance = null;
 let chartDataStore     = {};
+let chartInstances     = {}; // modal charts
+let mainChartInstances = {}; // main page charts
 
 function destroyCharts() {
     Object.values(chartInstances).forEach(c => c.destroy());
     chartInstances = {};
 }
 
+function destroyMainCharts() {
+    Object.values(mainChartInstances).forEach(c => c.destroy());
+    mainChartInstances = {};
+}
+
+
 function clearChartsGrid() {
     destroyCharts();
-    chartDataStore = {};
-    document.getElementById("chartsGrid").innerHTML = "";
+    const grid = document.getElementById("siparislerChartsGrid");
+    if (grid) grid.innerHTML = "";
 }
 
 function createChartCanvas(id, title, spanTwo = false) {
-    const grid = document.getElementById("chartsGrid");
-    const div  = document.createElement("div");
-    div.className = `chart-card${spanTwo ? " span-2" : ""}`;
+    const gridId = document.getElementById("siparislerModal")?.style.display !== "none"
+        ? "siparislerChartsGrid"
+        : "chartsGrid";
+    const grid = document.getElementById(gridId);
+    if (!grid) return;
+    const div = document.createElement("div");
+    div.className = "chart-card";
     div.innerHTML = `
-        <div class="chart-card-header">
-            <h3 class="chart-title">${title}</h3>
-            <button class="chart-expand-btn" onclick="openChartModal('${id}')" title="Büyüt">⛶</button>
-        </div>
+        <h3 class="chart-title">${title}</h3>
         <div class="chart-canvas-wrap">
             <canvas id="${id}"></canvas>
         </div>
@@ -42,38 +52,44 @@ function makeChart(instanceKey, canvasId, title, type, data, options) {
         maintainAspectRatio: false,
     };
 
+    // Destroy existing instance if any
     if (chartInstances[instanceKey]) {
         chartInstances[instanceKey].destroy();
     }
+    if (mainChartInstances[instanceKey]) {
+        mainChartInstances[instanceKey].destroy();
+    }
 
-    chartInstances[instanceKey] = new Chart(el, { type, data, options: fullOptions });
+    const instance = new Chart(el, { type, data, options: fullOptions });
+
+    // Store in correct object based on which grid the canvas is in
+    const isMainPage = document.getElementById("chartsGrid")?.contains(el);
+    if (isMainPage) {
+        mainChartInstances[instanceKey] = instance;
+    } else {
+        chartInstances[instanceKey] = instance;
+    }
 
     chartDataStore[canvasId] = { title, type, data, options: fullOptions };
 }
-
 // ── MAIN CHART LOADER ─────────────────────────────────────────────────────────
 async function loadCharts(orders) {
     clearChartsGrid();
     const f = getActiveFilters();
 
     if (orders.length === 0) {
-        document.getElementById("chartsGrid").innerHTML = `
+        document.getElementById("siparislerChartsGrid").innerHTML = `
             <div style="grid-column:1/-1; text-align:center; padding:40px; color:#94a3b8;">
                 Grafik için yeterli veri yok
             </div>`;
         return;
     }
 
-    createChartCanvas("monthlyProfitChart", "📈 Aylık Net Kar Trendi", true);
-    renderMonthlyProfitChart(orders);
-
     if (!f.hasCompany && !f.hasProduct) {
         createChartCanvas("topCustomersChart",    "🏢 En Çok Sipariş Veren Müşteriler");
         createChartCanvas("topProductsChart",     "📦 En Çok Sipariş Edilen Ürünler");
-        createChartCanvas("basketComparisonChart","📊 DMO vs İnokas Sepet", true);
         renderTopCustomersChart(orders);
         await renderTopProductsChart(orders);
-        renderBasketComparisonChart(orders);
         return;
     }
 
@@ -95,80 +111,97 @@ async function loadCharts(orders) {
 
     if (f.hasCompany && f.hasProduct) {
         createChartCanvas("marginTrendChart",      "💰 Kar Marjı Trendi",   true);
-        createChartCanvas("basketComparisonChart", "📊 DMO vs İnokas Sepet", true);
         renderMarginTrendChart(orders);
-        renderBasketComparisonChart(orders);
         return;
     }
 }
 
-// ── 1. MONTHLY PROFIT TREND ───────────────────────────────────────────────────
-function renderMonthlyProfitChart(orders) {
-    const monthly = {};
+
+// ── MAIN PAGE CHARTS (always visible, all-time, no filters) ──────────────────
+async function loadMainPageCharts(orders) {
+    destroyMainCharts();  // ← only kills main page charts
+    const grid = document.getElementById("chartsGrid");
+    if (!grid) return;
+    grid.innerHTML = "";
+
+    if (!orders || orders.length === 0) {
+        grid.innerHTML = `<div style="grid-column:1/-1; text-align:center; padding:40px; color:#94a3b8;">Henüz sipariş yok</div>`;
+        return;
+    }
+
+    // Customer chart
+    const customerDiv = document.createElement("div");
+    customerDiv.className = "chart-card";
+    customerDiv.innerHTML = `<h3 class="chart-title">🏢 Müşteri Bazlı Gelir</h3><div class="chart-canvas-wrap"><canvas id="mainCustomerChart"></canvas></div>`;
+    grid.appendChild(customerDiv);
+
+    // Product chart
+    const productDiv = document.createElement("div");
+    productDiv.className = "chart-card";
+    productDiv.innerHTML = `<h3 class="chart-title">📦 En Çok Sipariş Edilen Ürünler</h3><div class="chart-canvas-wrap"><canvas id="mainProductChart"></canvas></div>`;
+    grid.appendChild(productDiv);
+
+    // Render customer chart
+    const customers = {};
     orders.forEach(o => {
-        const month = o.order_date?.slice(0, 7);
-        if (!month) return;
-        if (!monthly[month]) monthly[month] = 0;
-        monthly[month] += o.net_profit || 0;
+        const name = o.customer_name || "Bilinmeyen";
+        if (!customers[name]) customers[name] = 0;
+        customers[name] += o.dmo_basket_total || 0;
     });
+    const sortedCustomers = Object.entries(customers).sort((a, b) => b[1] - a[1]).slice(0, 5);
 
-    const labels = Object.keys(monthly).map(m => {
-        const [y, mo] = m.split("-");
-        return `${mo}/${y}`;
-    });
-
-    makeChart("monthly", "monthlyProfitChart", "📈 Aylık Net Kar Trendi", "line",
+    makeChart("mainCustomer", "mainCustomerChart", "🏢 Müşteri Bazlı Gelir", "bar",
         {
-            labels,
+            labels: sortedCustomers.map(([name]) => name),
             datasets: [{
-                label:           "Net Kar (₺)",
-                data:            Object.values(monthly),
-                borderColor:     "#2563eb",
-                backgroundColor: "rgba(37,99,235,0.08)",
-                borderWidth:     2,
-                pointRadius:     4,
-                tension:         0.3,
-                fill:            true,
+                data:            sortedCustomers.map(([, val]) => val),
+                backgroundColor: "rgba(37,99,235,0.7)",
+                borderRadius:    4,
             }]
         },
         {
-            plugins: {
-                legend: { display: false },
-                tooltip: { callbacks: { label: ctx => formatAmount(ctx.raw) + " ₺" } }
-            },
-            scales: { y: { ticks: { callback: val => formatAmount(val) + " ₺" } } }
+            indexAxis: "y",
+            plugins:   { legend: { display: false } },
+            scales:    { x: { ticks: { callback: val => formatAmount(val) + " ₺" } } }
         }
     );
-}
 
-// ── 2. BASKET COMPARISON ──────────────────────────────────────────────────────
-function renderBasketComparisonChart(orders) {
-    makeChart("bar", "basketComparisonChart", "📊 DMO vs İnokas Sepet", "bar",
-        {
-            labels: orders.map(o => o.sales_order_no),
-            datasets: [
-                {
-                    label:           "DMO Sepet",
-                    data:            orders.map(o => o.dmo_basket_total || 0),
-                    backgroundColor: "rgba(37,99,235,0.7)",
-                    borderRadius:    4,
-                },
-                {
-                    label:           "İnokas Sepet",
-                    data:            orders.map(o => o.inokas_basket_total || 0),
+    // Render product chart
+    const orderIds = orders.map(o => o.id);
+    const { data: items } = await db
+        .from("dmo_order_items")
+        .select("quantity, products(product_name)")
+        .in("order_id", orderIds);
+
+    if (items) {
+        const products = {};
+        items.forEach(i => {
+            const name = i.products?.product_name || "Bilinmeyen";
+            if (!products[name]) products[name] = 0;
+            products[name] += i.quantity || 0;
+        });
+        const sortedProducts = Object.entries(products).sort((a, b) => b[1] - a[1]).slice(0, 5);
+
+        makeChart("mainProduct", "mainProductChart", "📦 En Çok Sipariş Edilen Ürünler", "bar",
+            {
+                labels: sortedProducts.map(([name]) => name),
+                datasets: [{
+                    data:            sortedProducts.map(([, val]) => val),
                     backgroundColor: "rgba(22,163,74,0.7)",
                     borderRadius:    4,
-                }
-            ]
-        },
-        {
-            plugins: {
-                tooltip: { callbacks: { label: ctx => `${ctx.dataset.label}: ${formatAmount(ctx.raw)} ₺` } }
+                }]
             },
-            scales: { y: { ticks: { callback: val => formatAmount(val) + " ₺" } } }
-        }
-    );
+            {
+                indexAxis: "y",
+                plugins:   { legend: { display: false } },
+                scales:    { x: { ticks: { callback: val => val + " adet" } } }
+            }
+        );
+    }
 }
+
+
+// ── 2. BASKET COMPARISON ──────────────────────────────────────────────────────
 
 // ── 3. TOP CUSTOMERS ──────────────────────────────────────────────────────────
 function renderTopCustomersChart(orders) {
@@ -477,4 +510,6 @@ function closeChartModal() {
         chartModalInstance.destroy();
         chartModalInstance = null;
     }
+
+
 }

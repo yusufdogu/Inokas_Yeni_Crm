@@ -4,6 +4,7 @@ const path = require('path');
 const http = require('http');
 const { spawn } = require('child_process');
 const { createClient } = require('@supabase/supabase-js');
+const cron = require('node-cron');
 const app = express();
 try {
   // cwd’den bağımsız: proje kökündeki .env (index.js ile aynı klasör)
@@ -27,9 +28,9 @@ const supabase = createClient(
 
 /** Ana sayfa: static’ten ÖNCE — aksi halde GET / hiç buraya düşmez, toplu XML için VKN enjekte edilemez */
 function getFaturalarIndexHtml() {
-  const htmlPath = path.join(__dirname, 'public', 'index.html'); // 1) public klasöründeki index.html dosyasının tam yolunu üretir (şimdi bu dosyayı okuyacağız)
+  const htmlPath = path.join(__dirname, 'public', 'index.html'); // 1) public klasöründeki dmo-index.html dosyasının tam yolunu üretir (şimdi bu dosyayı okuyacağız)
   
-  let html = fs.readFileSync(htmlPath, 'utf8'); // 2) index.html içeriğini düz metin olarak RAM'e alır (response olarak bunu döneceğiz)
+  let html = fs.readFileSync(htmlPath, 'utf8'); // 2) dmo-index.html içeriğini düz metin olarak RAM'e alır (response olarak bunu döneceğiz)
   
   const vkn = (process.env.INOKAS_VKN || '').trim(); // 3) Ortam değişkeninden INOKAS_VKN değerini alır; yoksa boş string kullanır
   
@@ -44,18 +45,7 @@ function getFaturalarIndexHtml() {
   return html; // 7) Son HTML'i route'a geri döner; app.get('/') bunu browser'a gönderir
 }
 
-app.get('/', (req, res) => {
-  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
-  res.setHeader('Pragma', 'no-cache');
-  res.setHeader('Expires', '0');
-  res.type('html').send(getFaturalarIndexHtml());
-});
 
-// DMO sayfası (ayrı klasör) erişimi
-app.use('/dmo', express.static(path.join(__dirname, 'dmo')));
-app.get('/dmo', (req, res) => {
-  res.redirect('/dmo/dmo.html');
-});
 
 // DMO Python API proxy (tarayıcıdan localhost:5000 bağımlılığını kaldırır)
 const DMO_PY_HOST = process.env.DMO_PY_HOST || '127.0.0.1';
@@ -89,18 +79,192 @@ app.post('/api/dmo/parse-pdf', (req, res) => {
   req.pipe(proxyReq);
 });
 
-app.get('/api/dmo/usd-eur-rate', async (req, res) => {
-  try {
-    const r = await fetch(`http://${DMO_PY_HOST}:${DMO_PY_PORT}/usd-eur-rate`);
-    const text = await r.text();
-    res.status(r.status);
-    res.setHeader('content-type', r.headers.get('content-type') || 'application/json; charset=utf-8');
-    res.send(text);
-  } catch (err) {
-    console.error('DMO usd-eur-rate proxy hatası:', err.message);
-    res.status(502).json({ error: 'DMO kur servisine bağlanılamadı.' });
-  }
+async function fetchAndSaveTCMBRates() {
+    try {
+        const usdRegex = /CurrencyCode="USD"[\s\S]*?<ForexBuying>([\d.]+)<\/ForexBuying>/;
+        const eurRegex = /CurrencyCode="EUR"[\s\S]*?<ForexBuying>([\d.]+)<\/ForexBuying>/;
+
+        let usd_try = null;
+        let eur_try = null;
+        let foundDate = null;
+
+        for (let daysBack = 0; daysBack <= 5; daysBack++) {
+            const date = new Date();
+            date.setDate(date.getDate() - daysBack);
+            const dd   = String(date.getDate()).padStart(2, '0');
+            const mm   = String(date.getMonth() + 1).padStart(2, '0');
+            const yyyy = date.getFullYear();
+
+            const url = daysBack === 0
+                ? 'https://www.tcmb.gov.tr/kurlar/today.xml'
+                : `https://www.tcmb.gov.tr/kurlar/${yyyy}${mm}/${dd}${mm}${yyyy}.xml`;
+
+            const res  = await fetch(url);
+            const body = await res.text();
+
+            const usdMatch = body.match(usdRegex);
+            const eurMatch = body.match(eurRegex);
+
+            if (usdMatch && eurMatch) {
+                usd_try   = parseFloat(usdMatch[1]);
+                eur_try   = parseFloat(eurMatch[1]);
+                foundDate = `${yyyy}-${mm}-${dd}`;
+                console.log(`TCMB: ${foundDate} tarihli kur bulundu — USD ${usd_try} EUR ${eur_try}`);
+                break;
+            }
+
+            console.log(`TCMB: ${yyyy}-${mm}-${dd} verisi yok, bir önceki güne bakılıyor...`);
+        }
+
+        if (!usd_try || !eur_try || !foundDate) {
+            console.error('TCMB: Son 5 gün için kur verisi bulunamadı');
+            return;
+        }
+
+        const today = new Date().toISOString().slice(0, 10);
+
+        const { data: existing } = await supabase
+            .from('rate_history')
+            .select('id')
+            .gte('recorded_at', today + 'T00:00:00')
+            .lte('recorded_at', today + 'T23:59:59')
+            .maybeSingle();
+
+        if (existing) {
+            await supabase
+                .from('rate_history')
+                .update({ usd_try, eur_try, rate_date: foundDate })
+                .eq('id', existing.id);
+            console.log(`TCMB güncellendi: USD ${usd_try} EUR ${eur_try} (kur tarihi: ${foundDate})`);
+        } else {
+            await supabase
+                .from('rate_history')
+                .insert({ usd_try, eur_try, rate_date: foundDate });
+            console.log(`TCMB eklendi: USD ${usd_try} EUR ${eur_try} (kur tarihi: ${foundDate})`);
+        }
+    } catch (err) {
+        console.error('TCMB fetch hatası:', err.message);
+    }
+}
+async function fetchAndSaveDMORate() {
+    try {
+        // Find product 106776's id first
+        const { data: product } = await supabase
+            .from('products')
+            .select('id')
+            .eq('dmo_code', '106776')
+            .maybeSingle();
+
+        if (!product) {
+            console.error('DMO rate: 106776 ürünü bulunamadı');
+            return;
+        }
+
+        // Trigger the existing Python scraper via internal proxy
+        const res  = await fetch(`http://${DMO_PY_HOST}:${DMO_PY_PORT}/find-dmo-url`, {
+            method:  'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body:    JSON.stringify({ dmo_code: '106776', product_id: product.id })
+        });
+
+        const data = await res.json();
+
+        if (!data.price) {
+            console.error('DMO rate: fiyat alınamadı', data);
+            return;
+        }
+
+        const dmo_eur_try = (data.price / 1.08) / 355;
+        const today       = new Date().toISOString().slice(0, 10);
+
+        // Check if today's row exists
+        const { data: existing } = await supabase
+            .from('rate_history')
+            .select('id')
+            .gte('recorded_at', today + 'T00:00:00')
+            .lte('recorded_at', today + 'T23:59:59')
+            .maybeSingle();
+
+        const dmo_rate_date = new Date().toISOString().slice(0, 10);
+
+        if (existing) {
+            await supabase
+                .from('rate_history')
+                .update({ dmo_eur_try, dmo_rate_date })
+                .eq('id', existing.id);
+        } else {
+            await supabase
+                .from('rate_history')
+                .insert({ dmo_eur_try, dmo_rate_date });
+        }
+        console.log(`DMO EUR/TRY güncellendi: ${dmo_eur_try} (tarih: ${dmo_rate_date})`);
+
+    } catch (err) {
+        console.error('DMO rate fetch hatası:', err.message);
+    }
+
+
+}
+
+app.get('/dmo/sidebar-snippet.html', (req, res) => {
+    res.sendFile(path.join(__dirname, 'dmo', 'sidebar-snippet.html'));
 });
+
+app.get('/api/debug-tcmb', async (req, res) => {
+    try {
+        const res2 = await fetch('https://www.tcmb.gov.tr/kurlar/today.xml');
+        const text = await res2.text();
+        res.send(`<pre>STATUS: ${res2.status}\n\nBODY:\n${text.slice(0, 3000)}</pre>`);
+    } catch (err) {
+        res.send('ERROR: ' + err.message);
+    }
+});
+
+app.post('/api/dmo/fetch-tcmb-now', async (req, res) => {
+    await fetchAndSaveTCMBRates();
+    res.json({ ok: true });
+});
+
+app.post('/api/dmo/fetch-dmo-rate-now', async (req, res) => {
+    await fetchAndSaveDMORate();
+    res.json({ ok: true });
+});
+
+
+app.get('/api/dmo/rates', async (req, res) => {
+    try {
+        // Get most recent row with dmo_eur_try
+        const { data: dmoRow } = await supabase
+            .from('rate_history')
+            .select('dmo_eur_try, recorded_at')
+            .not('dmo_eur_try', 'is', null)
+            .order('recorded_at', { ascending: false })
+            .limit(1)
+            .maybeSingle();
+
+        // Get most recent row with usd_try and eur_try
+        const { data: tcmbRow } = await supabase
+            .from('rate_history')
+            .select('usd_try, eur_try, recorded_at')
+            .not('usd_try', 'is', null)
+            .not('eur_try', 'is', null)
+            .order('recorded_at', { ascending: false })
+            .limit(1)
+            .maybeSingle();
+
+        res.json({
+            usd_try:       tcmbRow?.usd_try      || null,
+            eur_try:       tcmbRow?.eur_try      || null,
+            dmo_eur_try:   dmoRow?.dmo_eur_try   || null,
+            rate_date:     tcmbRow?.rate_date    || null,
+            dmo_rate_date: dmoRow?.dmo_rate_date || null,
+        });
+    } catch (err) {
+        console.error('rates endpoint hatası:', err.message);
+        res.status(500).json({ error: err.message });
+    }
+});
+
 
 
 app.post('/api/dmo/find-dmo-url', async (req, res) => {
@@ -135,9 +299,44 @@ app.post('/api/dmo/scrape-dmo-prices', async (req, res) => {
   }
 });
 
+app.post('/api/invoices/sync-now', async (req, res) => {
+    try {
+        runSync(); // fire and forget — don't await, it takes too long for a request
+        res.json({ ok: true, message: 'Sync started in background.' });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.post('/api/invoices/recheck-now', async (req, res) => {
+    try {
+        runDailyRecheck(); // fire and forget
+        res.json({ ok: true, message: 'Re-check started in background.' });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.get('/', (req, res) => {
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Expires', '0');
+  res.type('html').send(getFaturalarIndexHtml());
+});
+app.get('/login', (req, res) => res.redirect('/login.html'));
+
+// DMO sayfası (ayrı klasör) erişimi
+app.use('/dmo', express.static(path.join(__dirname, 'dmo')));
+app.get('/dmo', (req, res) => {
+  res.redirect('/dmo/dmo-index.html');
+});
+app.get('/dmo/', (req, res) => {
+  res.redirect('/dmo/dmo-index.html');
+});
+
 app.use(express.static(path.join(__dirname, 'public'), {
   setHeaders: (res, filePath) => {
-    // Tarayıcıların eski index.html / faturalar.js tutmasını engelle (deploy sonrası "eski kod" semptomu)
+    // Tarayıcıların eski dmo-index.html / faturalar.js tutmasını engelle (deploy sonrası "eski kod" semptomu)
     if (filePath.endsWith('.html') || filePath.endsWith('.js')) {
       res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
       res.setHeader('Pragma', 'no-cache');
@@ -1786,6 +1985,40 @@ process.on('SIGINT', () => {
 process.on('SIGTERM', () => {
   stopDmoPythonService();
   process.exit(0);
+});
+
+
+// 08:00 every day — fetch DMO EUR rate (Turkey timezone = UTC+3, so 05:00 UTC)
+cron.schedule('0 5 * * *', () => {
+    console.log('Cron: DMO EUR rate fetching...');
+    fetchAndSaveDMORate();
+});
+
+// 15:40 every day — fetch TCMB USD/EUR rates (15:40 Turkey = 12:40 UTC)
+cron.schedule('40 12 * * *', () => {
+    console.log('Cron: TCMB rates fetching...');
+    fetchAndSaveTCMBRates();
+});
+const { runSync, runDailyRecheck } = require('./services/sync-service');
+
+// Every hour — fetch new invoices (auto-detects initial vs incremental)
+cron.schedule('*/10 * * * *', async () => {
+    console.log('Cron: Invoice sync starting...');
+    try {
+        await runSync();
+    } catch (err) {
+        console.error('Cron: Invoice sync failed:', err.message);
+    }
+});
+
+// Every day at 06:00 Turkey time (03:00 UTC) — re-check pending/waiting invoices
+cron.schedule('0 3 * * *', async () => {
+    console.log('Cron: Daily invoice re-check starting...');
+    try {
+        await runDailyRecheck();
+    } catch (err) {
+        console.error('Cron: Daily re-check failed:', err.message);
+    }
 });
 
 app.listen(PORT, () => {

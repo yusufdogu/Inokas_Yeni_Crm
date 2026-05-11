@@ -70,8 +70,11 @@ async function openHizliHesapForTaslak(orderId) {
     // Load existing items into hhSepet
     const { data: items } = await db
         .from("dmo_order_items")
-        .select("*, products(id, product_name, dmo_code, dmo_fiyat_try, maliyet_usd)")
+        .select("*, products(id, product_name, product_code, dmo_code, dmo_fiyat_try, maliyet_usd, sozlesme_fiyat_eur, stock_on_hand, model)")
         .eq("order_id", orderId);
+
+    // Clear before loading to prevent quantity doubling
+    hhSepet = {};
 
     (items || []).forEach(item => {
         const p    = item.products;
@@ -79,19 +82,23 @@ async function openHizliHesapForTaslak(orderId) {
         const code = p.dmo_code;
 
         const existing = hhSepet[code] || {
-            id:           p.id,
-            dmo_code:     code,
-            product_name: p.product_name,
-            dmo_fiyat_try: p.dmo_fiyat_try || 0,
-            maliyet_usd:  p.maliyet_usd    || 0,
-            quantity:     0,
-            giftQuantity: 0,
+            id:                 p.id,
+            dmo_code:           code,
+            product_name:       p.product_name       || "",
+            product_code:       p.product_code       || "",
+            model:              p.model              || "",
+            stock_on_hand:      p.stock_on_hand      || 0,
+            dmo_fiyat_try:      p.dmo_fiyat_try      || 0,
+            sozlesme_fiyat_eur: p.sozlesme_fiyat_eur || 0,
+            maliyet_usd:        p.maliyet_usd        || 0,
+            quantity:           0,
+            giftQuantity:       0,
         };
 
         if (item.is_gift) {
-            existing.giftQuantity = (existing.giftQuantity || 0) + item.quantity;
+            existing.giftQuantity = item.quantity;
         } else {
-            existing.quantity = (existing.quantity || 0) + item.quantity;
+            existing.quantity = item.quantity;
         }
 
         hhSepet[code] = existing;
@@ -103,7 +110,7 @@ async function openHizliHesapForTaslak(orderId) {
     recalcHizliHesap();
 
     // Update save button label
-    const saveBtn = document.querySelector(".btn-primary[onclick='saveHizliHesapAsTaslak()']");
+    const saveBtn = document.querySelector(".page-action-btn[onclick='saveHizliHesapAsTaslak()']");
     if (saveBtn) saveBtn.textContent = "💾 Taslak Güncelle";
 }
 

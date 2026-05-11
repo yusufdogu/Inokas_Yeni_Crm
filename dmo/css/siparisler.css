@@ -87,3 +87,31 @@
   min-width: 220px;
   max-width: 220px;
 }
+
+
+.noUi-connect {
+    background: #2563eb;
+}
+
+.noUi-handle::before,
+.noUi-handle::after {
+    display: none;
+}
+.noUi-target {
+    border-radius: 99px;
+    border: none;
+    background: #e2e8f0;
+    box-shadow: none;
+    height: 4px;
+}
+.noUi-handle {
+    border-radius: 99px;
+    box-shadow: none;
+    border: 2px solid #2563eb;
+    background: white;
+    cursor: pointer;
+    width: 14px !important;
+    height: 14px !important;
+    right: -7px !important;
+    top: -6px !important;
+}

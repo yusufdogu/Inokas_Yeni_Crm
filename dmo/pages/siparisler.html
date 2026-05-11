@@ -11,6 +11,9 @@
   <script src="/dmo/js/dmo-core.js"></script>
   <script src="/dmo/js/dmo-siparisler.js"></script>
   <script src="/dmo/js/dmo-analytics.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/noUiSlider/15.7.1/nouislider.min.js"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/noUiSlider/15.7.1/nouislider.min.css">
+
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.x/dist/tabler-icons.min.css">
   <link rel="stylesheet" href="/dmo/css/core.css">
@@ -59,6 +62,14 @@
           <div id="productDropdown" style="display:none; position:absolute; top:100%; left:0; right:0; background:white; border:1px solid #e2e8f0; border-radius:8px; box-shadow:0 4px 12px rgba(0,0,0,0.1); z-index:100; max-height:200px; overflow-y:auto;"></div>
         </div>
 
+        <div style="display:flex; flex-direction:column; gap:4px; min-width:180px;">
+          <div style="display:flex; justify-content:space-between;">
+            <span id="sliderMinLabel" style="font-size:11px; color:#64748b;">0 ₺</span>
+            <span id="sliderMaxLabel" style="font-size:11px; color:#64748b;">3.000.000 ₺</span>
+          </div>
+          <div id="basketSlider"></div>
+        </div>
+
         <select id="filterStatus" onchange="renderCurrentView(); updateAdvancedBadge()"
           style="flex:1; min-width:120px; padding:6px 10px; height:32px; border:1px solid #e2e8f0; border-radius:7px; font-size:12px; outline:none; font-family:inherit;">
           <option value="">Tüm Durumlar</option>
@@ -68,12 +79,8 @@
           <option value="İptal">İptal</option>
         </select>
 
-        <select id="filterCategory" onchange="renderCurrentView(); updateAdvancedBadge()"
-          style="flex:1; min-width:110px; padding:6px 10px; height:32px; border:1px solid #e2e8f0; border-radius:7px; font-size:12px; outline:none; font-family:inherit;">
+        <select id="filterCategory" onchange="renderCurrentView(); updateAdvancedBadge()" ...>
           <option value="">Tüm Kategoriler</option>
-          <option value="KARTUŞ">Kartuş</option>
-          <option value="YAZICI">Yazıcı</option>
-          <option value="TARAYICI">Tarayıcı</option>
         </select>
 
         <input type="date" id="filterDateStart" onchange="renderCurrentView(); updateAdvancedBadge()"

@@ -54,6 +54,9 @@ function clearAllFilters() {
     filterState.category  = "";
     filterState.minBasket = null;
     filterState.maxBasket = null;
+    document.getElementById('filterMinBasket').value = '';
+    document.getElementById('filterMaxBasket').value = '';
+    document.getElementById('basketSlider')?.noUiSlider?.set([0, 3000000]);
     renderCurrentView();
 }
 
@@ -145,6 +148,25 @@ function selectProduct(code, name) {
     document.getElementById("productDropdown").style.display = "none";
     filterState.product = code;
     renderCurrentView();
+}
+
+async function populateCategoryFilter() {
+    const { data, error } = await db
+        .from('products')
+        .select('category')
+        .not('category', 'is', null);
+
+    if (error || !data) return;
+
+    const unique = [...new Set(data.map(p => p.category).filter(Boolean))].sort();
+    const select = document.getElementById('filterCategory');
+
+    unique.forEach(cat => {
+        const opt = document.createElement('option');
+        opt.value = cat;
+        opt.textContent = cat.charAt(0) + cat.slice(1).toLowerCase(); // KARTUŞ → Kartuş
+        select.appendChild(opt);
+    });
 }
 
 // Close dropdowns when clicking outside
@@ -239,9 +261,41 @@ async function renderCurrentView() {
 
     await renderTable(filteredOrders);
     await loadCharts(filteredOrders);
+    await populateCategoryFilter();
+    initBasketSlider()
     populateCompanyFilter(orders);
 }
 
+
+function initBasketSlider() {
+    const slider = document.getElementById('basketSlider');
+    if (!slider || slider.noUiSlider) return;
+
+    noUiSlider.create(slider, {
+        start:   [0, 3000000],
+        connect: true,
+        range:   { min: 0, max: 3000000 },
+        step:    1000,
+        tooltips: false,
+    });
+
+    slider.noUiSlider.on('update', (values) => {
+        const min = Math.round(values[0]);
+        const max = Math.round(values[1]);
+
+        document.getElementById('sliderMinLabel').textContent = formatAmount(min) + ' ₺';
+        document.getElementById('sliderMaxLabel').textContent = formatAmount(max) + ' ₺';
+
+        filterState.minBasket = min > 0       ? min : null;
+        filterState.maxBasket = max < 3000000 ? max : null;
+    });
+
+    // Only trigger re-render when user stops dragging, not on every pixel
+    slider.noUiSlider.on('change', () => {
+        renderCurrentView();
+        updateAdvancedBadge();
+    });
+}
 // ── POPULATE COMPANY FILTER ───────────────────────────────────────────────────
 function populateCompanyFilter(orders) {
     const select = document.getElementById("filterCompany");

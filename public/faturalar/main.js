@@ -904,7 +904,7 @@ function renderBekleyenList() {
         const currency = invDisplayCurrencyLabel(inv);
         const dotCls   = isGelen ? 'bek-dot-gelen' : 'bek-dot-giden';
         const company  = (inv.companies?.name || '—').replace(/</g, '&lt;');
-        return `<div class="bek-card${active}" data-id="${inv.id}" onclick="selectBekInvoice('${inv.id}')">
+        return `<div class="bek-card${active}" data-id="${inv.id}" onclick="openFatDetailPage('${inv.id}')">
             <div class="bek-card-header">
                 <span class="bek-card-no">${inv.invoice_no || '—'}</span>
                 <span class="bek-card-dot ${dotCls}"></span>
@@ -920,7 +920,7 @@ function renderBekleyenList() {
 
 function setBekDir(dir) {
     bekDir = dir;
-    ['all', 'gelen', 'giden'].forEach(d => {
+    ['gelen', 'giden'].forEach(d => {
         const btn = document.getElementById('bekDir' + d.charAt(0).toUpperCase() + d.slice(1));
         if (btn) btn.classList.toggle('bek-dir-btn--active', d === dir);
     });
@@ -997,6 +997,15 @@ async function _loadBekPdf(id, inv) {
     const spinner = document.getElementById(`bekPdfSpinner_${id}`);
     const iframe  = document.getElementById(`bekPdfIframe_${id}`);
     if (!iframe) return;
+
+    // pdf_url varsa direkt native PDF viewer (loadDetailPdfInto ile aynı mantık)
+    if (inv?.pdf_url) {
+        if (empty) empty.style.display = 'none';
+        if (spinner) spinner.style.display = 'none';
+        iframe.style.display = 'block';
+        iframe.src = inv.pdf_url;
+        return;
+    }
 
     if (!inv?.xml_url) {
         if (empty) empty.style.display = 'block';
@@ -2085,4 +2094,32 @@ function resetXmlStrip() {
         </div>
         <div id="xmlDataSummary" class="xml-data-view" style="display:none;"></div>`;
     setupEventListeners();
+}
+
+
+async function approveDetailInvoice(id) {
+    if(!confirm("Bu faturayı aktarmak istiyor musunuz?")) return;
+    try {
+        const res = await fetch('/api/invoices/' + id + '/approve', { method: 'PUT' });
+        if(!res.ok) throw new Error("Onayla HTTP " + res.status);
+        if(typeof bekleyenCache !== 'undefined') {
+            bekleyenCache = bekleyenCache.filter(i => String(i.id) !== id);
+        }
+        renderBekleyenList();
+        refreshData(true);
+        closeFatDetailPage(); // Onaylandığı için kapatıyoruz
+    } catch (e) { alert("Hata: " + e.message); }
+}
+
+async function rejectDetailInvoice(id) {
+    if(!confirm("Faturayı tamamen silmek (reddetmek) istiyor musunuz?")) return;
+    try {
+        const res = await fetch('/api/invoices/' + id, { method: 'DELETE' });
+        if(!res.ok) throw new Error("Sil HTTP " + res.status);
+        if(typeof bekleyenCache !== 'undefined') {
+            bekleyenCache = bekleyenCache.filter(i => String(i.id) !== id);
+        }
+        renderBekleyenList();
+        closeFatDetailPage(); // Silindiği için kapatıyoruz
+    } catch (e) { alert("Hata: " + e.message); }
 }

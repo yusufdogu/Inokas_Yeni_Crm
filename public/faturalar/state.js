@@ -78,7 +78,7 @@ let _reportOpenDetailTr = null;
 let bekleyenCache    = [];
 let activeBekId      = null;
 let activeBekInfoTab = 'bilgiler';
-let bekDir           = 'all';
+let bekDir = 'gelen';
 let _bekPdfCache     = {};
 let _bekPageTab      = 'list';
 

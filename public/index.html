@@ -108,6 +108,7 @@
         <i class="ti ti-arrow-left" style="font-size:13px;"></i> Geri
       </button>
       <span id="fatDetailFirmaAdi" style="font-weight:700; font-size:14px; color:#0f172a; flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;"></span>
+      <div id="fatDetailActions" style="display:flex; gap:6px; margin-right:6px;"></div>
       <button id="fatDetailPrevBtn" onclick="navigateFatDetail(-1)"
         style="width:32px; height:32px; display:flex; align-items:center; justify-content:center; background:#f1f5f9; border:none; border-radius:8px; cursor:pointer; color:#475569; font-size:18px; font-weight:700; flex-shrink:0;">‹</button>
       <button id="fatDetailNextBtn" onclick="navigateFatDetail(1)"
@@ -221,8 +222,7 @@
       <div class="bek-toolbar">
         <input type="text" id="bekSearch" placeholder="Fatura no veya firma ara..." class="fatura-filter-input" style="width:220px;" oninput="renderBekleyenList()">
         <div class="bek-dir-toggle">
-          <button class="bek-dir-btn bek-dir-btn--active" id="bekDirAll"   onclick="setBekDir('all')">Tümü</button>
-          <button class="bek-dir-btn"                     id="bekDirGelen" onclick="setBekDir('gelen')">Gelen</button>
+          <button class="bek-dir-btn bek-dir-btn--active" id="bekDirGelen" onclick="setBekDir('gelen')">Gelen</button>
           <button class="bek-dir-btn"                     id="bekDirGiden" onclick="setBekDir('giden')">Giden</button>
         </div>
         <span id="bekCount" class="bek-count"></span>
@@ -235,8 +235,7 @@
           <div class="bek-card-list" id="bekTbody"></div>
         </div>
 
-        <!-- Detay (sağ) — içerik JS tarafından inject edilir -->
-        <div class="bek-detail-panel" id="bekDetailPanel"></div>
+        <!-- Detay (sağ) KALDIRILDI, artık modal (fatDetailPage) kullanılıyor -->
       </div>
     </div>
 
@@ -509,9 +508,9 @@
   <script src="faturalar/xml.js?v=1"></script>
   <script src="faturalar/api.js?v=1"></script>
   <script src="faturalar/state.js?v=20260511-detailpage"></script>
-  <script src="faturalar/list.js?v=20260511-dmo-kpi"></script>
-  <script src="faturalar/detail.js?v=20260511-bilgiler-edit-v2"></script>
-  <script src="faturalar/main.js?v=20260511-dmo-kpi"></script>
+  <script src="faturalar/list.js?v=20260511-bek-pdf-fix"></script>
+  <script src="faturalar/detail.js?v=20260511-embedded-pdf"></script>
+  <script src="faturalar/main.js?v=20260511-bek-pdf-fix"></script>
 </body>
 
 </html>

@@ -4,15 +4,15 @@
     let _sidebarOpen = true;
     let _dmoOpen     = false;
 
-    const path     = window.location.pathname;
-    const isDMO    = path.includes('/dmo/');
-    const isCari   = path.includes('/cari/');
-    const isStok   = path.includes('/stok');
-    const isFat    = path === '/' || path === '/index.html';
+    const path   = window.location.pathname;
+    const isDMO  = path.includes('/dmo/');
+    const isCari = path.includes('/cari/');
+    const isStok = path.includes('/stok');
+    const isFat  = path === '/' || path === '/index.html';
 
     function buildHtml() {
         return `<aside id="sidebar">
-  <a href="/dmo/dmo-index.html" class="sb-brand" style="text-decoration:none;">
+  <a href="/cari/cari-index.html" class="sb-brand" style="text-decoration:none;">
     <div class="sb-brand-icon"><i class="ti ti-bolt"></i></div>
     <span class="sb-brand-text">İnokas <span>CRM</span></span>
   </a>

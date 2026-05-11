@@ -4,7 +4,8 @@
 // ─── Detay görünümü (PDF + 3 sekme) ──────────────────────────────────────────
 
 function renderDetailView(id) {
-    const inv = (allInvoicesCache || []).find(i => i.id === id);
+    const sid = String(id);
+    let inv = (allInvoicesCache || []).find(i => String(i.id) === sid) || (typeof bekleyenCache !== 'undefined' ? bekleyenCache : []).find(i => String(i.id) === sid);
     if (!inv) return;
     const content = document.getElementById('fatContent');
     if (!content) return;
@@ -96,8 +97,33 @@ function switchFatDetailTab(id, tab) {
             btn.classList.toggle('fat-dtab--active', tabs[i] === tab);
         });
     }
-    const inv = (allInvoicesCache || []).find(i => i.id === id);
+    const sid = String(id);
+    let inv = (allInvoicesCache || []).find(i => String(i.id) === sid) || (typeof bekleyenCache !== 'undefined' ? bekleyenCache : []).find(i => String(i.id) === sid);
     renderDetailTabContent(id, tab, inv);
+}
+
+// UBL XML içinde gömülü PDF varsa blob URL döner, yoksa null
+const _embeddedPdfCache = {};
+function _extractEmbeddedPdfUrl(xmlText, id) {
+    if (_embeddedPdfCache[id]) return _embeddedPdfCache[id];
+    try {
+        const parser = new DOMParser();
+        const xmlDoc = parser.parseFromString(xmlText, 'text/xml');
+        const nodes  = xmlDoc.getElementsByTagName('cbc:EmbeddedDocumentBinaryObject');
+        for (let i = 0; i < nodes.length; i++) {
+            const fn       = (nodes[i].getAttribute('filename') || '').toLowerCase();
+            const mime     = (nodes[i].getAttribute('mimeCode') || '').toLowerCase();
+            if (!fn.endsWith('.pdf') && mime !== 'application/pdf') continue;
+            const b64 = nodes[i].textContent.trim();
+            const bin = atob(b64);
+            const bytes = new Uint8Array(bin.length);
+            for (let j = 0; j < bin.length; j++) bytes[j] = bin.charCodeAt(j);
+            const url = URL.createObjectURL(new Blob([bytes], { type: 'application/pdf' }));
+            _embeddedPdfCache[id] = url;
+            return url;
+        }
+    } catch (_) {}
+    return null;
 }
 
 async function loadDetailPdfInto(id, inv, iframe, empty) {
@@ -122,6 +148,17 @@ async function loadDetailPdfInto(id, inv, iframe, empty) {
             _detailXmlCache[id] = t;
             return t;
         })();
+
+        // Önce XML içinde gömülü PDF ara — varsa native viewer'da aç
+        const embeddedPdf = _extractEmbeddedPdfUrl(xmlText, id);
+        if (embeddedPdf) {
+            if (empty) empty.style.display = 'none';
+            iframe.src = embeddedPdf;
+            iframe.style.display = 'block';
+            return;
+        }
+
+        // Gömülü PDF yoksa XSLT HTML render
         await renderXmlToPdfIframe(xmlText, iframe);
         if (empty) empty.style.display = 'none';
         iframe.style.display = 'block';
@@ -221,7 +258,7 @@ function closeInvoiceDetailModal() { /* artık inline tab sistemi kullanılıyor
 
 function _findInvAndBody(id) {
     const sid  = String(id);
-    let inv    = (allInvoicesCache || []).find(i => String(i.id) === sid);
+    let inv = (allInvoicesCache || []).find(i => String(i.id) === sid) || (typeof bekleyenCache !== 'undefined' ? bekleyenCache : []).find(i => String(i.id) === sid);
     let body   = document.getElementById(`fatDtabBody_${sid}`)
              || document.getElementById('fatDetailTabBody');
     if (!inv || !body) {
@@ -544,13 +581,17 @@ async function renderUrunlerView(id, body, inv) {
         </div>`;
     }).join('');
 
-    body.innerHTML = `${warnHtml}
+    const finalHtml = `${warnHtml}
         <div style="display:flex; flex-direction:column; gap:8px; padding:12px;">
             ${cards || '<div style="padding:20px; text-align:center; color:#94a3b8; font-size:13px;">Ürün bulunamadı</div>'}
         </div>
         <div class="det-actions" style="padding:0 12px 12px;">
             <button class="fatura-action-btn fatura-action-btn--primary" onclick="enterUrunlerEdit('${id}')">✏️ Düzenle</button>
         </div>`;
+
+    setTimeout(() => {
+        body.innerHTML = finalHtml;
+    }, 10);
 }
 
 function enterUrunlerEdit(id) {
@@ -558,53 +599,53 @@ function enterUrunlerEdit(id) {
     if (!inv || !body) return;
 
     const items = inv.invoice_items || [];
-    const fmtP  = n => (parseFloat(n) || 0).toFixed(4);
+    const fmtP  = n => (parseFloat(n) || 0).toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    const fmtPN = n => (parseFloat(n) || 0).toFixed(4); // for inputs
+
+    const row = (label, inputHtml) =>
+        `<div style="display:flex; justify-content:space-between; align-items:baseline; padding:4px 0; border-bottom:1px solid #f1f5f9;">
+            <span style="font-size:11px; color:#94a3b8; font-weight:600; text-transform:uppercase; letter-spacing:0.03em; flex-shrink:0;">${label}</span>
+            <span style="font-size:12px; color:#1e293b; font-weight:500; text-align:right; flex:1; display:flex; justify-content:flex-end;">${inputHtml}</span>
+        </div>`;
 
     const cards = items.map((it, idx) => {
         const isInt  = !!it.is_internal;
         const code   = String(it.product_code || it.sku || '').trim();
+        const name   = String(it.product_name || '').replace(/"/g, '&quot;');
         const curCat = isInt
             ? (it.internal_category || '')
             : (productCategoryByCodeMap?.get(normalizeProductCodeForMatch(code)) || '');
 
-        return `<div style="background:#fff; border:1px solid #e2e8f0; border-radius:10px; padding:12px 14px; display:flex; flex-direction:column; gap:8px;"
+        return `<div style="background:#fff; border:1px solid #e2e8f0; border-radius:10px; padding:12px 14px; display:flex; flex-direction:column; gap:0;"
                     data-idx="${idx}" data-internal="${isInt ? 1 : 0}">
-
-            <div>
-                <div style="font-size:11px; color:#94a3b8; font-weight:600; text-transform:uppercase; letter-spacing:0.03em; margin-bottom:4px;">Ürün Adı</div>
-                <input class="det-edit-input ue-name" value="${String(it.product_name || '').replace(/"/g, '&quot;')}" style="width:100%;">
+            
+            <div style="font-size:13px; font-weight:700; color:#0f172a; margin-bottom:8px; line-height:1.4;">
+                <input class="det-edit-input ue-name" value="${name}" style="font-size:13px; font-weight:700; color:#0f172a; width:100%; border:none; background:transparent; padding:2px 0; margin:0; outline:none; border-bottom:1px dashed #cbd5e1; font-family:inherit;">
             </div>
 
-            <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
-                <div>
-                    <div style="font-size:11px; color:#94a3b8; font-weight:600; text-transform:uppercase; letter-spacing:0.03em; margin-bottom:4px;">Ürün Kodu</div>
-                    <input class="det-edit-input ue-code" value="${code.replace(/"/g, '&quot;')}" style="width:100%;">
+            ${row('Ürün Kodu', `<input class="det-edit-input ue-code" value="${code.replace(/"/g, '&quot;')}" style="color:#2563eb; font-weight:700; width:100%; max-width:160px; text-align:right; border:none; background:transparent; border-bottom:1px dashed #cbd5e1; outline:none; font-family:inherit; padding:2px;">`)}
+            
+            ${row('Miktar', `<input class="det-edit-input ue-qty" type="number" step="any" min="0" value="${parseFloat(it.quantity) || 0}" style="width:80px; text-align:right; border:none; background:transparent; border-bottom:1px dashed #cbd5e1; outline:none; font-family:inherit; padding:2px;">`)}
+            
+            ${row('Birim Fiyat', `<input class="det-edit-input ue-price" type="number" step="any" min="0" value="${fmtPN(it.unit_price_cur)}" style="width:100px; text-align:right; border:none; background:transparent; border-bottom:1px dashed #cbd5e1; outline:none; font-family:inherit; padding:2px;">`)}
+            
+            ${row('Toplam', `<span class="ue-total" style="font-weight:700; padding:2px;">${fmtP(it.total_price_cur)}</span>`)}
+            
+            ${row('Ofis İçi', `<label style="cursor:pointer; display:flex; align-items:center; gap:6px; justify-content:flex-end;">
+                  <input type="checkbox" class="ue-isint-chk" ${isInt ? 'checked' : ''} style="width:14px; height:14px;">
+                  <span style="color:#7c3aed; font-weight:700;">✓</span>
+               </label>`)}
+               
+            ${row('Kategori', `
+                <div style="display:flex; flex-direction:column; align-items:flex-end; gap:4px;">
+                    <select class="det-edit-input ue-cat-select" style="text-align:left; border:none; border-bottom:1px dashed #cbd5e1; background:transparent; outline:none; max-width:180px; font-family:inherit; padding:2px; color:#1e293b;"></select>
+                    <div class="ue-cat-quick" style="display:none; align-items:center; gap:4px; margin-top:4px;">
+                        <input class="det-edit-input ue-cat-input" placeholder="Kategori yazın" style="font-size:11px; width:120px; padding:4px 6px; border:1px solid #cbd5e1; border-radius:4px;">
+                        <button type="button" class="ue-cat-save" style="width:24px;height:24px;border:none;border-radius:4px;background:#16a34a;color:#fff;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;">✓</button>
+                        <button type="button" class="ue-cat-cancel" style="width:24px;height:24px;border:none;border-radius:4px;background:#ef4444;color:#fff;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;">✕</button>
+                    </div>
                 </div>
-                <div>
-                    <div style="font-size:11px; color:#94a3b8; font-weight:600; text-transform:uppercase; letter-spacing:0.03em; margin-bottom:4px;">Miktar</div>
-                    <input class="det-edit-input ue-qty" type="number" step="any" min="0" value="${parseFloat(it.quantity) || 0}" style="width:100%; text-align:right;">
-                </div>
-                <div>
-                    <div style="font-size:11px; color:#94a3b8; font-weight:600; text-transform:uppercase; letter-spacing:0.03em; margin-bottom:4px;">Birim Fiyat</div>
-                    <input class="det-edit-input ue-price" type="number" step="any" min="0" value="${fmtP(it.unit_price_cur)}" style="width:100%; text-align:right;">
-                </div>
-                <div>
-                    <div style="font-size:11px; color:#94a3b8; font-weight:600; text-transform:uppercase; letter-spacing:0.03em; margin-bottom:4px;">Toplam</div>
-                    <div class="ue-total" style="font-size:13px; font-weight:700; color:#0f172a; padding:6px 0; text-align:right;">—</div>
-                </div>
-            </div>
-
-            <div>
-                <div style="font-size:11px; color:#94a3b8; font-weight:600; text-transform:uppercase; letter-spacing:0.03em; margin-bottom:4px;">
-                    Kategori ${isInt ? '<em style="color:#7c3aed; text-transform:none;">(Ofis İçi ✓)</em>' : ''}
-                </div>
-                <select class="det-edit-input ue-cat-select" style="width:100%; font-size:12px; padding:5px 8px;"></select>
-                <div class="ue-cat-quick" style="display:none; margin-top:4px; align-items:center; gap:4px;">
-                    <input class="det-edit-input ue-cat-input" placeholder="Kategori yazın" style="font-size:11px; flex:1; padding:4px 6px;">
-                    <button type="button" class="ue-cat-save" style="width:24px;height:24px;border:none;border-radius:5px;background:#16a34a;color:#fff;font-weight:700;cursor:pointer;font-size:13px;">✓</button>
-                    <button type="button" class="ue-cat-cancel" style="width:24px;height:24px;border:none;border-radius:5px;background:#ef4444;color:#fff;font-weight:700;cursor:pointer;font-size:13px;">✕</button>
-                </div>
-            </div>
+            `)}
         </div>`;
     }).join('');
 
@@ -629,11 +670,23 @@ function enterUrunlerEdit(id) {
             ? (it.internal_category || '')
             : (productCategoryByCodeMap?.get(normalizeProductCodeForMatch(code)) || '');
 
+        const chk       = card.querySelector('.ue-isint-chk');
         const catSel    = card.querySelector('.ue-cat-select');
         const quickWrap = card.querySelector('.ue-cat-quick');
         const catInput  = card.querySelector('.ue-cat-input');
         const catSave   = card.querySelector('.ue-cat-save');
         const catCancel = card.querySelector('.ue-cat-cancel');
+
+        // Checkbox event
+        if (chk) {
+            chk.addEventListener('change', () => {
+                const nowInt = chk.checked;
+                card.dataset.internal = nowInt ? '1' : '0';
+                if (catSel) {
+                    renderRowCategorySelect(catSel, nowInt, nowInt ? '' : catSel.value);
+                }
+            });
+        }
 
         if (catSel) {
             renderRowCategorySelect(catSel, isInt, curCat);
@@ -644,6 +697,7 @@ function enterUrunlerEdit(id) {
                 if (catInput) { catInput.value = ''; catInput.focus(); }
             });
         }
+        
         catSave?.addEventListener('click', () => {
             const next = String(catInput?.value || '').trim();
             if (!next) return;
@@ -654,20 +708,22 @@ function enterUrunlerEdit(id) {
             if (catSel) renderRowCategorySelect(catSel, false, next);
             if (quickWrap) quickWrap.style.display = 'none';
         });
+        
         catCancel?.addEventListener('click', () => {
             if (quickWrap) quickWrap.style.display = 'none';
         });
 
-        const qtyEl   = card.querySelector('.ue-qty');
-        const priceEl = card.querySelector('.ue-price');
-        const totalEl = card.querySelector('.ue-total');
-        const update  = () => {
-            const t = (parseFloat(qtyEl?.value) || 0) * (parseFloat(priceEl?.value) || 0);
-            if (totalEl) totalEl.textContent = t.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        const qtyInput   = card.querySelector('.ue-qty');
+        const priceInput = card.querySelector('.ue-price');
+        const totalSpan  = card.querySelector('.ue-total');
+
+        const updateTot = () => {
+            const q = parseFloat(qtyInput?.value) || 0;
+            const p = parseFloat(priceInput?.value) || 0;
+            if (totalSpan) totalSpan.textContent = (q * p).toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
         };
-        qtyEl?.addEventListener('input', update);
-        priceEl?.addEventListener('input', update);
-        update();
+        qtyInput?.addEventListener('input', updateTot);
+        priceInput?.addEventListener('input', updateTot);
     });
 }
 
@@ -1044,7 +1100,8 @@ async function deletePayment(paymentId, invoiceId) {
 }
 
 function viewInvoiceDetails(id) {
-    const inv = (allInvoicesCache || []).find(i => i.id === id);
+    const sid = String(id);
+    let inv = (allInvoicesCache || []).find(i => String(i.id) === sid) || (typeof bekleyenCache !== 'undefined' ? bekleyenCache : []).find(i => String(i.id) === sid);
     if (!inv) return;
 
     const btnAdd = document.getElementById('btnAddPayment');

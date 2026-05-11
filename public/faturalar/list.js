@@ -451,7 +451,13 @@ function closeFaturaListModal() {
 }
 
 function loadInlinePdf(id) {
-    const inv = (allInvoicesCache || []).find(i => i.id === id);
+    const sid = String(id);
+    let inv = (allInvoicesCache || []).find(i => String(i.id) === sid);
+    let sourceList = _fatDetailList;
+    if (!inv && typeof bekleyenCache !== 'undefined') {
+        inv = bekleyenCache.find(i => String(i.id) === sid);
+        sourceList = bekleyenCache;
+    }
     if (!inv) return;
     currentDetailInvId = id;
 
@@ -759,7 +765,13 @@ function switchFatTab(key) {
 }
 
 function openInvoiceTab(id) {
-    const inv = (allInvoicesCache || []).find(i => i.id === id);
+    const sid = String(id);
+    let inv = (allInvoicesCache || []).find(i => String(i.id) === sid);
+    let sourceList = _fatDetailList;
+    if (!inv && typeof bekleyenCache !== 'undefined') {
+        inv = bekleyenCache.find(i => String(i.id) === sid);
+        sourceList = bekleyenCache;
+    }
     if (!inv) return;
     if (!openInvoiceTabs.find(t => t.id === id)) {
         openInvoiceTabs.push({ id, invoiceNo: inv.invoice_no || id });
@@ -868,23 +880,48 @@ function renderListView(invoices) {
 // ─── Tam ekran detay sayfası ──────────────────────────────────────────────────
 
 function openFatDetailPage(id) {
-    const inv = (allInvoicesCache || []).find(i => i.id === id);
+    const sid = String(id);
+    let inv = (allInvoicesCache || []).find(i => String(i.id) === sid);
+    let sourceList = _fatDetailList;
+    if (!inv && typeof bekleyenCache !== 'undefined') {
+        inv = bekleyenCache.find(i => String(i.id) === sid);
+        sourceList = bekleyenCache;
+    }
     if (!inv) return;
 
-    _fatDetailIdx = _fatDetailList.findIndex(i => i.id === id);
+    _fatDetailIdx = sourceList.findIndex(i => String(i.id) === sid);
+    window._fatDetailCurrentList = sourceList; /* remember which list we are paginating */
 
     // Header
     const firmaEl = document.getElementById('fatDetailFirmaAdi');
     const prevBtn = document.getElementById('fatDetailPrevBtn');
     const nextBtn = document.getElementById('fatDetailNextBtn');
     if (firmaEl) firmaEl.textContent = inv.companies?.name || '—';
+    const actionsEl = document.getElementById('fatDetailActions');
+    if (actionsEl) {
+        if (inv.approval_status === 'pending') {
+            actionsEl.innerHTML = `
+                <button onclick="approveDetailInvoice('${inv.id}')" style="background:#10b981; color:#fff; border:none; border-radius:6px; padding:6px 12px; font-weight:600; cursor:pointer; font-size:12px;">Aktar</button>
+            `;
+            actionsEl.style.display = 'flex';
+        } else {
+            actionsEl.innerHTML = '';
+            actionsEl.style.display = 'none';
+        }
+    }
     if (prevBtn) prevBtn.disabled = _fatDetailIdx <= 0;
-    if (nextBtn) nextBtn.disabled = _fatDetailIdx >= _fatDetailList.length - 1;
+    if (nextBtn) nextBtn.disabled = _fatDetailIdx >= sourceList.length - 1;
 
     // Sayfa geçişi
-    const faturaPage  = document.getElementById('faturaPage');
+    // Sayfa geçişi
     const detailPage  = document.getElementById('fatDetailPage');
-    if (faturaPage)  faturaPage.style.display  = 'none';
+    
+    // Açık olan sayfayı kaydet (kapatırken dönmek için)
+    window._fatDetailSourcePage = document.getElementById('bekleyenPage')?.style.display !== 'none' && document.getElementById('bekleyenPage')?.style.display !== '' ? 'bekleyenPage' : 'faturaPage';
+    
+    document.getElementById('faturaPage').style.display = 'none';
+    document.getElementById('bekleyenPage').style.display = 'none';
+    
     if (detailPage)  detailPage.style.display  = 'flex';
 
     // PDF sıfırla
@@ -893,14 +930,16 @@ function openFatDetailPage(id) {
     if (iframe) { iframe.style.display = 'none'; iframe.src = ''; }
     if (empty)  empty.style.display = 'flex';
 
-    // Tab bar
-    const curTab = activeDetailTab[id] || 'bilgiler';
+    // Tab bar — ödemeler sekmesi Cari Analiz bölümüne taşındı
+    const tabs = ['bilgiler', 'urunler'];
+    const tabLabels = { bilgiler: 'Fatura Bilgileri', urunler: 'Fatura Ürünleri' };
+    const curTab = tabs.includes(activeDetailTab[id]) ? activeDetailTab[id] : 'bilgiler';
     const tabBar = document.getElementById('fatDetailTabBar');
     if (tabBar) {
-        tabBar.innerHTML = ['bilgiler', 'urunler', 'odemeler'].map(t =>
+        tabBar.innerHTML = tabs.map(t =>
             `<button class="fat-dtab${curTab === t ? ' fat-dtab--active' : ''}"
                 onclick="switchFatDetailPageTab('${id}','${t}')">
-                ${{ bilgiler: 'Fatura Bilgileri', urunler: 'Fatura Ürünleri', odemeler: 'Ödeme Kayıtları' }[t]}
+                ${tabLabels[t]}
             </button>`
         ).join('');
     }
@@ -919,16 +958,21 @@ function openFatDetailPage(id) {
 }
 
 function closeFatDetailPage() {
-    const faturaPage = document.getElementById('faturaPage');
     const detailPage = document.getElementById('fatDetailPage');
     if (detailPage) detailPage.style.display = 'none';
-    if (faturaPage) faturaPage.style.display  = '';
+    
+    const sourceId = window._fatDetailSourcePage || 'faturaPage';
+    const sourceEl = document.getElementById(sourceId);
+    if (sourceEl) {
+        sourceEl.style.display = sourceId === 'bekleyenPage' ? 'flex' : '';
+    }
 }
 
 function navigateFatDetail(dir) {
+    const list = window._fatDetailCurrentList || _fatDetailList || [];
     const newIdx = _fatDetailIdx + dir;
-    if (newIdx < 0 || newIdx >= _fatDetailList.length) return;
-    openFatDetailPage(_fatDetailList[newIdx].id);
+    if (newIdx < 0 || newIdx >= list.length) return;
+    openFatDetailPage(list[newIdx].id);
 }
 
 function switchFatDetailPageTab(id, tab) {

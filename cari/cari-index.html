@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Cari Analiz — İnokas CRM</title>
+
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.x/dist/tabler-icons.min.css">
+  <link rel="stylesheet" href="/cari/css/sidebar.css">
+  <link rel="stylesheet" href="/cari/css/cari.css">
+</head>
+<body>
+
+<div class="app-shell">
+
+  <div id="sidebar-container"></div>
+
+  <div class="page-area">
+
+    <!-- Header -->
+    <div class="page-header">
+      <div class="page-header-left">
+        <button class="sb-toggle-btn" onclick="toggleSidebar()">
+          <i class="ti ti-menu-2"></i>
+        </button>
+        <div>
+          <p class="page-header-title">Cari Analiz</p>
+          <p class="page-header-sub">Alacak · Borç · Ciro özeti</p>
+        </div>
+      </div>
+      <div style="display:flex; align-items:center; gap:10px;">
+        <div class="cari-search-wrap">
+          <i class="ti ti-search"></i>
+          <input type="text" id="cari-search" placeholder="Firma ara..." oninput="filterCariTable()">
+        </div>
+        <button class="page-action-btn" onclick="loadDashboard()">
+          <i class="ti ti-refresh"></i>
+          Yenile
+        </button>
+      </div>
+    </div>
+
+    <!-- Scrollable content -->
+    <div class="page-content" style="padding: 20px;">
+
+      <!-- KPI Cards -->
+      <div class="kpi-grid">
+        <div class="kpi-card kpi-alacak" id="kpi-alacak-usd">
+          <span class="kpi-label">Toplam Alacak USD</span>
+          <span class="kpi-value">—</span>
+        </div>
+        <div class="kpi-card kpi-alacak" id="kpi-alacak-tl">
+          <span class="kpi-label">Toplam Alacak TL</span>
+          <span class="kpi-value">—</span>
+        </div>
+        <div class="kpi-card kpi-odene" id="kpi-odenecek-usd">
+          <span class="kpi-label">Ödenecek USD</span>
+          <span class="kpi-value">—</span>
+        </div>
+        <div class="kpi-card kpi-odene" id="kpi-odenecek-tl">
+          <span class="kpi-label">Ödenecek TL</span>
+          <span class="kpi-value">—</span>
+        </div>
+        <div class="kpi-card kpi-odenen" id="kpi-odenen-usd">
+          <span class="kpi-label">Ödenen USD</span>
+          <span class="kpi-value">—</span>
+        </div>
+        <div class="kpi-card kpi-odenen" id="kpi-odenen-tl">
+          <span class="kpi-label">Ödenen TL</span>
+          <span class="kpi-value">—</span>
+        </div>
+      </div>
+
+      <!-- Company table -->
+      <div class="cari-table-card">
+        <div class="cari-table-header">
+          <span class="cari-table-title">Cari Hesaplar</span>
+          <span id="cari-count" class="cari-count-badge">—</span>
+        </div>
+        <div id="cari-list">
+          <div class="cari-empty">Yükleniyor...</div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<div id="toast-container"></div>
+<script src="/cari/js/cari-core.js"></script>
+<script src="/cari/js/cari-dashboard.js?v=20260511-v2"></script>
+<script src="/cari/js/sidebar.js"></script>
+
+</body>
+</html>

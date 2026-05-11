@@ -274,7 +274,8 @@ app.post('/api/save-invoice', async (req, res) => {
     // --- STEP B: INSERT INVOICE ---
     const invoiceToSave = {
       ...fullData.invoice,
-      company_id: companyData.id
+      company_id: companyData.id,
+      ...(isBulkUpload ? { approval_status: 'pending' } : {})
     };
 
     const { data: invoiceData, error: invoiceError } = await supabase
@@ -854,6 +855,62 @@ app.post('/api/products/ensure-by-code', async (req, res) => {
   }
 });
 
+// Yeni ürün oluştur (Ürün Ekle formu)
+app.post('/api/products', async (req, res) => {
+  try {
+    const {
+      product_name, product_code, brand, category, dmo_code,
+      purchase_price, purchase_currency, sales_price, sales_currency
+    } = req.body || {};
+
+    if (!product_name || !String(product_name).trim()) return res.status(400).json({ error: 'Ürün adı zorunlu' });
+    if (!product_code || !String(product_code).trim()) return res.status(400).json({ error: 'Ürün kodu zorunlu' });
+
+    const code = String(product_code).trim();
+
+    const { data: existing, error: existingErr } = await supabase
+      .from('products')
+      .select('id, product_code')
+      .eq('product_code', code)
+      .maybeSingle();
+    if (existingErr) throw existingErr;
+    if (existing) return res.status(409).json({ error: `"${code}" kodlu ürün zaten mevcut` });
+
+    const insertPayload = {
+      product_code: code,
+      product_name: String(product_name).trim(),
+    };
+    if (brand) insertPayload.brand = String(brand).trim();
+    if (category) insertPayload.category = String(category).trim();
+    if (dmo_code) insertPayload.dmo_code = String(dmo_code).trim();
+
+    const { data: created, error: createErr } = await supabase
+      .from('products')
+      .insert(insertPayload)
+      .select('id, product_code, product_name')
+      .single();
+    if (createErr) throw createErr;
+
+    const pricePayload = { product_id: created.id };
+    if (purchase_price != null && purchase_price !== '') pricePayload.purchase_price = parseFloat(purchase_price);
+    if (purchase_currency) pricePayload.purchase_currency = String(purchase_currency).trim();
+    if (sales_price != null && sales_price !== '') pricePayload.sales_price = parseFloat(sales_price);
+    if (sales_currency) pricePayload.sales_currency = String(sales_currency).trim();
+
+    if (Object.keys(pricePayload).length > 1) {
+      const { error: priceErr } = await supabase
+        .from('product_price_history')
+        .insert(pricePayload);
+      if (priceErr) console.warn('product_price_history insert hatası:', priceErr.message);
+    }
+
+    res.json({ created: true, data: created });
+  } catch (err) {
+    console.error('POST /api/products hatası:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.post('/api/purchase-orders', async (req, res) => {
   try {
     const companyVkn = String(req.body?.company_vkn || '').trim();
@@ -1213,8 +1270,26 @@ app.get('/api/invoices', async (req, res) => {
       query = query.eq('direction', direction);
     }
 
+    // Bekleyen (pending) faturalar bu listede görünmemeli
+    query = query.or('approval_status.neq.pending,approval_status.is.null');
+
     const { data, error } = await query;
     if (error) throw error;
+
+    // Mükerrer invoice_items satırlarını temizle: aynı fatura içinde (product_name, quantity,
+    // unit_price_cur) üçlüsü aynıysa ilk kaydı tut, diğerlerini at.
+    if (Array.isArray(data)) {
+      data.forEach((inv) => {
+        if (!Array.isArray(inv.invoice_items) || inv.invoice_items.length < 2) return;
+        const seen = new Set();
+        inv.invoice_items = inv.invoice_items.filter((item) => {
+          const key = `${String(item.product_code || item.sku || '')}|${item.quantity}|${item.unit_price_cur}|${item.product_name}`;
+          if (seen.has(key)) return false;
+          seen.add(key);
+          return true;
+        });
+      });
+    }
 
     // Bulduğumuz faturaları tarayıcıya geri yolla
     res.status(200).json(data);
@@ -1284,6 +1359,14 @@ app.put('/api/invoices/:id', async (req, res) => {
       .select('quantity, purchase_order_item_id')
       .eq('invoice_id', id);
     if (beforeItemsError) throw beforeItemsError;
+
+    // Mevcut kalemleri sil: update_invoice_transaction RPC eski kalemleri silmeyip üstüne
+    // insert ederse mükerrer satır oluşur. Explicit DELETE ile temiz slate garantisi.
+    const { error: deleteItemsError } = await supabase
+      .from('invoice_items')
+      .delete()
+      .eq('invoice_id', id);
+    if (deleteItemsError) throw deleteItemsError;
 
     const { data, error } = await supabase.rpc('update_invoice_transaction', {
       p_invoice_id: id,
@@ -1449,6 +1532,42 @@ app.delete('/api/invoices/:id', async (req, res) => {
   } catch (error) {
     console.error("Fatura silme hatası:", error);
     res.status(500).json({ error: "Sunucu hatası oluştu" });
+  }
+});
+
+// Bekleyen (pending) faturaları getir
+app.get('/api/invoices/pending', async (req, res) => {
+  try {
+    const direction = req.query.direction;
+    let query = supabase.from('invoices')
+      .select('*, companies(*), invoice_items(*)')
+      .eq('approval_status', 'pending')
+      .order('invoice_date', { ascending: false });
+
+    if (direction) query = query.eq('direction', direction);
+
+    const { data, error } = await query;
+    if (error) throw error;
+    res.status(200).json(data || []);
+  } catch (err) {
+    console.error('Pending fatura çekme hatası:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Bekleyen faturayı onayla (sisteme aktar)
+app.put('/api/invoices/:id/approve', async (req, res) => {
+  try {
+    const id = req.params.id;
+    const { error } = await supabase
+      .from('invoices')
+      .update({ approval_status: 'approved' })
+      .eq('id', id);
+    if (error) throw error;
+    res.status(200).json({ message: 'Fatura onaylandı' });
+  } catch (err) {
+    console.error('Fatura onaylama hatası:', err.message);
+    res.status(500).json({ error: err.message });
   }
 });
 

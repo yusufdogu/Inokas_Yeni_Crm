@@ -10,329 +10,310 @@
   <link
     href="https://fonts.googleapis.com/css2?family=Geist+Mono:wght@400;600&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap"
     rel="stylesheet">
-  <link rel="stylesheet" href="faturalar.css?v=company-dropdown-overlay-1">
-  <link rel="stylesheet" href="nav.css?v=nav-slide-4-gutter">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.x/dist/tabler-icons.min.css">
+  <link rel="stylesheet" href="faturalar.css?v=20260511-ekle-card">
+  <link rel="stylesheet" href="sidebar.css?v=3">
+  <script src="sidebar.js?v=3" defer></script>
 </head>
 
 <body>
 
-  <nav class="topbar">
-    <div class="topbar-left">
-      <a href="/" class="brand">
-        <div class="brand-dot"></div>
-        İnokas <span>CRM</span>
-      </a>
-    </div>
-    <div class="topbar-right">
-      <div class="nav-cluster">
-        <span class="nav-pill" id="navPill" aria-hidden="true"></span>
-        <div class="nav-links-row" role="navigation" aria-label="Ana menü">
-          <button type="button" class="nav-link active" data-nav-id="faturalar">Faturalar</button>
-          <a href="/stok.html" class="nav-link" data-nav-id="stok">Stok</a>
-          <a href="/dmo/dmo.html" class="nav-link" data-nav-id="dmo">DMO</a>
-        </div>
-      </div>
-      <button type="button" class="nav-link nav-link--logout logout">Çıkış</button>
-    </div>
-  </nav>
+  <div class="app-shell">
+  <div id="sidebar-container"></div>
+  <div class="page-area">
+  <div class="fatura-page" id="faturaPage">
 
-  <main class="main-container">
-
-    <div class="view-switcher">
-      <button class="tab-btn active" id="tabGelen" onclick="switchView('gelen')">
-        <span class="icon">📥</span> Gelen Faturalar
-      </button>
-      <button class="tab-btn" id="tabGiden" onclick="switchView('giden')">
-        <span class="icon">📤</span> Giden Faturalar
-      </button>
+    <!-- ─── Sayfa Başlığı ──────────────────────────────────────────── -->
+    <div class="fat-page-header">
+      <button class="sb-toggle-btn" onclick="toggleSidebar()" title="Menüyü aç/kapat"><i class="ti ti-menu-2"></i></button>
+      <p class="fat-page-title" id="fatPageTitle">Gelen</p>
     </div>
 
-    <!-- Ana Dashboard: JS tarafından doldurulur -->
-    <section id="summaryCardsContainer" class="simple-dashboard">
-    </section>
-  </main>
+    <!-- ─── Filtre Çubuğu ──────────────────────────────────────────── -->
+    <div class="fatura-topbar">
 
-  <!-- ═══════════════════════════════════════════════════════════
-       FATURA LİSTE MODALI
-       ═══════════════════════════════════════════════════════════ -->
-  <div id="faturaListModal" class="fatura-list-overlay" style="display:none;">
-    <div class="fatura-list-inner">
+      <!-- tabGelen/tabGiden: sidebar navigation, hidden anchors for JS compat -->
+      <button id="tabGelen" style="display:none;"></button>
+      <button id="tabGiden" style="display:none;"></button>
 
-      <!-- Modal Üst Çubuğu -->
-      <div class="fatura-modal-topbar">
-        <div style="display:flex; align-items:center; gap:12px; flex:1; flex-wrap:wrap; min-width:0;">
-          <h2 id="faturaModalTitle" style="font-size:1rem; font-weight:800; color:#0f172a; white-space:nowrap; margin:0;">Gelen Faturalar</h2>
+      <input type="text" id="mainSearch" onkeyup="renderCurrentView()" placeholder="Fatura no, firma ara..." class="fatura-filter-input" style="min-width:160px;">
 
-          <input type="text" id="mainSearch" onkeyup="renderCurrentView()" placeholder="Fatura no, firma ara..." style="padding:8px 12px; border:1px solid #e2e8f0; border-radius:8px; font-size:13px; outline:none; min-width:180px;">
-
-          <div id="companyDropdownWrap" class="company-dropdown-wrap" style="width:200px; min-width:200px;">
-            <button type="button" id="companyDropdownBtn" class="company-dropdown-btn" onclick="toggleCompanyDropdown()">
-              <span id="companyDropdownLabel">Firmalar</span>
-              <svg width="12" height="12" viewBox="0 0 12 12" fill="none" style="flex-shrink:0"><path d="M2 4l4 4 4-4" stroke="#64748b" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
-            </button>
-            <div id="companyDropdownPanel" class="company-dropdown-panel" style="display:none;">
-              <input type="text" id="companyDropdownSearch" class="company-dropdown-search" placeholder="Firma ara..." oninput="filterCompanyDropdown()" autocomplete="off">
-              <ul id="companyDropdownList" class="company-dropdown-list"></ul>
-            </div>
-          </div>
-          <input type="hidden" id="filterCompany" value="">
-
-          <input type="date" id="filterDateStart" onchange="renderCurrentView()" style="padding:7px 10px; border:1px solid #e2e8f0; border-radius:8px; font-size:13px; outline:none;" title="Başlangıç tarihi">
-          <span style="color:#94a3b8; font-size:13px; flex-shrink:0;">—</span>
-          <input type="date" id="filterDateEnd" onchange="renderCurrentView()" style="padding:7px 10px; border:1px solid #e2e8f0; border-radius:8px; font-size:13px; outline:none;" title="Bitiş tarihi">
-
-          <select id="filterStatus" onchange="renderCurrentView()" style="padding:8px 10px; border:1px solid #e2e8f0; border-radius:8px; font-size:13px; outline:none;">
-            <option value="" disabled selected>Durumlar</option>
-            <option value="">Tüm Durumlar</option>
-            <option value="unpaid">Ödenmedi</option>
-            <option value="partial">Kısmi</option>
-            <option value="paid">Ödendi</option>
-          </select>
-
-          <select id="filterCurrency" onchange="renderCurrentView()" style="padding:8px 10px; border:1px solid #e2e8f0; border-radius:8px; font-size:13px; outline:none;">
-            <option value="" disabled selected>Döviz</option>
-            <option value="">Tüm Dövizler</option>
-            <option value="TRY">TRY</option>
-            <option value="USD">USD</option>
-          </select>
-
-          <div id="productDropdownWrap" class="company-dropdown-wrap" style="width:200px; min-width:200px;">
-            <button type="button" id="productDropdownBtn" class="company-dropdown-btn" onclick="toggleProductDropdown()">
-              <span id="productDropdownLabel">Tüm Ürünler</span>
-              <svg width="12" height="12" viewBox="0 0 12 12" fill="none" style="flex-shrink:0"><path d="M2 4l4 4 4-4" stroke="#64748b" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
-            </button>
-            <div id="productDropdownPanel" class="company-dropdown-panel" style="display:none;">
-              <input type="text" id="productDropdownSearch" class="company-dropdown-search" placeholder="Ürün veya kod ara..." oninput="filterProductDropdown()" autocomplete="off">
-              <ul id="productDropdownList" class="company-dropdown-list"></ul>
-            </div>
-          </div>
-          <input type="hidden" id="filterProduct" value="">
+      <div id="companyDropdownWrap" class="company-dropdown-wrap" style="width:170px; min-width:170px;">
+        <button type="button" id="companyDropdownBtn" class="company-dropdown-btn" onclick="toggleCompanyDropdown()">
+          <span id="companyDropdownLabel">Firmalar</span>
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" style="flex-shrink:0"><path d="M2 4l4 4 4-4" stroke="#64748b" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+        <div id="companyDropdownPanel" class="company-dropdown-panel" style="display:none;">
+          <input type="text" id="companyDropdownSearch" class="company-dropdown-search" placeholder="Firma ara..." oninput="filterCompanyDropdown()" autocomplete="off">
+          <ul id="companyDropdownList" class="company-dropdown-list"></ul>
         </div>
-
-        <button onclick="closeFaturaListModal()" style="background:none; border:none; font-size:22px; color:#94a3b8; cursor:pointer; padding:4px 8px; flex-shrink:0;">✕</button>
       </div>
+      <input type="hidden" id="filterCompany" value="">
 
-      <div class="split-panel">
+      <input type="date" id="filterDateStart" onchange="renderCurrentView()" class="fatura-filter-input" title="Başlangıç tarihi">
+      <span style="color:#94a3b8; font-size:13px; flex-shrink:0;">—</span>
+      <input type="date" id="filterDateEnd" onchange="renderCurrentView()" class="fatura-filter-input" title="Bitiş tarihi">
 
-        <!-- SOL: Fatura Kart Listesi -->
-        <div class="invoice-list-panel">
-          <div id="invoiceCardList">
-          </div>
+      <select id="filterStatus" onchange="renderCurrentView()" class="fatura-filter-select">
+        <option value="" disabled selected>Durumlar</option>
+        <option value="">Tüm Durumlar</option>
+        <option value="unpaid">Ödenmedi</option>
+        <option value="partial">Kısmi</option>
+        <option value="paid">Ödendi</option>
+      </select>
+
+      <select id="filterCurrency" onchange="renderCurrentView()" class="fatura-filter-select">
+        <option value="" disabled selected>Döviz</option>
+        <option value="">Tüm Dövizler</option>
+        <option value="TRY">TRY</option>
+        <option value="USD">USD</option>
+      </select>
+
+      <div id="productDropdownWrap" class="company-dropdown-wrap" style="width:160px; min-width:160px;">
+        <button type="button" id="productDropdownBtn" class="company-dropdown-btn" onclick="toggleProductDropdown()">
+          <span id="productDropdownLabel">Tüm Ürünler</span>
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" style="flex-shrink:0"><path d="M2 4l4 4 4-4" stroke="#64748b" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+        <div id="productDropdownPanel" class="company-dropdown-panel" style="display:none;">
+          <input type="text" id="productDropdownSearch" class="company-dropdown-search" placeholder="Ürün veya kod ara..." oninput="filterProductDropdown()" autocomplete="off">
+          <ul id="productDropdownList" class="company-dropdown-list"></ul>
         </div>
-
-        <!-- SAĞ: Grafik Paneli -->
-        <div class="list-charts-panel" id="listChartsPanel">
-
-          <!-- Boş durum -->
-          <div id="listChartsEmpty" class="detail-empty-state">
-            <svg width="48" height="48" fill="none" stroke="#cbd5e1" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
-                d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
-            </svg>
-            <p style="font-size:15px; font-weight:600; color:#94a3b8; margin-top:12px;">Grafik için fatura seçin</p>
-            <span style="font-size:13px; color:#cbd5e1;">Filtreleri kullanın veya "Tümünü Göster"e basın</span>
-          </div>
-
-          <!-- Rapor (JS tarafından render edilir) -->
-          <div id="listChartsContent" style="display:none; flex-direction:column; height:100%; overflow:hidden;">
-            <div id="reportSummary" class="report-summary-row"></div>
-            <div class="report-table-wrap">
-              <table class="report-table">
-                <thead id="reportThead"></thead>
-                <tbody id="reportTableBody"></tbody>
-              </table>
-            </div>
-          </div>
-        </div>
-
       </div>
+      <input type="hidden" id="filterProduct" value="">
+
+    </div>
+
+    <!-- ─── KPI Bar ──────────────────────────────────────────────── -->
+    <div class="fat-kpi-bar" id="fatKpiBar"></div>
+
+    <!-- ─── Tab sistemi ──────────────────────────────────────────── -->
+    <div class="fat-area">
+      <div class="fat-tabbar" id="fatTabBar">
+        <button class="fat-tab fat-tab--active" id="fatTabList" onclick="switchFatTab('list')">FATURALAR</button>
+      </div>
+      <div class="fat-content" id="fatContent"></div>
     </div>
   </div>
 
-  <!-- ═══════════════════════════════════════════════════════════
-       FATURA DETAY MODALI (PDF + Bilgi yan yana)
-       ═══════════════════════════════════════════════════════════ -->
-  <div id="invoiceDetailModal" class="inv-detail-overlay" style="display:none;">
-    <div class="inv-detail-inner">
+  <!-- ─── Fatura Detay Sayfası (DMO-style tam ekran) ──────────── -->
+  <div id="fatDetailPage" style="display:none; flex:1; flex-direction:column; overflow:hidden; min-height:0;">
 
-      <!-- Üst başlık -->
-      <div class="inv-detail-header">
-        <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap; min-width:0; flex:1;">
-          <h2 style="margin:0; font-size:1.1rem; color:#0f172a; font-weight:800; white-space:nowrap;">
-            📚 <span id="detail_no_text">INV2026...</span>
-          </h2>
-          <span style="color:#fff; background:#0f172a; border-radius:999px; padding:3px 10px; display:inline-flex; align-items:center; overflow:hidden; max-width:240px;">
-            <span id="detail_company" style="font-size:0.85rem; font-weight:600; color:#fff; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;"></span>
-          </span>
-        </div>
-        <div style="display:flex; gap:8px; align-items:center; flex-shrink:0;">
-          <button type="button" id="btnDeleteInvoice"
-            style="background:#fee2e2; color:#ef4444; padding:6px 14px; border-radius:8px; border:none; font-weight:600; cursor:pointer; font-size:13px;">
-            🗑️ Sil
-          </button>
-          <button type="button" id="btnEditInvoice"
-            style="background:#2563eb; color:white; padding:6px 14px; border-radius:8px; border:none; font-weight:600; cursor:pointer; font-size:13px;">
-            ✏️ Düzenle
-          </button>
-          <button onclick="closeInvoiceDetailModal()" style="background:none; border:none; font-size:22px; color:#94a3b8; cursor:pointer; padding:4px 8px; line-height:1;">✕</button>
-        </div>
-      </div>
+    <!-- Header -->
+    <div style="display:flex; align-items:center; gap:10px; padding:10px 16px; border-bottom:1px solid #e2e8f0; flex-shrink:0; background:#fff;">
+      <button onclick="closeFatDetailPage()"
+        style="display:flex; align-items:center; gap:6px; background:#f1f5f9; border:none; border-radius:8px; padding:6px 12px; font-size:12px; font-weight:700; color:#475569; cursor:pointer; white-space:nowrap; flex-shrink:0;">
+        <i class="ti ti-arrow-left" style="font-size:13px;"></i> Geri
+      </button>
+      <span id="fatDetailFirmaAdi" style="font-weight:700; font-size:14px; color:#0f172a; flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;"></span>
+      <button id="fatDetailPrevBtn" onclick="navigateFatDetail(-1)"
+        style="width:32px; height:32px; display:flex; align-items:center; justify-content:center; background:#f1f5f9; border:none; border-radius:8px; cursor:pointer; color:#475569; font-size:18px; font-weight:700; flex-shrink:0;">‹</button>
+      <button id="fatDetailNextBtn" onclick="navigateFatDetail(1)"
+        style="width:32px; height:32px; display:flex; align-items:center; justify-content:center; background:#f1f5f9; border:none; border-radius:8px; cursor:pointer; color:#475569; font-size:18px; font-weight:700; flex-shrink:0;">›</button>
+    </div>
 
-      <!-- Gövde: sol PDF, sağ bilgiler -->
-      <div class="inv-detail-body">
+    <!-- Split -->
+    <div style="flex:1; display:grid; grid-template-columns:1fr 1fr; overflow:hidden; min-height:0;">
 
-        <!-- SOL: PDF -->
-        <div class="inv-detail-pdf-pane">
-          <div id="pdfNoXml" class="detail-empty-state">
-            <svg width="48" height="48" fill="none" stroke="#cbd5e1" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
-                d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
-            </svg>
-            <p style="font-size:15px; font-weight:600; color:#94a3b8; margin-top:12px;">PDF görünümü mevcut değil</p>
-            <span style="font-size:13px; color:#cbd5e1;">Bu fatura için XML dosyası yüklenmemiş.</span>
-          </div>
-          <div id="pdfLoading" class="detail-empty-state" style="display:none;">
-            <div style="width:40px; height:40px; border:3px solid #e2e8f0; border-top-color:#2563eb; border-radius:50%; animation:pdf-spin 0.7s linear infinite;"></div>
-            <p style="font-size:14px; font-weight:600; color:#2563eb; margin-top:12px;">XML yükleniyor...</p>
-          </div>
-          <iframe id="pdfDetailIframe" style="width:100%; flex:1; border:none; display:none;"></iframe>
-        </div>
-
-        <!-- SAĞ: Fatura Bilgileri -->
-        <div class="inv-detail-info-pane">
-
-          <div style="display:flex; flex-direction:column; gap:8px; margin-bottom:16px;">
-
-            <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
-              <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:10px 14px;">
-                <span style="font-size:10px; font-weight:800; color:#64748b; letter-spacing:0.5px; display:block;">TARİH</span>
-                <div id="detail_date" style="font-weight:700; font-size:14px; color:#0f172a; margin-top:3px;">-</div>
-              </div>
-              <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:10px 14px;">
-                <span style="font-size:10px; font-weight:800; color:#64748b; letter-spacing:0.5px; display:block;">VADE</span>
-                <div id="detail_due_date" style="font-weight:700; font-size:14px; color:#0f172a; margin-top:3px;">-</div>
-              </div>
-            </div>
-
-            <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:10px 14px;">
-              <span style="font-size:10px; font-weight:800; color:#64748b; letter-spacing:0.5px; display:block;">DÖVİZ KURU</span>
-              <div id="detail_kur" style="font-weight:700; font-size:14px; color:#0f172a; margin-top:3px;">-</div>
-            </div>
-
-            <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:10px 14px;">
-              <span style="font-size:10px; font-weight:800; color:#64748b; letter-spacing:0.5px; display:block;">MATRAH / KDV</span>
-              <div style="font-weight:700; font-size:14px; color:#0f172a; margin-top:3px;">
-                <span id="detail_net">-</span>
-                <span style="color:#94a3b8; margin:0 4px;">/</span>
-                <span id="detail_tax">-</span>
-              </div>
-            </div>
-
-            <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px;">
-              <div style="background:#eff6ff; border:1px solid #bfdbfe; border-radius:10px; padding:10px 14px;">
-                <span style="font-size:10px; font-weight:800; color:#1d4ed8; letter-spacing:0.5px; display:block;">GENEL TOPLAM</span>
-                <div id="detail_total" style="font-weight:800; font-size:15px; color:#2563eb; margin-top:3px;">-</div>
-              </div>
-              <div style="background:#f0fdf4; border:1px solid #dcfce7; border-radius:10px; padding:10px 14px;">
-                <span style="font-size:10px; font-weight:800; color:#166534; letter-spacing:0.5px; display:block;">TOPLAM ÖDENEN</span>
-                <div id="detail_paid" style="font-weight:800; font-size:15px; color:#16a34a; margin-top:3px;">-</div>
-              </div>
-              <div style="background:#fff1f2; border:1px solid #ffe4e6; border-radius:10px; padding:10px 14px;">
-                <span style="font-size:10px; font-weight:800; color:#be123c; letter-spacing:0.5px; display:block;">KALAN BORÇ</span>
-                <div id="detail_remaining" style="font-weight:800; font-size:15px; color:#e11d48; margin-top:3px;">-</div>
-              </div>
-            </div>
-
-            <div id="detail_status"></div>
-
-          </div>
-
-          <!-- Ödeme Geçmişi -->
-          <div style="display:flex; flex-direction:column; gap:10px; margin-bottom:16px;">
-            <div style="display:flex; align-items:center; justify-content:space-between;">
-              <h3 style="margin:0; font-size:15px; font-weight:800; color:#0f172a;">💳 Ödeme Geçmişi</h3>
-              <button type="button" id="btnAddPayment"
-                style="background:#2563eb; color:white; border:none; border-radius:8px; padding:6px 14px; font-size:13px; font-weight:600; cursor:pointer;">
-                + Yeni Ödeme Ekle
-              </button>
-            </div>
-
-            <div id="newPaymentForm" style="display:none; background:#f0f9ff; border:1px solid #bae6fd; border-radius:10px; padding:14px; gap:10px; flex-wrap:wrap; align-items:flex-end;">
-              <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:flex-end; width:100%;">
-                <div style="flex:1; min-width:130px;">
-                  <label style="font-size:11px; font-weight:700; color:#0369a1; display:block; margin-bottom:4px;">ÖDEME TARİHİ</label>
-                  <input type="date" id="pay_date" style="width:100%; padding:7px 10px; border:1px solid #7dd3fc; border-radius:6px; font-size:13px;" max="" onchange="">
-                </div>
-                <div style="flex:1; min-width:110px;">
-                  <label style="font-size:11px; font-weight:700; color:#0369a1; display:block; margin-bottom:4px;">TUTAR</label>
-                  <input type="number" id="pay_amount" step="0.01" placeholder="0.00" style="width:100%; padding:7px 10px; border:1px solid #7dd3fc; border-radius:6px; font-size:13px;">
-                </div>
-                <div style="flex:1; min-width:130px;">
-                  <label style="font-size:11px; font-weight:700; color:#0369a1; display:block; margin-bottom:4px;">NOT (İSTEĞE BAĞLI)</label>
-                  <input type="text" id="pay_notes" placeholder="Açıklama..." style="width:100%; padding:7px 10px; border:1px solid #7dd3fc; border-radius:6px; font-size:13px;">
-                </div>
-                <div style="display:flex; gap:6px;">
-                  <button type="button" id="btnSavePayment"
-                    style="background:#0ea5e9; color:white; border:none; border-radius:6px; padding:7px 16px; font-size:13px; font-weight:600; cursor:pointer;">Kaydet</button>
-                  <button type="button" id="btnCancelPayment"
-                    style="background:#f1f5f9; color:#64748b; border:1px solid #e2e8f0; border-radius:6px; padding:7px 12px; font-size:13px; cursor:pointer;">İptal</button>
-                </div>
-              </div>
-            </div>
-
-            <div style="border:1px solid #e2e8f0; border-radius:10px; overflow:hidden; min-height:80px;">
-              <table style="width:100%; border-collapse:collapse; font-size:13px;">
-                <thead style="background:#f1f5f9; color:#64748b; font-weight:700; font-size:11px; letter-spacing:0.5px;">
-                  <tr>
-                    <th style="padding:10px 14px; text-align:left;">TARİH</th>
-                    <th style="padding:10px 14px; text-align:right;">TUTAR</th>
-                    <th style="padding:10px 14px; text-align:right;">KALAN</th>
-                    <th style="padding:10px 14px; text-align:left;">NOT</th>
-                    <th style="padding:10px 14px; text-align:center;">İŞLEM</th>
-                  </tr>
-                </thead>
-                <tbody id="detail_payments_body">
-                  <tr><td colspan="5" style="padding:20px; text-align:center; color:#94a3b8;">Henüz ödeme kaydı yok.</td></tr>
-                </tbody>
-              </table>
-            </div>
-          </div>
-
-          <!-- Ürünler -->
-          <h3 style="font-size:15px; margin:0 0 10px 0; color:#0f172a;">Ürünler</h3>
-          <div style="border:1px solid #e2e8f0; border-radius:10px; overflow:hidden; margin-bottom:16px;">
-            <table style="width:100%; border-collapse:collapse; text-align:left; font-size:13px;">
-              <thead style="background:#f1f5f9; color:#64748b; font-weight:700; font-size:11px; letter-spacing:0.5px;">
-                <tr>
-                  <th style="padding:12px 15px; border-bottom:1px solid #e2e8f0;">ÜRÜN ADI</th>
-                  <th style="padding:12px 15px; border-bottom:1px solid #e2e8f0;">ÜRÜN KODU</th>
-                  <th style="padding:12px 15px; border-bottom:1px solid #e2e8f0;">KATEGORİ</th>
-                  <th style="padding:12px 15px; border-bottom:1px solid #e2e8f0; text-align:center;">MİKTAR</th>
-                  <th style="padding:12px 15px; border-bottom:1px solid #e2e8f0; text-align:right;">BİRİM FİYAT</th>
-                  <th style="padding:12px 15px; border-bottom:1px solid #e2e8f0; text-align:center;">KDV</th>
-                  <th style="padding:12px 15px; border-bottom:1px solid #e2e8f0; text-align:right;">TOPLAM</th>
-                </tr>
-              </thead>
-              <tbody id="detail_items_body" style="color:#1e293b;"></tbody>
-            </table>
-          </div>
-
-          <!-- İç Notlar -->
-          <div style="background:#f8fafc; border-radius:8px; padding:12px; border:1px solid #e2e8f0;">
-            <span style="font-size:11px; font-weight:700; color:#64748b;">📝 İÇ NOTLAR:</span>
-            <div id="detail_notes" style="font-size:13px; color:#334155; margin-top:5px; font-weight:500; max-height:100px; overflow-y:auto;">-</div>
-          </div>
-
+      <!-- Sol: PDF -->
+      <div style="border-right:1px solid #e2e8f0; overflow:hidden; position:relative; display:flex; flex-direction:column; background:#f8fafc;">
+        <iframe id="fatDetailPdfIframe" style="display:none; width:100%; flex:1; border:none;"></iframe>
+        <div id="fatDetailPdfEmpty" style="flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:8px; color:#94a3b8;">
+          <svg width="48" height="48" fill="none" stroke="#cbd5e1" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+              d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+          </svg>
+          <p style="font-size:13px; font-weight:600;">PDF bulunamadı</p>
         </div>
       </div>
+
+      <!-- Sağ: Sekmeler -->
+      <div style="display:flex; flex-direction:column; overflow:hidden; background:#fff;">
+        <div id="fatDetailTabBar" class="fat-dtab-bar" style="flex-shrink:0;"></div>
+        <div id="fatDetailTabBody" class="fat-dtab-body"></div>
+      </div>
+
     </div>
   </div>
+
+  <!-- ─── Rapor Sayfası ────────────────────────────────────────── -->
+  <div id="raporPage" class="rapor-page" style="display:none;">
+
+    <!-- ─── Sayfa Başlığı ──────────────────────────────────────────── -->
+    <div class="fat-page-header">
+      <button class="sb-toggle-btn" onclick="toggleSidebar()" title="Menüyü aç/kapat"><i class="ti ti-menu-2"></i></button>
+      <p class="fat-page-title">Rapor</p>
+    </div>
+
+    <div class="rapor-topbar">
+      <div class="rapor-mode-tabs">
+        <button id="rTabGelen" class="rapor-mode-tab rapor-mode-tab--active" onclick="setRaporMode('gelen')">↓ Gelen faturalar</button>
+        <button id="rTabGiden" class="rapor-mode-tab" onclick="setRaporMode('giden')">↑ Giden faturalar</button>
+      </div>
+
+      <div class="rapor-filters">
+        <!-- Firma filtresi -->
+        <div id="raporCompDropWrap" class="company-dropdown-wrap" style="width:180px; min-width:140px;">
+          <button type="button" id="raporCompDropBtn" class="company-dropdown-btn" onclick="toggleRaporCompDropdown()">
+            <span id="raporCompDropLabel">Tüm Firmalar</span>
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="none" style="flex-shrink:0"><path d="M2 4l4 4 4-4" stroke="#64748b" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </button>
+          <div id="raporCompDropPanel" class="company-dropdown-panel" style="display:none;">
+            <input type="text" id="raporCompDropSearch" class="company-dropdown-search" placeholder="Firma ara..." oninput="filterRaporCompDropdown()" autocomplete="off">
+            <ul id="raporCompDropList" class="company-dropdown-list"></ul>
+          </div>
+        </div>
+        <input type="hidden" id="raporFilterCompany" value="">
+
+        <!-- Tarih filtresi -->
+        <input type="date" id="raporFilterDateStart" class="fatura-filter-input" title="Başlangıç tarihi" onchange="renderRaporPage()">
+        <span style="color:#94a3b8; font-size:13px; flex-shrink:0;">—</span>
+        <input type="date" id="raporFilterDateEnd" class="fatura-filter-input" title="Bitiş tarihi" onchange="renderRaporPage()">
+
+        <!-- Ürün filtresi -->
+        <div id="raporProdDropWrap" class="company-dropdown-wrap" style="width:180px; min-width:140px;">
+          <button type="button" id="raporProdDropBtn" class="company-dropdown-btn" onclick="toggleRaporProdDropdown()">
+            <span id="raporProdDropLabel">Tüm Ürünler</span>
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="none" style="flex-shrink:0"><path d="M2 4l4 4 4-4" stroke="#64748b" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </button>
+          <div id="raporProdDropPanel" class="company-dropdown-panel" style="display:none;">
+            <input type="text" id="raporProdDropSearch" class="company-dropdown-search" placeholder="Ürün ara..." oninput="filterRaporProdDropdown()" autocomplete="off">
+            <ul id="raporProdDropList" class="company-dropdown-list"></ul>
+          </div>
+        </div>
+        <input type="hidden" id="raporFilterProduct" value="">
+
+        <button class="rapor-filter-clear" onclick="clearRaporFilters()" title="Filtreleri temizle">✕</button>
+      </div>
+    </div>
+
+    <div class="rapor-body">
+      <div id="raporKpis" class="rapor-kpis"></div>
+      <div class="rapor-table-wrap">
+        <table class="rapor-tbl">
+          <thead id="raporThead"></thead>
+          <tbody id="raporTbody"></tbody>
+        </table>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ─── Bekleyen Faturalar Sayfası ───────────────────────────────────── -->
+  <div id="bekleyenPage" class="bek-page">
+
+    <!-- ─── Sayfa Başlığı ──────────────────────────────────────────── -->
+    <div class="fat-page-header">
+      <button class="sb-toggle-btn" onclick="toggleSidebar()" title="Menüyü aç/kapat"><i class="ti ti-menu-2"></i></button>
+      <p class="fat-page-title">Bekleyen Faturalar</p>
+    </div>
+
+    <!-- Sayfa tab barı -->
+    <div class="bek-page-tabbar">
+      <button class="bek-page-tab bek-page-tab--active" id="bekPageTab1" onclick="switchBekPageTab('list')">Bekleyen Faturalar</button>
+      <button class="bek-page-tab" id="bekPageTab2" onclick="switchBekPageTab('bulk')">Toplu Fatura Ekle</button>
+    </div>
+
+    <!-- Pane 1: Liste + detay -->
+    <div id="bekListPane" class="bek-list-pane">
+      <div class="bek-toolbar">
+        <input type="text" id="bekSearch" placeholder="Fatura no veya firma ara..." class="fatura-filter-input" style="width:220px;" oninput="renderBekleyenList()">
+        <div class="bek-dir-toggle">
+          <button class="bek-dir-btn bek-dir-btn--active" id="bekDirAll"   onclick="setBekDir('all')">Tümü</button>
+          <button class="bek-dir-btn"                     id="bekDirGelen" onclick="setBekDir('gelen')">Gelen</button>
+          <button class="bek-dir-btn"                     id="bekDirGiden" onclick="setBekDir('giden')">Giden</button>
+        </div>
+        <span id="bekCount" class="bek-count"></span>
+        <button class="bek-refresh-btn" onclick="loadBekleyenInvoices()" title="Yenile">↺</button>
+      </div>
+
+      <div class="bek-main">
+        <!-- Liste (sol) -->
+        <div class="bek-list-panel">
+          <div class="bek-card-list" id="bekTbody"></div>
+        </div>
+
+        <!-- Detay (sağ) — içerik JS tarafından inject edilir -->
+        <div class="bek-detail-panel" id="bekDetailPanel"></div>
+      </div>
+    </div>
+
+    <!-- Pane 2: Toplu fatura ekle (inline) -->
+    <div id="bekBulkPane" style="display:none; flex-direction:column; flex:1; overflow-y:auto; padding:20px 24px;">
+      <div class="bek-bulk-lead">
+        <p class="bulk-modal-lead">Birden fazla UBL-XML seçin. Dosyalar İnokas VKN'sine göre <strong>Gelen</strong> / <strong>Giden</strong> sütunlarına ayrılır. Yükleme sonrası faturalar <strong>Bekleyen Faturalar</strong> sekmesine düşer.</p>
+        <div class="bulk-file-pick">
+          <input type="file" id="bulkFileInput" accept=".xml" multiple hidden onchange="handleBulkFilePick(event)">
+          <button type="button" class="btn btn-primary btn-sm" onclick="document.getElementById('bulkFileInput').click()">XML dosyalarını seç</button>
+          <span class="bulk-file-hint">Ctrl/Cmd ile çoklu seçim</span>
+        </div>
+      </div>
+      <div class="bulk-two-cols" style="margin-top:16px;">
+        <div class="bulk-col bulk-col--incoming">
+          <div class="bulk-col-head">
+            <h3>Gelen</h3>
+            <div class="bulk-col-tools">
+              <label class="bulk-mini"><input type="checkbox" id="bulkSelAllIn" onchange="bulkSelectAllInColumn('in', this.checked)"> Tümü</label>
+              <button type="button" class="btn btn-secondary btn-sm" onclick="bulkDeleteSelectedInColumn('in')">Seçilenleri sil</button>
+              <button type="button" class="btn btn-secondary btn-sm" onclick="clearBulkColumn('in')">Temizle</button>
+            </div>
+          </div>
+          <div id="bulkIncomingBody" class="bulk-col-body"></div>
+        </div>
+        <div class="bulk-col bulk-col--outgoing">
+          <div class="bulk-col-head">
+            <h3>Giden</h3>
+            <div class="bulk-col-tools">
+              <label class="bulk-mini"><input type="checkbox" id="bulkSelAllOut" onchange="bulkSelectAllInColumn('out', this.checked)"> Tümü</label>
+              <button type="button" class="btn btn-secondary btn-sm" onclick="bulkDeleteSelectedInColumn('out')">Seçilenleri sil</button>
+              <button type="button" class="btn btn-secondary btn-sm" onclick="clearBulkColumn('out')">Temizle</button>
+            </div>
+          </div>
+          <div id="bulkOutgoingBody" class="bulk-col-body"></div>
+        </div>
+      </div>
+      <div id="bulkFailedBox" class="bulk-failed-box"></div>
+      <div class="bek-bulk-footer">
+        <button type="button" class="btn btn-primary" onclick="executeBulkUpload()">Bekleyenlere Yükle</button>
+      </div>
+    </div>
+
+  </div>
+
+  </div><!-- /.page-area -->
+  </div><!-- /.app-shell -->
 
   <div id="invoiceModal" class="modal-overlay">
     <div class="modal-content invoice-modal-v2">
 
+      <!-- EKLE MODU: Sol PDF pane (body.view-ekle'de görünür) -->
+      <div id="eklePdfPane" class="ekle-pdf-pane">
+        <input type="file" id="eklePdfInput" accept=".xml" hidden>
+        <div id="eklePdfDrop" class="ekle-pdf-drop">
+          <svg width="52" height="52" fill="none" stroke="#cbd5e1" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+              d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+          </svg>
+          <p style="font-size:15px; font-weight:600; color:#94a3b8; margin-top:14px;">XML Sürükleyin</p>
+          <span style="font-size:13px; color:#cbd5e1; margin-top:4px;">veya klasörden seçin</span>
+          <button type="button"
+            onclick="document.getElementById('eklePdfInput').click()"
+            style="margin-top:14px; padding:8px 20px; background:#2563eb; color:#fff; border:none; border-radius:8px; font-size:13px; font-weight:600; cursor:pointer; font-family:inherit;">
+            📂 Dosya Seç
+          </button>
+        </div>
+        <div id="eklePdfBar" style="display:none; align-items:center; justify-content:space-between; padding:8px 14px; border-bottom:1px solid #e2e8f0; background:#fff; flex-shrink:0;">
+          <span id="eklePdfFileName" style="font-size:12px; font-weight:600; color:#475569; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:calc(100% - 90px);"></span>
+          <button type="button" onclick="resetEklePdf()"
+            style="padding:4px 12px; background:#fee2e2; color:#ef4444; border:1px solid #fecaca; border-radius:6px; font-size:12px; font-weight:600; cursor:pointer; font-family:inherit; white-space:nowrap; flex-shrink:0;">
+            ✕ Kaldır
+          </button>
+        </div>
+        <iframe id="eklePdfIframe" style="display:none; width:100%; flex:1; border:none;"></iframe>
+      </div>
+
       <!-- BAŞLIK -->
       <header class="modal-header">
+        <button id="ekleSbToggle" class="sb-toggle-btn" onclick="toggleSidebar()" title="Menüyü aç/kapat"><i class="ti ti-menu-2"></i></button>
         <h2>Fatura Detayları</h2>
         <button class="close-modal" onclick="closeInvoiceModal()">✕</button>
       </header>
@@ -371,7 +352,7 @@
             </div>
 
             <div class="grid-form">
-              <div class="form-group span-2">
+              <div class="form-group span-2 form-group-span4-full">
                 <label>Firma / Tedarikçi *</label>
                 <input type="text" id="f_firma" class="locked-input" placeholder="VKN veya İsim ile arayın..." required>
               </div>
@@ -382,16 +363,6 @@
               </div>
 
               <div class="form-group">
-                <label>Fatura Türü</label>
-                <select id="f_type" class="locked-input">
-                  <option value="e-Fatura">e-Fatura</option>
-                  <option value="e-Arşiv">e-Arşiv</option>
-                  <option value="Temel">Temel</option>
-                  <option value="Ticari">Ticari</option>
-                </select>
-              </div>
-
-              <div class="form-group">
                 <label>Fatura Tarihi</label>
                 <input type="date" id="f_date" class="locked-input">
               </div>
@@ -399,6 +370,16 @@
               <div class="form-group">
                 <label>Vade Tarihi</label>
                 <input type="date" id="f_due_date">
+              </div>
+
+              <div class="form-group">
+                <label>Fatura Türü</label>
+                <select id="f_type" class="locked-input">
+                  <option value="e-Fatura">e-Fatura</option>
+                  <option value="e-Arşiv">e-Arşiv</option>
+                  <option value="Temel">Temel</option>
+                  <option value="Ticari">Ticari</option>
+                </select>
               </div>
 
               <div class="form-group">
@@ -519,56 +500,15 @@
 
 
 
-  <div id="bulkInvoiceModal" class="modal-overlay" style="display:none; z-index: 1200;">
-    <div class="modal-content bulk-modal-content">
-      <header class="bulk-modal-header">
-        <h2>Toplu XML yükleme</h2>
-        <button type="button" class="close-modal" onclick="closeBulkUploadModal()" aria-label="Kapat">✕</button>
-      </header>
-      <p class="bulk-modal-lead">Birden fazla UBL-XML seçin. Dosyalar İnokas VKN’sine göre <strong>Gelen</strong> / <strong>Giden</strong> sütunlarına ayrılır.</p>
-      <div class="bulk-file-pick">
-        <input type="file" id="bulkFileInput" accept=".xml" multiple hidden onchange="handleBulkFilePick(event)">
-        <button type="button" class="btn btn-primary btn-sm" onclick="document.getElementById('bulkFileInput').click()">XML dosyalarını seç</button>
-        <span class="bulk-file-hint">Ctrl/Cmd ile çoklu seçim</span>
-      </div>
-      <p id="bulkDirectionHint" class="bulk-hint"></p>
-      <div class="bulk-two-cols">
-        <div class="bulk-col bulk-col--incoming">
-          <div class="bulk-col-head">
-            <h3>📥 Gelen</h3>
-            <div class="bulk-col-tools">
-              <label class="bulk-mini"><input type="checkbox" id="bulkSelAllIn" onchange="bulkSelectAllInColumn('in', this.checked)"> Tümü</label>
-              <button type="button" class="btn btn-secondary btn-sm" onclick="bulkDeleteSelectedInColumn('in')">Seçilenleri sil</button>
-              <button type="button" class="btn btn-secondary btn-sm" onclick="clearBulkColumn('in')">Sütunu temizle</button>
-            </div>
-          </div>
-          <div id="bulkIncomingBody" class="bulk-col-body"></div>
-        </div>
-        <div class="bulk-col bulk-col--outgoing">
-          <div class="bulk-col-head">
-            <h3>📤 Giden</h3>
-            <div class="bulk-col-tools">
-              <label class="bulk-mini"><input type="checkbox" id="bulkSelAllOut" onchange="bulkSelectAllInColumn('out', this.checked)"> Tümü</label>
-              <button type="button" class="btn btn-secondary btn-sm" onclick="bulkDeleteSelectedInColumn('out')">Seçilenleri sil</button>
-              <button type="button" class="btn btn-secondary btn-sm" onclick="clearBulkColumn('out')">Sütunu temizle</button>
-            </div>
-          </div>
-          <div id="bulkOutgoingBody" class="bulk-col-body"></div>
-        </div>
-      </div>
-      <div id="bulkFailedBox" class="bulk-failed-box"></div>
-      <footer class="bulk-modal-footer">
-        <button type="button" class="btn btn-secondary" onclick="closeBulkUploadModal()">Kapat</button>
-        <button type="button" class="btn btn-primary" onclick="executeBulkUpload()">Sisteme yükle</button>
-      </footer>
-    </div>
-  </div>
-
   <div id="toast-container"></div>
 
-  <script src="nav-pill.js?v=nav-slide-3-ease"></script>
-  <!-- ?v= bump on deploy so Railway/browser never serves stale faturalar.js -->
-  <script src="faturalar.js?v=20260506-report-panel"></script>
+  <script src="faturalar/utils.js?v=1"></script>
+  <script src="faturalar/xml.js?v=1"></script>
+  <script src="faturalar/api.js?v=1"></script>
+  <script src="faturalar/state.js?v=20260511-detailpage"></script>
+  <script src="faturalar/list.js?v=20260511-dmo-kpi"></script>
+  <script src="faturalar/detail.js?v=20260511-bilgiler-edit-v2"></script>
+  <script src="faturalar/main.js?v=20260511-dmo-kpi"></script>
 </body>
 
 </html>

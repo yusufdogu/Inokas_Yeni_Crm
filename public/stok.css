@@ -19,29 +19,40 @@ body {
   line-height: 1.5;
 }
 
-/* ── TOPBAR ── */
-.topbar {
+/* ── SIDEBAR LAYOUT ── */
+.page-area {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  background: var(--bg);
   display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 0 2rem;
-  height: 64px;
-  background: var(--card);
-  border-bottom: 1px solid var(--border);
-  position: sticky;
-  top: 0;
-  z-index: 100;
+  flex-direction: column;
+  min-width: 0;
 }
 
-.brand { font-weight: 800; font-size: 1.25rem; text-decoration: none; color: var(--text-main); display: flex; align-items: center; gap: 8px; }
-.brand span { color: var(--primary); }
-.brand-dot { width: 10px; height: 10px; background: var(--primary); border-radius: 50%; }
+.fat-page-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 20px;
+  background: #fff;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.fat-page-title {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 800;
+  color: #0f172a;
+}
 
 /* ── LAYOUT ── */
 .main-container {
   max-width: 1400px;
-  margin: 2rem auto;
+  margin: 1.5rem auto;
   padding: 0 1.5rem;
+  width: 100%;
 }
 
 .page-header { margin-bottom: 1.5rem; }
@@ -625,7 +636,7 @@ body {
 .table-wrap {
   overflow-x: auto;
   overflow-y: auto;          /* kendi scroll container'ı olsun */
-  max-height: calc(100vh - 260px); /* topbar + dashboard + tab-bar + toolbar payı */
+  max-height: calc(100vh - 220px); /* fat-page-header + dashboard + tab-bar + toolbar */
 }
 
 .stocks-table {
@@ -1095,3 +1106,107 @@ body {
   gap: 10px;
   margin-top: 4px;
 }
+/* ── ÜRÜN EKLE SEKMESİ ───────────────────────────────────────────────────── */
+.urun-ekle-wrap {
+  padding: 24px;
+  display: flex;
+  justify-content: center;
+}
+
+.urun-ekle-card {
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 24px 28px;
+  width: 100%;
+  max-width: 720px;
+}
+
+.urun-ekle-section-title {
+  font-size: 11px;
+  font-weight: 800;
+  color: #94a3b8;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 14px;
+}
+
+.urun-ekle-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.urun-ekle-field {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.urun-ekle-field--full {
+  grid-column: span 2;
+}
+
+.urun-ekle-field label {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-sub);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.urun-ekle-field .req {
+  color: #ef4444;
+}
+
+.urun-ekle-field input[type="text"],
+.urun-ekle-field input[type="number"],
+.urun-ekle-field select {
+  padding: 9px 12px;
+  border: 1.5px solid var(--border);
+  border-radius: 8px;
+  font-size: 13px;
+  font-family: inherit;
+  color: var(--text-main);
+  background: #fff;
+  outline: none;
+  transition: border-color 0.15s;
+}
+
+.urun-ekle-field input:focus,
+.urun-ekle-field select:focus {
+  border-color: var(--primary);
+}
+
+.urun-ekle-cat-save,
+.urun-ekle-cat-cancel {
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.urun-ekle-cat-save  { background: #16a34a; color: #fff; }
+.urun-ekle-cat-cancel { background: #ef4444; color: #fff; }
+
+.urun-ekle-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 24px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+}
+
+.urun-ekle-msg {
+  flex: 1;
+  font-size: 13px;
+  font-weight: 600;
+}
+.urun-ekle-msg.success { color: #16a34a; }
+.urun-ekle-msg.error   { color: #ef4444; }

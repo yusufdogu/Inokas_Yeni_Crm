@@ -47,13 +47,50 @@ Stock movements are **not** stored in a dedicated table. The `/api/stocks/summar
 ### Frontend: Vanilla JS (no framework)
 
 All UI is plain HTML/CSS/JS. The three main sections correspond to three pages:
-- `/` → `public/index.html` + `public/faturalar.js` — invoice management (parse XML, view, edit, delete invoices; record payments)
+- `/` → `public/index.html` — invoice management (parse XML, view, edit, delete invoices; record payments)
 - `/stok.html` → `public/stok.html` + `public/stok.js` — stock summary, movements, purchase orders, SKU merging, FIFO profit drill-down
-- `/dmo/dmo.html` → `dmo/` — DMO.gov.tr price tracking; PDF upload for DMO order parsing
+- `/dmo/dmo-index.html` → `dmo/` — DMO.gov.tr price tracking; PDF upload for DMO order parsing
 
 `public/nav-pill.js` and `public/nav.css` are shared navigation components used across pages.
 
 The DMO section (`dmo/`) loads Supabase directly from the browser using a hardcoded anon key in `dmo/supabase-client.js`. All other pages communicate only with the Express server API.
+
+#### Faturalar JS Modülleri (`public/faturalar/`)
+
+`public/index.html` yükleme sırası (bağımlılık sırasına göre):
+1. `faturalar/utils.js` — yardımcı fonksiyonlar (formatMoneyDisplay, invPayableAmountSrc, vb.)
+2. `faturalar/xml.js` — UBL-XML tarayıcı taraflı parse ve renderXmlToPdfIframe
+3. `faturalar/api.js` — sunucu API çağrıları
+4. `faturalar/state.js` — global state değişkenleri (allInvoicesCache, bekleyenCache, vb.)
+5. `faturalar/list.js` — fatura listesi görünümü ve filtre mantığı
+6. `faturalar/detail.js` — fatura detay paneli (bilgiler/ürünler/ödemeler sekmeleri, inline düzenleme)
+7. `faturalar/main.js` — başlatma, hash yönlendirme, rapor ve bekleyen sayfaları
+
+Tüm fonksiyonlar global scope'ta tanımlıdır (import/export yok). `import`/`export` kullanma.
+
+#### Sidebar Yapısı
+
+Her iki ana bölüm (faturalar ve DMO) aynı sidebar yapısını paylaşır:
+- **Faturalar:** `public/sidebar.js` (çalışma zamanında HTML üretir), `public/sidebar.css` (DMO ile aynı koyu tema)
+- **DMO:** `dmo/js/sidebar.js` + `dmo/css/sidebar.css`
+
+Sidebar CSS sınıfları: `.app-shell` (flex kapsayıcı), `#sidebar` (koyu panel, `#0f172a`), `.page-area` (içerik alanı), `.sb-item`, `.sb-children` (akordeon), `.sb-child`, `.sb-brand`, `.sb-footer`.
+
+`#sidebar.collapsed { width: 52px; }` — `toggleSidebar()` ile `collapsed` sınıfı açılır/kapanır.
+
+#### Fatura Detay Sekmelerinin Davranışı
+
+`detail.js` içindeki `renderDetailTabContent`: bilgiler ve ürünler sekmeleri doğrudan `enterBilgilerEdit` / `enterUrunlerEdit` ile açılır — okuma modu (renderBilgilerView / renderUrunlerView) bypass edilir.
+
+Ürünler düzenleme (`enterUrunlerEdit`): her satırda kategori `<select>` gösterilir. Ofis-içi satırlar için `INTERNAL_CATEGORY_OPTIONS` (statik liste), diğerleri için `productCategoryOptionList` (DB'den). "+ yeni kategori ekle" seçeneği seçilince satır içi input gösterilir (✓/✕ butonları).
+
+#### Bekleyen Faturalar Listesi
+
+`renderBekleyenList` (main.js) tablo satırı değil kart (`<div class="bek-card">`) üretir. Her kartta: fatura no (bold), yön noktası (yeşil=gelen/kırmızı=giden), firma adı, tutar+döviz, tarih. `#bekTbody` artık `<div class="bek-card-list">` (tablo değil).
+
+#### Rapor Sayfası Scroll
+
+`.rapor-body` → `overflow: hidden`; `.rapor-table-wrap` → `overflow-y: auto; flex: 1; min-height: 0` — tablo KPI kartlarından bağımsız dikey scroll yapar.
 
 ### Invoice XML Flow (UBL Format)
 

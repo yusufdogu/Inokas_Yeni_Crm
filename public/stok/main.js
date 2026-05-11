@@ -79,16 +79,176 @@ async function loadAllData() {
   ]);
 }
 
-async function ensureProductCategoryOptions() {
-  if (Array.isArray(productCategoryOptions) && productCategoryOptions.length > 0) return;
+// ensureProductCategoryOptions → stok/api.js dosyasına taşındı
+
+// ─── ÜRÜN EKLE SEKMESİ ───────────────────────────────────────────────────────
+
+const _BRAND_OPTIONS = ['ASUS','EPSON','EPSON-YP','EVERTON','HP','KYOCERA','LG','OKI','SAMSUNG'];
+let _extraBrandOptions = [];
+
+let _urunEkleTabInited = false;
+
+function initUrunEkleTab() {
+  if (_urunEkleTabInited) return;
+  _urunEkleTabInited = true;
+  _buildUrunEkleCategorySelect();
+  _buildUrunEkleBrandSelect();
+
+  // Category new-item wiring
+  const catSel    = document.getElementById('ue-category');
+  const catWrap   = document.getElementById('ue-cat-new-wrap');
+  const catInput  = document.getElementById('ue-cat-new-input');
+  const catSave   = document.getElementById('ue-cat-save-btn');
+  const catCancel = document.getElementById('ue-cat-cancel-btn');
+
+  catSel?.addEventListener('change', () => {
+    if (catSel.value !== '__new__') return;
+    catSel.value = '';
+    if (catWrap) { catWrap.style.display = 'flex'; catInput?.focus(); }
+  });
+  catSave?.addEventListener('click', () => {
+    const val = String(catInput?.value || '').trim();
+    if (!val) return;
+    if (!productCategoryOptions.includes(val)) {
+      productCategoryOptions.push(val);
+      productCategoryOptions.sort((a, b) => a.localeCompare(b, 'tr'));
+    }
+    _buildUrunEkleCategorySelect(val);
+    if (catWrap) catWrap.style.display = 'none';
+    if (catInput) catInput.value = '';
+  });
+  catCancel?.addEventListener('click', () => {
+    if (catWrap) catWrap.style.display = 'none';
+    if (catInput) catInput.value = '';
+  });
+
+  // Brand new-item wiring
+  const brandSel    = document.getElementById('ue-brand');
+  const brandWrap   = document.getElementById('ue-brand-new-wrap');
+  const brandInput  = document.getElementById('ue-brand-new-input');
+  const brandSave   = document.getElementById('ue-brand-save-btn');
+  const brandCancel = document.getElementById('ue-brand-cancel-btn');
+
+  brandSel?.addEventListener('change', () => {
+    if (brandSel.value !== '__new__') return;
+    brandSel.value = '';
+    if (brandWrap) { brandWrap.style.display = 'flex'; brandInput?.focus(); }
+  });
+  brandSave?.addEventListener('click', () => {
+    const val = String(brandInput?.value || '').trim().toUpperCase();
+    if (!val) return;
+    if (!_BRAND_OPTIONS.includes(val) && !_extraBrandOptions.includes(val)) {
+      _extraBrandOptions.push(val);
+      _extraBrandOptions.sort((a, b) => a.localeCompare(b, 'tr'));
+    }
+    _buildUrunEkleBrandSelect(val);
+    if (brandWrap) brandWrap.style.display = 'none';
+    if (brandInput) brandInput.value = '';
+  });
+  brandCancel?.addEventListener('click', () => {
+    if (brandWrap) brandWrap.style.display = 'none';
+    if (brandInput) brandInput.value = '';
+  });
+}
+
+function _buildUrunEkleCategorySelect(selected = '') {
+  const sel = document.getElementById('ue-category');
+  if (!sel) return;
+  const opts = productCategoryOptions || [];
+  sel.innerHTML = [
+    '<option value="">Kategori seçin...</option>',
+    ...opts.map(c => `<option value="${esc(c)}"${c === selected ? ' selected' : ''}>${esc(c)}</option>`),
+    '<option value="__new__">+ Yeni kategori ekle</option>'
+  ].join('');
+}
+
+function _buildUrunEkleBrandSelect(selected = '') {
+  const sel = document.getElementById('ue-brand');
+  if (!sel) return;
+  const opts = [..._BRAND_OPTIONS, ..._extraBrandOptions];
+  sel.innerHTML = [
+    '<option value="">Marka seçin...</option>',
+    ...opts.map(b => `<option value="${esc(b)}"${b === selected ? ' selected' : ''}>${esc(b)}</option>`),
+    '<option value="__new__">+ Yeni marka ekle</option>'
+  ].join('');
+}
+
+async function saveUrunEkle() {
+  const nameEl  = document.getElementById('ue-product_name');
+  const codeEl  = document.getElementById('ue-product_code');
+  const brandEl = document.getElementById('ue-brand');
+  const catEl   = document.getElementById('ue-category');
+  const dmoEl   = document.getElementById('ue-dmo_code');
+  const ppEl    = document.getElementById('ue-purchase_price');
+  const pcEl    = document.getElementById('ue-purchase_currency');
+  const spEl    = document.getElementById('ue-sales_price');
+  const scEl    = document.getElementById('ue-sales_currency');
+  const msgEl   = document.getElementById('urunEkleMsg');
+  const saveBtn = document.getElementById('urunEkleSaveBtn');
+
+  const product_name = String(nameEl?.value || '').trim();
+  const product_code = String(codeEl?.value || '').trim();
+
+  if (!product_name) { showUrunEkleMsg('Ürün adı zorunludur.', 'error'); nameEl?.focus(); return; }
+  if (!product_code) { showUrunEkleMsg('Ürün kodu zorunludur.', 'error'); codeEl?.focus(); return; }
+
+  const payload = {
+    product_name,
+    product_code,
+    brand:             String(brandEl?.value || '').trim().toUpperCase() || null,
+    category:          String(catEl?.value  || '').trim() || null,
+    dmo_code:          String(dmoEl?.value  || '').trim() || null,
+    purchase_price:    parseFloat(ppEl?.value)  || null,
+    purchase_currency: pcEl?.value  || 'TRY',
+    sales_price:       parseFloat(spEl?.value)  || null,
+    sales_currency:    scEl?.value  || 'TRY',
+  };
+
+  saveBtn.disabled = true;
+  showUrunEkleMsg('Kaydediliyor...', '');
+
   try {
-    const res = await fetch('/api/products/category-map');
-    if (!res.ok) return;
-    const data = await res.json();
-    productCategoryOptions = Array.isArray(data?.categories)
-      ? data.categories.map((x) => String(x || '').trim()).filter(Boolean)
-      : [];
-  } catch {}
+    const res = await fetch('/api/products', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    const result = await res.json();
+    if (!res.ok) throw new Error(result.error || 'Sunucu hatası');
+    showUrunEkleMsg(`✓ "${product_name}" eklendi.`, 'success');
+    resetUrunEkleForm();
+    // Refresh caches so new product appears in lists
+    productCategoryOptions = [];
+    await ensureProductCategoryOptions();
+    _buildUrunEkleCategorySelect();
+    _buildUrunEkleBrandSelect();
+  } catch (err) {
+    showUrunEkleMsg('Hata: ' + err.message, 'error');
+  } finally {
+    saveBtn.disabled = false;
+  }
+}
+
+function resetUrunEkleForm() {
+  ['ue-product_name','ue-product_code','ue-dmo_code','ue-purchase_price','ue-sales_price'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.value = '';
+  });
+  const catSel = document.getElementById('ue-category');
+  if (catSel) catSel.value = '';
+  const catWrap = document.getElementById('ue-cat-new-wrap');
+  if (catWrap) catWrap.style.display = 'none';
+  const brandSel = document.getElementById('ue-brand');
+  if (brandSel) brandSel.value = '';
+  const brandWrap = document.getElementById('ue-brand-new-wrap');
+  if (brandWrap) brandWrap.style.display = 'none';
+}
+
+function showUrunEkleMsg(text, type) {
+  const el = document.getElementById('urunEkleMsg');
+  if (!el) return;
+  el.textContent = text;
+  el.className   = 'urun-ekle-msg' + (type ? ' ' + type : '');
 }
 
 function renderProductCategorySelect(selected = '') {
@@ -115,52 +275,16 @@ function renderProductCategorySelect(selected = '') {
 // ─── TAB SWITCH ───────────────────────────────────────────────────────────────
 function switchStockTab(tab) {
   currentStockTab = tab;
-  ['depo', 'hareketler', 'bekleyen'].forEach(t => {
+  const tabBtnIds = { depo: 'tabDepo', hareketler: 'tabHareketler', bekleyen: 'tabBekleyen', 'urun-ekle': 'tabUrunEkle' };
+  Object.keys(tabBtnIds).forEach(t => {
     document.getElementById(`tabContent-${t}`)?.classList.toggle('active', t === tab);
-    document.getElementById(`tab${t.charAt(0).toUpperCase() + t.slice(1)}`)?.classList.toggle('active', t === tab);
+    document.getElementById(tabBtnIds[t])?.classList.toggle('active', t === tab);
   });
+  if (tab === 'urun-ekle') initUrunEkleTab();
 }
 
 // ─── TAB 1: DEPO DURUMU ───────────────────────────────────────────────────────
-async function loadStockSummary() {
-  const cached = readCache(STOCK_CACHE_KEY);
-  if (cached) {
-    allStocks  = cached.data  || [];
-    stockStats = cached.stats || null;
-    allProductsCatalog = cached.product_catalog || [];
-    allProfitEvents = cached.profit_events || [];
-    internalOnlySkus = cached.internal_only_skus || [];
-    renderStockStats();
-    renderStockCategoryFilter();
-    renderStockInsights();
-    renderDepoTable();
-  }
-
-  try {
-    const res = await fetch('/api/stocks/summary');
-    if (!res.ok) throw new Error('Stok verileri alınamadı');
-    const payload = await res.json();
-    allStocks  = payload.data  || [];
-    stockStats = payload.stats || null;
-    allProductsCatalog = payload.product_catalog || [];
-    allProfitEvents = payload.profit_events || [];
-    internalOnlySkus = payload.internal_only_skus || [];
-    writeCache(STOCK_CACHE_KEY, {
-      data: allStocks,
-      stats: stockStats,
-      product_catalog: allProductsCatalog,
-      profit_events: allProfitEvents,
-      internal_only_skus: internalOnlySkus
-    });
-    renderStockStats();
-    renderStockCategoryFilter();
-    renderStockInsights();
-    renderDepoTable();
-  } catch (err) {
-    console.error('Stok hatası:', err);
-    if (!cached) showEmpty('stocksEmptyState', 'Stok verileri alınamadı.');
-  }
-}
+// loadStockSummary → stok/api.js dosyasına taşındı
 
 function renderStockCategoryFilter() {
   const selectEl = document.getElementById('stockCategoryFilter');
@@ -183,10 +307,7 @@ function renderStockCategoryFilter() {
   }
 }
 
-function isSarfCategory(category) {
-  const c = String(category || '').toLocaleLowerCase('tr-TR');
-  return c.includes('sarf');
-}
+// isSarfCategory → stok/utils.js dosyasına taşındı
 
 function getInsightDateRange() {
   const startRaw = document.getElementById('insightStartDate')?.value || '';
@@ -202,89 +323,7 @@ function getInsightDateRange() {
   return { start, end };
 }
 
-function getProfitBySkuInRange() {
-  const { start, end } = getInsightDateRange();
-  const map = new Map();
-  (allProfitEvents || []).forEach((ev) => {
-    if (ev?.is_internal === true) return;
-    const sku = String(ev.sku || '').trim();
-    const d = String(ev.invoice_date || '').slice(0, 10);
-    if (!sku || !d) return;
-    if (start && d < start) return;
-    if (end && d > end) return;
-    map.set(sku, Number(map.get(sku) || 0) + Number(ev.gross_profit_usd || 0));
-  });
-  return map;
-}
-
-function buildProfitDrillRows() {
-  const metricBySku = getProfitBySkuInRange();
-  const internalOnlySet = new Set((internalOnlySkus || []).map((x) => String(x || '').trim()).filter(Boolean));
-
-  const source = [];
-  const seen = new Set();
-  (allProductsCatalog || []).forEach((p) => {
-    const sku = String(p.sku || '').trim();
-    if (!sku || seen.has(sku) || internalOnlySet.has(sku)) return;
-    seen.add(sku);
-    source.push({
-      sku,
-      product_name: p.product_name || '',
-      brand: p.brand || '',
-      category: p.category || '',
-      model: p.model || '',
-      fifo_gross_profit_usd: metricBySku.has(sku) ? Number(metricBySku.get(sku) || 0) : 0
-    });
-  });
-  // Katalogda olmayan ama metrikte olan SKU'ları da kaçırma.
-  (allStocks || []).forEach((r) => {
-    const sku = String(r.sku || '').trim();
-    if (!sku || seen.has(sku) || internalOnlySet.has(sku)) return;
-    seen.add(sku);
-    source.push({
-      sku,
-      product_name: r.product_name || '',
-      brand: r.brand || '',
-      category: r.category || '',
-      model: r.model || '',
-      fifo_gross_profit_usd: Number(r.fifo_gross_profit_usd || 0)
-    });
-  });
-
-  let rows = [];
-  let subtitle = 'Marka Bazlı Kar (USD)';
-  if (profitDrillState.level === 'brand') {
-    const byBrand = new Map();
-    source.forEach((r) => {
-      const key = String(r.brand || 'Markasız').trim() || 'Markasız';
-      byBrand.set(key, Number(byBrand.get(key) || 0) + Number(r.fifo_gross_profit_usd || 0));
-    });
-    rows = [...byBrand.entries()].map(([name, value]) => ({ name, value, canDrill: true }));
-  } else if (profitDrillState.level === 'category') {
-    const scoped = source.filter((r) => String(r.brand || 'Markasız').trim() === profitDrillState.brand);
-    const byCategory = new Map();
-    scoped.forEach((r) => {
-      const key = String(r.category || 'Kategorisiz').trim() || 'Kategorisiz';
-      byCategory.set(key, Number(byCategory.get(key) || 0) + Number(r.fifo_gross_profit_usd || 0));
-    });
-    rows = [...byCategory.entries()].map(([name, value]) => ({ name, value, canDrill: !isSarfCategory(name) }));
-    subtitle = `${profitDrillState.brand} > Kategori Bazlı Kar`;
-  } else {
-    const scoped = source.filter((r) =>
-      String(r.brand || 'Markasız').trim() === profitDrillState.brand &&
-      String(r.category || 'Kategorisiz').trim() === profitDrillState.category
-    );
-    const byModel = new Map();
-    scoped.forEach((r) => {
-      const key = String(r.model || r.product_name || r.sku || 'Modelsiz').trim() || 'Modelsiz';
-      byModel.set(key, Number(byModel.get(key) || 0) + Number(r.fifo_gross_profit_usd || 0));
-    });
-    rows = [...byModel.entries()].map(([name, value]) => ({ name, value, canDrill: false }));
-    subtitle = `${profitDrillState.brand} > ${profitDrillState.category} > Model Bazlı Kar`;
-  }
-  rows.sort((a, b) => Number(b.value || 0) - Number(a.value || 0));
-  return { rows, subtitle };
-}
+// getProfitBySkuInRange, buildProfitDrillRows → stok/utils.js dosyasına taşındı
 
 function renderDepoTable() {
   const body       = document.getElementById('stocksTableBody');
@@ -566,101 +605,10 @@ function renderStockInsights() {
   });
 }
 
-function buildInsightModel() {
-  const slowMoving = allStocks
-    .map((row) => {
-      const sku = String(row.sku || '');
-      const current = Number(row.current_stock || 0);
-      const sold30 = getSoldQtyLastDaysBySku(sku, 30);
-      const coverDays = sold30 > 0 ? Math.round((current / sold30) * 30) : (current > 0 ? 9999 : 0);
-      return {
-        name: row.product_name || sku || 'Ürün',
-        value: coverDays,
-        label: coverDays >= 9999 ? 'Satış yok' : `${coverDays} gün`,
-        hasStock: current > 0
-      };
-    })
-    .filter((x) => x.hasStock && x.value > 0)
-    .sort((a, b) => (b.value - a.value))
-    .slice(0, 10);
-
-  const topSold = allStocks
-    .map((row) => ({
-      name: row.product_name || row.sku || 'Ürün',
-      value: Number(row.total_out || 0)
-    }))
-    .filter((x) => x.value > 0)
-    .sort((a, b) => (b.value - a.value))
-    .slice(0, 10)
-    .map((x) => ({ ...x, label: `${fmtQty(x.value)} adet` }));
-
-  const topProfit = allStocks
-    .map((row) => {
-      return {
-        name: row.product_name || row.sku || 'Ürün',
-        value: Number(row.fifo_gross_profit_usd || 0)
-      };
-    })
-    .filter((x) => x.value > 0)
-    .sort((a, b) => (b.value - a.value))
-    .slice(0, 10)
-    .map((x) => ({ ...x, label: fmtUsd(x.value) }));
-
-  return {
-    slow: {
-      subtitle: 'Top 10 - Depoda en uzun süre yetecek ürünler',
-      variant: 'slow',
-      rows: slowMoving
-    },
-    sold: {
-      subtitle: 'Top 10 - Satılan adet',
-      variant: 'sold',
-      rows: topSold
-    },
-    profit: {
-      subtitle: 'Top 10 - FIFO brüt kar (USD)',
-      variant: 'profit',
-      rows: topProfit
-    }
-  };
-}
-
-function getSoldQtyLastDaysBySku(sku, days) {
-  if (!sku) return 0;
-  const nowTs = Date.now();
-  const maxAge = Number(days || 30) * 24 * 60 * 60 * 1000;
-  return allMovements.reduce((sum, mv) => {
-    if (String(mv.sku || '') !== sku) return sum;
-    if (String(mv.direction || '') !== 'OUTGOING') return sum;
-    const ts = mv.invoice_date ? new Date(mv.invoice_date).getTime() : NaN;
-    if (!Number.isFinite(ts)) return sum;
-    if ((nowTs - ts) > maxAge) return sum;
-    return sum + (Number(mv.quantity || 0) || 0);
-  }, 0);
-}
+// buildInsightModel, getSoldQtyLastDaysBySku → stok/utils.js dosyasına taşındı
 
 // ─── TAB 2: STOK HAREKETLERİ ──────────────────────────────────────────────────
-async function loadMovements() {
-  const cached = readCache(MOVEMENT_CACHE_KEY);
-  if (cached) {
-    allMovements = cached;
-    renderMovementCompanyOptions();
-    renderStockInsights();
-    renderMovementsTable();
-  }
-
-  try {
-    const res = await fetch('/api/stocks/movements');
-    if (!res.ok) throw new Error();
-    allMovements = await res.json();
-    writeCache(MOVEMENT_CACHE_KEY, allMovements);
-    renderMovementCompanyOptions();
-    renderStockInsights();
-    renderMovementsTable();
-  } catch {
-    if (!cached) showEmpty('movementsEmptyState', 'Hareket verileri alınamadı.');
-  }
-}
+// loadMovements → stok/api.js dosyasına taşındı
 
 function renderMovementsTable() {
   const body    = document.getElementById('movementsTableBody');
@@ -824,27 +772,7 @@ function outsideMovementCompanyClick(e) {
 }
 
 // ─── TAB 3: BEKLEYEN SİPARİŞLER ──────────────────────────────────────────────
-async function loadPendingOrders() {
-  const cached = readCache(PO_CACHE_KEY);
-  if (cached) {
-    allPendingOrders = cached;
-    renderPendingOrdersTable();
-    updatePendingPoStat();
-    renderStockInsights();
-  }
-
-  try {
-    const res = await fetch('/api/purchase-orders/all-pending');
-    if (!res.ok) throw new Error();
-    allPendingOrders = await res.json();
-    writeCache(PO_CACHE_KEY, allPendingOrders);
-    renderPendingOrdersTable();
-    updatePendingPoStat();
-    renderStockInsights();
-  } catch {
-    if (!cached) showEmpty('poEmptyState', 'Sipariş verileri alınamadı.');
-  }
-}
+// loadPendingOrders → stok/api.js dosyasına taşındı
 
 function updatePendingPoStat() {
   const count = allPendingOrders.filter(po => Number(po.ordered_qty) > Number(po.received_qty)).length;
@@ -964,25 +892,11 @@ function renderPendingOrdersTable() {
 }
 
 // ─── YARDIMCI FONKSİYONLAR ────────────────────────────────────────────────────
-function fmtQty(v)       { return Number(v || 0).toLocaleString('tr-TR'); }
-function fmtUsd(v)       { return `$${Number(v || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`; }
-function fmtUsdOrDash(v) { if (v === null || v === undefined || Number.isNaN(Number(v))) return '—'; return fmtUsd(v); }
-function esc(str)        { return String(str || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+// fmtQty, fmtUsd, fmtUsdOrDash, esc, readCache, writeCache → stok/utils.js dosyasına taşındı
 
 function showEmpty(id, msg) {
   const el = document.getElementById(id);
   if (el) { el.style.display = 'block'; el.innerText = msg; }
-}
-
-function readCache(key) {
-  try {
-    const raw = sessionStorage.getItem(key);
-    return raw ? JSON.parse(raw) : null;
-  } catch { return null; }
-}
-
-function writeCache(key, data) {
-  try { sessionStorage.setItem(key, JSON.stringify(data)); } catch {}
 }
 
 // ─── MINI FORM: BACKORDER EKLE ────────────────────────────────────────────────

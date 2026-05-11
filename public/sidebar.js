@@ -9,6 +9,7 @@
     const isFaturalar = path === '/' || path === '/index.html';
     const isStok      = path.includes('/stok');
     const isDmo       = path.includes('/dmo');
+    const isCari      = path.includes('/cari');
 
     function buildHtml() {
         return `<aside id="sidebar">
@@ -44,6 +45,11 @@
     <a href="/stok.html" class="sb-item${isStok ? ' active' : ''}">
       <i class="ti ti-package"></i>
       <span class="sb-label">Stok</span>
+    </a>
+
+    <a href="/cari/cari-index.html" class="sb-item${isCari ? ' active' : ''}">
+      <i class="ti ti-users"></i>
+      <span class="sb-label">Cari Analiz</span>
     </a>
 
     <div class="sb-divider"></div>

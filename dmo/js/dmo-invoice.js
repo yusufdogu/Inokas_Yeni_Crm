@@ -86,7 +86,9 @@ async function loadDetailView(orderId) {
         if (tEdit)   tEdit.onclick   = () => {
             window.location.href = `/dmo/pages/sepet-hesapla.html?taslak=${orderId}`;
         };
-        if (tPdf)    tPdf.onclick    = () => openPDFForTaslak(orderId);
+        if (tPdf)    tPdf.onclick    = () => {
+            window.location.href = `/dmo/pages/yeni-siparis.html?taslak=${orderId}`;
+        };
 
         // Stats on right
         const statsContainer = document.getElementById("detail-right-stats");
@@ -136,9 +138,9 @@ async function loadDetailView(orderId) {
         if (pdfBtn)    pdfBtn.style.display = "none";
 
         // Stats pane
-        const statsPane = document.getElementById("dv-pane-stats");
-        if (statsPane) {
-            statsPane.innerHTML = buildStatsGridHTML();
+        const statsGrid = document.getElementById("dv-stats-grid");
+        if (statsGrid) {
+            statsGrid.innerHTML = buildStatsGridHTML();
             fillDetailStats(order);
         }
 

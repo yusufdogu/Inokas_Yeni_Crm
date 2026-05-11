@@ -151,7 +151,17 @@
                 <tbody id="lineItemsBody"></tbody>
               </table>
             </div>
-
+          <!-- Hidden calculation fields - written by calculateProfit(), read by saveOrder() -->
+          <input type="hidden" id="dmo_basket">
+          <input type="hidden" id="inokas_basket">
+          <input type="hidden" id="stamp_tax">
+          <input type="hidden" id="kdv_tax">
+          <input type="hidden" id="inv_tevkifat">
+          <input type="hidden" id="inv_gercek_kdv">
+          <input type="hidden" id="inv_risturn">
+          <input type="hidden" id="inv_toplam_gelir">
+          <input type="hidden" id="inv_toplam_gider">
+          <input type="hidden" id="inv_indirim_kaybi">
           </form>
         </div>
         <!-- END BİLGİ PANE -->
@@ -245,7 +255,6 @@
           </div>
         </div>
         <!-- END İSTATİSTİK PANE -->
-        <!-- END İSTATİSTİK PANE -->
 
       </div>
       <!-- END RIGHT -->
@@ -283,15 +292,30 @@
       calculateProfit();
     }
   }
+  document.addEventListener("DOMContentLoaded", async () => {
+    const taslakId = new URLSearchParams(window.location.search).get("taslak");
 
-  document.addEventListener("DOMContentLoaded", () => {
+    if (taslakId) {
+        // Pre-set editing state for taslak merge
+        _editingOrderId = taslakId;
+        _isTaslakMerge  = true;
+
+        // Update header to show editing context
+        const titleEl = document.querySelector(".page-header-title");
+        if (titleEl) titleEl.textContent = "Taslak PDF Ekle";
+
+        // Update save button
+        const saveBtn = document.getElementById("btnSaveOrder");
+        if (saveBtn) saveBtn.textContent = "✓ Siparişi Tamamla";
+    }
+
     window._onOrderSaved = () => {
         if (pdfs.length === 0) {
             window.location.href = "/dmo/pages/siparisler.html";
         }
-        // if pdfs still remain, stay on page — removePdf already handled the tab
     };
   });
+
 </script>
 
 </body>

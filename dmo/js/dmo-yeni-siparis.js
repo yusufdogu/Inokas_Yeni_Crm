@@ -706,11 +706,52 @@ async function saveOrder() {
     }
 
     const purchaseOrderNo = document.getElementById("purchase_order_no")?.value?.trim();
-    const dmoBasket       = parseFloat(document.getElementById("dmo_basket")?.value)    || 0;
-    const inokasBasket    = parseFloat(document.getElementById("inokas_basket")?.value) || 0;
-    const stampTax        = parseFloat(document.getElementById("stamp_tax")?.value)     || 0;
-    const m                  = computeInvoiceMetrics(dmoBasket, inokasBasket, stampTax);
-    const usdRate         = parseFloat(document.getElementById("usd_rate")?.value);
+    const usdRate         = parseFloat(getCurrentRates().usd_try) || 0;
+
+    // Calculate from line items directly — don't rely on DOM inputs
+    const regularItems  = (window._lastParsedItems || []).filter(i => !i.is_gift);
+    const giftItems     = (window._lastParsedItems || []).filter(i =>  i.is_gift);
+
+    // DMO basket = catalog price × qty (before discount)
+    const dmoBasket = regularItems.reduce((s, i) =>
+        s + (parseFloat(i["KAT.SÖZ.FIY.(TL)"] || 0) * (parseFloat(i["MIKTAR"]) || 0)), 0);
+
+    // Actual basket = discounted price × qty (what customer pays)
+    const actualBasket = regularItems.reduce((s, i) =>
+        s + (parseFloat(i["TUTARI (TL)"] || 0)), 0);
+
+    // Tutar indirimi = difference
+    const tutarIndirimi   = dmoBasket - actualBasket;
+    const tutarIndirimPct = dmoBasket > 0 ? (tutarIndirimi / dmoBasket * 100) : 0;
+
+    // Inokas basket from URUNLER
+    const inokasBasket = regularItems.reduce((s, i) => {
+        const kod  = parseInt(i["KATALOG KOD NO"] || "0");
+        const qty  = parseFloat(i["MIKTAR"] || "0");
+        const urun = URUNLER[kod];
+        return s + (urun ? urun.maliyet_usd * qty * usdRate : 0);
+    }, 0);
+
+    // Gift total
+    const giftTotal = giftItems.reduce((s, i) => {
+        const kod  = parseInt(i["KATALOG KOD NO"] || "0");
+        const qty  = parseFloat(i["MIKTAR"] || "0");
+        const urun = URUNLER[kod];
+        return s + (urun ? urun.maliyet_usd * qty * usdRate : 0);
+    }, 0);
+
+    const stampTax = parseFloat(document.getElementById("stamp_tax")?.value) || 0;
+
+    // All taxes on actualBasket
+    const kdv          = actualBasket * 0.20;
+    const tevkifat     = kdv * 0.20;
+    const gercekKdv    = kdv - tevkifat;
+    const risturn      = actualBasket * 0.01;
+    const damgaKarar   = actualBasket * 0.01517;
+    const toplamGelir  = actualBasket + gercekKdv;
+    const toplamGider  = inokasBasket + tutarIndirimi + tevkifat + risturn + damgaKarar + giftTotal;
+    const netProfit    = toplamGelir - toplamGider;
+    const profitPct    = toplamGelir > 0 ? (netProfit / toplamGelir * 100) : 0;
 
     try {
         showModalAlert("Kaydediliyor...", "info");
@@ -738,14 +779,25 @@ async function saveOrder() {
                 customer_name:       document.getElementById("customer_name")?.value,
                 customer_no:         document.getElementById("customer_no")?.value,
                 order_date:          parseOrderDate(document.getElementById("order_date")?.value),
+                due_date:            document.getElementById("last_order_date")?.value || null,
                 stamp_tax:           stampTax,
-                pdf_url:             pdfUrl,
-                dmo_basket_total:    dmoBasket,
-                inokas_basket_total: inokasBasket,
                 stamp_tax_total:     stampTax,
-                net_profit:          m.netProfit,
-                profit_percentage:   m.profitPct,
+                pdf_url:             pdfUrl,
                 usd_rate:            usdRate,
+                dmo_basket_total:    dmoBasket,
+                real_dmo_basket:     actualBasket,
+                tutar_indirimi:      tutarIndirimi,
+                tutar_indirimi_pct:  tutarIndirimPct,
+                inokas_basket_total: inokasBasket,
+                gift_total:          giftTotal,
+                kdv_amount:          kdv,
+                tevkifat:            tevkifat,
+                gercek_kdv:          gercekKdv,
+                risturn_amount:      risturn,
+                toplam_gelir:        toplamGelir,
+                toplam_gider:        toplamGider,
+                net_profit:          netProfit,
+                profit_percentage:   profitPct,
                 status:              "Sipariş Alındı",
             }).eq("id", _editingOrderId);
 
@@ -773,8 +825,6 @@ async function saveOrder() {
                             dmo_code:     katalogKod.toString(),
                             last_purchase_price_cur: urun ? urun.maliyet_usd : 0,
                             last_purchase_currency:  "USD",
-                            last_purchase_rate:      usdRate,
-                            last_purchase_price_tl:  urun ? urun.maliyet_usd * usdRate : 0,
                         }).select().single();
                         if (!pe) productId = np.id;
                     }
@@ -786,7 +836,6 @@ async function saveOrder() {
                     line_total_excl_vat: lineTotal, is_gift: false,
                     katalog_kod: katalogKod.toString(),
                     maliyet_usd: URUNLER[katalogKod]?.maliyet_usd || 0,
-                    maliyet_tl:  (URUNLER[katalogKod]?.maliyet_usd || 0) * usdRate,
                 });
                 if (ie) failedItems++;
             }
@@ -826,12 +875,23 @@ async function saveOrder() {
             order_date:            parseOrderDate(document.getElementById("order_date")?.value),
             due_date:              document.getElementById("last_order_date")?.value || null,
             stamp_tax:             stampTax,
-            dmo_basket_total:      dmoBasket,
-            inokas_basket_total:   inokasBasket,
             stamp_tax_total:       stampTax,
             pdf_url:               pdfUrl,
-            net_profit:            m.netProfit,
-            profit_percentage:     m.profitPct,
+            usd_rate:              usdRate,
+            dmo_basket_total:      dmoBasket,
+            real_dmo_basket:       actualBasket,
+            tutar_indirimi:        tutarIndirimi,
+            tutar_indirimi_pct:    tutarIndirimPct,
+            inokas_basket_total:   inokasBasket,
+            gift_total:            giftTotal,
+            kdv_amount:            kdv,
+            tevkifat:              tevkifat,
+            gercek_kdv:            gercekKdv,
+            risturn_amount:        risturn,
+            toplam_gelir:          toplamGelir,
+            toplam_gider:          toplamGider,
+            net_profit:            netProfit,
+            profit_percentage:     profitPct,
             total_amount_excl_vat: dmoBasket,
             status:                "Sipariş Alındı",
         }).select().single();

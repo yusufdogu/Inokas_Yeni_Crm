@@ -54,7 +54,7 @@
           style="margin:24px; max-width:none; width:calc(100% - 48px); flex-shrink:0;"
           ondragover="event.preventDefault(); this.classList.add('drag-over')"
           ondragleave="this.classList.remove('drag-over')"
-          ondrop="event.preventDefault(); this.classList.remove('drag-over'); addPDFs(event.dataTransfer.files)">
+          ondrop="event.preventDefault(); this.classList.remove('drag-over'); handleDrop(event)">
           <input type="file" id="pdfInput" accept=".pdf" multiple hidden
                  onchange="addPDFs(this.files); this.value='';">
           <i class="ti ti-file-upload" style="font-size:40px; color:#94a3b8; display:block; margin-bottom:12px;"></i>
@@ -133,22 +133,19 @@
                   <i class="ti ti-plus" style="font-size:13px;"></i>Kalem Ekle
                 </button>
               </div>
-              <table class="line-table">
+              <table class="line-table" style="table-layout:fixed;">
                 <thead>
                   <tr>
-                    <th>Katalog Kod</th>
+                    <th style="width:28px;"></th>
+                    <th style="width:90px;">Katalog Kod</th>
                     <th>Ürün Adı</th>
-                    <th>Ürün Kodu</th>
-                    <th width="90">DMO B.Fiyat</th>
-                    <th width="70">İndirim %</th>
-                    <th width="90">İnd. B.Fiyat</th>
-                    <th width="60">Adet</th>
-                    <th width="90">Maliyet (₺)</th>
-                    <th width="90">Toplam</th>
-                    <th width="60">İşlem</th>
+                    <th style="width:60px; text-align:right;">Adet</th>
+                    <th style="width:110px; text-align:right;">Toplam</th>
+                    <th style="width:40px;"></th>
                   </tr>
                 </thead>
                 <tbody id="lineItemsBody"></tbody>
+                <tfoot id="lineItemsFooter"></tfoot>
               </table>
             </div>
           <!-- Hidden calculation fields - written by calculateProfit(), read by saveOrder() -->

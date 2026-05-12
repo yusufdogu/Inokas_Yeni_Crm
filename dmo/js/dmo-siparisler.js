@@ -1,24 +1,80 @@
 // ── FILTER FUNCTIONS ──────────────────────────────────────────────────────────
 function readFilters() {
-    filterState.search     = document.getElementById("mainSearch")?.value.toLocaleLowerCase("tr-TR")    || "";
-    filterState.company    = filterState.company || "";
-    filterState.product    = filterState.product || document.getElementById("filterProduct")?.value.toLocaleLowerCase("tr-TR") || "";
-    filterState.dateStart  = document.getElementById("filterDateStart")?.value                          || "";
-    filterState.dateEnd    = document.getElementById("filterDateEnd")?.value                            || "";
-    filterState.status     = document.getElementById("filterStatus")?.value                             || "";
-    filterState.category   = document.getElementById("filterCategory")?.value                           || "";
-    filterState.minBasket  = parseFloat(document.getElementById("filterMinBasket")?.value)              || null;
-    filterState.maxBasket  = parseFloat(document.getElementById("filterMaxBasket")?.value)              || null;
+    filterState.dateStart = document.getElementById("filterDateStart")?.value || "";
+    filterState.dateEnd   = document.getElementById("filterDateEnd")?.value   || "";
+    filterState.status    = document.getElementById("filterStatus")?.value    || "";
+    filterState.category  = document.getElementById("filterCategory")?.value  || "";
+    filterState.minBasket = parseInt(document.getElementById("basketMin")?.value) || 0;
+    filterState.maxBasket = parseInt(document.getElementById("basketMax")?.value) || 3000000;
 }
 
 function getActiveFilters() {
     return {
-        hasCompany:   !!filterState.company,
-        hasProduct:   !!filterState.product,
+        hasCompany: filterState.companies.length > 0,
+        hasProduct: filterState.products.length > 0,
         hasDateRange: !!(filterState.dateStart && filterState.dateEnd),
-        hasSearch:    !!filterState.search,
     };
 }
+
+
+function addTag(type, value, label) {
+    if (!value) return;
+    const key = type === "company" ? "companies" : type === "product" ? "products" : "brands";
+    const arr = filterState[key];
+    if (!arr) return;
+    if (arr.includes(value)) return;
+    arr.push(value);
+    renderTags(type);
+    // Clear input
+    const inputId = type === "company" ? "mainSearch" : type === "brand" ? "brandSearch" : "filterProduct";
+    const input = document.getElementById(inputId);
+    if (input) input.value = "";
+    // Hide dropdown
+    const dropId = type === "company" ? "companyDropdown" : type === "brand" ? "brandDropdown" : "productDropdown";
+    const drop = document.getElementById(dropId);
+    if (drop) drop.style.display = "none";
+}
+
+function removeTag(type, value) {
+    const key = type === "company" ? "companies" : type === "product" ? "products" : "brands";
+    filterState[key] = filterState[key].filter(v => v !== value);
+    renderTags(type);
+}
+
+function renderTags(type) {
+    const key = type === "company" ? "companies" : type === "product" ? "products" : "brands";
+    const containerId = type === "company" ? "companyTags" : type === "brand" ? "brandTags" : "productTags";
+    const container = document.getElementById(containerId);
+    if (!container) return;
+    container.innerHTML = filterState[key].map(v => `
+        <span class="filter-tag">
+            ${v}
+            <button onclick="removeTag('${type}', '${v.replace(/'/g, "\\'")}')" type="button">✕</button>
+        </span>
+    `).join("");
+}
+
+function handleTagKeydown(event, type) {
+    if (event.key === "Backspace") {
+        const key = type === "brand" ? "brands" : type + "s";
+        const input = event.target;
+        if (input.value === "" && filterState[key].length > 0) {
+            filterState[key].pop();
+            renderTags(type);
+        }
+    }
+}
+
+function updateBasketRange() {
+    let min = parseInt(document.getElementById("basketMin")?.value) || 0;
+    let max = parseInt(document.getElementById("basketMax")?.value) || 3000000;
+    if (min > max) { const t = min; min = max; max = t; }
+    const label = document.getElementById("basketRangeLabel");
+    if (label) label.textContent = `${min.toLocaleString("tr-TR")} — ${max.toLocaleString("tr-TR")} ₺`;
+    filterState.minBasket = min;
+    filterState.maxBasket = max;
+}
+
 
 function toggleAdvancedFilters() {
     const panel   = document.getElementById("advancedFiltersPanel");
@@ -38,119 +94,122 @@ function updateAdvancedBadge() {
     if (badge) badge.style.display = hasActive ? "inline-block" : "none";
 }
 
+function applyFilters() {
+    readFilters();
+    renderCurrentView();
+}
+
 function clearAllFilters() {
-    const fields = ["filterStatus", "filterCategory", "filterDateStart", "filterDateEnd",
-                    "filterMinBasket", "filterMaxBasket", "mainSearch", "filterProduct"];
-    fields.forEach(id => {
-        const el = document.getElementById(id);
-        if (el) el.value = "";
-    });
-    filterState.search    = "";
-    filterState.company   = "";
-    filterState.product   = "";
+    filterState.companies = [];
+    filterState.products  = [];
+    filterState.brands    = [];
     filterState.dateStart = "";
     filterState.dateEnd   = "";
     filterState.status    = "";
     filterState.category  = "";
-    filterState.minBasket = null;
-    filterState.maxBasket = null;
-    document.getElementById('filterMinBasket').value = '';
-    document.getElementById('filterMaxBasket').value = '';
-    document.getElementById('basketSlider')?.noUiSlider?.set([0, 3000000]);
+    filterState.minBasket = 0;
+    filterState.maxBasket = 3000000;
+
+    ["mainSearch", "filterProduct", "brandSearch"].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.value = "";
+    });
+    ["filterStatus", "filterCategory"].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.value = "";
+    });
+    const bMin = document.getElementById("basketMin");
+    const bMax = document.getElementById("basketMax");
+    if (bMin) bMin.value = "0";
+    if (bMax) bMax.value = "3000000";
+    updateBasketRange();
+
+    renderTags("company");
+    renderTags("product");
+    renderTags("brand");
+    updateAdvancedBadge();
     renderCurrentView();
 }
-
 // ── AUTOCOMPLETE ──────────────────────────────────────────────────────────────
 function handleMainSearch() {
     const val      = document.getElementById("mainSearch")?.value.toLocaleLowerCase("tr-TR") || "";
     const dropdown = document.getElementById("companyDropdown");
-
-    if (val.length < 1) {
-        dropdown.style.display = "none";
-        filterState.search     = "";
-        filterState.company    = "";
-        renderCurrentView();
-        return;
-    }
+    if (val.length < 1) { dropdown.style.display = "none"; return; }
 
     const allCompanies = Array.from(
         document.querySelectorAll("#filterCompany option")
     ).map(o => o.value).filter(Boolean);
 
     const matches = allCompanies.filter(c =>
-        c.toLocaleLowerCase("tr-TR").includes(val)
-    );
+        c.toLocaleLowerCase("tr-TR").includes(val) && !filterState.companies.includes(c)
+    ).slice(0, 8);
 
     if (matches.length > 0) {
         dropdown.style.display = "block";
         dropdown.innerHTML = matches.map(c => `
-            <div onclick="selectCompany('${c}')"
-                style="padding:8px 12px; cursor:pointer; font-size:13px; border-bottom:1px solid #f1f5f9;"
-                onmouseover="this.style.background='#f8fafc'"
-                onmouseout="this.style.background='white'">
-                🏢 ${c}
+            <div class="filter-dropdown-item" onclick="addTag('company', '${c.replace(/'/g, "\\'")}', '${c.replace(/'/g, "\\'")}')">
+                <i class="ti ti-building" style="font-size:12px; margin-right:6px; color:#64748b;" aria-hidden="true"></i>${c}
             </div>
         `).join("");
     } else {
         dropdown.style.display = "none";
     }
-
-    filterState.search  = val;
-    filterState.company = "";
-    renderCurrentView();
-}
-
-function selectCompany(company) {
-    document.getElementById("mainSearch").value              = company;
-    document.getElementById("companyDropdown").style.display = "none";
-    filterState.company = company;
-    filterState.search  = "";
-    renderCurrentView();
 }
 
 function handleProductSearch() {
     const val      = document.getElementById("filterProduct")?.value.toLocaleLowerCase("tr-TR") || "";
     const dropdown = document.getElementById("productDropdown");
+    if (val.length < 2) { dropdown.style.display = "none"; return; }
 
-    if (val.length < 2) {
-        dropdown.style.display = "none";
-        filterState.product    = "";
-        renderCurrentView();
-        return;
-    }
-
-    const matches = (window.hhProducts || []).filter(p =>
-        p.product_name?.toLocaleLowerCase("tr-TR").includes(val) ||
-        p.product_code?.toLocaleLowerCase("tr-TR").includes(val) ||
-        p.dmo_code?.toString().includes(val)
+    const matches = (window._siparislerProducts || []).filter(p =>
+        (p.product_name?.toLocaleLowerCase("tr-TR").includes(val) ||
+         p.dmo_code?.toString().includes(val)) &&
+        !filterState.products.includes(p.product_code)
     ).slice(0, 8);
 
     if (matches.length > 0) {
         dropdown.style.display = "block";
         dropdown.innerHTML = matches.map(p => `
-            <div onclick="selectProduct('${p.product_code}', '${p.product_name?.replace(/'/g, "\\'")}')"
-                style="padding:8px 12px; cursor:pointer; font-size:12px; border-bottom:1px solid #f1f5f9;"
-                onmouseover="this.style.background='#f8fafc'"
-                onmouseout="this.style.background='white'">
-                <strong style="color:#2563eb;">${p.dmo_code}</strong> — ${p.product_name}
+            <div class="filter-dropdown-item" onclick="addTag('product', '${p.product_code}', '${(p.product_name || "").replace(/'/g, "\\'")}')">
+                <span style="color:#2563eb; font-size:11px; margin-right:6px;">${p.dmo_code}</span>${p.product_name}
             </div>
         `).join("");
     } else {
         dropdown.style.display = "none";
     }
-
-    filterState.product = val;
-    renderCurrentView();
 }
 
-function selectProduct(code, name) {
-    document.getElementById("filterProduct").value           = name;
-    document.getElementById("productDropdown").style.display = "none";
-    filterState.product = code;
-    renderCurrentView();
+async function handleBrandSearch() {
+    const val      = document.getElementById("brandSearch")?.value.toLocaleLowerCase("tr-TR") || "";
+    const dropdown = document.getElementById("brandDropdown");
+    if (val.length < 1) { dropdown.style.display = "none"; return; }
+
+    const { data: brands } = await db
+        .from("products")
+        .select("brand")
+        .not("brand", "is", null)
+        .ilike("brand", `%${val}%`)
+        .limit(10);
+
+    const unique = [...new Set((brands || []).map(b => b.brand))].filter(b => !filterState.brands.includes(b));
+
+    if (unique.length > 0) {
+        dropdown.style.display = "block";
+        dropdown.innerHTML = unique.map(b => `
+            <div class="filter-dropdown-item" onclick="addTag('brand', '${b.replace(/'/g, "\\'")}', '${b.replace(/'/g, "\\'")}')">
+                <i class="ti ti-tag" style="font-size:12px; margin-right:6px; color:#64748b;" aria-hidden="true"></i>${b}
+            </div>
+        `).join("");
+    } else {
+        dropdown.style.display = "none";
+    }
 }
+
 
 async function populateCategoryFilter() {
+    const select = document.getElementById('filterCategory');
+    if (!select || select.dataset.loaded) return;
+
     const { data, error } = await db
         .from('products')
         .select('category')
@@ -159,24 +218,28 @@ async function populateCategoryFilter() {
     if (error || !data) return;
 
     const unique = [...new Set(data.map(p => p.category).filter(Boolean))].sort();
-    const select = document.getElementById('filterCategory');
-
     unique.forEach(cat => {
         const opt = document.createElement('option');
         opt.value = cat;
-        opt.textContent = cat.charAt(0) + cat.slice(1).toLowerCase(); // KARTUŞ → Kartuş
+        opt.textContent = cat.charAt(0) + cat.slice(1).toLowerCase();
         select.appendChild(opt);
     });
+
+    select.dataset.loaded = "true";
 }
 
 // Close dropdowns when clicking outside
 document.addEventListener("click", (e) => {
-    if (!e.target.closest("#mainSearch") && !e.target.closest("#companyDropdown")) {
+    if (!e.target.closest("#mainSearch") && !e.target.closest("#companyDropdown") && !e.target.closest("#companyTagsWrap")) {
         const d = document.getElementById("companyDropdown");
         if (d) d.style.display = "none";
     }
-    if (!e.target.closest("#filterProduct") && !e.target.closest("#productDropdown")) {
+    if (!e.target.closest("#filterProduct") && !e.target.closest("#productDropdown") && !e.target.closest("#productTagsWrap")) {
         const d = document.getElementById("productDropdown");
+        if (d) d.style.display = "none";
+    }
+    if (!e.target.closest("#brandSearch") && !e.target.closest("#brandDropdown") && !e.target.closest("#brandTagsWrap")) {
+        const d = document.getElementById("brandDropdown");
         if (d) d.style.display = "none";
     }
 });
@@ -192,7 +255,9 @@ async function renderCurrentView() {
 
     if (filterState.dateStart) query = query.gte("order_date", filterState.dateStart);
     if (filterState.dateEnd)   query = query.lte("order_date", filterState.dateEnd);
-    if (filterState.company)   query = query.ilike("customer_name", `%${filterState.company}%`);
+    if (filterState.companies.length > 0) {
+        query = query.or(filterState.companies.map(c => `customer_name.ilike.%${c}%`).join(","));
+    }
     if (filterState.status)    query = query.eq("status", filterState.status);
 
     const { data: orders, error } = await query;
@@ -247,55 +312,56 @@ async function renderCurrentView() {
         }
     }
 
-    // Search filter
-    if (filterState.search) {
-        filteredOrders = filteredOrders.filter(o =>
-            o.sales_order_no?.toLocaleLowerCase("tr-TR").includes(filterState.search) ||
-            o.customer_name?.toLocaleLowerCase("tr-TR").includes(filterState.search)
-        );
+    // Brand filter
+    if (filterState.brands.length > 0) {
+        const { data: brandProducts } = await db
+            .from("products")
+            .select("id")
+            .in("brand", filterState.brands);
+
+        const brandIds = brandProducts?.map(p => p.id) || [];
+        if (brandIds.length > 0) {
+            const { data: brandItems } = await db
+                .from("dmo_order_items")
+                .select("order_id")
+                .in("product_id", brandIds);
+            const brandOrderIds = new Set(brandItems?.map(i => i.order_id) || []);
+            filteredOrders = filteredOrders.filter(o => brandOrderIds.has(o.id));
+        } else {
+            filteredOrders = [];
+        }
+    }
+
+    // Products filter — now uses array
+    if (filterState.products.length > 0) {
+        const { data: matchingProducts } = await db
+            .from("products")
+            .select("id")
+            .in("product_code", filterState.products);
+
+        const productIds = matchingProducts?.map(p => p.id) || [];
+        if (productIds.length > 0) {
+            const { data: matchingItems } = await db
+                .from("dmo_order_items")
+                .select("order_id")
+                .in("product_id", productIds);
+            const matchingOrderIds = new Set(matchingItems?.map(i => i.order_id) || []);
+            filteredOrders = filteredOrders.filter(o => matchingOrderIds.has(o.id));
+        } else {
+            filteredOrders = [];
+        }
     }
 
     // Basket range filter
-    if (filterState.minBasket) filteredOrders = filteredOrders.filter(o => o.dmo_basket_total >= filterState.minBasket);
-    if (filterState.maxBasket) filteredOrders = filteredOrders.filter(o => o.dmo_basket_total <= filterState.maxBasket);
+    if (filterState.minBasket > 0)       filteredOrders = filteredOrders.filter(o => (o.dmo_basket_total || 0) >= filterState.minBasket);
+    if (filterState.maxBasket < 3000000) filteredOrders = filteredOrders.filter(o => (o.dmo_basket_total || 0) <= filterState.maxBasket);
 
     await renderTable(filteredOrders);
     await loadCharts(filteredOrders);
-    await populateCategoryFilter();
-    initBasketSlider()
     populateCompanyFilter(orders);
 }
 
 
-function initBasketSlider() {
-    const slider = document.getElementById('basketSlider');
-    if (!slider || slider.noUiSlider) return;
-
-    noUiSlider.create(slider, {
-        start:   [0, 3000000],
-        connect: true,
-        range:   { min: 0, max: 3000000 },
-        step:    1000,
-        tooltips: false,
-    });
-
-    slider.noUiSlider.on('update', (values) => {
-        const min = Math.round(values[0]);
-        const max = Math.round(values[1]);
-
-        document.getElementById('sliderMinLabel').textContent = formatAmount(min) + ' ₺';
-        document.getElementById('sliderMaxLabel').textContent = formatAmount(max) + ' ₺';
-
-        filterState.minBasket = min > 0       ? min : null;
-        filterState.maxBasket = max < 3000000 ? max : null;
-    });
-
-    // Only trigger re-render when user stops dragging, not on every pixel
-    slider.noUiSlider.on('change', () => {
-        renderCurrentView();
-        updateAdvancedBadge();
-    });
-}
 // ── POPULATE COMPANY FILTER ───────────────────────────────────────────────────
 function populateCompanyFilter(orders) {
     const select = document.getElementById("filterCompany");
@@ -389,14 +455,20 @@ async function renderTable(orders) {
 document.addEventListener("DOMContentLoaded", async () => {
     if (!document.getElementById("sp-tbody") && !document.getElementById("invoiceCardsContainer")) return;
 
-    // Set default date range: last 3 months
-    const end   = new Date();
-    const start = new Date();
-    start.setMonth(start.getMonth() - 3);
     const dateStart = document.getElementById("filterDateStart");
     const dateEnd   = document.getElementById("filterDateEnd");
-    if (dateStart) dateStart.value = start.toISOString().slice(0, 10);
-    if (dateEnd)   dateEnd.value   = end.toISOString().slice(0, 10);
+    if (dateStart) dateStart.value = "2026-01-01";
+    if (dateEnd)   dateEnd.value   = new Date().toISOString().slice(0, 10);
+
+    // Load products for search
+    const { data: products } = await db
+        .from("products")
+        .select("id, product_code, product_name, dmo_code, brand")
+        .not("dmo_code", "is", null);
+    window._siparislerProducts = products || [];
+
+    // Load categories once
+    await populateCategoryFilter();
 
     await renderCurrentView();
 });

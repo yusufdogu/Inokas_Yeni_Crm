@@ -12,15 +12,15 @@ let urunlerLoaded = false;
 
 // ── FILTER STATE ──────────────────────────────────────────────────────────────
 const filterState = {
-    search:    "",
-    company:   "",
-    product:   "",
-    dateStart: "",
-    dateEnd:   "",
-    status:    "Sipariş Alındı",
-    category:  "",
-    minBasket: null,
-    maxBasket: null,
+    companies:  [],   // array of selected company names
+    products:   [],   // array of selected product codes/names
+    brands:     [],   // array of selected brands
+    dateStart:  "",
+    dateEnd:    "",
+    status:     "",
+    category:   "",
+    minBasket:  0,
+    maxBasket:  3000000,
 };
 
 // ── HELPERS ───────────────────────────────────────────────────────────────────

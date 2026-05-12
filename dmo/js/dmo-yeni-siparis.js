@@ -27,6 +27,71 @@ async function loadUrunler() {
 }
 
 
+async function handleDrop(event) {
+    const items = event.dataTransfer.items;
+    if (!items || items.length === 0) return;
+
+    const collectedFiles = [];
+    let hadErrors        = false;
+
+    const readDirEntries = (dirReader) => new Promise((resolve) => {
+        dirReader.readEntries((entries) => resolve(entries), () => resolve([]));
+    });
+
+    const entryToFile = (entry) => new Promise((resolve) => {
+        entry.file(resolve, () => resolve(null));
+    });
+
+    for (let i = 0; i < items.length; i++) {
+        const entry = items[i].webkitGetAsEntry?.();
+
+        if (!entry) {
+            showToast("Zip veya desteklenmeyen format atlandı", "error");
+            hadErrors = true;
+            continue;
+        }
+
+        if (entry.isFile) {
+            const file = await entryToFile(entry);
+            if (!file) continue;
+            if (file.name.toLowerCase().endsWith(".pdf")) {
+                collectedFiles.push(file);
+            } else {
+                showToast(`PDF olmayan dosya atlandı: ${file.name}`, "warn");
+                hadErrors = true;
+            }
+
+        } else if (entry.isDirectory) {
+            const dirReader = entry.createReader();
+            const entries   = await readDirEntries(dirReader);
+
+            for (const subEntry of entries) {
+                if (subEntry.isDirectory) {
+                    showToast(`Alt klasörler desteklenmiyor: ${subEntry.name}`, "error");
+                    hadErrors = true;
+                    continue;
+                }
+
+                const file = await entryToFile(subEntry);
+                if (!file) continue;
+
+                if (file.name.toLowerCase().endsWith(".pdf")) {
+                    collectedFiles.push(file);
+                } else {
+                    showToast(`PDF olmayan dosya atlandı: ${file.name}`, "warn");
+                    hadErrors = true;
+                }
+            }
+        }
+    }
+
+    if (collectedFiles.length > 0) {
+        await addPDFs(collectedFiles);
+    } else if (!hadErrors) {
+        showToast("Hiç PDF bulunamadı", "error");
+    }
+}
+
 // ── PDF UPLOAD & PARSE ────────────────────────────────────────────────────────
 async function parseSinglePdf(file) {
     const formData = new FormData();
@@ -76,13 +141,11 @@ async function addPDFs(files) {
     });
 
     if (addedCount > 0) {
-        if (activePdfIndex === null) activePdfIndex = 0;
+        activePdfIndex = pdfs.length - 1; // always point to last added
         showToast(`${addedCount} PDF eklendi!`, "success");
         if (failedCount > 0) showToast(`${failedCount} PDF atlandı`, "warn");
         renderPdfTabs();
         switchTab(activePdfIndex);
-    } else if (failedCount > 0) {
-        showToast("Uygun PDF bulunamadı", "error");
     }
 }
 
@@ -91,26 +154,7 @@ let _pdfDoc      = null;
 let _highlights  = [];
 let _pageSizes   = [];
 
-async function renderPDFWithHighlights(blobUrl, highlights, pageSizes) {
-    _highlights = highlights || [];
-    _pageSizes  = pageSizes  || [];
 
-    console.log('HIGHLIGHTS:', JSON.stringify(_highlights));
-    console.log('PAGE SIZES:', JSON.stringify(_pageSizes));
-
-    const pdfjsLib = window.pdfjsLib;
-    pdfjsLib.GlobalWorkerOptions.workerSrc =
-        'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
-
-    _pdfDoc = await pdfjsLib.getDocument(blobUrl).promise;
-
-    const container = document.getElementById("pdfPagesContainer");
-    container.innerHTML = "";
-
-    for (let pageNum = 1; pageNum <= _pdfDoc.numPages; pageNum++) {
-        await renderSinglePage(pageNum, container);
-    }
-}
 
 async function renderSinglePage(pageNum, container) {
     const page     = await _pdfDoc.getPage(pageNum);
@@ -208,18 +252,7 @@ async function switchTab(index) {
 
     pdfViewer.src = pdf.blobUrl;
 }
-async function changePDFPage(delta) {
-    if (!_pdfDoc) return;
-    const newPage = _currentPage + delta;
-    if (newPage < 1 || newPage > _pdfDoc.numPages) return;
-    _currentPage = newPage;
-    await renderPage(_currentPage);
 
-    const nav   = document.getElementById("pdf-page-nav");
-    const label = document.getElementById("pdf-page-label");
-    if (nav)   nav.style.display = _pdfDoc.numPages > 1 ? "flex" : "none";
-    if (label) label.textContent = `Sayfa ${_currentPage} / ${_pdfDoc.numPages}`;
-}
 // ── REMOVE PDF ────────────────────────────────────────────────────────────────
 function removePdf(index) {
     URL.revokeObjectURL(pdfs[index].blobUrl);
@@ -389,6 +422,19 @@ function renderLineItems(items) {
         tbody.appendChild(buildLineItemRow(item, index));
     });
 
+    // Footer total
+    const footer = document.getElementById("lineItemsFooter");
+    if (footer) {
+        const total = regularItems.reduce((s, i) => s + (parseFloat(i["TUTARI (TL)"]) || 0), 0);
+        footer.innerHTML = `
+            <tr style="border-top:0.5px solid var(--color-border-tertiary); background:var(--color-background-secondary);">
+                <td colspan="4" style="padding:8px 12px; font-size:12px; color:#94a3b8;">${regularItems.length} kalem</td>
+                <td style="padding:8px 12px; text-align:right; font-weight:600; font-size:13px;">${formatAmount(total)} ₺</td>
+                <td></td>
+            </tr>
+        `;
+    }
+
     if (giftItems.length > 0) {
         const giftHeader = document.createElement("tr");
         giftHeader.innerHTML = `
@@ -447,35 +493,118 @@ function buildLineItemRow(item, index) {
     const katalogKod   = item["KATALOG KOD NO"] || "";
     const malzemeAdi   = item["MALZEMENIN CINSI(VARSA MARKA VE MODELI)"] || "";
     const malzemeKodu  = item["MALZEME_KODU"] || "";
-    const dmoFiyat     = parseFloat(item["KAT.SÖZ.FIY.(TL)"])               || 0;
-    const indirimPct   = parseFloat(item["TOPLAM"])                  || 0;
-    const indirimFiyat = parseFloat(item["ALIMA ESAS INDIRMLI BIRIM FIYAT"]) || 0;
-    const miktar       = parseFloat(item["MIKTAR"] || "0")                   || 0;
-    const toplam       = parseFloat(item["TUTARI (TL)"])                     || 0;
+    const dmoFiyat     = parseFloat(item["KAT.SÖZ.FIY.(TL)"])                || 0;
+    const indirimPct   = parseFloat(item["TOPLAM"])                   || 0;
+    const indirimFiyat = parseFloat(item["ALIMA ESAS INDIRMLI BIRIM FIYAT"])  || 0;
+    const miktar       = parseFloat(item["MIKTAR"] || "0")                    || 0;
+    const toplam       = parseFloat(item["TUTARI (TL)"])                      || 0;
     const maliyetTL    = getLineItemMaliyetTL(item);
+    const hasMaliyet   = maliyetTL !== null && maliyetTL > 0;
+    const detailId     = `line-detail-${index}`;
+    const chevronId    = `line-chevron-${index}`;
 
-    const tr = document.createElement("tr");
-    tr.innerHTML = `
-        <td><input type="text"   value="${escapeHtml(katalogKod)}"   oninput="updateLineItemField(${index}, 'katalog',       this.value)"></td>
-        <td><input type="text"   value="${escapeHtml(malzemeAdi)}"   oninput="updateLineItemField(${index}, 'adi',           this.value)"></td>
-        <td><input type="text"   value="${escapeHtml(malzemeKodu)}"  oninput="updateLineItemField(${index}, 'kodu',          this.value)"></td>
-        <td><input type="number" step="0.01" min="0" value="${dmoFiyat}"     oninput="updateLineItemField(${index}, 'dmoFiyat',     this.value)"></td>
-        <td><input type="number" step="0.01" min="0" value="${indirimPct}"   oninput="updateLineItemField(${index}, 'indirimPct',   this.value)"></td>
-        <td><input type="number" step="0.01" min="0" value="${indirimFiyat}" oninput="updateLineItemField(${index}, 'indirimFiyat', this.value)"></td>
-        <td><input type="number" step="1"    min="0" value="${miktar}"       oninput="updateLineItemField(${index}, 'miktar',       this.value)"></td>
-        <td class="text-right" style="${maliyetTL === null || maliyetTL === 0 ? 'color:#dc2626; font-weight:700;' : ''}">
-            ${maliyetTL !== null && maliyetTL > 0
-                ? formatAmount(maliyetTL)
-                : '<span title="Bu ürün için maliyet bilgisi bulunamadı">⚠️ —</span>'}
+    const fragment = document.createDocumentFragment();
+
+    // ── MAIN ROW ──────────────────────────────────────────────────────────────
+    const mainRow = document.createElement("tr");
+    mainRow.style.cursor = "pointer";
+    mainRow.style.borderTop = "0.5px solid var(--color-border-tertiary)";
+    mainRow.onclick = () => toggleLineDetail(detailId, chevronId);
+    mainRow.innerHTML = `
+        <td style="padding:10px 8px; text-align:center;">
+            <i id="${chevronId}" class="ti ti-chevron-right"
+               style="font-size:12px; color:#64748b; transition:transform 0.15s;"
+               aria-hidden="true"></i>
         </td>
-        <td class="text-right">${formatAmount(toplam)}</td>
-        <td class="text-right">
-            <button type="button" class="btn btn-secondary" style="padding:4px 8px; font-size:11px;" onclick="removeLineItem(${index})">Sil</button>
+        <td style="padding:10px 8px; font-size:12px; color:#64748b;">${escapeHtml(katalogKod)}</td>
+        <td style="padding:10px 8px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">
+            ${escapeHtml(malzemeAdi)}
+            ${!hasMaliyet ? `<span style="margin-left:6px; font-size:11px; background:#fef3c7; color:#92400e; padding:1px 6px; border-radius:4px;">maliyet yok</span>` : ""}
+        </td>
+        <td style="padding:10px 8px; text-align:right;">${miktar}</td>
+        <td style="padding:10px 8px; text-align:right; font-weight:600;">${formatAmount(toplam)} ₺</td>
+        <td style="padding:10px 8px; text-align:center;">
+            <button type="button" onclick="event.stopPropagation(); removeLineItem(${index})"
+                style="background:none; border:none; cursor:pointer; padding:2px; color:#94a3b8;"
+                title="Sil">
+                <i class="ti ti-trash" style="font-size:14px;" aria-hidden="true"></i>
+            </button>
         </td>
     `;
-    return tr;
+
+    // ── DETAIL ROW ────────────────────────────────────────────────────────────
+    const detailRow = document.createElement("tr");
+    detailRow.id = detailId;
+    detailRow.style.display = "none";
+    detailRow.style.background = "var(--color-background-secondary)";
+    detailRow.innerHTML = `
+        <td colspan="6" style="padding:0 12px 12px 44px;">
+            <div style="display:grid; grid-template-columns:repeat(4,1fr); gap:10px; padding-top:12px; border-top:0.5px solid var(--color-border-tertiary);">
+                <div>
+                    <div style="font-size:11px; color:#94a3b8; margin-bottom:4px;">Ürün Kodu</div>
+                    <input type="text" value="${escapeHtml(malzemeKodu)}"
+                        oninput="updateLineItemField(${index}, 'kodu', this.value)"
+                        style="font-size:13px; font-weight:500; width:100%; background:transparent; border:none; border-bottom:1px solid #334155; color:inherit; outline:none; padding:2px 0;">
+                </div>
+                <div>
+                    <div style="font-size:11px; color:#94a3b8; margin-bottom:4px;">DMO Birim Fiyat</div>
+                    <input type="number" step="0.01" value="${dmoFiyat}"
+                        oninput="updateLineItemField(${index}, 'dmoFiyat', this.value)"
+                        style="font-size:13px; font-weight:500; width:100%; background:transparent; border:none; border-bottom:1px solid #334155; color:inherit; outline:none; padding:2px 0;">
+                </div>
+                <div>
+                    <div style="font-size:11px; color:#94a3b8; margin-bottom:4px;">İndirim %</div>
+                    <input type="number" step="0.01" value="${indirimPct}"
+                        oninput="updateLineItemField(${index}, 'indirimPct', this.value)"
+                        style="font-size:13px; font-weight:500; width:100%; background:transparent; border:none; border-bottom:1px solid #334155; color:inherit; outline:none; padding:2px 0;">
+                </div>
+                <div>
+                    <div style="font-size:11px; color:#94a3b8; margin-bottom:4px;">İndirimli Birim</div>
+                    <input type="number" step="0.01" value="${indirimFiyat}"
+                        oninput="updateLineItemField(${index}, 'indirimFiyat', this.value)"
+                        style="font-size:13px; font-weight:500; width:100%; background:transparent; border:none; border-bottom:1px solid #334155; color:inherit; outline:none; padding:2px 0;">
+                </div>
+                <div>
+                    <div style="font-size:11px; color:#94a3b8; margin-bottom:4px;">Ürün Adı</div>
+                    <input type="text" value="${escapeHtml(malzemeAdi)}"
+                        oninput="updateLineItemField(${index}, 'adi', this.value)"
+                        style="font-size:13px; font-weight:500; width:100%; background:transparent; border:none; border-bottom:1px solid #334155; color:inherit; outline:none; padding:2px 0;">
+                </div>
+                <div>
+                    <div style="font-size:11px; color:#94a3b8; margin-bottom:4px;">Katalog Kod</div>
+                    <input type="text" value="${escapeHtml(katalogKod)}"
+                        oninput="updateLineItemField(${index}, 'katalog', this.value)"
+                        style="font-size:13px; font-weight:500; width:100%; background:transparent; border:none; border-bottom:1px solid #334155; color:inherit; outline:none; padding:2px 0;">
+                </div>
+                <div>
+                    <div style="font-size:11px; color:#94a3b8; margin-bottom:4px;">Adet</div>
+                    <input type="number" step="1" value="${miktar}"
+                        oninput="updateLineItemField(${index}, 'miktar', this.value)"
+                        style="font-size:13px; font-weight:500; width:100%; background:transparent; border:none; border-bottom:1px solid #334155; color:inherit; outline:none; padding:2px 0;">
+                </div>
+                <div>
+                    <div style="font-size:11px; color:#94a3b8; margin-bottom:4px;">Maliyet (₺)</div>
+                    <div style="font-size:13px; font-weight:500; padding:2px 0; color:${hasMaliyet ? 'inherit' : '#f59e0b'};">
+                        ${hasMaliyet ? formatAmount(maliyetTL) + " ₺" : "— bulunamadı"}
+                    </div>
+                </div>
+            </div>
+        </td>
+    `;
+
+    fragment.appendChild(mainRow);
+    fragment.appendChild(detailRow);
+    return fragment;
 }
 
+function toggleLineDetail(detailId, chevronId) {
+    const detail  = document.getElementById(detailId);
+    const chevron = document.getElementById(chevronId);
+    if (!detail || !chevron) return;
+    const isOpen = detail.style.display !== "none";
+    detail.style.display    = isOpen ? "none" : "table-row";
+    chevron.style.transform = isOpen ? "" : "rotate(90deg)";
+}
 function getLineItemMaliyetTL(item) {
     const katalogKodInt = parseInt(pickItemValue(item, ["KATALOG KOD NO", "SIRA NO KATALOG KOD NO"], "0") || "0", 10);
     const miktar        = parseFloat(item["MIKTAR"] || "0") || 0;
@@ -517,26 +646,24 @@ function removeLineItem(index) {
 }
 
 function addLineItem() {
-    const tbody = document.getElementById("lineItemsBody");
-    const tr    = document.createElement("tr");
-    tr.innerHTML = `
-        <td><input type="text" placeholder="Katalog Kod" oninput="recalcLineItems()"></td>
-        <td><input type="text" placeholder="Ürün Adı"></td>
-        <td><input type="text" placeholder="Ürün Kodu"></td>
-        <td><input type="number" placeholder="0" oninput="recalcLineItems()"></td>
-        <td><input type="number" placeholder="0" oninput="recalcLineItems()"></td>
-        <td><input type="number" placeholder="0" oninput="recalcLineItems()"></td>
-        <td><input type="number" placeholder="0" oninput="recalcLineItems()"></td>
-        <td><input type="number" placeholder="0" readonly></td>
-        <td><input type="number" placeholder="0" oninput="recalcLineItems()"></td>
-        <td>
-            <button type="button" onclick="this.closest('tr').remove(); recalcLineItems();"
-                style="background:#fee2e2; color:#ef4444; border:none; border-radius:6px; padding:4px 8px; cursor:pointer;">✕</button>
-        </td>
-    `;
-    tbody.appendChild(tr);
-}
+    if (!Array.isArray(window._lastParsedItems)) window._lastParsedItems = [];
+    window._lastParsedItems.unshift({
+        "KATALOG KOD NO":                          "",
+        "MALZEMENIN CINSI(VARSA MARKA VE MODELI)": "",
+        "MALZEME_KODU":                            "",
+        "KAT.SÖZ.FIY.(TL)":                        "0",
+        "TOPLAM":                                  "0",
+        "ALIMA ESAS INDIRMLI BIRIM FIYAT":         "0",
+        "MIKTAR":                                  "0",
+        "TUTARI (TL)":                             "0",
+    });
+    renderLineItems(window._lastParsedItems);
 
+    // Auto-expand the new row
+    const newIndex = window._lastParsedItems.filter(i => !i.is_gift).length - 1;
+    // Auto-expand the new row (always index 0 since we unshift)
+    setTimeout(() => toggleLineDetail(`line-detail-0`, `line-chevron-0`), 50);
+}
 // ── CALCULATIONS ──────────────────────────────────────────────────────────────
 function calculateDMOBasket(items) {
     const total = items.reduce((sum, item) => sum + (parseFloat(item["TUTARI (TL)"]) || 0), 0);
@@ -674,12 +801,35 @@ function resetForm() {
 
 function resetFormFields() {
     document.getElementById("dmoSiparisForm")?.reset();
+
     const lineItems = document.getElementById("lineItemsBody");
+    const lineFoot  = document.getElementById("lineItemsFooter");
     if (lineItems) lineItems.innerHTML = "";
+    if (lineFoot)  lineFoot.innerHTML  = "";
+
     const profitEl  = document.getElementById("net_profit_display");
     const percentEl = document.getElementById("profit_percent_display");
     if (profitEl)  profitEl.textContent  = "";
     if (percentEl) percentEl.textContent = "";
+
+    // Clear stats pane
+    const ysStats = [
+        "ys-dmo-basket", "ys-inokas-basket", "ys-kdv", "ys-gercek-kdv",
+        "ys-tutar-indirimi", "ys-tevkifat", "ys-risturn", "ys-damga-karar",
+        "ys-vergiler-total", "ys-gift-total", "ys-toplam-gelir", "ys-toplam-gider"
+    ];
+    ysStats.forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.textContent = "—";
+    });
+    const profitStat  = document.getElementById("ys-net-profit");
+    const pctStat     = document.getElementById("ys-profit-pct");
+    const pctBadge    = document.getElementById("ys-tutar-indirimi-pct");
+    if (profitStat) profitStat.textContent = "—";
+    if (pctStat)    pctStat.textContent    = "—";
+    if (pctBadge)   pctBadge.textContent   = "%0";
+
+    clearModalAlert();
     window._lastParsedItems = null;
 }
 
@@ -962,6 +1112,24 @@ function toggleYSVergiler() {
 function updateYSStats() {
     const items        = window._lastParsedItems || [];
     const regularItems = items.filter(i => !i.is_gift);
+
+    // Nothing to show — clear and return
+    if (regularItems.length === 0) {
+        const ids = [
+            "ys-dmo-basket", "ys-inokas-basket", "ys-kdv", "ys-gercek-kdv",
+            "ys-tutar-indirimi", "ys-tevkifat", "ys-risturn", "ys-damga-karar",
+            "ys-vergiler-total", "ys-gift-total", "ys-toplam-gelir", "ys-toplam-gider",
+            "ys-net-profit", "ys-profit-pct"
+        ];
+        ids.forEach(id => {
+            const el = document.getElementById(id);
+            if (el) el.textContent = "—";
+        });
+        const pct = document.getElementById("ys-tutar-indirimi-pct");
+        if (pct) pct.textContent = "%0";
+        return;
+    }
+
     const giftItems    = items.filter(i =>  i.is_gift);
 
     // DMO basket = sum of catalog price × qty (before discount)

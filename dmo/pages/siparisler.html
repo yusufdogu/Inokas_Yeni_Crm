@@ -43,58 +43,117 @@
     </div>
 
     <!-- Filters -->
-    <div style="padding:10px 20px; background:white; border-bottom:1px solid #e2e8f0; flex-shrink:0;">
-      <div style="display:flex; gap:6px; flex-wrap:wrap; align-items:center;">
+    <!-- Filters -->
+    <div style="padding:10px 20px; background:#111827; border-bottom:1px solid #1e293b; flex-shrink:0;">
 
-        <div style="position:relative; flex:2; min-width:140px;">
-          <input type="text" id="mainSearch" onkeyup="handleMainSearch()"
-            placeholder="Firma, sipariş no..."
-            style="width:100%; padding:6px 10px; height:32px; border:1px solid #e2e8f0; border-radius:7px; font-size:12px; outline:none; font-family:inherit; box-sizing:border-box;"
-            autocomplete="off">
-          <div id="companyDropdown" style="display:none; position:absolute; top:100%; left:0; right:0; background:white; border:1px solid #e2e8f0; border-radius:8px; box-shadow:0 4px 12px rgba(0,0,0,0.1); z-index:100; max-height:200px; overflow-y:auto;"></div>
-        </div>
+      <!-- TOP ROW -->
+      <div style="display:flex; gap:8px; align-items:flex-start; flex-wrap:wrap; margin-bottom:8px;">
 
-        <div style="position:relative; flex:2; min-width:140px;">
-          <input type="text" id="filterProduct" onkeyup="handleProductSearch()"
-            placeholder="Ürün, DMO kodu..."
-            style="width:100%; padding:6px 10px; height:32px; border:1px solid #e2e8f0; border-radius:7px; font-size:12px; outline:none; font-family:inherit; box-sizing:border-box;"
-            autocomplete="off">
-          <div id="productDropdown" style="display:none; position:absolute; top:100%; left:0; right:0; background:white; border:1px solid #e2e8f0; border-radius:8px; box-shadow:0 4px 12px rgba(0,0,0,0.1); z-index:100; max-height:200px; overflow-y:auto;"></div>
-        </div>
-
-        <div style="display:flex; flex-direction:column; gap:4px; min-width:180px;">
-          <div style="display:flex; justify-content:space-between;">
-            <span id="sliderMinLabel" style="font-size:11px; color:#64748b;">0 ₺</span>
-            <span id="sliderMaxLabel" style="font-size:11px; color:#64748b;">3.000.000 ₺</span>
+        <!-- Company tags -->
+        <div style="flex:2; min-width:180px;">
+          <div id="companyTagsWrap" class="filter-tags-wrap" onclick="document.getElementById('mainSearch').focus()">
+            <div id="companyTags" class="filter-tags"></div>
+            <input type="text" id="mainSearch" onkeyup="handleMainSearch()" onkeydown="handleTagKeydown(event,'company')"
+              placeholder="Firma ekle..." autocomplete="off"
+              style="border:none; outline:none; background:transparent; font-size:12px; color:#f1f5f9; min-width:100px; flex:1; padding:2px 4px; font-family:inherit;">
+            <div id="companyDropdown" class="filter-dropdown"></div>
           </div>
-          <div id="basketSlider"></div>
         </div>
 
-        <select id="filterStatus" onchange="renderCurrentView(); updateAdvancedBadge()"
-          style="flex:1; min-width:120px; padding:6px 10px; height:32px; border:1px solid #e2e8f0; border-radius:7px; font-size:12px; outline:none; font-family:inherit;">
-          <option value="">Tüm Durumlar</option>
-          <option value="Taslak">Taslak</option>
-          <option value="Sipariş Alındı" selected>Sipariş Alındı</option>
-          <option value="Tamamlandı">Tamamlandı</option>
-          <option value="İptal">İptal</option>
-        </select>
+        <!-- Product tags -->
+        <div style="flex:2; min-width:180px;">
+          <div id="productTagsWrap" class="filter-tags-wrap" onclick="document.getElementById('filterProduct').focus()">
+            <div id="productTags" class="filter-tags"></div>
+            <input type="text" id="filterProduct" onkeyup="handleProductSearch()" onkeydown="handleTagKeydown(event,'product')"
+              placeholder="Ürün ekle..." autocomplete="off"
+              style="border:none; outline:none; background:transparent; font-size:12px; color:#f1f5f9; min-width:100px; flex:1; padding:2px 4px; font-family:inherit;">
+            <div id="productDropdown" class="filter-dropdown"></div>
+          </div>
+        </div>
 
-        <select id="filterCategory" onchange="renderCurrentView(); updateAdvancedBadge()" ...>
-          <option value="">Tüm Kategoriler</option>
-        </select>
+        <!-- Date range -->
+        <div style="display:flex; align-items:center; gap:4px; flex-shrink:0;">
+          <input type="date" id="filterDateStart"
+            style="padding:5px 8px; height:32px; border:1px solid #334155; border-radius:7px; font-size:12px; outline:none; font-family:inherit; box-sizing:border-box; background:#1e293b; color:#f1f5f9;">
+          <span style="color:#475569; font-size:12px;">—</span>
+          <input type="date" id="filterDateEnd"
+            style="padding:5px 8px; height:32px; border:1px solid #334155; border-radius:7px; font-size:12px; outline:none; font-family:inherit; box-sizing:border-box; background:#1e293b; color:#f1f5f9;">
+        </div>
 
-        <input type="date" id="filterDateStart" onchange="renderCurrentView(); updateAdvancedBadge()"
-          style="flex:1; min-width:120px; padding:6px 10px; height:32px; border:1px solid #e2e8f0; border-radius:7px; font-size:12px; outline:none; font-family:inherit; box-sizing:border-box;">
+        <!-- Basket range -->
+        <div style="flex-shrink:0; min-width:180px;">
+          <div style="display:flex; justify-content:space-between; margin-bottom:3px;">
+            <span style="font-size:10px; color:#64748b;">Sepet Aralığı</span>
+            <span id="basketRangeLabel" style="font-size:10px; color:#94a3b8;">0 — 3.000.000 ₺</span>
+          </div>
+          <div style="display:flex; align-items:center; gap:6px;">
+            <input type="range" id="basketMin" min="0" max="3000000" step="50000" value="0"
+              oninput="updateBasketRange()"
+              style="flex:1; height:4px; accent-color:#2563eb;">
+            <input type="range" id="basketMax" min="0" max="3000000" step="50000" value="3000000"
+              oninput="updateBasketRange()"
+              style="flex:1; height:4px; accent-color:#2563eb;">
+          </div>
+        </div>
 
-        <input type="date" id="filterDateEnd" onchange="renderCurrentView(); updateAdvancedBadge()"
-          style="flex:1; min-width:120px; padding:6px 10px; height:32px; border:1px solid #e2e8f0; border-radius:7px; font-size:12px; outline:none; font-family:inherit; box-sizing:border-box;">
-
-        <button onclick="clearAllFilters()" title="Temizle"
-          style="height:32px; width:32px; display:flex; align-items:center; justify-content:center; border:1px solid #e2e8f0; border-radius:7px; background:white; cursor:pointer; color:#64748b; flex-shrink:0;">
-          <i class="ti ti-trash" style="font-size:15px;"></i>
-        </button>
+        <!-- Buttons -->
+        <div style="display:flex; gap:6px; align-items:center; flex-shrink:0;">
+          <button onclick="applyFilters()"
+            style="height:32px; padding:0 14px; background:#2563eb; color:white; border:none; border-radius:7px; font-size:12px; font-weight:600; cursor:pointer; font-family:inherit; display:flex; align-items:center; gap:4px;">
+            <i class="ti ti-filter" style="font-size:13px;"></i>Uygula
+          </button>
+          <button onclick="clearAllFilters()" title="Temizle"
+            style="height:32px; width:32px; display:flex; align-items:center; justify-content:center; border:1px solid #334155; border-radius:7px; background:transparent; cursor:pointer; color:#64748b; flex-shrink:0;">
+            <i class="ti ti-trash" style="font-size:14px;"></i>
+          </button>
+        </div>
 
       </div>
+
+      <!-- ADVANCED FILTERS TOGGLE -->
+      <button id="advancedFiltersBtn" onclick="toggleAdvancedFilters()"
+        style="background:none; border:none; font-size:12px; font-weight:600; color:#2563eb; cursor:pointer; padding:0; display:flex; align-items:center; gap:4px; font-family:inherit;">
+        <span id="advancedFiltersBtnText">
+          <i class="ti ti-chevron-down" style="font-size:12px;"></i> Gelişmiş Filtreler
+        </span>
+        <span id="advancedFiltersBadge" style="display:none; background:#2563eb; color:white; border-radius:99px; padding:1px 7px; font-size:11px; font-weight:700;">!</span>
+      </button>
+
+      <!-- ADVANCED PANEL -->
+      <div id="advancedFiltersPanel" style="display:none; margin-top:10px; padding-top:10px; border-top:1px solid #1e293b;">
+        <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
+
+          <select id="filterStatus" onchange="updateAdvancedBadge()"
+            style="flex:1; min-width:130px; padding:6px 10px; height:32px; border:1px solid #334155; border-radius:7px; font-size:12px; outline:none; font-family:inherit; background:#1e293b; color:#f1f5f9;">
+            <option value="">Tüm Durumlar</option>
+            <option value="Taslak">Taslak</option>
+            <option value="Sipariş Alındı">Sipariş Alındı</option>
+            <option value="Tamamlandı">Tamamlandı</option>
+            <option value="İptal">İptal</option>
+          </select>
+
+          <select id="filterCategory" onchange="updateAdvancedBadge()"
+            style="flex:1; min-width:130px; padding:6px 10px; height:32px; border:1px solid #334155; border-radius:7px; font-size:12px; outline:none; font-family:inherit; background:#1e293b; color:#f1f5f9;">
+            <option value="">Tüm Kategoriler</option>
+            <option value="KARTUŞ">Kartuş</option>
+            <option value="YAZICI">Yazıcı</option>
+            <option value="TARAYICI">Tarayıcı</option>
+          </select>
+
+          <!-- Brand multiselect -->
+          <div style="flex:2; min-width:180px;">
+            <div id="brandTagsWrap" class="filter-tags-wrap" onclick="document.getElementById('brandSearch').focus()">
+              <div id="brandTags" class="filter-tags"></div>
+              <input type="text" id="brandSearch" oninput="handleBrandSearch()" onkeydown="handleTagKeydown(event,'brand')"
+                placeholder="Marka ekle..." autocomplete="off"
+                style="border:none; outline:none; background:transparent; font-size:12px; color:#f1f5f9; min-width:80px; flex:1; padding:2px 4px; font-family:inherit;">
+              <div id="brandDropdown" class="filter-dropdown"></div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
     </div>
 
     <!-- Content -->

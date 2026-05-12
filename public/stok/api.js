@@ -63,7 +63,7 @@ async function loadMovements() {
   }
 
   try {
-    const res = await fetch('/api/stocks/movements');
+    const res = await fetch('/api/stocks/movements', { cache: 'no-store' });
     if (!res.ok) throw new Error();
     allMovements = await res.json();
     writeCache(MOVEMENT_CACHE_KEY, allMovements);

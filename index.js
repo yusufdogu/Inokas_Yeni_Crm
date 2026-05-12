@@ -625,7 +625,8 @@ app.get('/api/stocks/summary', async (req, res) => {
           invoice_date,
           direction,
           currency,
-          calculation_rate
+          calculation_rate,
+          approval_status
         )
       `);
 
@@ -667,6 +668,7 @@ app.get('/api/stocks/summary', async (req, res) => {
       if (isKargoLine(item)) return;
       const invoice = item.invoices;
       if (!invoice) return;
+      if (invoice.approval_status !== 'approved') return;
 
       const sku = item.product_code || null;
       const key = sku ? `SKU:${sku}` : `NAME:${item.product_name}`;
@@ -862,41 +864,63 @@ app.get('/api/stocks/summary', async (req, res) => {
 // ─── STOK HAREKETLERİ: invoice_items + invoices join ─────────────────────────
 app.get('/api/stocks/movements', async (req, res) => {
   try {
-    const { data: items, error } = await supabase
-      .from('invoice_items')
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
+    const skuFilter = String(req.query.sku || '').trim();
+    const skuLower = skuFilter.toLowerCase();
+    const approvalFilter = String(req.query.approval_status || 'approved').trim().toLowerCase();
+
+    let query = supabase
+      .from('invoices')
       .select(`
-        id,
-        product_name,
-        product_code,
-        quantity,
-        unit_price_cur,
+        invoice_no,
+        invoice_date,
+        direction,
         currency,
-        invoices!invoice_items_invoice_id_fkey (
-          invoice_no,
-          invoice_date,
-          direction,
-          currency,
-          companies ( name )
+        approval_status,
+        companies ( name ),
+        invoice_items (
+          id,
+          product_name,
+          product_code,
+          quantity,
+          unit_price_cur,
+          currency
         )
       `)
-      .order('created_at', { ascending: false })
-      .limit(1000);
+      .order('invoice_date', { ascending: false });
 
+    if (approvalFilter) {
+      query = query.eq('approval_status', approvalFilter);
+    }
+
+    const { data: invoices, error } = await query;
     if (error) throw error;
 
-    const movements = (items || [])
-      .filter(item => item.invoices)
-      .map(item => ({
-        invoice_date:   item.invoices.invoice_date,
-        direction:      item.invoices.direction,
-        invoice_no:     item.invoices.invoice_no,
-        company_name:   item.invoices.companies?.name || '—',
-        product_name:   item.product_name,
-        sku:            item.product_code,
-        quantity:       item.quantity,
-        unit_price_cur: item.unit_price_cur,
-        currency:       item.currency || item.invoices.currency,
-      }));
+    const movements = [];
+    (invoices || []).forEach((inv) => {
+      const headerCurrency = inv.currency;
+      const companyName = inv.companies?.name || '—';
+      const direction = String(inv.direction || '').toUpperCase();
+      const approvalStatus = String(inv.approval_status || '').toLowerCase();
+
+      (inv.invoice_items || []).forEach((item) => {
+        const sku = String(item.product_code || '').trim();
+        if (skuFilter && sku.toLowerCase() !== skuLower) return;
+
+        movements.push({
+          invoice_date: inv.invoice_date,
+          direction,
+          invoice_no: inv.invoice_no,
+          company_name: companyName,
+          product_name: item.product_name,
+          sku,
+          quantity: item.quantity,
+          unit_price_cur: item.unit_price_cur,
+          currency: item.currency || headerCurrency,
+          approval_status: approvalStatus,
+        });
+      });
+    });
 
     res.json(movements);
   } catch (err) {

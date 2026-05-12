@@ -7,6 +7,7 @@ async function loadDetailView(orderId) {
         .single();
 
     if (!order) return;
+    resetEditMode();
 
     const isTaslak = order.status === "Taslak";
     const hasPdf   = !!(order.pdf_url && String(order.pdf_url).trim() !== "");
@@ -28,23 +29,86 @@ async function loadDetailView(orderId) {
         badgeEl.style.background  = sc.bg;
         badgeEl.style.color       = sc.color;
     }
-
-    // Fetch items
     const { data: items } = await db
         .from("dmo_order_items")
-        .select("*, products(product_name)")
+        .select("*, products(product_name, product_code, dmo_code, dmo_fiyat_try)")
         .eq("order_id", orderId);
 
     const regularItems = (items || []).filter(i => !i.is_gift);
     const giftItems    = (items || []).filter(i =>  i.is_gift);
 
-    const itemRowHTML = (i) => `
-        <tr style="border-bottom:1px solid #f1f5f9;">
-            <td style="padding:8px 12px; font-weight:500;">${i.products?.product_name || i.katalog_kod || "—"}</td>
-            <td style="padding:8px 12px; text-align:center;">${i.quantity}</td>
-            <td style="padding:8px 12px; text-align:right;">${formatAmount(i.unit_price_excl_vat)} ₺</td>
-            <td style="padding:8px 12px; text-align:right;">${formatAmount(i.line_total_excl_vat)} ₺</td>
+
+
+
+    const itemRowHTML = (i, idx) => {
+        const indirimPct = i.indirim_pct > 0
+            ? i.indirim_pct
+            : (i.products?.dmo_fiyat_try && i.unit_price_excl_vat
+                ? ((1 - i.unit_price_excl_vat / i.products.dmo_fiyat_try) * 100)
+                : 0);
+        return `
+
+        <tr style="border-top:0.5px solid #334155; cursor:pointer;"
+            onclick="toggleInvoiceItemDetail('inv-detail-${idx}', 'inv-chevron-${idx}')">
+            <td style="padding:10px 8px; text-align:center; width:28px;">
+                <i id="inv-chevron-${idx}" class="ti ti-chevron-right"
+                   style="font-size:12px; color:#64748b; transition:transform 0.15s;"></i>
+            </td>
+            <td style="padding:10px 8px; text-align:center; width:28px;">
+                <i id="inv-chevron-${idx}" class="ti ti-chevron-right"
+                   style="font-size:12px; color:#64748b; transition:transform 0.15s;"></i>
+            </td>
+            <td style="padding:10px 8px; font-size:12px; color:#64748b; width:90px; white-space:nowrap;">
+                ${i.katalog_kod || i.products?.dmo_code || "—"}
+            </td>
+            <td style="padding:10px 8px; min-width:0;">
+                <div style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:#f1f5f9; font-size:13px;">
+                    ${i.products?.product_name || "—"}
+                </div>
+            </td>
+            <td style="padding:10px 8px; text-align:right; color:#f1f5f9; width:50px;">
+                ${i.quantity}
+            </td>
+            <td style="padding:10px 8px; text-align:right; font-weight:600; color:#60a5fa; width:110px; white-space:nowrap;">
+                ${formatAmount(i.line_total_excl_vat)} ₺
+            </td>
+        </tr>
+        <tr id="inv-detail-${idx}" style="display:none; background:#1a2744;">
+            <td colspan="5" style="padding:0 12px 12px 44px;">
+                <div style="display:grid; grid-template-columns:repeat(4,1fr); gap:10px; padding-top:12px; border-top:0.5px solid #334155;">
+                    <div>
+                        <div style="font-size:11px; color:#64748b; margin-bottom:3px;">Ürün Kodu</div>
+                        <div style="font-size:13px; font-weight:500; color:#f1f5f9;">${i.products?.product_code || "—"}</div>
+                    </div>
+                    <div>
+                        <div style="font-size:11px; color:#64748b; margin-bottom:3px;">DMO Katalog Fiyat</div>
+                        <div style="font-size:13px; font-weight:500; color:#f1f5f9;">${i.products?.dmo_fiyat_try ? formatAmount(i.products.dmo_fiyat_try) + " ₺" : "—"}</div>
+                    </div>
+                    <div>
+                        <div style="font-size:11px; color:#64748b; margin-bottom:3px;">İndirim %</div>
+                        <div style="font-size:13px; font-weight:500; color:#f59e0b;">${indirimPct > 0 ? "%" + indirimPct.toFixed(2) : "—"}</div>
+                    </div>
+                    <div>
+                        <div style="font-size:11px; color:#64748b; margin-bottom:3px;">İndirimli Birim</div>
+                        <div style="font-size:13px; font-weight:500; color:#f1f5f9;">${formatAmount(i.unit_price_excl_vat)} ₺</div>
+                    </div>
+                    <div>
+                        <div style="font-size:11px; color:#64748b; margin-bottom:3px;">Adet</div>
+                        <div style="font-size:13px; font-weight:500; color:#f1f5f9;">${i.quantity}</div>
+                    </div>
+                    <div>
+                        <div style="font-size:11px; color:#64748b; margin-bottom:3px;">Maliyet TL</div>
+                        <div style="font-size:13px; font-weight:500; color:#f1f5f9;">${i.maliyet_tl ? formatAmount(i.maliyet_tl) + " ₺" : "—"}</div>
+                    </div>
+                    <div>
+                        <div style="font-size:11px; color:#64748b; margin-bottom:3px;">Toplam</div>
+                        <div style="font-size:13px; font-weight:600; color:#60a5fa;">${formatAmount(i.line_total_excl_vat)} ₺</div>
+                    </div>
+                </div>
+            </td>
         </tr>`;
+
+    }
 
     const giftRowHTML = (i) => `
         <tr style="border-bottom:1px solid #f1f5f9;">
@@ -72,7 +136,7 @@ async function loadDetailView(orderId) {
         setEl("dv-t-status",      order.status);
 
         const tBody = document.getElementById("dv-t-items-body");
-        if (tBody) tBody.innerHTML = regularItems.map(itemRowHTML).join("");
+        if (tBody) tBody.innerHTML = regularItems.map((i, idx) => itemRowHTML(i, idx)).join("");
 
         const tGiftSection = document.getElementById("dv-t-gift-section");
         const tGiftBody    = document.getElementById("dv-t-gift-items-body");
@@ -119,7 +183,7 @@ async function loadDetailView(orderId) {
         setEl("dv-status",      order.status);
 
         const body = document.getElementById("dv-items-body");
-        if (body) body.innerHTML = regularItems.map(itemRowHTML).join("");
+        if (body) body.innerHTML = regularItems.map((i, idx) => itemRowHTML(i, idx)).join("");
 
         const giftSection = document.getElementById("dv-gift-section");
         const giftBody    = document.getElementById("dv-gift-items-body");
@@ -242,11 +306,11 @@ function activateInlineEdit(order) {
     document.getElementById("dv-btn-bar").style.display  = "none";
     document.getElementById("dv-edit-bar").style.display = "flex";
 
-    document.getElementById("dv-btn-save-edit").onclick   = () => saveInlineEdit(order.id);
+    document.getElementById("dv-btn-save-edit").onclick   = () => saveInlineEdit(order.id, order);
     document.getElementById("dv-btn-cancel-edit").onclick = () => loadDetailView(order.id);
 }
 
-async function saveInlineEdit(orderId) {
+async function saveInlineEdit(orderId, originalOrder) {
     const updated = {
         sales_order_no:    document.getElementById("dv-edit-order-no")?.value    || null,
         purchase_order_no: document.getElementById("dv-edit-purchase-no")?.value || null,
@@ -256,6 +320,22 @@ async function saveInlineEdit(orderId) {
         due_date:          document.getElementById("dv-edit-due-date")?.value    || null,
         status:            document.getElementById("dv-edit-status")?.value      || null,
     };
+
+    // Check if anything actually changed
+    const hasChanges =
+        updated.sales_order_no    !== (originalOrder.sales_order_no    || null) ||
+        updated.purchase_order_no !== (originalOrder.purchase_order_no || null) ||
+        updated.customer_name     !== (originalOrder.customer_name     || null) ||
+        updated.customer_no       !== (originalOrder.customer_no       || null) ||
+        updated.order_date        !== (originalOrder.order_date        || null) ||
+        updated.due_date          !== (originalOrder.due_date          || null) ||
+        updated.status            !== (originalOrder.status            || null);
+
+    if (!hasChanges) {
+        showToast("Değişiklik yapılmadı", "info");
+        //await loadDetailView(orderId);
+        return;
+    }
 
     const { error } = await db
         .from("dmo_orders")
@@ -269,6 +349,26 @@ async function saveInlineEdit(orderId) {
 
     showToast("Sipariş güncellendi!", "success");
     await loadDetailView(orderId);
+}
+
+
+function resetEditMode() {
+    const spanIds  = ["dv-order-no", "dv-purchase-no", "dv-company", "dv-customer-no", "dv-date", "dv-due-date", "dv-status"];
+    const inputIds = ["dv-edit-order-no", "dv-edit-purchase-no", "dv-edit-company", "dv-edit-customer-no", "dv-edit-date", "dv-edit-due-date", "dv-edit-status"];
+
+    spanIds.forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.style.display = "";
+    });
+    inputIds.forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.style.display = "none";
+    });
+
+    const btnBar  = document.getElementById("dv-btn-bar");
+    const editBar = document.getElementById("dv-edit-bar");
+    if (btnBar)  btnBar.style.display  = "flex";
+    if (editBar) editBar.style.display = "none";
 }
 
 // ── DELETE ORDER ──────────────────────────────────────────────────────────────
@@ -400,19 +500,6 @@ function buildStatsGridHTML() {
         </div>
     `;
 }
-// ── COMPUTE INVOICE METRICS (needed by fillDetailStats) ───────────────────────
-function computeInvoiceMetrics(dmoBasket, inokasBasket, stampTax) {
-    const kdv         = dmoBasket * 0.20;
-    const tevkifat    = kdv * 0.20;
-    const gercekKdv   = kdv - tevkifat;
-    const dmoKesinti  = dmoBasket * 0.08;
-    const risturn     = dmoBasket * 0.01;
-    const toplamGelir = dmoBasket + gercekKdv;
-    const toplamGider = inokasBasket + dmoKesinti + risturn + (stampTax || 0);
-    const netProfit   = toplamGelir - toplamGider;
-    const profitPct   = toplamGelir > 0 ? (netProfit / toplamGelir) * 100 : 0;
-    return { kdv, tevkifat, gercekKdv, dmoKesinti, risturn, toplamGelir, toplamGider, netProfit, profitPct };
-}
 
 function toggleDVVergiler() {
     const detail = document.getElementById("dv-vergiler-detail");
@@ -420,4 +507,13 @@ function toggleDVVergiler() {
     const isOpen = detail.style.display !== "none";
     detail.style.display  = isOpen ? "none" : "block";
     arrow.style.transform = isOpen ? "" : "rotate(90deg)";
+}
+
+function toggleInvoiceItemDetail(detailId, chevronId) {
+    const detail  = document.getElementById(detailId);
+    const chevron = document.getElementById(chevronId);
+    if (!detail || !chevron) return;
+    const isOpen = detail.style.display !== "none";
+    detail.style.display    = isOpen ? "none" : "table-row";
+    chevron.style.transform = isOpen ? "" : "rotate(90deg)";
 }

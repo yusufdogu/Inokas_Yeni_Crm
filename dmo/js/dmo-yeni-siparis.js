@@ -1078,12 +1078,15 @@ async function saveOrder() {
                 }
             }
 
-            const { error: ie } = await db.from("dmo_order_items").insert({
-                order_id: order.id, product_id: productId,
-                quantity: miktar, unit_price_excl_vat: unitPrice,
+            const indirimPct = parseFloat(item["TOPLAM INDIRIM"] || item["TOPLAM"] || "0") || 0;
+            await db.from("dmo_order_items").insert({
+                order_id:            order.id,
+                product_id:          productId,
+                quantity:            miktar,
+                unit_price_excl_vat: unitPrice,
                 line_total_excl_vat: lineTotal,
+                indirim_pct:         indirimPct,
             });
-            if (ie) failedItems++;
         }
 
         if (failedItems > 0) {

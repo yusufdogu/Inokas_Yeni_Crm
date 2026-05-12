@@ -1091,6 +1091,23 @@ app.post('/api/products/ensure-by-code', async (req, res) => {
   }
 });
 
+
+// ─── TÜM ÜRÜNLER ─────────────────────────────────────────────────────────────
+app.get('/api/products', async (req, res) => {
+  try {
+    const { data, error } = await supabase
+      .from('products')
+      .select('id, product_code, product_name, brand, category, model, maliyet_usd, sozlesme_fiyat_eur, last_purchase_price_cur, last_purchase_currency, last_purchase_rate, last_purchase_price_tl, avg_purchase_price_tl, dmo_code, dmo_fiyat_try, dmo_url, gift_quantity, stock_on_hand, reserved_quantity')
+      .order('product_name', { ascending: true });
+    if (error) throw error;
+    res.json(data || []);
+  } catch (err) {
+    console.error('GET /api/products hatası:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+
 // Yeni ürün oluştur (Ürün Ekle formu)
 app.post('/api/products', async (req, res) => {
   try {

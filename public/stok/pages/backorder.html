@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Backorder — İnokas CRM</title>
+  <script>
+    if (localStorage.getItem('inokas_auth') !== 'true') window.location.href = '/login.html';
+  </script>
+  <link href="https://fonts.googleapis.com/css2?family=Geist+Mono:wght@400;600&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.x/dist/tabler-icons.min.css">
+  <link rel="stylesheet" href="/sidebar.css?v=3">
+  <link rel="stylesheet" href="/stok/css/stok-base.css?v=1">
+  <link rel="stylesheet" href="/stok/css/backorder.css?v=1">
+</head>
+<body>
+<div class="app-shell">
+  <div id="sidebar-container"></div>
+
+  <div class="page-area">
+
+    <!-- Header -->
+    <div class="page-header">
+      <button class="sb-toggle-btn" onclick="toggleSidebar()"><i class="ti ti-menu-2"></i></button>
+      <div>
+        <p class="page-header-title">Backorder</p>
+        <p class="page-header-sub" id="bo-count">Yükleniyor...</p>
+      </div>
+    </div>
+
+    <!-- Filter Bar -->
+    <div class="filter-bar">
+      <div class="filter-row">
+        <!-- Search -->
+        <div class="filter-tags-wrap" id="searchWrap" style="flex:2;" onclick="document.getElementById('boSearch').focus()">
+          <input type="text" id="boSearch" class="filter-tags-input" placeholder="Firma, ürün veya SKU ara..." style="min-width:200px;">
+        </div>
+
+        <!-- Date range -->
+        <div style="display:flex; align-items:center; gap:4px; flex-shrink:0;">
+          <input type="date" id="filterDateStart" class="filter-date">
+          <span style="color:#475569; font-size:12px;">—</span>
+          <input type="date" id="filterDateEnd" class="filter-date">
+        </div>
+
+        <!-- Show completed toggle -->
+        <label class="bo-toggle-label">
+          <input type="checkbox" id="showCompleted">
+          <span>Teslim edilenleri göster</span>
+        </label>
+
+        <!-- Clear -->
+        <button class="filter-btn-clear" onclick="clearFilters()" title="Temizle">
+          <i class="ti ti-trash" style="font-size:14px;"></i>
+        </button>
+      </div>
+    </div>
+
+    <!-- KPI Cards -->
+    <div class="kpi-grid" style="grid-template-columns:repeat(3,1fr);">
+      <div class="kpi-card">
+        <p class="kpi-card-label">Bekleyen Kalem</p>
+        <p class="kpi-card-value warning" id="kpi-pending">—</p>
+      </div>
+      <div class="kpi-card">
+        <p class="kpi-card-label">Bekleyen Miktar</p>
+        <p class="kpi-card-value danger" id="kpi-qty">—</p>
+      </div>
+      <div class="kpi-card">
+        <p class="kpi-card-label">Teslim Edilen</p>
+        <p class="kpi-card-value success" id="kpi-received">—</p>
+      </div>
+    </div>
+
+    <!-- New Backorder Form -->
+    <div class="bo-new-form-wrap">
+      <details class="bo-new-form-details">
+        <summary class="bo-new-form-summary">
+          <i class="ti ti-plus"></i> Yeni Backorder Girişi
+        </summary>
+        <div class="bo-new-form-body">
+          <div class="bo-new-form-grid">
+            <div class="bo-new-form-field">
+              <label>Firma VKN / TCKN <span class="req">*</span></label>
+              <input type="text" id="poCompanyVkn" placeholder="VKN veya TCKN" required>
+            </div>
+            <div class="bo-new-form-field">
+              <label>Firma Adı</label>
+              <input type="text" id="poCompanyName" placeholder="Otomatik dolar" readonly>
+            </div>
+          </div>
+
+          <div class="bo-lines-wrap">
+            <table class="bo-lines-table">
+              <thead>
+                <tr>
+                  <th>SKU / Ürün Kodu</th>
+                  <th>Ürün Adı</th>
+                  <th>Miktar</th>
+                  <th>Birim Fiyat</th>
+                  <th>Döviz</th>
+                  <th>Toplam</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody id="poLinesBody"></tbody>
+            </table>
+            <button type="button" class="bo-add-line-btn" onclick="addPoLine()">
+              <i class="ti ti-plus"></i> Satır Ekle
+            </button>
+          </div>
+
+          <div class="bo-form-footer">
+            <span id="poFormMsg" class="modal-msg"></span>
+            <button type="button" class="btn-primary" onclick="submitPoForm()">
+              <i class="ti ti-device-floppy"></i> Kaydet
+            </button>
+          </div>
+        </div>
+      </details>
+    </div>
+
+    <!-- Table -->
+    <div class="table-area">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>PO No</th>
+            <th>Tarih</th>
+            <th>Firma</th>
+            <th>Ürün</th>
+            <th>SKU</th>
+            <th class="text-right">Sipariş</th>
+            <th class="text-right">Birim Fiyat</th>
+            <th>Döviz</th>
+            <th class="text-right">Toplam</th>
+            <th class="text-right">Teslim</th>
+            <th class="text-right">Kalan</th>
+            <th>İşlem</th>
+          </tr>
+        </thead>
+        <tbody id="poTableBody"></tbody>
+      </table>
+      <div id="poEmpty" class="empty-state">Bekleyen sipariş bulunamadı.</div>
+    </div>
+
+  </div><!-- /.page-area -->
+</div><!-- /.app-shell -->
+
+<div id="toast-container"></div>
+
+<script src="/sidebar.js?v=3" defer></script>
+<script src="/stok/js/utils.js?v=1"></script>
+<script src="/stok/js/backorder.js?v=1"></script>
+</body>
+</html>

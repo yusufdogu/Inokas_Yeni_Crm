@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Stok Hareketleri — İnokas CRM</title>
+  <script>
+    if (localStorage.getItem('inokas_auth') !== 'true') window.location.href = '/login.html';
+  </script>
+  <link href="https://fonts.googleapis.com/css2?family=Geist+Mono:wght@400;600&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.x/dist/tabler-icons.min.css">
+  <link rel="stylesheet" href="/sidebar.css">
+  <link rel="stylesheet" href="/stok/css/stok-base.css?v=1">
+  <link rel="stylesheet" href="/stok/css/stok-hareketleri.css?v=1">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+</head>
+
+<!-- ── Movements Modal — paste this before </body> in stok-hareketleri.html ── -->
+
+<div id="mvModal" class="modal-overlay" style="display:none;" onclick="if(event.target===this) closeMovementsModal()">
+  <div class="mv-modal-box">
+
+    <!-- Header -->
+    <div class="mv-modal-header">
+      <div class="mv-modal-header-left">
+        <span id="mvModalProductName" class="mv-modal-title">Ürün</span>
+        <span id="mvModalSku" class="mv-modal-sku"></span>
+      </div>
+      <button class="modal-close-btn" onclick="closeMovementsModal()">✕</button>
+    </div>
+
+    <!-- Mini stats -->
+    <div class="mv-stats-row">
+      <div class="mv-stat">
+        <span class="mv-stat-label">Toplam Giriş</span>
+        <span id="mvStatIn" class="mv-stat-value text-success">—</span>
+      </div>
+      <div class="mv-stat">
+        <span class="mv-stat-label">Toplam Çıkış</span>
+        <span id="mvStatOut" class="mv-stat-value text-danger">—</span>
+      </div>
+      <div class="mv-stat">
+        <span class="mv-stat-label">Net Stok</span>
+        <span id="mvStatNet" class="mv-stat-value">—</span>
+      </div>
+      <div class="mv-stat">
+        <span class="mv-stat-label">Firma Sayısı</span>
+        <span id="mvStatCompanies" class="mv-stat-value">—</span>
+      </div>
+    </div>
+
+    <!-- Movements table -->
+    <div class="mv-modal-body">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Tarih</th>
+            <th>İşlem</th>
+            <th>Fatura No</th>
+            <th>Firma</th>
+            <th class="text-right">Miktar</th>
+            <th class="text-right">Birim Fiyat</th>
+            <th>Döviz</th>
+          </tr>
+        </thead>
+        <tbody id="mvModalTableBody"></tbody>
+      </table>
+    </div>
+
+  </div>
+</div>
+
+<body>
+<div class="app-shell">
+  <div id="sidebar-container"></div>
+
+  <div class="page-area">
+
+    <!-- Header -->
+    <div class="page-header">
+      <button class="sb-toggle-btn" onclick="toggleSidebar()"><i class="ti ti-menu-2"></i></button>
+      <div>
+        <p class="page-header-title">Stok Hareketleri</p>
+        <p class="page-header-sub" id="hareketler-count">Yükleniyor...</p>
+      </div>
+    </div>
+
+    <!-- Filter Bar -->
+    <div class="filter-bar">
+      <div class="filter-row">
+
+        <!-- Company tag filter -->
+        <div class="filter-tags-wrap" id="companyTagsWrap" onclick="document.getElementById('companyTagInput').focus()">
+          <div id="companyTags" class="filter-tags"></div>
+          <input type="text" id="companyTagInput" class="filter-tags-input" placeholder="Firma ekle...">
+          <div id="companyDropdown" class="filter-dropdown"></div>
+        </div>
+
+        <!-- Product tag filter -->
+        <div class="filter-tags-wrap" id="productTagsWrap" onclick="document.getElementById('productTagInput').focus()">
+          <div id="productTags" class="filter-tags"></div>
+          <input type="text" id="productTagInput" class="filter-tags-input" placeholder="Ürün / SKU ekle...">
+          <div id="productDropdown" class="filter-dropdown"></div>
+        </div>
+
+        <!-- Date range -->
+        <div style="display:flex; align-items:center; gap:4px; flex-shrink:0;">
+          <input type="date" id="filterDateStart" class="filter-date">
+          <span style="color:#475569; font-size:12px;">—</span>
+          <input type="date" id="filterDateEnd" class="filter-date">
+        </div>
+
+        <!-- Direction -->
+        <select id="filterDirection" class="filter-select" style="max-width:180px; flex:0 0 auto;">
+          <option value="">Tüm Hareketler</option>
+          <option value="INCOMING">▲ Giriş</option>
+          <option value="OUTGOING">▼ Çıkış</option>
+        </select>
+
+        <!-- Price range -->
+        <div class="filter-range-wrap">
+          <div class="filter-range-label-row">
+            <span>Birim Fiyat Aralığı</span>
+            <span class="range-value" id="priceRangeLabel">0 — ∞</span>
+          </div>
+          <div class="filter-range-inputs">
+            <input type="range" id="priceMin" min="0" max="100000" step="500" value="0" oninput="updatePriceRange()">
+            <input type="range" id="priceMax" min="0" max="100000" step="500" value="100000" oninput="updatePriceRange()">
+          </div>
+        </div>
+
+        <!-- Buttons -->
+        <div style="display:flex; gap:6px; align-items:center; flex-shrink:0;">
+          <button class="filter-btn-apply" onclick="applyFilters()">
+            <i class="ti ti-filter" style="font-size:13px;"></i>Uygula
+          </button>
+          <button class="filter-btn-clear" onclick="clearAllFilters()" title="Filtreleri Temizle">
+            <i class="ti ti-trash" style="font-size:14px;"></i>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- KPI Cards -->
+    <div class="kpi-grid">
+      <div class="kpi-card">
+        <p class="kpi-card-label">Ürün Sayısı</p>
+        <p class="kpi-card-value" id="kpi-total">—</p>
+      </div>
+      <div class="kpi-card">
+        <p class="kpi-card-label">Toplam Giriş</p>
+        <p class="kpi-card-value success" id="kpi-in">—</p>
+      </div>
+      <div class="kpi-card">
+        <p class="kpi-card-label">Toplam Çıkış</p>
+        <p class="kpi-card-value danger" id="kpi-out">—</p>
+      </div>
+      <div class="kpi-card">
+        <p class="kpi-card-label">Toplam Kayıt</p>
+        <p class="kpi-card-value primary" id="kpi-amount">—</p>
+      </div>
+    </div>
+
+    <!-- Table -->
+    <div class="table-area" id="tableArea">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th style="width:28px;"></th>
+            <th>Ürün Adı</th>
+            <th>SKU</th>
+            <th class="text-right">Toplam Giriş</th>
+            <th class="text-right">Toplam Çıkış</th>
+            <th>Son Hareket</th>
+            <th>Firmalar</th>
+          </tr>
+        </thead>
+        <tbody id="movementsTableBody"></tbody>
+      </table>
+      <div id="movementsEmpty" class="empty-state">Hareket kaydı bulunamadı.</div>
+    </div>
+
+    <!-- Analiz Bar -->
+    <div class="analiz-bar" onclick="toggleAnaliz()">
+      <div class="analiz-bar-left">
+        <i class="ti ti-chart-bar" style="font-size:16px;"></i>
+        <span>Analiz</span>
+        <span id="analiz-hint" style="font-size:11px; color:#94a3b8;"></span>
+      </div>
+      <i class="ti ti-chevron-down analiz-chevron" id="analizChevron"></i>
+    </div>
+
+    <!-- Charts Panel -->
+    <div class="analiz-panel" id="analizPanel">
+      <div class="analiz-grid" id="analizGrid"></div>
+    </div>
+
+  </div><!-- /.page-area -->
+</div><!-- /.app-shell -->
+
+<div id="toast-container"></div>
+
+<script src="/sidebar.js" defer></script>
+<script src="/stok/js/utils.js"></script>
+<script src="/stok/js/analytics.js"></script>
+<script src="/stok/js/stok-hareketleri.js"></script>
+</body>
+</html>

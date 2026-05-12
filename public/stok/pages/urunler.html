@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ürünler — İnokas CRM</title>
+  <script>
+    if (localStorage.getItem('inokas_auth') !== 'true') window.location.href = '/login.html';
+  </script>
+  <link href="https://fonts.googleapis.com/css2?family=Geist+Mono:wght@400;600&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.x/dist/tabler-icons.min.css">
+  <link rel="stylesheet" href="/sidebar.css?v=3">
+  <link rel="stylesheet" href="/stok/css/stok-base.css?v=1">
+  <link rel="stylesheet" href="/stok/css/urunler.css?v=1">
+</head>
+<body>
+<div class="app-shell">
+  <div id="sidebar-container"></div>
+
+  <div class="page-area">
+
+    <!-- Header -->
+    <div class="page-header">
+      <button class="sb-toggle-btn" onclick="toggleSidebar()"><i class="ti ti-menu-2"></i></button>
+      <div>
+        <p class="page-header-title">Ürünler</p>
+        <p class="page-header-sub" id="urunler-count">Yükleniyor...</p>
+      </div>
+      <div style="margin-left:auto;">
+        <button class="btn-primary" onclick="openAddModal()" style="display:flex; align-items:center; gap:6px; font-size:13px;">
+          <i class="ti ti-plus"></i> Ürün Ekle
+        </button>
+      </div>
+    </div>
+
+    <!-- Filter Bar -->
+    <div class="filter-bar">
+      <div class="filter-row">
+        <!-- Search -->
+        <div class="filter-tags-wrap" style="flex:2;" onclick="document.getElementById('urunSearch').focus()">
+          <input type="text" id="urunSearch" class="filter-tags-input" placeholder="Ürün adı, SKU veya marka ara...">
+        </div>
+
+        <!-- Category filter -->
+        <select id="filterCategory" class="filter-select" style="max-width:200px; flex:0 0 auto;">
+          <option value="">Tüm Kategoriler</option>
+        </select>
+
+        <!-- Brand filter -->
+        <select id="filterBrand" class="filter-select" style="max-width:180px; flex:0 0 auto;">
+          <option value="">Tüm Markalar</option>
+        </select>
+
+        <!-- Clear -->
+        <button class="filter-btn-clear" onclick="clearFilters()" title="Temizle">
+          <i class="ti ti-trash" style="font-size:14px;"></i>
+        </button>
+      </div>
+    </div>
+
+    <!-- KPI Cards -->
+    <div class="kpi-grid" style="grid-template-columns:repeat(3,1fr);">
+      <div class="kpi-card">
+        <p class="kpi-card-label">Toplam Ürün</p>
+        <p class="kpi-card-value" id="kpi-total">—</p>
+      </div>
+      <div class="kpi-card">
+        <p class="kpi-card-label">Kategori</p>
+        <p class="kpi-card-value primary" id="kpi-categories">—</p>
+      </div>
+      <div class="kpi-card">
+        <p class="kpi-card-label">Marka</p>
+        <p class="kpi-card-value" id="kpi-brands">—</p>
+      </div>
+    </div>
+
+    <!-- Table -->
+    <div class="table-area">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Ürün Adı</th>
+            <th>SKU / Kod</th>
+            <th>Marka</th>
+            <th>Kategori</th>
+            <th>Model</th>
+            <th class="text-right">Maliyet (USD)</th>
+            <th class="text-right">Sözleşme (EUR)</th>
+            <th class="text-right">Son Alış</th>
+            <th>Para Birimi</th>
+          </tr>
+        </thead>
+        <tbody id="urunlerTableBody"></tbody>
+      </table>
+      <div id="urunlerEmpty" class="empty-state">Ürün bulunamadı.</div>
+    </div>
+
+  </div><!-- /.page-area -->
+</div><!-- /.app-shell -->
+
+<!-- ── Product Edit/Add Modal ── -->
+<div id="productModal" class="modal-overlay" style="display:none;" onclick="if(event.target===this) closeModal()">
+  <div class="modal-box">
+    <div class="modal-header">
+      <div>
+        <h2 id="modalTitle">Ürün Detayı</h2>
+        <div class="modal-header-sub" id="modalSubTitle"></div>
+      </div>
+      <button class="modal-close-btn" onclick="closeModal()">✕</button>
+    </div>
+
+
+    <!-- INFO TAB -->
+    <div class="modal-body modal-tab-content active" id="tab-info">
+
+      <!-- Temel Bilgiler -->
+      <div class="modal-section">
+        <div class="modal-section-title">Temel Bilgiler</div>
+        <div class="modal-grid">
+          <div class="modal-field modal-field--full">
+            <label>Ürün Adı <span class="req">*</span></label>
+            <input type="text" id="pf-product_name">
+          </div>
+          <div class="modal-field">
+            <label>Ürün Kodu / SKU <span class="req">*</span></label>
+            <input type="text" id="pf-product_code">
+          </div>
+          <div class="modal-field">
+            <label>Marka</label>
+            <select id="pf-brand"></select>
+          </div>
+          <div class="modal-field">
+            <label>Kategori</label>
+            <select id="pf-category"></select>
+          </div>
+          <div class="modal-field">
+            <label>Model</label>
+            <input type="text" id="pf-model">
+          </div>
+        </div>
+      </div>
+
+      <!-- Fiyatlar -->
+      <div class="modal-section">
+        <div class="modal-section-title">Fiyatlar</div>
+        <div class="modal-grid">
+          <div class="modal-field">
+            <label>Maliyet (USD)</label>
+            <input type="number" step="0.01" id="pf-maliyet_usd">
+          </div>
+          <div class="modal-field">
+            <label>Sözleşme Fiyatı (EUR)</label>
+            <input type="number" step="0.01" id="pf-sozlesme_fiyat_eur">
+          </div>
+          <div class="modal-field">
+            <label>Son Alış Fiyatı</label>
+            <input type="number" step="0.01" id="pf-last_purchase_price_cur">
+          </div>
+          <div class="modal-field">
+            <label>Para Birimi</label>
+            <input type="text" id="pf-last_purchase_currency" placeholder="USD / EUR / TRY">
+          </div>
+          <div class="modal-field">
+            <label>Son Alış Kuru</label>
+            <input type="number" step="0.0001" id="pf-last_purchase_rate">
+          </div>
+          <div class="modal-field">
+            <label>Son Alış (TL)</label>
+            <input type="number" step="0.01" id="pf-last_purchase_price_tl">
+          </div>
+          <div class="modal-field">
+            <label>Ort. Alış (TL)</label>
+            <input type="number" step="0.01" id="pf-avg_purchase_price_tl">
+          </div>
+        </div>
+      </div>
+
+      <!-- DMO -->
+      <div class="modal-section">
+        <div class="modal-section-title">DMO Bilgileri</div>
+        <div class="modal-grid">
+          <div class="modal-field">
+            <label>DMO Kodu</label>
+            <input type="text" id="pf-dmo_code">
+          </div>
+          <div class="modal-field">
+            <label>DMO Fiyatı (TRY)</label>
+            <input type="number" step="0.01" id="pf-dmo_fiyat_try">
+          </div>
+          <div class="modal-field modal-field--full">
+            <label>DMO URL</label>
+            <input type="text" id="pf-dmo_url" placeholder="https://www.dmo.gov.tr/...">
+          </div>
+          <div class="modal-field">
+            <label>Hediye Miktarı</label>
+            <input type="number" step="1" id="pf-gift_quantity">
+          </div>
+        </div>
+      </div>
+
+      <!-- Sistem -->
+      <div class="modal-section">
+        <div class="modal-section-title">Sistem Bilgileri</div>
+        <div class="modal-grid">
+          <div class="modal-field">
+            <label>Oluşturulma</label>
+            <input type="text" id="pf-created_at" readonly class="readonly-field">
+          </div>
+          <div class="modal-field">
+            <label>Son Güncelleme</label>
+            <input type="text" id="pf-updated_at" readonly class="readonly-field">
+          </div>
+          <div class="modal-field">
+            <label>DMO Fiyat Güncelleme</label>
+            <input type="text" id="pf-dmo_fiyat_updated" readonly class="readonly-field">
+          </div>
+        </div>
+      </div>
+
+    </div><!-- /#tab-info -->
+
+    <!-- MOVEMENTS TAB -->
+    <div class="modal-body modal-tab-content" id="tab-movements" style="padding-top:0;">
+      <div style="overflow-x:auto;">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Tarih</th>
+              <th>İşlem</th>
+              <th>Fatura No</th>
+              <th>Firma</th>
+              <th class="text-right">Miktar</th>
+              <th class="text-right">Birim Fiyat</th>
+              <th>Döviz</th>
+            </tr>
+          </thead>
+          <tbody id="productMovementsBody"></tbody>
+        </table>
+      </div>
+      <div id="productMovementsEmpty" class="empty-state" style="display:none;">Bu ürün için hareket bulunamadı.</div>
+    </div>
+
+    <div class="modal-footer">
+      <span id="modalMsg" class="modal-msg"></span>
+      <button class="btn-secondary" onclick="closeModal()">İptal</button>
+      <button class="btn-primary" id="modalSaveBtn" onclick="saveProduct()">Kaydet</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast-container"></div>
+
+<script src="/sidebar.js?v=3" defer></script>
+<script src="/stok/js/utils.js"></script>
+<script src="/stok/js/urunler.js"></script>
+</body>
+</html>

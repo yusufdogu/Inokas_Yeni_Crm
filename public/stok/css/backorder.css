@@ -1,0 +1,212 @@
+/* stok/backorder.css — Backorder page specific styles */
+
+/* ── Show completed toggle ── */
+.bo-toggle-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: #94a3b8;
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.bo-toggle-label input[type="checkbox"] {
+  accent-color: #2563eb;
+  width: 14px;
+  height: 14px;
+}
+
+/* ── New Backorder Form ── */
+.bo-new-form-wrap {
+  padding: 10px 20px;
+  flex-shrink: 0;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.bo-new-form-details {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.bo-new-form-summary {
+  padding: 10px 16px;
+  font-size: 13px;
+  font-weight: 700;
+  color: #334155;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  list-style: none;
+  user-select: none;
+}
+
+.bo-new-form-summary:hover { color: #2563eb; }
+.bo-new-form-summary::-webkit-details-marker { display: none; }
+
+.bo-new-form-body {
+  padding: 14px 16px 16px;
+  border-top: 1px solid #e2e8f0;
+  background: #fff;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.bo-new-form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.bo-new-form-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.bo-new-form-field label {
+  font-size: 11px;
+  font-weight: 700;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.bo-new-form-field input {
+  padding: 8px 10px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  font-size: 13px;
+  font-family: inherit;
+  color: #0f172a;
+  background: #fff;
+  outline: none;
+  transition: border-color 0.15s;
+}
+
+.bo-new-form-field input:focus { border-color: #2563eb; }
+.bo-new-form-field input[readonly] { background: #f8fafc; color: #64748b; }
+
+.req { color: #ef4444; }
+
+/* ── Lines table ── */
+.bo-lines-wrap { display: flex; flex-direction: column; gap: 8px; }
+
+.bo-lines-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.bo-lines-table th {
+  background: #f1f5f9;
+  color: #64748b;
+  text-align: left;
+  padding: 7px 8px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  border: 1px solid #e2e8f0;
+}
+
+.bo-lines-table td {
+  border: 1px solid #e2e8f0;
+  padding: 5px 6px;
+  background: #fff;
+  vertical-align: middle;
+}
+
+.bo-lines-table input,
+.bo-lines-table select {
+  width: 100%;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  padding: 5px 7px;
+  font-size: 12px;
+  font-family: inherit;
+  color: #0f172a;
+  background: #fff;
+  outline: none;
+}
+
+.bo-lines-table input:focus,
+.bo-lines-table select:focus { border-color: #2563eb; }
+
+.bo-add-line-btn {
+  align-self: flex-start;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 12px;
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
+  border-radius: 7px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #475569;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.bo-add-line-btn:hover { background: #e2e8f0; color: #1e293b; }
+
+.bo-form-footer {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding-top: 4px;
+}
+
+/* ── Table inline editing ── */
+.po-edit-input {
+  width: 70px;
+  text-align: right;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  padding: 4px 6px;
+  font-size: 12px;
+  font-family: inherit;
+}
+
+.po-edit-input:focus { outline: none; border-color: #2563eb; }
+
+.po-cur-select {
+  width: 70px;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  padding: 4px 5px;
+  font-size: 12px;
+  font-family: inherit;
+}
+
+.po-actions { display: flex; gap: 5px; flex-wrap: wrap; }
+
+.po-btn {
+  padding: 4px 8px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  border: 1px solid transparent;
+  font-family: inherit;
+  white-space: nowrap;
+}
+
+.po-btn-save   { background: #dcfce7; color: #166534; border-color: #bbf7d0; }
+.po-btn-delete { background: #fee2e2; color: #991b1b; border-color: #fecaca; }
+.po-btn-save:hover   { background: #bbf7d0; }
+.po-btn-delete:hover { background: #fecaca; }
+
+/* Remaining qty highlight */
+.remaining-cell strong { font-size: 13px; }
+
+@media (max-width: 900px) {
+  .bo-new-form-grid { grid-template-columns: 1fr; }
+}

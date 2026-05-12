@@ -1,0 +1,124 @@
+// stok/utils.js — pure helpers, no DOM, no fetch
+
+// ─── Formatters ───────────────────────────────────────────────────────────────
+function fmtQty(v)       { return Number(v || 0).toLocaleString('tr-TR'); }
+function fmtUsd(v)       { return `$${Number(v || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`; }
+function fmtUsdOrDash(v) { if (v === null || v === undefined || Number.isNaN(Number(v))) return '—'; return fmtUsd(v); }
+function fmtPrice(v, currency) {
+  const n = Number(v || 0);
+  if (!currency) return n.toLocaleString('tr-TR', { minimumFractionDigits: 2 });
+  const symbols = { TRY: '₺', USD: '$', EUR: '€' };
+  const sym = symbols[currency] || currency;
+  return `${sym}${n.toLocaleString('tr-TR', { minimumFractionDigits: 2 })}`;
+}
+function esc(str) {
+  return String(str || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+// ─── Session cache ────────────────────────────────────────────────────────────
+function readCache(key) {
+  try {
+    const raw = sessionStorage.getItem(key);
+    return raw ? JSON.parse(raw) : null;
+  } catch { return null; }
+}
+
+function writeCache(key, data) {
+  try { sessionStorage.setItem(key, JSON.stringify(data)); } catch {}
+}
+
+function clearCache(...keys) {
+  keys.forEach(k => { try { sessionStorage.removeItem(k); } catch {} });
+}
+
+// ─── Category helpers ─────────────────────────────────────────────────────────
+function isSarfCategory(category) {
+  return String(category || '').toLocaleLowerCase('tr-TR').includes('sarf');
+}
+
+// ─── Movement helpers ─────────────────────────────────────────────────────────
+function getSoldQtyLastDaysBySku(allMovements, sku, days) {
+  if (!sku) return 0;
+  const nowTs = Date.now();
+  const maxAge = Number(days || 30) * 24 * 60 * 60 * 1000;
+  return allMovements.reduce((sum, mv) => {
+    if (String(mv.sku || '') !== sku) return sum;
+    if (String(mv.direction || '') !== 'OUTGOING') return sum;
+    const ts = mv.invoice_date ? new Date(mv.invoice_date).getTime() : NaN;
+    if (!Number.isFinite(ts) || (nowTs - ts) > maxAge) return sum;
+    return sum + (Number(mv.quantity || 0) || 0);
+  }, 0);
+}
+
+// ─── Tag-input multi-select helper ───────────────────────────────────────────
+// Used by hareketler and urunler for company/product tag filters
+function createTagFilter({ wrapId, inputId, dropdownId, placeholder, getOptions, onChange }) {
+  const wrap     = document.getElementById(wrapId);
+  const input    = document.getElementById(inputId);
+  const dropdown = document.getElementById(dropdownId);
+  if (!wrap || !input || !dropdown) return { getSelected: () => [] };
+
+  let selected = [];
+
+  function renderTags() {
+    wrap.querySelectorAll('.filter-tag').forEach(el => el.remove());
+    selected.forEach(val => {
+      const tag = document.createElement('span');
+      tag.className = 'filter-tag';
+      tag.innerHTML = `${esc(val)} <span class="filter-tag-remove" data-val="${esc(val)}">×</span>`;
+      tag.querySelector('.filter-tag-remove').addEventListener('click', (e) => {
+        e.stopPropagation();
+        selected = selected.filter(v => v !== val);
+        renderTags();
+        onChange(selected);
+      });
+      wrap.insertBefore(tag, input);
+    });
+  }
+
+  function renderDropdown(query) {
+    const opts = getOptions().filter(o =>
+      !selected.includes(o) &&
+      (!query || o.toLocaleLowerCase('tr-TR').includes(query.toLocaleLowerCase('tr-TR')))
+    );
+    const list = dropdown.querySelector('.filter-dropdown-list') || (() => {
+      const ul = document.createElement('ul');
+      ul.className = 'filter-dropdown-list';
+      dropdown.appendChild(ul);
+      return ul;
+    })();
+    list.innerHTML = '';
+    opts.slice(0, 40).forEach(o => {
+      const li = document.createElement('li');
+      li.className = 'filter-dropdown-item';
+      li.textContent = o;
+      li.addEventListener('click', () => {
+        if (!selected.includes(o)) { selected.push(o); }
+        input.value = '';
+        dropdown.classList.remove('open');
+        renderTags();
+        onChange(selected);
+      });
+      list.appendChild(li);
+    });
+    dropdown.classList.toggle('open', opts.length > 0);
+  }
+
+  input.addEventListener('input', () => renderDropdown(input.value));
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Backspace' && !input.value && selected.length) {
+      selected.pop();
+      renderTags();
+      onChange(selected);
+    }
+    if (e.key === 'Escape') dropdown.classList.remove('open');
+  });
+  document.addEventListener('click', (e) => {
+    if (!wrap.contains(e.target)) dropdown.classList.remove('open');
+  });
+
+  return {
+    getSelected: () => [...selected],
+    clear: () => { selected = []; renderTags(); },
+  };
+}

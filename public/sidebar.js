@@ -3,6 +3,7 @@
 
     let _sidebarOpen = true;
     let _fatOpen     = false;
+    let _stokOpen    = false;
     let _dmoOpen     = false;
 
     const path        = location.pathname;
@@ -42,10 +43,22 @@
       </a>
     </div>
 
-    <a href="/stok.html" class="sb-item${isStok ? ' active' : ''}">
+    <button class="sb-item${isStok ? ' active' : ''}" id="stok-toggle" onclick="toggleStok()">
       <i class="ti ti-package"></i>
       <span class="sb-label">Stok</span>
-    </a>
+      <i class="ti ti-chevron-down sb-chevron" id="stok-chevron"></i>
+    </button>
+    <div class="sb-children" id="stok-children">
+      <a href="/stok/pages/stok-hareketleri.html" class="sb-child${path.includes('hareketler') ? ' active' : ''}">
+        <i class="ti ti-arrows-exchange"></i><span class="sb-label">Hareketler</span>
+      </a>
+      <a href="/stok/pages/backorder.html" class="sb-child${path.includes('backorder') ? ' active' : ''}">
+        <i class="ti ti-clock-pause"></i><span class="sb-label">Backorder</span>
+      </a>
+      <a href="/stok/pages/urunler.html" class="sb-child${path.includes('urunler') ? ' active' : ''}">
+        <i class="ti ti-box"></i><span class="sb-label">Ürünler</span>
+      </a>
+    </div>
 
     <a href="/cari/cari-index.html" class="sb-item${isCari ? ' active' : ''}">
       <i class="ti ti-users"></i>
@@ -94,6 +107,11 @@
             document.getElementById('fat-chevron')?.classList.add('open');
             syncFatHash();
         }
+        if (isStok) {
+            _stokOpen = true;
+            document.getElementById('stok-children')?.classList.add('open');
+            document.getElementById('stok-chevron')?.classList.add('open');
+        }
         if (isDmo) {
             _dmoOpen = true;
             document.getElementById('dmo-children')?.classList.add('open');
@@ -124,6 +142,12 @@
         _fatOpen = !_fatOpen;
         document.getElementById('fat-children')?.classList.toggle('open', _fatOpen);
         document.getElementById('fat-chevron')?.classList.toggle('open', _fatOpen);
+    };
+
+    window.toggleStok = function () {
+        _stokOpen = !_stokOpen;
+        document.getElementById('stok-children')?.classList.toggle('open', _stokOpen);
+        document.getElementById('stok-chevron')?.classList.toggle('open', _stokOpen);
     };
 
     window.toggleDMO = function () {

@@ -9,6 +9,7 @@
     <orderEntry type="library" name="@supabase" level="application" />
     <orderEntry type="library" name="@tabler/icons-webfont" level="application" />
     <orderEntry type="library" name="noUiSlider" level="application" />
+    <orderEntry type="library" name="chart.js" level="application" />
   </component>
   <component name="TemplatesService">
     <option name="TEMPLATE_FOLDERS">

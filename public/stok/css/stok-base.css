@@ -92,6 +92,7 @@ body {
   cursor: text;
   flex: 1;
   min-width: 160px;
+  max-width: 320px;
   position: relative;
 }
 

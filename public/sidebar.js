@@ -118,10 +118,8 @@
             document.getElementById('dmo-chevron')?.classList.add('open');
         }
         document.getElementById('sb-logout-btn')?.addEventListener('click', () => {
-            localStorage.removeItem('inokas_auth');
-            const btn = document.querySelector('.logout');
-            if (btn) btn.click();
-            else window.location.href = '/login.html';
+          sessionStorage.removeItem('inokas_token');
+          window.location.replace('/login.html');
         });
     }
 

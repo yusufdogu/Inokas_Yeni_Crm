@@ -65,7 +65,8 @@ function createTagFilter({ wrapId, inputId, dropdownId, placeholder, getOptions,
     selected.forEach(val => {
       const tag = document.createElement('span');
       tag.className = 'filter-tag';
-      tag.innerHTML = `${esc(val)} <span class="filter-tag-remove" data-val="${esc(val)}">×</span>`;
+      const display = val.length > 22 ? val.slice(0, 20) + '…' : val;
+      tag.innerHTML = `${esc(display)} <span class="filter-tag-remove" data-val="${esc(val)}">×</span>`;
       tag.querySelector('.filter-tag-remove').addEventListener('click', (e) => {
         e.stopPropagation();
         selected = selected.filter(v => v !== val);

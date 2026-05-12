@@ -15,6 +15,8 @@ try {
   console.warn('dotenv bulunamadı, ortam değişkenleri platformdan okunuyor.');
 }
 
+const crypto = require('crypto');
+const activeSessions = new Set();
 const inokasVknLoaded = !!(process.env.INOKAS_VKN || '').trim();
 console.log('INOKAS_VKN:', inokasVknLoaded ? 'yüklendi ✓' : 'TANIMSIZ — .env veya ortam değişkenini kontrol edin');
 
@@ -25,6 +27,37 @@ const supabase = createClient(
   process.env.SUPABASE_URL,
   process.env.SUPABASE_KEY
 );
+
+
+
+// ─── AUTH ─────────────────────────────────────────────────────────────────────
+app.post('/api/auth/login', (req, res) => {
+  const { email, password } = req.body || {};
+  const validEmail    = process.env.ADMIN_EMAIL;
+  const validPassword = process.env.ADMIN_PASSWORD;
+
+  if (!email || !password) {
+    return res.status(400).json({ error: 'E-posta ve şifre zorunlu.' });
+  }
+
+  if (
+    email.trim().toLowerCase() !== String(validEmail || '').trim().toLowerCase() ||
+    password !== String(validPassword || '')
+  ) {
+    return res.status(401).json({ error: 'E-posta veya şifre hatalı.' });
+  }
+
+  const token = crypto.randomBytes(32).toString('hex');
+  activeSessions.add(token);
+  res.json({ token });
+});
+
+app.post('/api/auth/logout', (req, res) => {
+  const token = req.headers['x-auth-token'];
+  if (token) activeSessions.delete(token);
+  res.json({ ok: true });
+});
+
 
 /** Ana sayfa: static’ten ÖNCE — aksi halde GET / hiç buraya düşmez, toplu XML için VKN enjekte edilemez */
 function getFaturalarIndexHtml() {
@@ -865,8 +898,8 @@ app.get('/api/stocks/summary', async (req, res) => {
 app.get('/api/stocks/movements', async (req, res) => {
   try {
     res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
-    const skuFilter = String(req.query.sku || '').trim();
-    const skuLower = skuFilter.toLowerCase();
+    const skuFilter      = String(req.query.sku || '').trim();
+    const skuLower       = skuFilter.toLowerCase();
     const approvalFilter = String(req.query.approval_status || 'approved').trim().toLowerCase();
 
     let query = supabase
@@ -877,6 +910,7 @@ app.get('/api/stocks/movements', async (req, res) => {
         direction,
         currency,
         approval_status,
+        pdf_url,
         companies ( name ),
         invoice_items (
           id,
@@ -899,8 +933,8 @@ app.get('/api/stocks/movements', async (req, res) => {
     const movements = [];
     (invoices || []).forEach((inv) => {
       const headerCurrency = inv.currency;
-      const companyName = inv.companies?.name || '—';
-      const direction = String(inv.direction || '').toUpperCase();
+      const companyName    = inv.companies?.name || '—';
+      const direction      = String(inv.direction || '').toUpperCase();
       const approvalStatus = String(inv.approval_status || '').toLowerCase();
 
       (inv.invoice_items || []).forEach((item) => {
@@ -908,19 +942,41 @@ app.get('/api/stocks/movements', async (req, res) => {
         if (skuFilter && sku.toLowerCase() !== skuLower) return;
 
         movements.push({
-          invoice_date: inv.invoice_date,
+          invoice_date:    inv.invoice_date,
           direction,
-          invoice_no: inv.invoice_no,
-          company_name: companyName,
-          product_name: item.product_name,
+          invoice_no:      inv.invoice_no,
+          company_name:    companyName,
+          product_name:    item.product_name,
           sku,
-          quantity: item.quantity,
-          unit_price_cur: item.unit_price_cur,
-          currency: item.currency || headerCurrency,
+          quantity:        item.quantity,
+          unit_price_cur:  item.unit_price_cur,
+          currency:        item.currency || headerCurrency,
           approval_status: approvalStatus,
+          pdf_url:         inv.pdf_url || null,
         });
       });
     });
+
+    // ─── Enrich with product metadata ────────────────────────────────────────
+    const skus = [...new Set(movements.map(m => m.sku).filter(Boolean))];
+
+    if (skus.length > 0) {
+      const { data: products } = await supabase
+        .from('products')
+        .select('product_code, brand, category, model')
+        .in('product_code', skus);
+
+      const productMap = new Map(
+        (products || []).map(p => [String(p.product_code || '').trim(), p])
+      );
+
+      movements.forEach(m => {
+        const p    = productMap.get(m.sku);
+        m.brand    = p?.brand    || '';
+        m.category = p?.category || '';
+        m.model    = p?.model    || '';
+      });
+    }
 
     res.json(movements);
   } catch (err) {

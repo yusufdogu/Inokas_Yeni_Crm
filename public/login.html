@@ -230,57 +230,54 @@
   </style>
 </head>
 <body>
+  <!-- TOP ANNOUNCEMENT — full width, centered -->
+  <div style="position:absolute; top:40px; left:0; right:0; z-index:10; text-align:center;">
+    <div style="font-size:36px; font-weight:900; color:#eab308; text-transform:uppercase; letter-spacing:0.06em; line-height:1.1;">STOK GÜNCELLENDİ!!!</div>
+  </div>
 
   <!-- LEFT -->
   <div class="left">
     <div class="left-inner">
 
-      <div class="brand">
+      <!-- İnokas CRM brand -->
+      <div class="brand" style="margin-bottom:32px;">
         <div class="brand-dot"></div>
         <div class="brand-text">İnokas <span>CRM</span></div>
       </div>
 
-      <div class="login-title">Tekrar hoş geldiniz</div>
-      <div class="login-sub">Hesabınıza giriş yapın</div>
+      <!-- Form -->
+      <div>
+        <div class="login-title">Tekrar hoş geldiniz</div>
+        <div class="login-sub">Hesabınıza giriş yapın</div>
 
-      <div id="errorMsg" class="error">E-posta veya şifre hatalı.</div>
+        <div id="errorMsg" class="error">E-posta veya şifre hatalı.</div>
 
-      <div class="form-group">
-        <label>E-posta</label>
-        <input type="email" id="email" placeholder="ornek@mail.com" autocomplete="email">
+        <div class="form-group">
+          <label>E-posta</label>
+          <input type="email" id="email" placeholder="ornek@mail.com" autocomplete="email">
+        </div>
+
+        <div class="form-group">
+          <label>Şifre</label>
+          <input type="password" id="password" placeholder="••••••••" autocomplete="current-password">
+        </div>
+
+        <button class="btn-login" id="loginBtn" onclick="handleLogin()">Giriş Yap →</button>
       </div>
-
-      <div class="form-group">
-        <label>Şifre</label>
-        <input type="password" id="password" placeholder="••••••••" autocomplete="current-password">
-      </div>
-
-      <button class="btn-login" id="loginBtn" onclick="handleLogin()">Giriş Yap →</button>
 
     </div>
   </div>
 
   <!-- RIGHT -->
   <div class="right">
-    <img src="/erdem.jpeg" alt="Erdem Gökalp">
-    <div class="right-quote">
-      <div class="stars">
-        <span class="star">⭐</span>
-        <span class="star">⭐</span>
-        <span class="star">⭐</span>
-        <span class="star">⭐</span>
-        <span class="star">⭐</span>
-      </div>
-      <div class="quote-text">Excelden kurtulduk</div>
-      <div class="quote-author">Erdem Gökalp — İnokas</div>
-    </div>
+    <img src="/erdemGokalpwolfofwallstreet.png" alt="Erdem Gökalp">
   </div>
 
   <script>
-    if (localStorage.getItem('inokas_auth') === 'true') window.location.href = '/';
+    if (sessionStorage.getItem('inokas_token')) window.location.href = '/';
     document.addEventListener('keydown', e => { if (e.key === 'Enter') handleLogin(); });
 
-    function handleLogin() {
+    async function handleLogin() {
       const email    = document.getElementById('email').value.trim().toLowerCase();
       const password = document.getElementById('password').value;
       const errorEl  = document.getElementById('errorMsg');
@@ -288,13 +285,34 @@
 
       errorEl.style.display = 'none';
 
-      if (email === 'erdem.gokalp@gmail.com' && password === 'Rinnova25!!!!') {
+      if (!email || !password) {
+        errorEl.textContent    = 'E-posta ve şifre zorunlu.';
+        errorEl.style.display  = 'block';
+        return;
+      }
+
+      btn.textContent = 'Giriş yapılıyor...';
+      btn.classList.add('loading');
+
+      try {
+        const res  = await fetch('/api/auth/login', {
+          method:  'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body:    JSON.stringify({ email, password })
+        });
+        const data = await res.json();
+
+        if (!res.ok) throw new Error(data?.error || 'Giriş başarısız.');
+
+        sessionStorage.setItem('inokas_token', data.token);
         btn.textContent = '✓ Giriş yapıldı';
-        btn.classList.add('loading');
-        localStorage.setItem('inokas_auth', 'true');
         setTimeout(() => window.location.href = '/', 600);
-      } else {
+
+      } catch (err) {
+        errorEl.textContent   = err.message;
         errorEl.style.display = 'block';
+        btn.textContent       = 'Giriş Yap →';
+        btn.classList.remove('loading');
         document.getElementById('password').value = '';
         document.getElementById('password').focus();
       }

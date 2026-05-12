@@ -14,19 +14,27 @@ function renderCharts(movements) {
   grid.innerHTML = `
     <div class="analiz-chart-card">
       <div class="analiz-chart-title">Aylık Hareket (Adet)</div>
-      <canvas id="chart-monthly" class="analiz-chart-canvas"></canvas>
+      <div style="position:relative; height:180px;">
+        <canvas id="chart-monthly"></canvas>
+      </div>
     </div>
     <div class="analiz-chart-card">
       <div class="analiz-chart-title">Firma Bazlı Hacim (Top 10)</div>
-      <canvas id="chart-companies" class="analiz-chart-canvas"></canvas>
+      <div style="position:relative; height:180px;">
+        <canvas id="chart-companies"></canvas>
+      </div>
     </div>
     <div class="analiz-chart-card">
       <div class="analiz-chart-title">En Çok Hareket Gören Ürünler (Top 10)</div>
-      <canvas id="chart-products" class="analiz-chart-canvas"></canvas>
+      <div style="position:relative; height:180px;">
+        <canvas id="chart-products"></canvas>
+      </div>
     </div>
     <div class="analiz-chart-card">
       <div class="analiz-chart-title">Giriş / Çıkış Dağılımı</div>
-      <canvas id="chart-direction" class="analiz-chart-canvas"></canvas>
+      <div style="position:relative; height:180px;">
+        <canvas id="chart-direction"></canvas>
+      </div>
     </div>
   `;
 

@@ -5,71 +5,14 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Stok Hareketleri — İnokas CRM</title>
   <script>
-    if (localStorage.getItem('inokas_auth') !== 'true') window.location.href = '/login.html';
+    if (!sessionStorage.getItem('inokas_token')) window.location.href = '/login.html';
   </script>
   <link href="https://fonts.googleapis.com/css2?family=Geist+Mono:wght@400;600&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.x/dist/tabler-icons.min.css">
   <link rel="stylesheet" href="/sidebar.css">
   <link rel="stylesheet" href="/stok/css/stok-base.css?v=1">
-  <link rel="stylesheet" href="/stok/css/stok-hareketleri.css?v=1">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 </head>
-
-<!-- ── Movements Modal — paste this before </body> in stok-hareketleri.html ── -->
-
-<div id="mvModal" class="modal-overlay" style="display:none;" onclick="if(event.target===this) closeMovementsModal()">
-  <div class="mv-modal-box">
-
-    <!-- Header -->
-    <div class="mv-modal-header">
-      <div class="mv-modal-header-left">
-        <span id="mvModalProductName" class="mv-modal-title">Ürün</span>
-        <span id="mvModalSku" class="mv-modal-sku"></span>
-      </div>
-      <button class="modal-close-btn" onclick="closeMovementsModal()">✕</button>
-    </div>
-
-    <!-- Mini stats -->
-    <div class="mv-stats-row">
-      <div class="mv-stat">
-        <span class="mv-stat-label">Toplam Giriş</span>
-        <span id="mvStatIn" class="mv-stat-value text-success">—</span>
-      </div>
-      <div class="mv-stat">
-        <span class="mv-stat-label">Toplam Çıkış</span>
-        <span id="mvStatOut" class="mv-stat-value text-danger">—</span>
-      </div>
-      <div class="mv-stat">
-        <span class="mv-stat-label">Net Stok</span>
-        <span id="mvStatNet" class="mv-stat-value">—</span>
-      </div>
-      <div class="mv-stat">
-        <span class="mv-stat-label">Firma Sayısı</span>
-        <span id="mvStatCompanies" class="mv-stat-value">—</span>
-      </div>
-    </div>
-
-    <!-- Movements table -->
-    <div class="mv-modal-body">
-      <table class="data-table">
-        <thead>
-          <tr>
-            <th>Tarih</th>
-            <th>İşlem</th>
-            <th>Fatura No</th>
-            <th>Firma</th>
-            <th class="text-right">Miktar</th>
-            <th class="text-right">Birim Fiyat</th>
-            <th>Döviz</th>
-          </tr>
-        </thead>
-        <tbody id="mvModalTableBody"></tbody>
-      </table>
-    </div>
-
-  </div>
-</div>
-
 <body>
 <div class="app-shell">
   <div id="sidebar-container"></div>
@@ -87,16 +30,18 @@
 
     <!-- Filter Bar -->
     <div class="filter-bar">
+
+      <!-- TOP ROW -->
       <div class="filter-row">
 
-        <!-- Company tag filter -->
+        <!-- Company tags -->
         <div class="filter-tags-wrap" id="companyTagsWrap" onclick="document.getElementById('companyTagInput').focus()">
           <div id="companyTags" class="filter-tags"></div>
           <input type="text" id="companyTagInput" class="filter-tags-input" placeholder="Firma ekle...">
           <div id="companyDropdown" class="filter-dropdown"></div>
         </div>
 
-        <!-- Product tag filter -->
+        <!-- Product tags -->
         <div class="filter-tags-wrap" id="productTagsWrap" onclick="document.getElementById('productTagInput').focus()">
           <div id="productTags" class="filter-tags"></div>
           <input type="text" id="productTagInput" class="filter-tags-input" placeholder="Ürün / SKU ekle...">
@@ -120,7 +65,7 @@
         <!-- Price range -->
         <div class="filter-range-wrap">
           <div class="filter-range-label-row">
-            <span>Birim Fiyat Aralığı</span>
+            <span>Birim Fiyat</span>
             <span class="range-value" id="priceRangeLabel">0 — ∞</span>
           </div>
           <div class="filter-range-inputs">
@@ -134,11 +79,48 @@
           <button class="filter-btn-apply" onclick="applyFilters()">
             <i class="ti ti-filter" style="font-size:13px;"></i>Uygula
           </button>
-          <button class="filter-btn-clear" onclick="clearAllFilters()" title="Filtreleri Temizle">
+          <button class="filter-btn-clear" onclick="clearAllFilters()" title="Temizle">
             <i class="ti ti-trash" style="font-size:14px;"></i>
           </button>
         </div>
       </div>
+
+      <!-- ADVANCED TOGGLE -->
+      <button class="filter-advanced-toggle" onclick="toggleAdvancedFilters()">
+        <span id="advancedFiltersBtnText">
+          <i class="ti ti-chevron-down" style="font-size:12px;"></i> Gelişmiş Filtreler
+        </span>
+        <span id="advancedFiltersBadge" style="display:none; background:#2563eb; color:white; border-radius:99px; padding:1px 7px; font-size:11px; font-weight:700; margin-left:4px;">!</span>
+      </button>
+
+      <!-- ADVANCED PANEL -->
+      <div id="advancedFiltersPanel" class="filter-advanced-panel">
+        <div class="filter-row" style="margin-top:10px;">
+
+          <!-- Brand tags -->
+          <div class="filter-tags-wrap" id="brandTagsWrap" onclick="document.getElementById('brandTagInput').focus()">
+            <div id="brandTags" class="filter-tags"></div>
+            <input type="text" id="brandTagInput" class="filter-tags-input" placeholder="Marka ekle...">
+            <div id="brandDropdown" class="filter-dropdown"></div>
+          </div>
+
+          <!-- Category tags -->
+          <div class="filter-tags-wrap" id="categoryTagsWrap" onclick="document.getElementById('categoryTagInput').focus()">
+            <div id="categoryTags" class="filter-tags"></div>
+            <input type="text" id="categoryTagInput" class="filter-tags-input" placeholder="Kategori ekle...">
+            <div id="categoryDropdown" class="filter-dropdown"></div>
+          </div>
+
+          <!-- Model tags -->
+          <div class="filter-tags-wrap" id="modelTagsWrap" onclick="document.getElementById('modelTagInput').focus()">
+            <div id="modelTags" class="filter-tags"></div>
+            <input type="text" id="modelTagInput" class="filter-tags-input" placeholder="Model ekle...">
+            <div id="modelDropdown" class="filter-dropdown"></div>
+          </div>
+
+        </div>
+      </div>
+
     </div>
 
     <!-- KPI Cards -->
@@ -162,13 +144,14 @@
     </div>
 
     <!-- Table -->
-    <div class="table-area" id="tableArea">
+    <div class="table-area">
       <table class="data-table">
         <thead>
           <tr>
-            <th style="width:28px;"></th>
             <th>Ürün Adı</th>
             <th>SKU</th>
+            <th>Marka</th>
+            <th>Kategori</th>
             <th class="text-right">Toplam Giriş</th>
             <th class="text-right">Toplam Çıkış</th>
             <th>Son Hareket</th>
@@ -185,7 +168,6 @@
       <div class="analiz-bar-left">
         <i class="ti ti-chart-bar" style="font-size:16px;"></i>
         <span>Analiz</span>
-        <span id="analiz-hint" style="font-size:11px; color:#94a3b8;"></span>
       </div>
       <i class="ti ti-chevron-down analiz-chevron" id="analizChevron"></i>
     </div>
@@ -195,8 +177,8 @@
       <div class="analiz-grid" id="analizGrid"></div>
     </div>
 
-  </div><!-- /.page-area -->
-</div><!-- /.app-shell -->
+  </div>
+</div>
 
 <div id="toast-container"></div>
 

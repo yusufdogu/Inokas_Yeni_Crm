@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Backorder — İnokas CRM</title>
   <script>
-    if (localStorage.getItem('inokas_auth') !== 'true') window.location.href = '/login.html';
+    if (!sessionStorage.getItem('inokas_token')) window.location.href = '/login.html';
   </script>
   <link href="https://fonts.googleapis.com/css2?family=Geist+Mono:wght@400;600&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.x/dist/tabler-icons.min.css">

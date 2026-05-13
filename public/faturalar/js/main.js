@@ -983,15 +983,28 @@ function resetXmlStrip() {
 }
 
 
-async function approveDetailInvoice(id) {
-    if(!confirm("Bu faturayı aktarmak istiyor musunuz?")) return;
+window.approveDetailInvoice = async function(id) {
+    const btn = document.querySelector(`[onclick="approveDetailInvoice('${id}')"]`);
+    if (btn) { btn.disabled = true; btn.textContent = 'Aktarılıyor...'; }
+
     try {
-        const res = await fetch('/api/invoices/' + id + '/approve', { method: 'PUT' });
-        if(!res.ok) throw new Error("Onayla HTTP " + res.status);
-        refreshData(true);
-        closeFatDetailPage();
-    } catch (e) { alert("Hata: " + e.message); }
-}
+        const res = await fetch(`/api/invoices/${id}/approve`, { method: 'PUT' });
+        if (!res.ok) {
+            const d = await res.json().catch(() => ({}));
+            throw new Error(d?.error || 'Onay başarısız');
+        }
+
+        // Redirect back to the correct bekleyen page — it will refresh automatically
+        const isIn = String(_detayInv?.direction || '').toUpperCase() === 'INCOMING';
+        window.location.href = isIn
+            ? '/faturalar/pages/bekleyen-gelen.html'
+            : '/faturalar/pages/bekleyen-giden.html';
+
+    } catch (err) {
+        alert(`Hata: ${err.message}`);
+        if (btn) { btn.disabled = false; btn.textContent = 'Aktar'; }
+    }
+};
 
 async function rejectDetailInvoice(id) {
     if(!confirm("Faturayı tamamen silmek (reddetmek) istiyor musunuz?")) return;

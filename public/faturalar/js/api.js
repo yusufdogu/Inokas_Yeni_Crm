@@ -122,7 +122,8 @@ async function refreshData(forceFetch = false) {
     if (cardList) cardList.innerHTML = '<div style="padding:20px; text-align:center; color:#94a3b8; font-size:13px;">Yükleniyor...</div>';
 
     try {
-        const invRes = await fetch(`/api/invoices`);
+        const apiUrl = window._FAT_PENDING ? '/api/invoices/pending' : '/api/invoices';
+        const invRes = await fetch(apiUrl);
         if (!invRes.ok) throw new Error("Veriler çekilemedi");
 
         allInvoicesCache = await invRes.json();

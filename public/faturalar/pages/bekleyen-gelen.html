@@ -6,70 +6,118 @@
   <title>Bekleyen Gelen — İnokas CRM</title>
   <script>
     if (!sessionStorage.getItem('inokas_token')) window.location.href = '/login.html';
+    window._FAT_INITIAL_VIEW = 'gelen';
+    window._FAT_PENDING      = true;
   </script>
   <link href="https://fonts.googleapis.com/css2?family=Geist+Mono:wght@400;600&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.x/dist/tabler-icons.min.css">
   <link rel="stylesheet" href="/sidebar.css">
-  <link rel="stylesheet" href="/faturalar/css/bekleyen.css?v=2">
+  <link rel="stylesheet" href="/shared-filters.css?v=1">
+  <link rel="stylesheet" href="/faturalar/css/gelen-giden.css?v=1">
   <script src="/sidebar.js" defer></script>
 </head>
 <body>
 <div class="app-shell">
   <div id="sidebar-container"></div>
   <div class="page-area">
-    <div class="bek-page">
+  <div class="fatura-page" id="faturaPage">
 
-      <!-- Header -->
-      <div class="bek-page-header">
-        <button class="sb-toggle-btn" onclick="toggleSidebar()"><i class="ti ti-menu-2"></i></button>
-        <div>
-          <p class="bek-page-title">Bekleyen Gelen Faturalar</p>
-          <p class="bek-page-sub" id="bekCount">Yükleniyor...</p>
+    <div class="fat-page-header">
+      <button class="sb-toggle-btn" onclick="toggleSidebar()"><i class="ti ti-menu-2"></i></button>
+      <p class="fat-page-title" id="fatPageTitle">Bekleyen Gelen Faturalar</p>
+    </div>
+
+    <div class="fatura-topbar">
+      <div class="fatura-filter-row">
+        <input type="text" id="mainSearch" onkeyup="renderCurrentView()" placeholder="Fatura no ara..." class="fatura-filter-search" style="flex:1; min-width:160px;">
+
+        <div class="filter-tags-wrap" id="companyTagsWrap" onclick="document.getElementById('companyTagInput').focus()">
+          <div id="companyTags" class="filter-tags"></div>
+          <input type="text" id="companyTagInput" class="filter-tags-input" placeholder="Firma ekle...">
+          <div id="companyDropdown" class="filter-dropdown"></div>
         </div>
-        <div style="margin-left:auto;">
-          <button class="bek-refresh-btn" onclick="loadBekleyenInvoices()" title="Yenile">
-            <i class="ti ti-refresh"></i>
+
+        <div style="display:flex; align-items:center; gap:4px; flex-shrink:0;">
+          <input type="date" id="filterDateStart" onchange="renderCurrentView()" class="fatura-filter-date">
+          <span class="filter-date-sep">—</span>
+          <input type="date" id="filterDateEnd" onchange="renderCurrentView()" class="fatura-filter-date">
+        </div>
+
+        <select id="filterCurrency" onchange="renderCurrentView()" class="fatura-filter-select">
+          <option value="">Tüm Dövizler</option>
+          <option value="TRY">TRY</option>
+          <option value="USD">USD</option>
+        </select>
+
+        <div style="display:flex; gap:6px; align-items:center; flex-shrink:0;">
+          <button class="filter-btn-apply" onclick="renderCurrentView()">
+            <i class="ti ti-filter" style="font-size:13px;"></i>Uygula
+          </button>
+          <button class="filter-btn-clear" onclick="clearAllFilters()" title="Temizle">
+            <i class="ti ti-trash" style="font-size:14px;"></i>
           </button>
         </div>
       </div>
 
-      <!-- Search -->
-      <div class="bek-toolbar">
-        <input type="text" id="bekSearch" placeholder="Fatura no veya firma ara..."
-          class="bek-search-input" oninput="renderBekleyenList()">
-      </div>
+      <button class="filter-advanced-toggle" onclick="toggleAdvancedFilters()">
+        <span id="advancedFiltersBtnText">
+          <i class="ti ti-chevron-down" style="font-size:12px;"></i> Gelişmiş Filtreler
+        </span>
+        <span id="advancedFiltersBadge" style="display:none; background:#2563eb; color:white; border-radius:99px; padding:1px 7px; font-size:11px; font-weight:700; margin-left:4px;">!</span>
+      </button>
 
-      <!-- Main split -->
-      <div class="bek-main">
-        <!-- Card list -->
-        <div class="bek-list-panel">
-          <div class="bek-card-list" id="bekTbody"></div>
-        </div>
-        <!-- Detail panel -->
-        <div id="bekDetailPanel" class="bek-detail-panel" style="display:none;"></div>
-        <!-- Empty state when nothing selected -->
-        <div id="bekDetailEmpty" class="bek-detail-empty">
-          <i class="ti ti-file-invoice" style="font-size:40px; color:#cbd5e1;"></i>
-          <p>Bir fatura seçin</p>
+      <div id="advancedFiltersPanel" style="display:none; padding-top:8px; border-top:1px solid #1e293b;">
+        <div class="fatura-filter-row">
+          <div class="filter-tags-wrap" id="productTagsWrap" onclick="document.getElementById('productTagInput').focus()">
+            <div id="productTags" class="filter-tags"></div>
+            <input type="text" id="productTagInput" class="filter-tags-input" placeholder="Ürün / SKU ekle...">
+            <div id="productDropdown" class="filter-dropdown"></div>
+          </div>
+          <div class="filter-tags-wrap" id="categoryTagsWrap" onclick="document.getElementById('categoryTagInput').focus()">
+            <div id="categoryTags" class="filter-tags"></div>
+            <input type="text" id="categoryTagInput" class="filter-tags-input" placeholder="Kategori ekle...">
+            <div id="categoryDropdown" class="filter-dropdown"></div>
+          </div>
+          <div class="filter-tags-wrap" id="brandTagsWrap" onclick="document.getElementById('brandTagInput').focus()">
+            <div id="brandTags" class="filter-tags"></div>
+            <input type="text" id="brandTagInput" class="filter-tags-input" placeholder="Marka ekle...">
+            <div id="brandDropdown" class="filter-dropdown"></div>
+          </div>
+          <div class="filter-range-wrap">
+            <div class="filter-range-label-row">
+              <span>Tutar Aralığı</span>
+              <span class="range-value" id="priceRangeLabel">0 — ∞</span>
+            </div>
+            <div class="filter-range-inputs">
+              <input type="range" id="priceMin" min="0" max="10000000" step="10000" value="0" oninput="updatePriceRange()">
+              <input type="range" id="priceMax" min="0" max="10000000" step="10000" value="10000000" oninput="updatePriceRange()">
+            </div>
+          </div>
         </div>
       </div>
-
     </div>
+
+    <div class="fat-kpi-bar" id="fatKpiBar"></div>
+
+    <div class="fat-area">
+      <div class="fat-tabbar" id="fatTabBar">
+        <button class="fat-tab fat-tab--active" id="fatTabList" onclick="switchFatTab('list')">FATURALAR</button>
+      </div>
+      <div class="fat-content" id="fatContent"></div>
+    </div>
+
+  </div>
   </div>
 </div>
+
+<div id="toast-container"></div>
 
 <script src="/faturalar/js/utils.js?v=1"></script>
 <script src="/faturalar/js/xml.js?v=1"></script>
 <script src="/faturalar/js/api.js?v=1"></script>
 <script src="/faturalar/js/state.js?v=20260511-detailpage"></script>
+<script src="/faturalar/js/list.js?v=20260511-bek-pdf-fix"></script>
 <script src="/faturalar/js/detail.js?v=20260511-embedded-pdf"></script>
-<script src="/faturalar/js/bekleyen-page.js?v=1"></script>
-<script>
-  // Initialize with gelen direction
-  document.addEventListener('DOMContentLoaded', () => {
-    window._BEK_DIR = 'INCOMING';
-    initBekleyen();
-  });
-</script>
+<script src="/faturalar/js/main.js?v=20260511-bek-pdf-fix"></script>
 </body>
 </html>

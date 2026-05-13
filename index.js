@@ -61,9 +61,9 @@ app.post('/api/auth/logout', (req, res) => {
 
 /** Ana sayfa: static’ten ÖNCE — aksi halde GET / hiç buraya düşmez, toplu XML için VKN enjekte edilemez */
 function getFaturalarIndexHtml() {
-  const htmlPath = path.join(__dirname, 'public', 'index.html'); // 1) public klasöründeki dmo-index.html dosyasının tam yolunu üretir (şimdi bu dosyayı okuyacağız)
+  const htmlPath = path.join(__dirname, 'public', 'index.pages'); // 1) public klasöründeki dmo-index.pages dosyasının tam yolunu üretir (şimdi bu dosyayı okuyacağız)
   
-  let html = fs.readFileSync(htmlPath, 'utf8'); // 2) dmo-index.html içeriğini düz metin olarak RAM'e alır (response olarak bunu döneceğiz)
+  let html = fs.readFileSync(htmlPath, 'utf8'); // 2) dmo-index.pages içeriğini düz metin olarak RAM'e alır (response olarak bunu döneceğiz)
   
   const vkn = (process.env.INOKAS_VKN || '').trim(); // 3) Ortam değişkeninden INOKAS_VKN değerini alır; yoksa boş string kullanır
   
@@ -240,11 +240,11 @@ async function fetchAndSaveDMORate() {
 }
 
 app.get('/dmo/sidebar-snippet.html', (req, res) => {
-    res.sendFile(path.join(__dirname, 'dmo', 'sidebar-snippet.html'));
+    res.sendFile(path.join(__dirname, 'dmo', 'sidebar-snippet.pages'));
 });
 
 app.get('/cari/sidebar-snippet.html', (req, res) => {
-    res.sendFile(path.join(__dirname, 'cari', 'sidebar-snippet.html'));
+    res.sendFile(path.join(__dirname, 'cari', 'sidebar-snippet.pages'));
 });
 
 app.get('/api/debug-tcmb', async (req, res) => {
@@ -356,10 +356,9 @@ app.post('/api/invoices/recheck-now', async (req, res) => {
 
 app.get('/', (req, res) => {
   res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
-  res.setHeader('Pragma', 'no-cache');
-  res.setHeader('Expires', '0');
-  res.type('html').send(getFaturalarIndexHtml());
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
+
 app.get('/login', (req, res) => res.redirect('/login.html'));
 
 // DMO sayfası (ayrı klasör) erişimi
@@ -382,8 +381,8 @@ app.get('/cari/', (req, res) => {
 
 app.use(express.static(path.join(__dirname, 'public'), {
   setHeaders: (res, filePath) => {
-    // Tarayıcıların eski dmo-index.html / faturalar.js tutmasını engelle (deploy sonrası "eski kod" semptomu)
-    if (filePath.endsWith('.html') || filePath.endsWith('.js')) {
+    // Tarayıcıların eski dmo-index.pages / faturalar.js tutmasını engelle (deploy sonrası "eski kod" semptomu)
+    if (filePath.endsWith('.pages') || filePath.endsWith('.js')) {
       res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
       res.setHeader('Pragma', 'no-cache');
       res.setHeader('Expires', '0');
@@ -1593,17 +1592,34 @@ app.get('/api/invoices', async (req, res) => {
 
     // Mükerrer invoice_items satırlarını temizle: aynı fatura içinde (product_name, quantity,
     // unit_price_cur) üçlüsü aynıysa ilk kaydı tut, diğerlerini at.
+    // ─── Enrich invoice_items with product metadata ───────────────────────────
     if (Array.isArray(data)) {
-      data.forEach((inv) => {
-        if (!Array.isArray(inv.invoice_items) || inv.invoice_items.length < 2) return;
-        const seen = new Set();
-        inv.invoice_items = inv.invoice_items.filter((item) => {
-          const key = `${String(item.product_code || item.sku || '')}|${item.quantity}|${item.unit_price_cur}|${item.product_name}`;
-          if (seen.has(key)) return false;
-          seen.add(key);
-          return true;
+      const skus = [...new Set(
+        data.flatMap(inv => (inv.invoice_items || [])
+          .map(it => String(it.product_code || '').trim())
+          .filter(Boolean)
+        )
+      )];
+
+      if (skus.length > 0) {
+        const { data: products } = await supabase
+          .from('products')
+          .select('product_code, brand, category, model')
+          .in('product_code', skus);
+
+        const productMap = new Map(
+          (products || []).map(p => [String(p.product_code || '').trim(), p])
+        );
+
+        data.forEach(inv => {
+          (inv.invoice_items || []).forEach(item => {
+            const p = productMap.get(String(item.product_code || '').trim());
+            item.brand    = p?.brand    || '';
+            item.category = p?.category || '';
+            item.model    = p?.model    || '';
+          });
         });
-      });
+      }
     }
 
     // Bulduğumuz faturaları tarayıcıya geri yolla

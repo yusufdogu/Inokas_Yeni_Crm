@@ -165,3 +165,87 @@ function _extractTotalQty(invoices) {
         return acc + rowQty;
     }, 0);
 }
+
+
+// ─── APPEND THIS TO THE BOTTOM OF faturalar/js/utils.js ─────────────────────
+
+function esc(str) {
+    return String(str || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function normalizeProductCodeForMatch(code) {
+    return String(code || '').trim().toUpperCase();
+}
+
+// ─── Tag-input multi-select helper ───────────────────────────────────────────
+function createTagFilter({ wrapId, inputId, dropdownId, getOptions, onChange }) {
+    const wrap     = document.getElementById(wrapId);
+    const input    = document.getElementById(inputId);
+    const dropdown = document.getElementById(dropdownId);
+    if (!wrap || !input || !dropdown) return { getSelected: () => [], clear: () => {} };
+
+    let selected = [];
+
+    function renderTags() {
+        wrap.querySelectorAll('.filter-tag').forEach(el => el.remove());
+        selected.forEach(val => {
+            const tag = document.createElement('span');
+            tag.className = 'filter-tag';
+            const display = val.length > 22 ? val.slice(0, 20) + '…' : val;
+            tag.innerHTML = `${esc(display)} <span class="filter-tag-remove" data-val="${esc(val)}">×</span>`;
+            tag.querySelector('.filter-tag-remove').addEventListener('click', (e) => {
+                e.stopPropagation();
+                selected = selected.filter(v => v !== val);
+                renderTags();
+                onChange(selected);
+            });
+            wrap.insertBefore(tag, input);
+        });
+    }
+
+    function renderDropdown(query) {
+        const opts = getOptions().filter(o =>
+            !selected.includes(o) &&
+            (!query || o.toLocaleLowerCase('tr-TR').includes(query.toLocaleLowerCase('tr-TR')))
+        );
+        const list = dropdown.querySelector('.filter-dropdown-list') || (() => {
+            const ul = document.createElement('ul');
+            ul.className = 'filter-dropdown-list';
+            dropdown.appendChild(ul);
+            return ul;
+        })();
+        list.innerHTML = '';
+        opts.slice(0, 40).forEach(o => {
+            const li = document.createElement('li');
+            li.className = 'filter-dropdown-item';
+            li.textContent = o;
+            li.addEventListener('click', () => {
+                if (!selected.includes(o)) selected.push(o);
+                input.value = '';
+                dropdown.classList.remove('open');
+                renderTags();
+                onChange(selected);
+            });
+            list.appendChild(li);
+        });
+        dropdown.classList.toggle('open', opts.length > 0);
+    }
+
+    input.addEventListener('input', () => renderDropdown(input.value));
+    input.addEventListener('keydown', (e) => {
+        if (e.key === 'Backspace' && !input.value && selected.length) {
+            selected.pop();
+            renderTags();
+            onChange(selected);
+        }
+        if (e.key === 'Escape') dropdown.classList.remove('open');
+    });
+    document.addEventListener('click', (e) => {
+        if (!wrap.contains(e.target)) dropdown.classList.remove('open');
+    });
+
+    return {
+        getSelected: () => [...selected],
+        clear: () => { selected = []; renderTags(); },
+    };
+}

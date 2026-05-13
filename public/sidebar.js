@@ -7,7 +7,7 @@
     let _dmoOpen     = false;
 
     const path        = location.pathname;
-    const isFaturalar = path === '/' || path === '/index.html';
+    const isFaturalar = path === '/' || path === '/index.html' || path.includes('/faturalar/pages/');
     const isStok      = path.includes('/stok');
     const isDmo       = path.includes('/dmo');
     const isCari      = path.includes('/cari');
@@ -26,20 +26,17 @@
       <i class="ti ti-chevron-down sb-chevron" id="fat-chevron"></i>
     </button>
     <div class="sb-children" id="fat-children">
-      <a href="/#gelen"    class="sb-child" data-hash="gelen">
+      <a href="/faturalar/pages/gelen-faturalar.html" class="sb-child${path.includes('gelen-faturalar') ? ' active' : ''}">
         <i class="ti ti-message-arrow-down"></i><span class="sb-label">Gelen</span>
       </a>
-      <a href="/#giden"    class="sb-child" data-hash="giden">
+      <a href="/faturalar/pages/giden-faturalar.html" class="sb-child${path.includes('giden-faturalar') ? ' active' : ''}">
         <i class="ti ti-message-arrow-up"></i><span class="sb-label">Giden</span>
       </a>
-      <a href="/faturalar/html/bekleyen.html" class="sb-child">
+      <a href="/faturalar/pages/bekleyen.html" class="sb-child">
         <i class="ti ti-clock-hour-4"></i><span class="sb-label">Bekleyen</span>
       </a>
-      <a href="/faturalar/html/rapor.html" class="sb-child">
+      <a href="/faturalar/pages/rapor.html" class="sb-child">
         <i class="ti ti-chart-bar"></i><span class="sb-label">Rapor</span>
-      </a>
-      <a href="/#ekle"     class="sb-child" data-hash="ekle">
-        <i class="ti ti-plus"></i><span class="sb-label">Fatura Ekle</span>
       </a>
     </div>
 

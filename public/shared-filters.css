@@ -1,0 +1,250 @@
+/* ─── shared-filters.css ─────────────────────────────────────────────────────
+   Tag-based multi-select filter system.
+   Used by: gelen-faturalar, giden-faturalar, stok hareketleri, urunler, backorder
+   Pages set their own --filter-bg, --filter-border, --filter-input-bg,
+   --filter-text, --filter-tag-bg, --filter-tag-color via local overrides.
+   Defaults below work for both dark (stok) and light (faturalar) contexts.
+─────────────────────────────────────────────────────────────────────────────── */
+
+/* ── Defaults (dark context — stok pages) ───────────────────────────────── */
+:root {
+  --sf-wrap-bg:        #1e293b;
+  --sf-wrap-border:    #334155;
+  --sf-wrap-text:      #f1f5f9;
+  --sf-tag-bg:         #1d4ed8;
+  --sf-tag-color:      #eff6ff;
+  --sf-drop-bg:        #1e293b;
+  --sf-drop-border:    #334155;
+  --sf-drop-text:      #cbd5e1;
+  --sf-drop-hover-bg:  #334155;
+  --sf-drop-hover-text:#f1f5f9;
+}
+
+/* ── Light override — apply .sf-light to the filter bar wrapper ─────────── */
+.sf-light {
+  --sf-wrap-bg:        #ffffff;
+  --sf-wrap-border:    #e2e8f0;
+  --sf-wrap-text:      #374151;
+  --sf-tag-bg:         #2563eb;
+  --sf-tag-color:      #ffffff;
+  --sf-drop-bg:        #ffffff;
+  --sf-drop-border:    #e2e8f0;
+  --sf-drop-text:      #374151;
+  --sf-drop-hover-bg:  #f1f5f9;
+  --sf-drop-hover-text:#0f172a;
+}
+
+/* ── Tag wrap (the input field container) ───────────────────────────────── */
+.filter-tags-wrap {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  border: 1px solid var(--sf-wrap-border);
+  border-radius: 7px;
+  background: var(--sf-wrap-bg);
+  min-height: 32px;
+  cursor: text;
+  flex: 1;
+  min-width: 160px;
+  position: relative;
+  box-sizing: border-box;
+}
+
+.filter-tags-wrap:focus-within {
+  border-color: #2563eb;
+  box-shadow: 0 0 0 2px rgba(37,99,235,0.12);
+}
+
+/* ── Tags ────────────────────────────────────────────────────────────────── */
+.filter-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: var(--sf-tag-bg);
+  color: var(--sf-tag-color);
+  border-radius: 5px;
+  padding: 2px 7px;
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.filter-tag-remove {
+  cursor: pointer;
+  font-size: 13px;
+  line-height: 1;
+  opacity: 0.7;
+  flex-shrink: 0;
+}
+
+.filter-tag-remove:hover { opacity: 1; }
+
+/* ── Tag text input ──────────────────────────────────────────────────────── */
+.filter-tags-input {
+  border: none;
+  outline: none;
+  background: transparent;
+  font-size: 12px;
+  color: var(--sf-wrap-text);
+  min-width: 80px;
+  flex: 1;
+  padding: 2px 4px;
+  font-family: inherit;
+}
+
+.filter-tags-input::placeholder { color: #64748b; }
+
+/* ── Dropdown ────────────────────────────────────────────────────────────── */
+.filter-dropdown {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  z-index: 2000;
+  width: 280px;
+  background: var(--sf-drop-bg);
+  border: 1px solid var(--sf-drop-border);
+  border-radius: 10px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.18);
+  overflow: hidden;
+  display: none;
+}
+
+.filter-dropdown.open { display: block; }
+
+.filter-dropdown-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 240px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: #475569 transparent;
+}
+
+.filter-dropdown-item {
+  padding: 8px 12px;
+  font-size: 12px;
+  color: var(--sf-drop-text);
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.filter-dropdown-item:hover {
+  background: var(--sf-drop-hover-bg);
+  color: var(--sf-drop-hover-text);
+}
+
+.filter-dropdown-item.selected {
+  background: #1d4ed8;
+  color: #eff6ff;
+  font-weight: 600;
+}
+
+/* ── Advanced toggle button ──────────────────────────────────────────────── */
+.filter-advanced-toggle {
+  background: none;
+  border: none;
+  font-size: 12px;
+  font-weight: 600;
+  color: #2563eb;
+  cursor: pointer;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-family: inherit;
+  margin-top: 2px;
+}
+
+.filter-advanced-toggle:hover { color: #1d4ed8; }
+
+/* ── Range slider ────────────────────────────────────────────────────────── */
+.filter-range-wrap {
+  flex-shrink: 0;
+  min-width: 180px;
+}
+
+.filter-range-label-row {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 3px;
+}
+
+.filter-range-label-row span {
+  font-size: 10px;
+  color: #64748b;
+}
+
+.filter-range-label-row .range-value {
+  font-size: 10px;
+  color: #94a3b8;
+}
+
+.filter-range-inputs {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.filter-range-inputs input[type="range"] {
+  flex: 1;
+  height: 4px;
+  accent-color: #2563eb;
+  cursor: pointer;
+}
+
+/* ── Apply / Clear buttons ───────────────────────────────────────────────── */
+.filter-btn-apply {
+  height: 32px;
+  padding: 0 14px;
+  background: #2563eb;
+  color: white;
+  border: none;
+  border-radius: 7px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+  transition: background 0.15s;
+}
+
+.filter-btn-apply:hover { background: #1d4ed8; }
+
+.filter-btn-clear {
+  height: 32px;
+  width: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #334155;
+  border-radius: 7px;
+  background: transparent;
+  cursor: pointer;
+  color: #64748b;
+  flex-shrink: 0;
+  transition: color 0.15s, border-color 0.15s;
+}
+
+.filter-btn-clear:hover { color: #f1f5f9; border-color: #475569; }
+
+/* Light context overrides for clear button */
+.sf-light .filter-btn-clear {
+  border-color: #e2e8f0;
+  color: #94a3b8;
+}
+
+.sf-light .filter-btn-clear:hover {
+  color: #ef4444;
+  border-color: #fca5a5;
+}

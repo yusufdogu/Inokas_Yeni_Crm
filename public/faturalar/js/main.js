@@ -11,10 +11,10 @@ document.addEventListener('DOMContentLoaded', () => {
     setupEventListeners();
     bindModalOutsideClose();
     restoreFilterState();
+    initFatFilters();
 
     const initHash = location.hash.slice(1);
-    if (initHash === 'giden') currentView = 'giden';
-    else if (initHash === 'ekle') currentView = 'gelen';
+    if (initHash === 'giden' || window._FAT_INITIAL_VIEW === 'giden') currentView = 'giden';
     else currentView = 'gelen';
 
     showAllState.gelen = true;
@@ -78,16 +78,18 @@ function bindModalOutsideClose() {
 
 function setupEventListeners() {
     const xmlInput = document.getElementById('xmlInput');
-    xmlInput.addEventListener('change', handleFileUpload);
+    if (xmlInput) xmlInput.addEventListener('change', handleFileUpload);
 
     const dropZone = document.getElementById('dropZone');
-    dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.style.borderColor = 'var(--success)'; });
-    dropZone.addEventListener('dragleave', () => { dropZone.style.borderColor = 'var(--primary)'; });
-    dropZone.addEventListener('drop', (e) => {
-        e.preventDefault();
-        const files = e.dataTransfer.files;
-        if (files.length) handleFileUpload({ target: { files } });
-    });
+    if (dropZone) {
+        dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.style.borderColor = 'var(--success)'; });
+        dropZone.addEventListener('dragleave', () => { dropZone.style.borderColor = 'var(--primary)'; });
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            const files = e.dataTransfer.files;
+            if (files.length) handleFileUpload({ target: { files } });
+        });
+    }
 }
 
 function syncPaidFieldByStatus() {

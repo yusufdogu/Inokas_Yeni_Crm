@@ -6,7 +6,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Faturalar — İnokas CRM</title>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
   <script>
     if (!sessionStorage.getItem('inokas_token')) window.location.href = '/login.html';
   </script>
@@ -137,148 +136,6 @@
       </div>
 
     </div>
-  </div>
-
-  <!-- ─── Rapor Sayfası ────────────────────────────────────────── -->
-  <div id="raporPage" class="rapor-page" style="display:none;">
-
-    <!-- ─── Sayfa Başlığı ──────────────────────────────────────────── -->
-    <div class="fat-page-header">
-      <button class="sb-toggle-btn" onclick="toggleSidebar()" title="Menüyü aç/kapat"><i class="ti ti-menu-2"></i></button>
-      <p class="fat-page-title">Rapor</p>
-    </div>
-
-    <div class="rapor-topbar">
-      <div class="rapor-mode-tabs">
-        <button id="rTabGelen" class="rapor-mode-tab rapor-mode-tab--active" onclick="setRaporMode('gelen')">↓ Gelen faturalar</button>
-        <button id="rTabGiden" class="rapor-mode-tab" onclick="setRaporMode('giden')">↑ Giden faturalar</button>
-      </div>
-
-      <div class="rapor-filters">
-        <!-- Firma filtresi -->
-        <div id="raporCompDropWrap" class="company-dropdown-wrap" style="width:180px; min-width:140px;">
-          <button type="button" id="raporCompDropBtn" class="company-dropdown-btn" onclick="toggleRaporCompDropdown()">
-            <span id="raporCompDropLabel">Tüm Firmalar</span>
-            <svg width="12" height="12" viewBox="0 0 12 12" fill="none" style="flex-shrink:0"><path d="M2 4l4 4 4-4" stroke="#64748b" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
-          </button>
-          <div id="raporCompDropPanel" class="company-dropdown-panel" style="display:none;">
-            <input type="text" id="raporCompDropSearch" class="company-dropdown-search" placeholder="Firma ara..." oninput="filterRaporCompDropdown()" autocomplete="off">
-            <ul id="raporCompDropList" class="company-dropdown-list"></ul>
-          </div>
-        </div>
-        <input type="hidden" id="raporFilterCompany" value="">
-
-        <!-- Tarih filtresi -->
-        <input type="date" id="raporFilterDateStart" class="fatura-filter-input" title="Başlangıç tarihi" onchange="renderRaporPage()">
-        <span style="color:#94a3b8; font-size:13px; flex-shrink:0;">—</span>
-        <input type="date" id="raporFilterDateEnd" class="fatura-filter-input" title="Bitiş tarihi" onchange="renderRaporPage()">
-
-        <!-- Ürün filtresi -->
-        <div id="raporProdDropWrap" class="company-dropdown-wrap" style="width:180px; min-width:140px;">
-          <button type="button" id="raporProdDropBtn" class="company-dropdown-btn" onclick="toggleRaporProdDropdown()">
-            <span id="raporProdDropLabel">Tüm Ürünler</span>
-            <svg width="12" height="12" viewBox="0 0 12 12" fill="none" style="flex-shrink:0"><path d="M2 4l4 4 4-4" stroke="#64748b" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
-          </button>
-          <div id="raporProdDropPanel" class="company-dropdown-panel" style="display:none;">
-            <input type="text" id="raporProdDropSearch" class="company-dropdown-search" placeholder="Ürün ara..." oninput="filterRaporProdDropdown()" autocomplete="off">
-            <ul id="raporProdDropList" class="company-dropdown-list"></ul>
-          </div>
-        </div>
-        <input type="hidden" id="raporFilterProduct" value="">
-
-        <button class="rapor-filter-clear" onclick="clearRaporFilters()" title="Filtreleri temizle">✕</button>
-      </div>
-    </div>
-
-    <div class="rapor-body">
-      <div id="raporKpis" class="rapor-kpis"></div>
-      <div class="rapor-table-wrap">
-        <table class="rapor-tbl">
-          <thead id="raporThead"></thead>
-          <tbody id="raporTbody"></tbody>
-        </table>
-      </div>
-    </div>
-
-  </div>
-
-  <!-- ─── Bekleyen Faturalar Sayfası ───────────────────────────────────── -->
-  <div id="bekleyenPage" class="bek-page">
-
-    <!-- ─── Sayfa Başlığı ──────────────────────────────────────────── -->
-    <div class="fat-page-header">
-      <button class="sb-toggle-btn" onclick="toggleSidebar()" title="Menüyü aç/kapat"><i class="ti ti-menu-2"></i></button>
-      <p class="fat-page-title">Bekleyen Faturalar</p>
-    </div>
-
-    <!-- Sayfa tab barı -->
-    <div class="bek-page-tabbar">
-      <button class="bek-page-tab bek-page-tab--active" id="bekPageTab1" onclick="switchBekPageTab('list')">Bekleyen Faturalar</button>
-      <button class="bek-page-tab" id="bekPageTab2" onclick="switchBekPageTab('bulk')">Toplu Fatura Ekle</button>
-    </div>
-
-    <!-- Pane 1: Liste + detay -->
-    <div id="bekListPane" class="bek-list-pane">
-      <div class="bek-toolbar">
-        <input type="text" id="bekSearch" placeholder="Fatura no veya firma ara..." class="fatura-filter-input" style="width:220px;" oninput="renderBekleyenList()">
-        <div class="bek-dir-toggle">
-          <button class="bek-dir-btn bek-dir-btn--active" id="bekDirGelen" onclick="setBekDir('gelen')">Gelen</button>
-          <button class="bek-dir-btn"                     id="bekDirGiden" onclick="setBekDir('giden')">Giden</button>
-        </div>
-        <span id="bekCount" class="bek-count"></span>
-        <button class="bek-refresh-btn" onclick="loadBekleyenInvoices()" title="Yenile">↺</button>
-      </div>
-
-      <div class="bek-main">
-        <!-- Liste (sol) -->
-        <div class="bek-list-panel">
-          <div class="bek-card-list" id="bekTbody"></div>
-        </div>
-
-        <!-- Detay (sağ) KALDIRILDI, artık modal (fatDetailPage) kullanılıyor -->
-      </div>
-    </div>
-
-    <!-- Pane 2: Toplu fatura ekle (inline) -->
-    <div id="bekBulkPane" style="display:none; flex-direction:column; flex:1; overflow-y:auto; padding:20px 24px;">
-      <div class="bek-bulk-lead">
-        <p class="bulk-modal-lead">Birden fazla UBL-XML seçin. Dosyalar İnokas VKN'sine göre <strong>Gelen</strong> / <strong>Giden</strong> sütunlarına ayrılır. Yükleme sonrası faturalar <strong>Bekleyen Faturalar</strong> sekmesine düşer.</p>
-        <div class="bulk-file-pick">
-          <input type="file" id="bulkFileInput" accept=".xml" multiple hidden onchange="handleBulkFilePick(event)">
-          <button type="button" class="btn btn-primary btn-sm" onclick="document.getElementById('bulkFileInput').click()">XML dosyalarını seç</button>
-          <span class="bulk-file-hint">Ctrl/Cmd ile çoklu seçim</span>
-        </div>
-      </div>
-      <div class="bulk-two-cols" style="margin-top:16px;">
-        <div class="bulk-col bulk-col--incoming">
-          <div class="bulk-col-head">
-            <h3>Gelen</h3>
-            <div class="bulk-col-tools">
-              <label class="bulk-mini"><input type="checkbox" id="bulkSelAllIn" onchange="bulkSelectAllInColumn('in', this.checked)"> Tümü</label>
-              <button type="button" class="btn btn-secondary btn-sm" onclick="bulkDeleteSelectedInColumn('in')">Seçilenleri sil</button>
-              <button type="button" class="btn btn-secondary btn-sm" onclick="clearBulkColumn('in')">Temizle</button>
-            </div>
-          </div>
-          <div id="bulkIncomingBody" class="bulk-col-body"></div>
-        </div>
-        <div class="bulk-col bulk-col--outgoing">
-          <div class="bulk-col-head">
-            <h3>Giden</h3>
-            <div class="bulk-col-tools">
-              <label class="bulk-mini"><input type="checkbox" id="bulkSelAllOut" onchange="bulkSelectAllInColumn('out', this.checked)"> Tümü</label>
-              <button type="button" class="btn btn-secondary btn-sm" onclick="bulkDeleteSelectedInColumn('out')">Seçilenleri sil</button>
-              <button type="button" class="btn btn-secondary btn-sm" onclick="clearBulkColumn('out')">Temizle</button>
-            </div>
-          </div>
-          <div id="bulkOutgoingBody" class="bulk-col-body"></div>
-        </div>
-      </div>
-      <div id="bulkFailedBox" class="bulk-failed-box"></div>
-      <div class="bek-bulk-footer">
-        <button type="button" class="btn btn-primary" onclick="executeBulkUpload()">Bekleyenlere Yükle</button>
-      </div>
-    </div>
-
   </div>
 
   </div><!-- /.page-area -->
@@ -504,13 +361,13 @@
 
   <div id="toast-container"></div>
 
-  <script src="faturalar/utils.js?v=1"></script>
-  <script src="faturalar/xml.js?v=1"></script>
-  <script src="faturalar/api.js?v=1"></script>
-  <script src="faturalar/state.js?v=20260511-detailpage"></script>
-  <script src="faturalar/list.js?v=20260511-bek-pdf-fix"></script>
-  <script src="faturalar/detail.js?v=20260511-embedded-pdf"></script>
-  <script src="faturalar/main.js?v=20260511-bek-pdf-fix"></script>
+  <script src="faturalar/js/utils.js?v=1"></script>
+  <script src="faturalar/js/xml.js?v=1"></script>
+  <script src="faturalar/js/api.js?v=1"></script>
+  <script src="faturalar/js/state.js?v=20260511-detailpage"></script>
+  <script src="faturalar/js/list.js?v=20260511-bek-pdf-fix"></script>
+  <script src="faturalar/js/detail.js?v=20260511-embedded-pdf"></script>
+  <script src="faturalar/js/main.js?v=20260511-bek-pdf-fix"></script>
 </body>
 
 </html>

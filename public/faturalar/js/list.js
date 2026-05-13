@@ -1,5 +1,5 @@
 // ─── FATURALAR — LİSTE GÖRÜNÜMÜ ───────────────────────────────────────────────
-// Fatura listesi, tab bar, KPI bar, grafik, filtreler, session cache yönetimi
+// Fatura listesi, tab bar, KPI bar, filtreler, session cache yönetimi
 
 // ─── Session cache ────────────────────────────────────────────────────────────
 
@@ -112,31 +112,6 @@ function writeInvoicesToSession(invoices) {
     }
 }
 
-function readPaymentClosureFromSession() {
-    try {
-        const raw    = sessionStorage.getItem(PAYMENT_CLOSURE_CACHE_KEY);
-        if (!raw) return null;
-        const parsed = JSON.parse(raw);
-        const ts     = Number(parsed?.timestamp) || 0;
-        const data   = parsed?.data;
-        if (!data || typeof data !== 'object' || ts <= 0) return null;
-        if ((Date.now() - ts) > INVOICE_CACHE_TTL_MS) {
-            sessionStorage.removeItem(PAYMENT_CLOSURE_CACHE_KEY);
-            return null;
-        }
-        return data;
-    } catch (e) { return null; }
-}
-
-function writePaymentClosureToSession(closureMap) {
-    try {
-        const payload = { timestamp: Date.now(), data: closureMap && typeof closureMap === 'object' ? closureMap : {} };
-        sessionStorage.setItem(PAYMENT_CLOSURE_CACHE_KEY, JSON.stringify(payload));
-    } catch (e) {
-        console.warn('Ödeme kapanış cache yazılamadı:', e);
-    }
-}
-
 // ─── Ana filtre + render döngüsü ──────────────────────────────────────────────
 
 function renderCurrentView() {
@@ -189,18 +164,15 @@ function renderCurrentView() {
 
     if (!hasInteracted()) {
         renderInvoiceTable([]);
-        updateSummaryCards(filterMatchedInvoices);
         return;
     }
 
     if (isShowAll()) {
         renderInvoiceTable(scopedInvoices);
-        updateSummaryCards(filterMatchedInvoices);
         return;
     }
 
     renderInvoiceTable(filterMatchedInvoices);
-    updateSummaryCards(filterMatchedInvoices);
 }
 
 function updateCompanyColumnHeader() {
@@ -231,266 +203,6 @@ function toggleShowAll() {
 
     saveFilterState();
     renderCurrentView();
-}
-
-// ─── KPI Dashboard ────────────────────────────────────────────────────────────
-
-function _buildDirectionBaseForShare() {
-    const direction       = currentView === 'gelen' ? 'INCOMING' : 'OUTGOING';
-    const yearSelected    = document.getElementById('filterYear')?.value    || '';
-    const monthSelected   = document.getElementById('filterMonth')?.value   || '';
-    const statusSelected  = document.getElementById('filterStatus')?.value  || '';
-    const currencySelected = normalizeCurrencyCode(document.getElementById('filterCurrency')?.value || '');
-    const searchText      = (document.getElementById('mainSearch')?.value || '').toLocaleLowerCase('tr-TR');
-
-    return (allInvoicesCache || []).filter(inv => {
-        if (inv.direction !== direction) return false;
-        const invoiceCurrency = normalizeCurrencyCode(inv.currency);
-        if (currencySelected && invoiceCurrency !== currencySelected) return false;
-        const st = String(inv.status || 'unpaid').toLowerCase();
-        if (statusSelected && st !== statusSelected) return false;
-        if (searchText) {
-            const companyMatch = String(inv.companies?.name || '').toLocaleLowerCase('tr-TR').includes(searchText);
-            const noMatch      = String(inv.invoice_no || '').toLocaleLowerCase('tr-TR').includes(searchText);
-            if (!companyMatch && !noMatch) return false;
-        }
-        if (yearSelected || monthSelected) {
-            const d = new Date(inv.invoice_date);
-            if (yearSelected && d.getFullYear().toString() !== yearSelected) return false;
-            if (monthSelected) {
-                const m = String(d.getMonth() + 1).padStart(2, '0');
-                if (m !== monthSelected) return false;
-            }
-        }
-        return true;
-    });
-}
-
-function updateSummaryCards(invoices) {
-    const container = document.getElementById('summaryCardsContainer');
-    if (!container) return;
-
-    const totals = _sumByCurrency(invoices);
-
-    container.innerHTML = `
-      <div class="dash-stats-row">
-        <div class="dash-stat-card">
-          <div class="dash-stat-label">USD TOPLAM</div>
-          <div class="dash-stat-value">${_fmtAmount(totals.USD.payable, 'USD')}</div>
-        </div>
-        <div class="dash-stat-card">
-          <div class="dash-stat-label">TL TOPLAM</div>
-          <div class="dash-stat-value">${_fmtAmount(totals.TRY.payable, 'TRY')}</div>
-        </div>
-        <div class="dash-stat-card">
-          <div class="dash-stat-label">TOPLAM FATURA</div>
-          <div class="dash-stat-value">${invoices.length}</div>
-        </div>
-      </div>
-      <div class="dash-actions-row">
-        <button class="dash-action-btn dash-action-btn--purple" onclick="openFaturaListModal()">
-          <span class="dash-action-icon">📒</span>
-          <span>Faturaları Göster</span>
-        </button>
-        <button class="dash-action-btn dash-action-btn--green" onclick="openInvoiceModal()">
-          <span class="dash-action-icon">➕</span>
-          <span>Fatura Ekle</span>
-        </button>
-        <button class="dash-action-btn dash-action-btn--orange" onclick="openBulkUploadModal()">
-          <span class="dash-action-icon">✅</span>
-          <span>Toplu XML</span>
-        </button>
-      </div>
-      <div class="dash-charts-section">
-        <div class="dash-chart-card">
-          <div class="dash-chart-title">Aylık Ciro — Giden Faturalar (TL)</div>
-          <canvas id="chartMonthlyRevenue" height="80"></canvas>
-        </div>
-        <div class="dash-chart-pair">
-          <div class="dash-chart-card">
-            <div class="dash-chart-title">En Çok Kazandıran 5 Müşteri</div>
-            <canvas id="chartTop5Companies" height="160"></canvas>
-          </div>
-          <div class="dash-chart-card">
-            <div class="dash-chart-title">Gelen vs Giden — Aylık (TL)</div>
-            <canvas id="chartGelenGiden" height="160"></canvas>
-          </div>
-        </div>
-      </div>
-    `;
-
-    renderDashboardCharts();
-}
-
-function renderDashboardCharts() {
-    if (typeof Chart === 'undefined' || !allInvoicesCache) return;
-
-    Object.values(_dashCharts).forEach(c => { try { c?.destroy(); } catch (e) { } });
-    _dashCharts = {};
-
-    const all    = allInvoicesCache;
-    const TR     = ['Oca', 'Şub', 'Mar', 'Nis', 'May', 'Haz', 'Tem', 'Ağu', 'Eyl', 'Eki', 'Kas', 'Ara'];
-    const now    = new Date();
-    const last12 = Array.from({ length: 12 }, (_, i) => {
-        const d = new Date(now.getFullYear(), now.getMonth() - (11 - i), 1);
-        return { year: d.getFullYear(), month: d.getMonth(), key: `${d.getFullYear()}-${d.getMonth()}` };
-    });
-    const fmt  = v => v >= 1e6 ? (v / 1e6).toFixed(1) + 'M' : v >= 1e3 ? (v / 1e3).toFixed(0) + 'K' : String(Math.round(v));
-    const toTl = inv => invPayableAmountSrc(inv) * invCalculationRate(inv);
-
-    // Chart 1 — Monthly revenue (OUTGOING)
-    const rev = {};
-    last12.forEach(m => { rev[m.key] = 0; });
-    all.forEach(inv => {
-        if (inv.direction !== 'OUTGOING' || !inv.invoice_date) return;
-        const d = new Date(inv.invoice_date);
-        const k = `${d.getFullYear()}-${d.getMonth()}`;
-        if (k in rev) rev[k] += toTl(inv);
-    });
-    const c1 = document.getElementById('chartMonthlyRevenue');
-    if (c1) {
-        _dashCharts.rev = new Chart(c1, {
-            type: 'line',
-            data: {
-                labels: last12.map(m => `${TR[m.month]} ${m.year}`),
-                datasets: [{
-                    label: 'Giden (TL)', data: last12.map(m => rev[m.key]),
-                    borderColor: '#2563eb', backgroundColor: 'rgba(37,99,235,0.07)',
-                    borderWidth: 2, pointRadius: 4, pointBackgroundColor: '#2563eb',
-                    fill: true, tension: 0.35
-                }]
-            },
-            options: {
-                responsive: true, plugins: { legend: { display: false } },
-                scales: { y: { beginAtZero: true, ticks: { callback: fmt } } }
-            }
-        });
-    }
-
-    // Chart 2 — Top 5 companies by OUTGOING total (TL eşdeğeri)
-    const byCompany = {};
-    all.forEach(inv => {
-        if (inv.direction !== 'OUTGOING') return;
-        const name = inv.companies?.name || 'Bilinmeyen';
-        byCompany[name] = (byCompany[name] || 0) + toTl(inv);
-    });
-    const top5      = Object.entries(byCompany).sort((a, b) => b[1] - a[1]).slice(0, 5);
-    const shortName = n => n.split(/\s+/).slice(0, 2).join(' ');
-    const c2 = document.getElementById('chartTop5Companies');
-    if (c2) {
-        _dashCharts.top5 = new Chart(c2, {
-            type: 'bar',
-            data: {
-                labels: top5.map(([n]) => shortName(n)),
-                datasets: [{
-                    label: 'Toplam (TL)', data: top5.map(([, v]) => v),
-                    backgroundColor: 'rgba(37,99,235,0.7)', borderColor: '#2563eb',
-                    borderWidth: 1, borderRadius: 6
-                }]
-            },
-            options: {
-                indexAxis: 'y', responsive: true,
-                plugins: {
-                    legend: { display: false },
-                    tooltip: { callbacks: { label: ctx => ' ' + new Intl.NumberFormat('tr-TR', { maximumFractionDigits: 0 }).format(ctx.parsed.x) + ' ₺' } }
-                },
-                scales: { x: { beginAtZero: true, ticks: { callback: fmt } } }
-            }
-        });
-    }
-
-    // Chart 3 — Gelen vs Giden monthly (TL eşdeğeri)
-    const gelen = {}, giden = {};
-    last12.forEach(m => { gelen[m.key] = 0; giden[m.key] = 0; });
-    all.forEach(inv => {
-        if (!inv.invoice_date) return;
-        const d = new Date(inv.invoice_date);
-        const k = `${d.getFullYear()}-${d.getMonth()}`;
-        if (!(k in gelen)) return;
-        if (inv.direction === 'INCOMING') gelen[k] += toTl(inv);
-        else if (inv.direction === 'OUTGOING') giden[k] += toTl(inv);
-    });
-    const c3 = document.getElementById('chartGelenGiden');
-    if (c3) {
-        _dashCharts.gg = new Chart(c3, {
-            type: 'bar',
-            data: {
-                labels: last12.map(m => `${TR[m.month]}'${String(m.year).slice(2)}`),
-                datasets: [
-                    {
-                        label: 'Gelen', data: last12.map(m => gelen[m.key]),
-                        backgroundColor: 'rgba(249,115,22,0.7)', borderColor: '#f97316',
-                        borderWidth: 1, borderRadius: 4
-                    },
-                    {
-                        label: 'Giden', data: last12.map(m => giden[m.key]),
-                        backgroundColor: 'rgba(168,85,247,0.7)', borderColor: '#a855f7',
-                        borderWidth: 1, borderRadius: 4
-                    }
-                ]
-            },
-            options: {
-                responsive: true,
-                plugins: { legend: { position: 'top', labels: { font: { size: 11 }, boxWidth: 12 } } },
-                scales: {
-                    x: { ticks: { font: { size: 10 } } },
-                    y: { beginAtZero: true, ticks: { callback: fmt } }
-                }
-            }
-        });
-    }
-}
-
-function openFaturaListModal() {
-    setInteracted(true);
-    renderCurrentView();
-}
-
-function closeFaturaListModal() {
-    closeInvoiceDetailModal();
-}
-
-function loadInlinePdf(id) {
-    const sid = String(id);
-    let inv = (allInvoicesCache || []).find(i => String(i.id) === sid);
-    let sourceList = _fatDetailList;
-    if (!inv && typeof bekleyenCache !== 'undefined') {
-        inv = bekleyenCache.find(i => String(i.id) === sid);
-        sourceList = bekleyenCache;
-    }
-    if (!inv) return;
-    currentDetailInvId = id;
-
-    document.querySelectorAll('.invoice-card').forEach(c =>
-        c.classList.toggle('active', c.dataset.invId === id)
-    );
-
-    const actionsEl = document.getElementById('fatPdfActions');
-    if (actionsEl) {
-        actionsEl.style.display = 'flex';
-        const elNo   = document.getElementById('fatPdfInvNo');
-        const elComp = document.getElementById('fatPdfCompany');
-        const elSt   = document.getElementById('fatPdfStatus');
-        if (elNo)   elNo.textContent   = inv.invoice_no || '-';
-        if (elComp) elComp.textContent = inv.companies?.name || '-';
-        if (elSt) {
-            const ns = (inv.status || '').toLowerCase();
-            const colors = {
-                paid:    { bg: '#dcfce7', color: '#16a34a', label: 'Ödendi' },
-                partial: { bg: '#fef3c7', color: '#d97706', label: 'Kısmi' },
-            };
-            const c = colors[ns] || { bg: '#fee2e2', color: '#ef4444', label: 'Ödenmedi' };
-            elSt.innerHTML = `<span style="background:${c.bg}; color:${c.color}; padding:2px 10px; border-radius:999px; font-size:12px; font-weight:700;">${c.label}</span>`;
-        }
-        const btnEdit = document.getElementById('btnEditInvoice');
-        if (btnEdit) btnEdit.onclick = () => viewInvoice(id);
-        const btnDel  = document.getElementById('btnDeleteInvoice');
-        if (btnDel)  btnDel.onclick  = () => deleteInvoice(id);
-        const btnPay  = document.getElementById('btnViewPayments');
-        if (btnPay)  btnPay.onclick  = () => viewInvoiceDetails(id);
-    }
-
-    loadPdfTab();
 }
 
 // ─── Ürün dropdown ────────────────────────────────────────────────────────────
@@ -916,11 +628,8 @@ function openFatDetailPage(id) {
     // Sayfa geçişi
     const detailPage  = document.getElementById('fatDetailPage');
     
-    // Açık olan sayfayı kaydet (kapatırken dönmek için)
-    window._fatDetailSourcePage = document.getElementById('bekleyenPage')?.style.display !== 'none' && document.getElementById('bekleyenPage')?.style.display !== '' ? 'bekleyenPage' : 'faturaPage';
-    
+    window._fatDetailSourcePage = 'faturaPage';
     document.getElementById('faturaPage').style.display = 'none';
-    document.getElementById('bekleyenPage').style.display = 'none';
     
     if (detailPage)  detailPage.style.display  = 'flex';
 
@@ -961,11 +670,8 @@ function closeFatDetailPage() {
     const detailPage = document.getElementById('fatDetailPage');
     if (detailPage) detailPage.style.display = 'none';
     
-    const sourceId = window._fatDetailSourcePage || 'faturaPage';
-    const sourceEl = document.getElementById(sourceId);
-    if (sourceEl) {
-        sourceEl.style.display = sourceId === 'bekleyenPage' ? 'flex' : '';
-    }
+    const fp = document.getElementById('faturaPage');
+    if (fp) fp.style.display = '';
 }
 
 function navigateFatDetail(dir) {

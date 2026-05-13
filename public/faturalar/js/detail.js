@@ -1,7 +1,7 @@
 // ─── FATURALAR — FATURA DETAY PANELİ ─────────────────────────────────────────
-// Detay görünümü, PDF, Bilgiler/Ürünler/Ödemeler sekmeleri, inline düzenleme
+// Detay görünümü, PDF, Bilgiler/Ürünler sekmeleri, inline düzenleme
 
-// ─── Detay görünümü (PDF + 3 sekme) ──────────────────────────────────────────
+// ─── Detay görünümü (PDF + 2 sekme) ──────────────────────────────────────────
 
 function renderDetailView(id) {
     const sid = String(id);
@@ -28,7 +28,6 @@ function renderDetailView(id) {
             <div class="fat-dtab-bar">
                 <button class="fat-dtab${curTab === 'bilgiler'  ? ' fat-dtab--active' : ''}" onclick="switchFatDetailTab('${id}','bilgiler')">Fatura Bilgileri</button>
                 <button class="fat-dtab${curTab === 'urunler'   ? ' fat-dtab--active' : ''}" onclick="switchFatDetailTab('${id}','urunler')">Fatura Ürünleri</button>
-                <button class="fat-dtab${curTab === 'odemeler'  ? ' fat-dtab--active' : ''}" onclick="switchFatDetailTab('${id}','odemeler')">Ödeme Kayıtları</button>
             </div>
             <div class="fat-dtab-body" id="fatDtabBody_${id}"></div>
         </div>
@@ -85,14 +84,14 @@ async function loadDetailPdf(id, inv) {
 function switchFatDetailTab(id, tab) {
     activeDetailTab[id] = tab;
     // Eski tab bar (fatDtabBody sistemi)
-    ['bilgiler', 'urunler', 'odemeler'].forEach(t => {
+    ['bilgiler', 'urunler'].forEach(t => {
         const btn = document.querySelector(`[onclick="switchFatDetailTab('${id}','${t}')"]`);
         if (btn) btn.classList.toggle('fat-dtab--active', t === tab);
     });
     // Yeni tam ekran detay sayfası tab bar
     const newTabBar = document.getElementById('fatDetailTabBar');
     if (newTabBar) {
-        const tabs = ['bilgiler', 'urunler', 'odemeler'];
+        const tabs = ['bilgiler', 'urunler'];
         newTabBar.querySelectorAll('.fat-dtab').forEach((btn, i) => {
             btn.classList.toggle('fat-dtab--active', tabs[i] === tab);
         });
@@ -180,76 +179,6 @@ async function renderDetailTabContent(id, tab, inv, _bodyOverride) {
 
     if (tab === 'bilgiler') { renderBilgilerView(id); return; }
     if (tab === 'urunler')  { renderUrunlerView(id, body, inv); return; }
-
-    if (tab === 'odemeler') {
-        const fmtN      = n => (parseFloat(n) || 0).toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-        const currLabel = invDisplayCurrencyLabel(inv);
-        const total     = invPayableAmountSrc(inv);
-        body.innerHTML = `
-            <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px; margin-bottom:16px;">
-                <div style="background:#eff6ff; border:1px solid #bfdbfe; border-radius:10px; padding:10px 12px;">
-                    <div class="det-label">GENEL TOPLAM</div>
-                    <div style="font-size:15px; font-weight:800; color:#2563eb; margin-top:3px;">${fmtN(total)} ${currLabel}</div>
-                </div>
-                <div style="background:#f0fdf4; border:1px solid #dcfce7; border-radius:10px; padding:10px 12px;">
-                    <div class="det-label">TOPLAM ÖDENEN</div>
-                    <div id="detail_paid" style="font-size:15px; font-weight:800; color:#16a34a; margin-top:3px;">—</div>
-                </div>
-                <div style="background:#fff1f2; border:1px solid #ffe4e6; border-radius:10px; padding:10px 12px;">
-                    <div class="det-label">KALAN BORÇ</div>
-                    <div id="detail_remaining" style="font-size:15px; font-weight:800; color:#e11d48; margin-top:3px;">—</div>
-                </div>
-            </div>
-            <div id="detail_status" style="margin-bottom:12px;"></div>
-            <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:10px;">
-                <h3 style="margin:0; font-size:14px; font-weight:800; color:#0f172a;">Ödeme Geçmişi</h3>
-                <button type="button" id="btnAddPayment"
-                    style="background:#2563eb; color:white; border:none; border-radius:8px; padding:6px 14px; font-size:13px; font-weight:600; cursor:pointer;">
-                    + Yeni Ödeme Ekle
-                </button>
-            </div>
-            <div id="newPaymentForm" style="display:none; background:#f0f9ff; border:1px solid #bae6fd; border-radius:10px; padding:12px; margin-bottom:10px;">
-                <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:flex-end;">
-                    <div style="flex:1; min-width:120px;">
-                        <label style="font-size:11px; font-weight:700; color:#0369a1; display:block; margin-bottom:4px;">TARİH</label>
-                        <input type="date" id="pay_date" style="width:100%; padding:7px 10px; border:1px solid #7dd3fc; border-radius:6px; font-size:13px;">
-                    </div>
-                    <div style="flex:1; min-width:100px;">
-                        <label style="font-size:11px; font-weight:700; color:#0369a1; display:block; margin-bottom:4px;">TUTAR</label>
-                        <input type="number" id="pay_amount" step="0.01" placeholder="0.00" style="width:100%; padding:7px 10px; border:1px solid #7dd3fc; border-radius:6px; font-size:13px;">
-                    </div>
-                    <div style="flex:1; min-width:120px;">
-                        <label style="font-size:11px; font-weight:700; color:#0369a1; display:block; margin-bottom:4px;">NOT</label>
-                        <input type="text" id="pay_notes" placeholder="Açıklama..." style="width:100%; padding:7px 10px; border:1px solid #7dd3fc; border-radius:6px; font-size:13px;">
-                    </div>
-                    <div style="display:flex; gap:6px;">
-                        <button type="button" id="btnSavePayment"
-                            style="background:#0ea5e9; color:white; border:none; border-radius:6px; padding:7px 14px; font-size:13px; font-weight:600; cursor:pointer;">Kaydet</button>
-                        <button type="button" id="btnCancelPayment"
-                            style="background:#f1f5f9; color:#64748b; border:1px solid #e2e8f0; border-radius:6px; padding:7px 10px; font-size:13px; cursor:pointer;">İptal</button>
-                    </div>
-                </div>
-            </div>
-            <div style="border:1px solid #e2e8f0; border-radius:10px; overflow:hidden;">
-                <table style="width:100%; border-collapse:collapse; font-size:13px;">
-                    <thead style="background:#f1f5f9; color:#64748b; font-weight:700; font-size:11px; letter-spacing:0.5px;">
-                        <tr>
-                            <th style="padding:10px 14px; text-align:left;">TARİH</th>
-                            <th style="padding:10px 14px; text-align:right;">TUTAR</th>
-                            <th style="padding:10px 14px; text-align:right;">KALAN</th>
-                            <th style="padding:10px 14px; text-align:left;">NOT</th>
-                            <th style="padding:10px 14px; text-align:center;">İŞLEM</th>
-                        </tr>
-                    </thead>
-                    <tbody id="detail_payments_body">
-                        <tr><td colspan="5" style="padding:20px; text-align:center; color:#94a3b8;">Yükleniyor...</td></tr>
-                    </tbody>
-                </table>
-            </div>`;
-
-        await loadInvoicePayments(inv);
-        viewInvoiceDetails(id);
-    }
 }
 
 function closeInvoiceDetailModal() { /* artık inline tab sistemi kullanılıyor */ }
@@ -873,255 +802,3 @@ async function renderXmlToPdfIframe(xmlString, iframe) {
     iframeDoc.close();
 }
 
-// ─── Ödemeler sekmesi ─────────────────────────────────────────────────────────
-
-async function loadInvoicePayments(inv) {
-    const tbody = document.getElementById('detail_payments_body');
-    if (!tbody) return;
-
-    tbody.innerHTML = '<tr><td colspan="6" style="padding:16px; text-align:center; color:#94a3b8;">Yükleniyor...</td></tr>';
-
-    try {
-        const res      = await fetch(`/api/invoices/${inv.id}/payments`);
-        const payments = await res.json();
-        renderPaymentRows(payments, inv);
-        updateDetailModalSummary(payments, inv);
-    } catch (err) {
-        tbody.innerHTML = '<tr><td colspan="6" style="padding:16px; text-align:center; color:#ef4444;">Ödemeler yüklenemedi.</td></tr>';
-    }
-}
-
-function updateDetailModalSummary(payments, inv) {
-    const totalPayable = invPayableAmountSrc(inv);
-    const totalPaid    = (payments || []).reduce((s, p) => s + (parseFloat(p.amount) || 0), 0);
-    const remaining    = Math.max(0, totalPayable - totalPaid);
-    const currLabel    = invDisplayCurrencyLabel(inv);
-    const fmt          = n => n.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-
-    const elPaid      = document.getElementById('detail_paid');
-    const elRemaining = document.getElementById('detail_remaining');
-    const elStatus    = document.getElementById('detail_status');
-    if (!elPaid || !elRemaining) return;
-
-    elPaid.innerText      = `${fmt(totalPaid)} ${currLabel}`;
-    elRemaining.innerText = `${fmt(remaining)} ${currLabel}`;
-
-    if (elStatus) {
-        if (totalPaid > 0 && totalPaid >= totalPayable) {
-            elStatus.innerHTML = '<span style="color:#16a34a; font-weight:700; background:#dcfce7; padding:4px 12px; border-radius:12px; font-size:13px;">✓ Ödendi</span>';
-        } else if (totalPaid > 0) {
-            elStatus.innerHTML = '<span style="color:#d97706; font-weight:700; background:#fef3c7; padding:4px 12px; border-radius:12px; font-size:13px;">◑ Kısmi</span>';
-        } else {
-            elStatus.innerHTML = '<span style="color:#ef4444; font-weight:700; background:#fee2e2; padding:4px 12px; border-radius:12px; font-size:13px;">✕ Ödenmedi</span>';
-        }
-    }
-}
-
-function renderPaymentRows(payments, inv) {
-    const tbody        = document.getElementById('detail_payments_body');
-    const totalPayable = invPayableAmountSrc(inv);
-    const currLabel    = invDisplayCurrencyLabel(inv);
-    const fmt          = n => n.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-
-    if (!payments || payments.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="6" style="padding:20px; text-align:center; color:#94a3b8;">Henüz ödeme kaydı yok.</td></tr>';
-        return;
-    }
-
-    tbody.innerHTML = '';
-    let cumulative = 0;
-
-    payments.forEach((p, i) => {
-        cumulative += parseFloat(p.amount) || 0;
-        const remaining = Math.max(0, totalPayable - cumulative);
-        const tr = document.createElement('tr');
-        tr.id          = `pay-row-${p.id}`;
-        tr.style.borderBottom = '1px solid #f1f5f9';
-        if (i % 2 !== 0) tr.style.background = '#f8fafc';
-
-        tr.innerHTML = `
-            <td style="padding:10px 14px; color:#374151;">
-                ${new Date(p.payment_date + 'T00:00:00').toLocaleDateString('tr-TR')}
-            </td>
-            <td style="padding:10px 14px; text-align:right; font-weight:700; color:#16a34a;">
-                ${fmt(parseFloat(p.amount))} ${currLabel}
-            </td>
-            <td style="padding:10px 14px; text-align:right; font-weight:700; color:${remaining > 0 ? '#e11d48' : '#16a34a'};">
-                ${fmt(remaining)} ${currLabel}
-            </td>
-            <td style="padding:10px 14px; color:#64748b; font-size:12px;">
-                ${p.notes ? p.notes.replace(/</g, '&lt;') : '—'}
-            </td>
-            <td style="padding:10px 14px; text-align:center; white-space:nowrap;">
-                <button onclick="togglePaymentEdit('${p.id}','${inv.id}','${p.payment_date}',${parseFloat(p.amount)},'${(p.notes || '').replace(/'/g, "\\'")}')"
-                    title="Düzenle"
-                    style="background:#dbeafe; color:#2563eb; border:none; border-radius:6px; padding:4px 8px; font-size:12px; cursor:pointer; margin-right:4px;">
-                    ✏️
-                </button>
-                <button onclick="deletePayment('${p.id}','${inv.id}')"
-                    title="Ödemeyi sil"
-                    style="background:#fee2e2; color:#ef4444; border:none; border-radius:6px; padding:4px 8px; font-size:12px; cursor:pointer;">
-                    🗑️
-                </button>
-            </td>
-        `;
-        tbody.appendChild(tr);
-    });
-}
-
-function togglePaymentEdit(payId, invoiceId, currentDate, currentAmount, currentNotes) {
-    const tr    = document.getElementById(`pay-row-${payId}`);
-    if (!tr) return;
-    const today = new Date().toISOString().slice(0, 10);
-
-    tr.innerHTML = `
-        <td style="padding:6px 8px;">
-            <input type="date" id="edit_date_${payId}" value="${currentDate}" max="${today}"
-                style="padding:5px 8px; border:1px solid #7dd3fc; border-radius:6px; font-size:13px; width:130px;">
-        </td>
-        <td style="padding:6px 8px;">
-            <input type="number" id="edit_amount_${payId}" value="${currentAmount}" step="0.01" min="0.01"
-                style="padding:5px 8px; border:1px solid #7dd3fc; border-radius:6px; font-size:13px; width:100px;">
-        </td>
-        <td style="padding:6px 8px; color:#94a3b8; font-size:12px; text-align:center;">—</td>
-        <td style="padding:6px 8px;">
-            <input type="text" id="edit_notes_${payId}" value="${currentNotes}"
-                style="padding:5px 8px; border:1px solid #7dd3fc; border-radius:6px; font-size:13px; width:100%;">
-        </td>
-        <td style="padding:6px 8px; text-align:center; white-space:nowrap;">
-            <button onclick="savePaymentEdit('${payId}','${invoiceId}')"
-                style="background:#0ea5e9; color:white; border:none; border-radius:6px; padding:5px 10px; font-size:12px; cursor:pointer; margin-right:4px;">
-                💾 Kaydet
-            </button>
-            <button onclick="loadInvoicePayments(allInvoicesCache.find(i=>i.id==='${invoiceId}'))"
-                style="background:#f1f5f9; color:#64748b; border:1px solid #e2e8f0; border-radius:6px; padding:5px 8px; font-size:12px; cursor:pointer;">
-                ✕
-            </button>
-        </td>
-    `;
-}
-
-async function savePaymentEdit(payId, invoiceId) {
-    const dateVal   = document.getElementById(`edit_date_${payId}`)?.value;
-    const amountVal = parseFloat(document.getElementById(`edit_amount_${payId}`)?.value);
-    const notesVal  = document.getElementById(`edit_notes_${payId}`)?.value?.trim() || '';
-    const today     = new Date().toISOString().slice(0, 10);
-
-    if (!dateVal)              { alert('Lütfen tarih girin.');              return; }
-    if (dateVal > today)       { alert('Gelecek tarihe ödeme eklenemez.'); return; }
-    if (!amountVal || amountVal <= 0) { alert('Geçerli bir tutar girin.'); return; }
-
-    const inv = allInvoicesCache.find(i => i.id === invoiceId);
-
-    try {
-        const res = await fetch(`/api/payments/${payId}`, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ amount: amountVal, payment_date: dateVal, notes: notesVal })
-        });
-        const result = await res.json();
-        if (!res.ok) throw new Error(result.error || 'Güncellenemedi.');
-
-        if (inv) {
-            loadInvoicePayments(inv);
-            refreshData(true);
-        }
-    } catch (err) {
-        alert('Hata: ' + err.message);
-    }
-}
-
-async function saveNewPayment(inv) {
-    const dateVal   = document.getElementById('pay_date')?.value;
-    const amountVal = parseFloat(document.getElementById('pay_amount')?.value);
-    const notesVal  = document.getElementById('pay_notes')?.value?.trim() || '';
-    const today     = new Date().toISOString().slice(0, 10);
-
-    if (!dateVal)  { alert('Lütfen ödeme tarihini seçin.'); return; }
-    if (dateVal > today) { alert('Gelecek tarihe ödeme eklenemez. Bugün veya geçmiş bir tarih seçin.'); return; }
-    if (!amountVal || amountVal <= 0) { alert('Lütfen geçerli bir tutar girin.'); return; }
-
-    const totalPayable  = invPayableAmountSrc(inv);
-    const currentPaid   = (parseFloat(inv.paid_amount_cur) || 0);
-    const afterThisPay  = currentPaid + amountVal;
-    if (afterThisPay > totalPayable) {
-        const currLabel = invDisplayCurrencyLabel(inv);
-        const remaining = totalPayable - currentPaid;
-        alert(
-            `⚠️ Fatura toplamı aşılıyor!\n\n` +
-            `Fatura toplamı : ${totalPayable.toLocaleString('tr-TR', { minimumFractionDigits: 2 })} ${currLabel}\n` +
-            `Şimdiye kadar ödenen : ${currentPaid.toLocaleString('tr-TR', { minimumFractionDigits: 2 })} ${currLabel}\n` +
-            `Girebileceğiniz maksimum : ${remaining.toLocaleString('tr-TR', { minimumFractionDigits: 2 })} ${currLabel}`
-        );
-        return;
-    }
-
-    const currency = invBaseCurrencyIso(inv);
-
-    try {
-        const res = await fetch('/api/payments', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ invoice_id: inv.id, amount: amountVal, currency, payment_date: dateVal, notes: notesVal })
-        });
-        const result = await res.json();
-        if (!res.ok) throw new Error(result.error || 'Ödeme kaydedilemedi.');
-
-        document.getElementById('newPaymentForm').style.display = 'none';
-
-        const cached = allInvoicesCache.find(i => i.id === inv.id);
-        if (cached) {
-            cached.paid_amount_cur = (parseFloat(cached.paid_amount_cur) || 0) + amountVal;
-            cached.paid_amount     = cached.paid_amount_cur;
-        }
-
-        await loadInvoicePayments(inv);
-        refreshData(true);
-    } catch (err) {
-        alert('Hata: ' + err.message);
-    }
-}
-
-async function deletePayment(paymentId, invoiceId) {
-    if (!confirm('Bu ödeme kaydı silinsin mi?')) return;
-
-    try {
-        const res    = await fetch(`/api/payments/${paymentId}`, { method: 'DELETE' });
-        const result = await res.json();
-        if (!res.ok) throw new Error(result.error || 'Silinemedi.');
-
-        const inv = allInvoicesCache.find(i => i.id === invoiceId);
-        if (inv) await loadInvoicePayments(inv);
-
-        refreshData(true);
-    } catch (err) {
-        alert('Hata: ' + err.message);
-    }
-}
-
-function viewInvoiceDetails(id) {
-    const sid = String(id);
-    let inv = (allInvoicesCache || []).find(i => String(i.id) === sid) || (typeof bekleyenCache !== 'undefined' ? bekleyenCache : []).find(i => String(i.id) === sid);
-    if (!inv) return;
-
-    const btnAdd = document.getElementById('btnAddPayment');
-    if (btnAdd) {
-        btnAdd.onclick = () => {
-            const form      = document.getElementById('newPaymentForm');
-            const isVisible = form.style.display !== 'none';
-            form.style.display = isVisible ? 'none' : 'flex';
-            if (!isVisible) {
-                const today    = new Date().toISOString().slice(0, 10);
-                const payDateEl = document.getElementById('pay_date');
-                payDateEl.value = today;
-                payDateEl.max   = today;
-                document.getElementById('pay_amount').value = '';
-                document.getElementById('pay_notes').value  = '';
-            }
-        };
-    }
-    const btnSave   = document.getElementById('btnSavePayment');
-    if (btnSave)   btnSave.onclick   = () => saveNewPayment(inv);
-    const btnCancel = document.getElementById('btnCancelPayment');
-    if (btnCancel) btnCancel.onclick = () => { document.getElementById('newPaymentForm').style.display = 'none'; };
-}

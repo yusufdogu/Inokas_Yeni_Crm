@@ -111,10 +111,8 @@ async function ensureBulkInokasVkn() {
 async function refreshData(forceFetch = false) {
     if (!forceFetch) {
         const cachedInvoices = readInvoicesFromSession();
-        const cachedClosure = readPaymentClosureFromSession();
         if (cachedInvoices !== null) {
             allInvoicesCache = cachedInvoices;
-            paymentClosureMap = cachedClosure || {};
             renderCurrentView();
             return;
         }
@@ -124,16 +122,11 @@ async function refreshData(forceFetch = false) {
     if (cardList) cardList.innerHTML = '<div style="padding:20px; text-align:center; color:#94a3b8; font-size:13px;">Yükleniyor...</div>';
 
     try {
-        const [invRes, closureRes] = await Promise.all([
-            fetch(`/api/invoices`),
-            fetch('/api/payments/closure-summary')
-        ]);
+        const invRes = await fetch(`/api/invoices`);
         if (!invRes.ok) throw new Error("Veriler çekilemedi");
 
         allInvoicesCache = await invRes.json();
-        paymentClosureMap = closureRes.ok ? await closureRes.json() : {};
         writeInvoicesToSession(allInvoicesCache);
-        writePaymentClosureToSession(paymentClosureMap);
         renderCurrentView();
 
     } catch (error) {

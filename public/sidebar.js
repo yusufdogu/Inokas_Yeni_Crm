@@ -32,10 +32,10 @@
       <a href="/#giden"    class="sb-child" data-hash="giden">
         <i class="ti ti-message-arrow-up"></i><span class="sb-label">Giden</span>
       </a>
-      <a href="/#bekleyen" class="sb-child" data-hash="bekleyen">
+      <a href="/faturalar/html/bekleyen.html" class="sb-child">
         <i class="ti ti-clock-hour-4"></i><span class="sb-label">Bekleyen</span>
       </a>
-      <a href="/#rapor"    class="sb-child" data-hash="rapor">
+      <a href="/faturalar/html/rapor.html" class="sb-child">
         <i class="ti ti-chart-bar"></i><span class="sb-label">Rapor</span>
       </a>
       <a href="/#ekle"     class="sb-child" data-hash="ekle">

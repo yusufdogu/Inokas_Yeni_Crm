@@ -1063,7 +1063,7 @@ app.get('/api/products/by-code', async (req, res) => {
     if (!code) return res.status(400).json({ error: 'Ürün kodu zorunlu' });
     const { data, error } = await supabase
       .from('products')
-      .select('id, product_code, product_name, category')
+      .select('id, product_code, product_name, category, brand')
       .eq('product_code', code)
       .single();
     if (error || !data) return res.status(404).json({ error: 'Ürün bulunamadı' });
@@ -1077,19 +1077,17 @@ app.get('/api/products/category-map', async (req, res) => {
   try {
     const { data, error } = await supabase
       .from('products')
-      .select('product_code, category')
+      .select('product_code, category, brand')
       .not('product_code', 'is', null);
     if (error) throw error;
     const rows = (data || []).map((r) => ({
       product_code: String(r.product_code || '').trim(),
-      category: String(r.category || '').trim()
+      category: String(r.category || '').trim(),
+      brand: String(r.brand || '').trim()
     })).filter((r) => r.product_code);
-    const categories = [...new Set(
-      rows
-        .map((r) => r.category)
-        .filter(Boolean)
-    )].sort((a, b) => a.localeCompare(b, 'tr'));
-    res.json({ rows, categories });
+    const categories = [...new Set(rows.map((r) => r.category).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'tr'));
+    const brands     = [...new Set(rows.map((r) => r.brand).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'tr'));
+    res.json({ rows, categories, brands });
   } catch (err) {
     console.error('GET /api/products/category-map hatası:', err.message);
     res.status(500).json({ error: err.message });
@@ -1221,22 +1219,24 @@ app.post('/api/products', async (req, res) => {
 
 app.post('/api/purchase-orders', async (req, res) => {
   try {
-    const companyVkn = String(req.body?.company_vkn || '').trim();
-    const companyName = String(req.body?.company_name || '').trim();
+    const companyVkn   = String(req.body?.company_vkn || '').trim();
+    const companyName  = String(req.body?.company_name || '').trim();
     const inputPoNumber = String(req.body?.po_number || '').trim();
+    const forceCreate  = req.body?.force_create === true;
     const rawItems = Array.isArray(req.body?.items) ? req.body.items : [];
 
     const items = rawItems
       .map((it) => ({
-        product_code: String(it?.product_code || '').trim(),
-        ordered_qty: Number(it?.ordered_qty || 0),
+        product_code:  String(it?.product_code || '').trim(),
+        product_name:  String(it?.product_name || '').trim(),
+        brand:         String(it?.brand || '').trim() || null,
+        category:      String(it?.category || '').trim() || null,
+        ordered_qty:   Number(it?.ordered_qty || 0),
         unit_price_cur: it?.unit_price_cur === null || it?.unit_price_cur === undefined || it?.unit_price_cur === ''
-          ? null
-          : Number(it?.unit_price_cur),
-        currency: String(it?.currency || '').trim() || null,
+          ? null : Number(it?.unit_price_cur),
+        currency:      String(it?.currency || '').trim() || null,
         line_total_cur: it?.line_total_cur === null || it?.line_total_cur === undefined || it?.line_total_cur === ''
-          ? null
-          : Number(it?.line_total_cur)
+          ? null : Number(it?.line_total_cur)
       }))
       .filter((it) => it.product_code && it.ordered_qty > 0);
 
@@ -1269,8 +1269,34 @@ app.post('/api/purchase-orders', async (req, res) => {
       .in('product_code', uniqueCodes);
     if (productsErr) throw productsErr;
     const productMap = new Map((products || []).map((p) => [p.product_code, p]));
-    const missingCode = uniqueCodes.find((code) => !productMap.has(code));
-    if (missingCode) return res.status(400).json({ error: `Ürün kodu bulunamadı: ${missingCode}` });
+
+    const missingCodes = uniqueCodes.filter((code) => !productMap.has(code));
+    if (missingCodes.length > 0 && !forceCreate) {
+      return res.status(400).json({
+        error: `Ürün kodu bulunamadı: ${missingCodes.join(', ')}`,
+        missing_codes: missingCodes
+      });
+    }
+
+    // force_create: eksik ürünleri products tablosuna ekle
+    if (missingCodes.length > 0 && forceCreate) {
+      const itemsByCode = new Map(items.map((it) => [it.product_code, it]));
+      for (const code of missingCodes) {
+        const it = itemsByCode.get(code);
+        const { data: newProduct, error: insertErr } = await supabase
+          .from('products')
+          .insert({
+            product_code: code,
+            product_name: it?.product_name || code,
+            brand:        it?.brand || null,
+            category:     it?.category || null,
+          })
+          .select('id, product_code, product_name')
+          .single();
+        if (insertErr) throw insertErr;
+        productMap.set(code, newProduct);
+      }
+    }
 
     const sourceCompanyName = String(company?.name || companyName || '').trim();
     const firstWord = sourceCompanyName.split(/\s+/).find(Boolean) || 'FIRMA';

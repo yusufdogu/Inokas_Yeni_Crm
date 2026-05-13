@@ -4,10 +4,13 @@ const PO_CACHE_KEY    = 'inokas_pending_po_v1';
 const STOCK_CACHE_KEY = 'inokas_stock_v3';
 
 let allPendingOrders = [];
+let _brandList       = [];
+let _categoryList    = [];
 
 // ─── INIT ─────────────────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', async () => {
-  addPoLine(); // Start with one empty line in the form
+  await loadBrandsCategories();
+  addPoLine();
   document.getElementById('poCompanyVkn')?.addEventListener('blur', autoFillCompanyByVkn);
   document.getElementById('boSearch')?.addEventListener('input', renderTable);
   document.getElementById('filterDateStart')?.addEventListener('change', renderTable);
@@ -15,6 +18,16 @@ document.addEventListener('DOMContentLoaded', async () => {
   document.getElementById('showCompleted')?.addEventListener('change', renderTable);
   await loadPendingOrders();
 });
+
+async function loadBrandsCategories() {
+  try {
+    const res = await fetch('/api/products/category-map');
+    if (!res.ok) return;
+    const data = await res.json();
+    _brandList    = data.brands     || [];
+    _categoryList = data.categories || [];
+  } catch {}
+}
 
 // ─── DATA ─────────────────────────────────────────────────────────────────────
 async function loadPendingOrders() {
@@ -135,7 +148,6 @@ function renderTable() {
       </td>
     `;
 
-    // Auto-recalc total
     const qtyInput   = tr.querySelector('.po-ordered-input');
     const unitInput  = tr.querySelector('.po-unit-input');
     const totalInput = tr.querySelector('.po-total-input');
@@ -158,6 +170,43 @@ function clearFilters() {
   renderTable();
 }
 
+// ─── DATALIST HELPERS ─────────────────────────────────────────────────────────
+
+
+let _dlCounter = 0;
+
+function buildDatalistCell(sourceList, placeholder, cssClass) {
+  const td = document.createElement('td');
+
+  const dlId = `dl-dynamic-${_dlCounter++}`;
+  const dl = document.createElement('datalist');
+  dl.id = dlId;
+
+  const input = document.createElement('input');
+  input.type = 'text';
+  input.className = cssClass;
+  input.placeholder = placeholder;
+  input.setAttribute('list', dlId);
+  input.autocomplete = 'off';
+
+  input.addEventListener('input', () => {
+    const q = input.value.trim().toLocaleLowerCase('tr-TR');
+    dl.innerHTML = '';
+    if (!q) return;
+    sourceList
+      .filter(v => v.toLocaleLowerCase('tr-TR').includes(q))
+      .forEach(v => {
+        const opt = document.createElement('option');
+        opt.value = v;
+        dl.appendChild(opt);
+      });
+  });
+
+  td.appendChild(dl);
+  td.appendChild(input);
+  return td;
+}
+
 // ─── NEW PO FORM ──────────────────────────────────────────────────────────────
 async function autoFillCompanyByVkn() {
   const vkn = String(document.getElementById('poCompanyVkn')?.value || '').trim();
@@ -173,7 +222,7 @@ async function autoFillCompanyByVkn() {
   } catch {}
 }
 
-async function autoFillProductByCode(codeEl, nameEl) {
+async function autoFillProductByCode(codeEl, nameEl, brandTd, categoryTd) {
   const code = String(codeEl?.value || '').trim();
   if (!nameEl || !code) { if (nameEl) nameEl.value = ''; return; }
   try {
@@ -183,6 +232,14 @@ async function autoFillProductByCode(codeEl, nameEl) {
     if (!ct.includes('application/json')) return;
     const data = await res.json();
     if (data?.product_name) nameEl.value = data.product_name;
+    if (data?.brand && brandTd) {
+      const inp = brandTd.querySelector('input');
+      if (inp) inp.value = data.brand;
+    }
+    if (data?.category && categoryTd) {
+      const inp = categoryTd.querySelector('input');
+      if (inp) inp.value = data.category;
+    }
   } catch {}
 }
 
@@ -190,31 +247,87 @@ function addPoLine() {
   const body = document.getElementById('poLinesBody');
   if (!body) return;
   const tr = document.createElement('tr');
-  tr.innerHTML = `
-    <td><input type="text" class="po-line-code" placeholder="SKU" required></td>
-    <td><input type="text" class="po-line-name" placeholder="(otomatik)"></td>
-    <td><input type="number" class="po-line-qty" min="1" step="1" placeholder="Miktar" required></td>
-    <td><input type="number" class="po-line-unit" min="0" step="0.01" placeholder="0,00"></td>
-    <td>
-      <select class="po-line-currency">
-        <option value="">—</option>
-        <option value="TRY">TRY</option>
-        <option value="USD">USD</option>
-        <option value="EUR">EUR</option>
-      </select>
-    </td>
-    <td><input type="number" class="po-line-total" min="0" step="0.01" placeholder="0,00"></td>
-    <td><button type="button" class="po-btn po-btn-delete" onclick="removePoLine(this)">Sil</button></td>
-  `;
-  const code = tr.querySelector('.po-line-code');
-  const name = tr.querySelector('.po-line-name');
-  const qty  = tr.querySelector('.po-line-qty');
-  const unit = tr.querySelector('.po-line-unit');
-  const tot  = tr.querySelector('.po-line-total');
-  code?.addEventListener('blur', () => autoFillProductByCode(code, name));
-  const recalc = () => { if (tot) tot.value = (Number(qty?.value||0) * Number(unit?.value||0)).toFixed(2); };
-  qty?.addEventListener('input', recalc);
-  unit?.addEventListener('input', recalc);
+
+  // SKU
+  const tdCode = document.createElement('td');
+  const codeInput = document.createElement('input');
+  codeInput.type = 'text';
+  codeInput.className = 'po-line-code';
+  codeInput.placeholder = 'SKU';
+  codeInput.required = true;
+  tdCode.appendChild(codeInput);
+
+  // Ürün Adı
+  const tdName = document.createElement('td');
+  const nameInput = document.createElement('input');
+  nameInput.type = 'text';
+  nameInput.className = 'po-line-name';
+  nameInput.placeholder = '(otomatik)';
+  tdName.appendChild(nameInput);
+
+  // Marka datalist
+  const tdBrand = buildDatalistCell(_brandList, 'Marka', 'po-line-brand');
+
+  // Kategori datalist
+  const tdCategory = buildDatalistCell(_categoryList, 'Kategori', 'po-line-category');
+
+  // Miktar
+  const tdQty = document.createElement('td');
+  const qtyInput = document.createElement('input');
+  qtyInput.type = 'number';
+  qtyInput.className = 'po-line-qty';
+  qtyInput.min = '1';
+  qtyInput.step = '1';
+  qtyInput.placeholder = 'Miktar';
+  qtyInput.required = true;
+  tdQty.appendChild(qtyInput);
+
+  // Birim Fiyat
+  const tdUnit = document.createElement('td');
+  const unitInput = document.createElement('input');
+  unitInput.type = 'number';
+  unitInput.className = 'po-line-unit';
+  unitInput.min = '0';
+  unitInput.step = '0.01';
+  unitInput.placeholder = '0,00';
+  tdUnit.appendChild(unitInput);
+
+  // Döviz
+  const tdCur = document.createElement('td');
+  tdCur.innerHTML = `
+    <select class="po-line-currency">
+      <option value="">—</option>
+      <option value="TRY">TRY</option>
+      <option value="USD">USD</option>
+      <option value="EUR">EUR</option>
+    </select>`;
+
+  // Toplam
+  const tdTotal = document.createElement('td');
+  const totalInput = document.createElement('input');
+  totalInput.type = 'number';
+  totalInput.className = 'po-line-total';
+  totalInput.min = '0';
+  totalInput.step = '0.01';
+  totalInput.placeholder = '0,00';
+  tdTotal.appendChild(totalInput);
+
+  // Sil
+  const tdDel = document.createElement('td');
+  const delBtn = document.createElement('button');
+  delBtn.type = 'button';
+  delBtn.className = 'po-btn po-btn-delete';
+  delBtn.textContent = 'Sil';
+  delBtn.onclick = () => removePoLine(delBtn);
+  tdDel.appendChild(delBtn);
+
+  tr.append(tdCode, tdName, tdBrand, tdCategory, tdQty, tdUnit, tdCur, tdTotal, tdDel);
+
+  codeInput.addEventListener('blur', () => autoFillProductByCode(codeInput, nameInput, tdBrand, tdCategory));
+  const recalc = () => { totalInput.value = (Number(qtyInput.value||0) * Number(unitInput.value||0)).toFixed(2); };
+  qtyInput.addEventListener('input', recalc);
+  unitInput.addEventListener('input', recalc);
+
   body.appendChild(tr);
 }
 
@@ -224,18 +337,24 @@ function removePoLine(btn) {
   btn.closest('tr')?.remove();
 }
 
-async function submitPoForm() {
+async function submitPoForm(forceCreate = false) {
   const msgEl = document.getElementById('poFormMsg');
+
   const payload = {
     company_vkn:  String(document.getElementById('poCompanyVkn')?.value || '').trim(),
     company_name: String(document.getElementById('poCompanyName')?.value || '').trim(),
+    force_create: forceCreate,
     items: Array.from(document.querySelectorAll('#poLinesBody tr')).map(row => {
       const unitRaw  = String(row.querySelector('.po-line-unit')?.value  || '').trim();
       const totalRaw = String(row.querySelector('.po-line-total')?.value || '').trim();
       const qty      = Number(row.querySelector('.po-line-qty')?.value   || 0);
       const unitVal  = Number(row.querySelector('.po-line-unit')?.value  || 0);
+
       return {
-        product_code:   String(row.querySelector('.po-line-code')?.value || '').trim(),
+        product_code:   String(row.querySelector('.po-line-code')?.value     || '').trim(),
+        product_name:   String(row.querySelector('.po-line-name')?.value     || '').trim(),
+        brand:          String(row.querySelector('.po-line-brand')?.value    || '').trim(),
+        category:       String(row.querySelector('.po-line-category')?.value || '').trim(),
         ordered_qty:    qty,
         unit_price_cur: unitRaw  === '' ? null : Number(unitRaw),
         currency:       String(row.querySelector('.po-line-currency')?.value || '').trim() || null,
@@ -260,9 +379,23 @@ async function submitPoForm() {
     const ct   = res.headers.get('content-type') || '';
     if (!ct.includes('application/json')) throw new Error('Sunucudan beklenmeyen cevap alındı.');
     const data = await res.json();
-    if (!res.ok) throw new Error(data?.error || 'Kayıt hatası');
+
+    if (!res.ok) {
+      // Eksik SKU — onay sor, sonra force_create ile tekrar gönder
+      if (res.status === 400 && data?.missing_codes?.length) {
+        const codes = data.missing_codes.join(', ');
+        const confirmed = confirm(`"${codes}" kodu sistemde bulunamadı.\nYeni ürün olarak eklenecek. Onaylıyor musunuz?`);
+        if (confirmed) {
+          if (msgEl) { msgEl.textContent = ''; msgEl.className = 'modal-msg'; }
+          return submitPoForm(true);
+        }
+        if (msgEl) { msgEl.textContent = 'İptal edildi.'; msgEl.className = 'modal-msg'; }
+        return;
+      }
+      throw new Error(data?.error || 'Kayıt hatası');
+    }
+
     if (msgEl) { msgEl.textContent = `✓ ${data?.po_number || 'PO oluşturuldu'}`; msgEl.className = 'modal-msg success'; }
-    // Reset form
     document.getElementById('poCompanyVkn').value  = '';
     document.getElementById('poCompanyName').value = '';
     const linesBody = document.getElementById('poLinesBody');
@@ -290,7 +423,6 @@ async function savePo(poItemId, btnEl) {
 
   if (!Number.isFinite(orderedQty) || orderedQty <= 0) { alert('Sipariş miktarı pozitif sayı olmalı.'); return; }
 
-  // No-op check
   if (
     orderedQty === Number(qtyEl.dataset.original) &&
     unitRaw  === String(unitEl?.dataset.original  || '') &&

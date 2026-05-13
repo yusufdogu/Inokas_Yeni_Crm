@@ -462,8 +462,157 @@ async function saveBilgilerEdit(id) {
     }
 }
 
-// ─── Ürünler sekmesi ──────────────────────────────────────────────────────────
+// ─── PATCH: Replace these two functions in detail.js ─────────────────────────
+// 1. renderUrunlerView  (line ~467)
+// 2. enterUrunlerEdit   (line ~526)
+// 3. saveUrunlerEdit    (line ~659)
+// Everything else in detail.js stays unchanged.
+// ─────────────────────────────────────────────────────────────────────────────
 
+// ─── Helper: searchable category dropdown ─────────────────────────────────────
+// Creates a custom dropdown on a wrapper element for category selection.
+// ─── Generic searchable dropdown ──────────────────────────────────────────────
+function _makeSearchableDropdown(wrapEl, {
+    getOptions,       // () => string[]
+    initialValue = '',
+    placeholder  = 'Ara...',
+    onChange     = () => {},
+    onAddNew     = null,  // null = no add new; fn(value) = called when confirmed
+    addNewLabel  = v => `+ "${v}" ekle`,
+}) {
+    if (!wrapEl) return;
+    wrapEl.innerHTML  = '';
+    wrapEl.style.position = 'relative';
+
+    const input = document.createElement('input');
+    input.type        = 'text';
+    input.value       = initialValue || '';
+    input.placeholder = placeholder;
+    input.style.cssText = 'width:100%;padding:7px 10px;border:1px solid #e2e8f0;border-radius:8px;font-size:12px;font-family:inherit;outline:none;box-sizing:border-box;background:#fff;color:#0f172a;transition:border-color 0.15s;';
+    input.addEventListener('focus', () => { input.style.borderColor = '#2563eb'; renderList(input.value); });
+    input.addEventListener('blur',  () => { input.style.borderColor = '#e2e8f0'; setTimeout(() => { list.style.display = 'none'; }, 160); });
+    wrapEl.appendChild(input);
+
+    const list = document.createElement('ul');
+    list.style.cssText = 'position:absolute;top:calc(100% + 2px);left:0;right:0;z-index:9999;background:#fff;border:1px solid #e2e8f0;border-radius:8px;list-style:none;margin:0;padding:4px 0;display:none;max-height:180px;overflow-y:auto;box-shadow:0 8px 20px rgba(0,0,0,0.12);scrollbar-width:thin;';
+    wrapEl.appendChild(list);
+
+    function makeLi(text, onClick, style = '') {
+        const li = document.createElement('li');
+        li.textContent   = text;
+        li.style.cssText = `padding:7px 12px;font-size:12px;color:#1e293b;cursor:pointer;${style}`;
+        li.addEventListener('mouseenter', () => li.style.background = '#f1f5f9');
+        li.addEventListener('mouseleave', () => li.style.background = '');
+        li.addEventListener('mousedown',  e => { e.preventDefault(); onClick(); });
+        list.appendChild(li);
+    }
+
+    function renderList(query) {
+        const q        = (query || '').toLocaleLowerCase('tr-TR');
+        const opts     = getOptions();
+        const filtered = opts.filter(o => !q || o.toLocaleLowerCase('tr-TR').includes(q));
+        list.innerHTML  = '';
+
+        if (!filtered.length && !onAddNew) {
+            makeLi('Sonuç bulunamadı', () => {}, 'color:#94a3b8;cursor:default;');
+        }
+
+        filtered.forEach(opt => makeLi(opt, () => {
+            input.value = opt;
+            list.style.display = 'none';
+            onChange(opt);
+        }));
+
+        // Add new option
+        const trimmed = (query || '').trim();
+        if (onAddNew && trimmed && !opts.some(o => o.toLowerCase() === trimmed.toLowerCase())) {
+            const li = document.createElement('li');
+            li.textContent   = addNewLabel(trimmed);
+            li.style.cssText = 'padding:7px 12px;font-size:12px;color:#059669;font-weight:700;cursor:pointer;border-top:1px solid #f1f5f9;margin-top:2px;';
+            li.addEventListener('mouseenter', () => li.style.background = '#f0fdf4');
+            li.addEventListener('mouseleave', () => li.style.background = '');
+            li.addEventListener('mousedown', e => {
+                e.preventDefault();
+                input.value = trimmed;
+                list.style.display = 'none';
+                onAddNew(trimmed);
+                onChange(trimmed);
+            });
+            list.appendChild(li);
+        }
+
+        list.style.display = (filtered.length || (onAddNew && trimmed)) ? 'block' : 'none';
+    }
+
+    input.addEventListener('input', () => { renderList(input.value); onChange(input.value); });
+
+    // Public API
+    wrapEl._getValue    = ()  => input.value.trim();
+    wrapEl._setValue    = v   => { input.value = v || ''; };
+    wrapEl._setOptions  = ()  => {}; // options are dynamic via getOptions()
+    wrapEl._rebuild     = (placeholder2, val) => {
+        input.placeholder = placeholder2 || placeholder;
+        input.value       = val || '';
+    };
+
+    return wrapEl;
+}
+
+// ─── Category dropdown (with add new → saves to product) ─────────────────────
+function _makeCategoryDropdown(wrapEl, isInternal, initialValue, onChange, sku = '') {
+    const getOptions = () => isInternal
+        ? ['teknoloji','araç & yakıt','elektrik & doğalgaz','iletişim','yemek & mutfak','güvenlik','diğer']
+        : (productCategoryOptionList || []);
+
+    _makeSearchableDropdown(wrapEl, {
+        getOptions,
+        initialValue,
+        placeholder: isInternal ? 'Ofis içi kategorisi...' : 'Kategori ara...',
+        onChange,
+        onAddNew: isInternal ? null : async (newCat) => {
+            // Add to local list immediately
+            if (!productCategoryOptionList.includes(newCat)) {
+                productCategoryOptionList.push(newCat);
+                productCategoryOptionList.sort((a,b) => a.localeCompare(b,'tr'));
+            }
+            // Save to product if we have a SKU
+            const activeSku = sku || wrapEl.closest?.('.ue-acc-item')?.querySelector?.('.ue-code')?.value?.trim() || '';
+            if (activeSku) {
+                saveNewCategoryToProduct(activeSku, newCat).catch(() => {});
+            }
+        },
+        addNewLabel: v => `+ Yeni kategori: "${v}"`,
+    });
+}
+
+// ─── Brand dropdown ───────────────────────────────────────────────────────────
+function _makeBrandDropdown(wrapEl, initialValue, onBrandChange) {
+    _makeSearchableDropdown(wrapEl, {
+        getOptions:  () => _brandOptions || [],
+        initialValue,
+        placeholder: 'Marka ara...',
+        onChange:    onBrandChange,
+    });
+}
+
+// ─── Model dropdown (filtered by brand) ──────────────────────────────────────
+function _makeModelDropdown(wrapEl, initialValue, getBrand) {
+    _makeSearchableDropdown(wrapEl, {
+        getOptions: () => {
+            const brand  = getBrand();
+            if (brand && _modelsByBrand.has(brand)) return _modelsByBrand.get(brand);
+            // No brand selected → show all models
+            const all = new Set();
+            (_modelsByBrand || new Map()).forEach(models => models.forEach(m => all.add(m)));
+            return [...all].sort((a,b) => a.localeCompare(b,'tr'));
+        },
+        initialValue,
+        placeholder: 'Model ara...',
+        onChange:    () => {},
+    });
+}
+
+// ─── 1. renderUrunlerView ─────────────────────────────────────────────────────
 async function renderUrunlerView(id, body, inv) {
     const items = inv.invoice_items || [];
 
@@ -472,24 +621,18 @@ async function renderUrunlerView(id, body, inv) {
         await ensureProductCodeLookupSetLoaded();
         const missing = [...new Set(
             items.map(it => String(it.product_code || it.sku || '').trim())
-                .filter(Boolean)
-                .filter(s => !isInProductCodeLookup(s))
+                .filter(Boolean).filter(s => !isInProductCodeLookup(s))
         )];
         if (missing.length) {
-            warnHtml = `<div class="det-sku-warn"><strong>⚠️ Yeni ürün kodu olabilir</strong><br>
-            ${missing.join(', ')} — products tablosunda kayıtlı değil.</div>`;
+            warnHtml = `<div class="det-sku-warn"><strong>⚠️ Yeni ürün kodu olabilir</strong><br>${missing.join(', ')} — products tablosunda kayıtlı değil.</div>`;
         }
-    } catch (e) { }
-
-    try { await ensureProductCategoryLookupLoaded(); } catch (e) { }
+    } catch (e) {}
+    try { await ensureProductCategoryLookupLoaded(); } catch (e) {}
 
     const fmtP = n => (parseFloat(n) || 0).toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-
-    const row = (label, value, valueStyle = '') =>
-        `<div style="display:flex; justify-content:space-between; align-items:baseline; padding:4px 0; border-bottom:1px solid #f1f5f9;">
-            <span style="font-size:11px; color:#94a3b8; font-weight:600; text-transform:uppercase; letter-spacing:0.03em; flex-shrink:0;">${label}</span>
-            <span style="font-size:12px; color:#1e293b; font-weight:500; text-align:right; ${valueStyle}">${value}</span>
-        </div>`;
+    const pill = (val, color = '#64748b', bg = '#f1f5f9') => val
+        ? `<span style="font-size:11px;font-weight:600;color:${color};background:${bg};border-radius:5px;padding:2px 7px;white-space:nowrap;">${val}</span>`
+        : '';
 
     const cards = items.map(it => {
         const isInt = !!it.is_internal;
@@ -497,191 +640,299 @@ async function renderUrunlerView(id, body, inv) {
         const name  = String(it.product_name || '').trim();
         const cat   = isInt
             ? (it.internal_category || '—')
-            : (productCategoryByCodeMap?.get(normalizeProductCodeForMatch(code)) || '—');
+            : (it.category || productCategoryByCodeMap?.get(normalizeProductCodeForMatch(code)) || '—');
+        const brand = it.brand_name || it.brand || '';
+        const model = it.model || '';
 
-        return `<div style="background:#fff; border:1px solid #e2e8f0; border-radius:10px; padding:12px 14px; display:flex; flex-direction:column; gap:0;">
-            <div style="font-size:13px; font-weight:700; color:#0f172a; margin-bottom:8px; line-height:1.4;">${name.replace(/</g, '&lt;') || '—'}</div>
-            ${row('Ürün Kodu', code || '—', 'color:#2563eb; font-weight:700;')}
-            ${row('Miktar', `${it.quantity || 0}`)}
-            ${row('Birim Fiyat', fmtP(it.unit_price_cur))}
-            ${row('Toplam', fmtP(it.total_price_cur), 'font-weight:700;')}
-            ${row('Ofis İçi', isInt ? '<span style="color:#7c3aed; font-weight:700;">✓</span>' : '—')}
-            ${row('Kategori', isInt ? `<em style="color:#7c3aed;">${cat}</em>` : cat)}
+        return `<div style="background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:11px 14px;">
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
+                <div style="flex:1;min-width:0;">
+                    <div style="font-size:13px;font-weight:700;color:#0f172a;margin-bottom:5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${name.replace(/</g,'&lt;') || '—'}</div>
+                    <div style="display:flex;flex-wrap:wrap;gap:4px;align-items:center;">
+                        ${code ? `<span style="font-size:11px;font-weight:700;color:#2563eb;background:#eff6ff;border-radius:5px;padding:2px 7px;font-family:'Geist Mono',monospace;">${code}</span>` : ''}
+                        ${pill(`× ${it.quantity}`)}
+                        ${pill(fmtP(it.unit_price_cur) + ' / adet')}
+                        ${isInt ? pill('Ofis İçi','#7c3aed','#f5f3ff') : ''}
+                        ${cat !== '—' ? pill(cat) : ''}
+                        ${brand ? pill(brand) : ''}
+                        ${model ? pill(model) : ''}
+                    </div>
+                </div>
+                <span style="font-size:14px;font-weight:800;color:#2563eb;white-space:nowrap;flex-shrink:0;">${fmtP(it.total_price_cur)}</span>
+            </div>
         </div>`;
     }).join('');
 
-    const finalHtml = `${warnHtml}
-        <div style="display:flex; flex-direction:column; gap:8px; padding:12px;">
-            ${cards || '<div style="padding:20px; text-align:center; color:#94a3b8; font-size:13px;">Ürün bulunamadı</div>'}
-        </div>
-        <div class="det-actions" style="padding:0 12px 12px;">
-            <button class="fatura-action-btn fatura-action-btn--primary" onclick="enterUrunlerEdit('${id}')">✏️ Düzenle</button>
-        </div>`;
-
     setTimeout(() => {
-        body.innerHTML = finalHtml;
+        body.innerHTML = `${warnHtml}
+            <div style="display:flex;flex-direction:column;gap:6px;padding:12px;">
+                ${cards || '<div style="padding:20px;text-align:center;color:#94a3b8;font-size:13px;">Ürün bulunamadı</div>'}
+            </div>
+            <div class="det-actions" style="padding:0 12px 12px;">
+                <button class="fatura-action-btn fatura-action-btn--primary" onclick="enterUrunlerEdit('${id}')">✏️ Düzenle</button>
+            </div>`;
     }, 10);
 }
 
+// ─── 2. enterUrunlerEdit ──────────────────────────────────────────────────────
 function enterUrunlerEdit(id) {
     const { inv, body } = _findInvAndBody(id);
     if (!inv || !body) return;
 
-    const items = inv.invoice_items || [];
-    const fmtP  = n => (parseFloat(n) || 0).toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-    const fmtPN = n => (parseFloat(n) || 0).toFixed(4); // for inputs
+    const items  = inv.invoice_items || [];
+    let _openIdx = null;
 
-    const row = (label, inputHtml) =>
-        `<div style="display:flex; justify-content:space-between; align-items:baseline; padding:4px 0; border-bottom:1px solid #f1f5f9;">
-            <span style="font-size:11px; color:#94a3b8; font-weight:600; text-transform:uppercase; letter-spacing:0.03em; flex-shrink:0;">${label}</span>
-            <span style="font-size:12px; color:#1e293b; font-weight:500; text-align:right; flex:1; display:flex; justify-content:flex-end;">${inputHtml}</span>
-        </div>`;
+    // Pre-load brand/model data
+    ensureBrandModelLoaded().catch(() => {});
 
-    const cards = items.map((it, idx) => {
-        const isInt  = !!it.is_internal;
-        const code   = String(it.product_code || it.sku || '').trim();
-        const name   = String(it.product_name || '').replace(/"/g, '&quot;');
-        const curCat = isInt
-            ? (it.internal_category || '')
-            : (productCategoryByCodeMap?.get(normalizeProductCodeForMatch(code)) || '');
+    const fmtP = n => (parseFloat(n) || 0).toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
-        return `<div style="background:#fff; border:1px solid #e2e8f0; border-radius:10px; padding:12px 14px; display:flex; flex-direction:column; gap:0;"
-                    data-idx="${idx}" data-internal="${isInt ? 1 : 0}">
-            
-            <div style="font-size:13px; font-weight:700; color:#0f172a; margin-bottom:8px; line-height:1.4;">
-                <input class="det-edit-input ue-name" value="${name}" style="font-size:13px; font-weight:700; color:#0f172a; width:100%; border:none; background:transparent; padding:2px 0; margin:0; outline:none; border-bottom:1px dashed #cbd5e1; font-family:inherit;">
-            </div>
+    function buildItem(it, idx) {
+        const isInt = !!it.is_internal;
+        const code  = String(it.product_code || it.sku || '').trim();
+        const name  = String(it.product_name || '').replace(/</g,'&lt;');
+        const brand = String(it.brand_name || it.brand || '').replace(/"/g,'&quot;');
+        const model = String(it.model || '').replace(/"/g,'&quot;');
+        const qty   = parseFloat(it.quantity) || 0;
+        const price = parseFloat(it.unit_price_cur) || 0;
 
-            ${row('Ürün Kodu', `<input class="det-edit-input ue-code" value="${code.replace(/"/g, '&quot;')}" style="color:#2563eb; font-weight:700; width:100%; max-width:160px; text-align:right; border:none; background:transparent; border-bottom:1px dashed #cbd5e1; outline:none; font-family:inherit; padding:2px;">`)}
-            
-            ${row('Miktar', `<input class="det-edit-input ue-qty" type="number" step="any" min="0" value="${parseFloat(it.quantity) || 0}" style="width:80px; text-align:right; border:none; background:transparent; border-bottom:1px dashed #cbd5e1; outline:none; font-family:inherit; padding:2px;">`)}
-            
-            ${row('Birim Fiyat', `<input class="det-edit-input ue-price" type="number" step="any" min="0" value="${fmtPN(it.unit_price_cur)}" style="width:100px; text-align:right; border:none; background:transparent; border-bottom:1px dashed #cbd5e1; outline:none; font-family:inherit; padding:2px;">`)}
-            
-            ${row('Toplam', `<span class="ue-total" style="font-weight:700; padding:2px;">${fmtP(it.total_price_cur)}</span>`)}
-            
-            ${row('Ofis İçi', `<label style="cursor:pointer; display:flex; align-items:center; gap:6px; justify-content:flex-end;">
-                  <input type="checkbox" class="ue-isint-chk" ${isInt ? 'checked' : ''} style="width:14px; height:14px;">
-                  <span style="color:#7c3aed; font-weight:700;">✓</span>
-               </label>`)}
-               
-            ${row('Kategori', `
-                <div style="display:flex; flex-direction:column; align-items:flex-end; gap:4px;">
-                    <select class="det-edit-input ue-cat-select" style="text-align:left; border:none; border-bottom:1px dashed #cbd5e1; background:transparent; outline:none; max-width:180px; font-family:inherit; padding:2px; color:#1e293b;"></select>
-                    <div class="ue-cat-quick" style="display:none; align-items:center; gap:4px; margin-top:4px;">
-                        <input class="det-edit-input ue-cat-input" placeholder="Kategori yazın" style="font-size:11px; width:120px; padding:4px 6px; border:1px solid #cbd5e1; border-radius:4px;">
-                        <button type="button" class="ue-cat-save" style="width:24px;height:24px;border:none;border-radius:4px;background:#16a34a;color:#fff;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;">✓</button>
-                        <button type="button" class="ue-cat-cancel" style="width:24px;height:24px;border:none;border-radius:4px;background:#ef4444;color:#fff;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;">✕</button>
+        return `<div class="ue-acc-item" data-idx="${idx}"
+            style="background:#fff;border:1px solid #e2e8f0;border-radius:10px;overflow:visible;transition:border-color 0.15s;">
+ 
+            <!-- Collapsed header -->
+            <div class="ue-acc-hdr" style="display:flex;align-items:center;gap:8px;padding:10px 12px;cursor:pointer;user-select:none;">
+                <i class="ti ti-chevron-right ue-chev" style="font-size:14px;color:#94a3b8;transition:transform 0.2s;flex-shrink:0;"></i>
+                <div style="flex:1;min-width:0;">
+                    <div class="ue-hdr-name" style="font-size:13px;font-weight:700;color:#0f172a;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${name || '—'}</div>
+                    <div style="display:flex;gap:6px;margin-top:3px;align-items:center;">
+                        ${code ? `<span style="font-size:11px;font-weight:700;color:#2563eb;font-family:'Geist Mono',monospace;">${code}</span>` : ''}
+                        <span style="font-size:11px;color:#94a3b8;">× ${qty}</span>
+                        ${isInt ? `<span style="font-size:11px;color:#7c3aed;font-weight:700;">Ofis İçi</span>` : ''}
                     </div>
                 </div>
-            `)}
+                <span class="ue-hdr-total" style="font-size:13px;font-weight:800;color:#2563eb;white-space:nowrap;flex-shrink:0;">${fmtP(qty * price)}</span>
+                <button type="button" class="ue-del-btn"
+                    style="width:28px;height:28px;border:none;border-radius:6px;background:#fee2e2;color:#ef4444;font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-weight:700;"
+                    title="Sil">✕</button>
+            </div>
+ 
+            <!-- Expanded body -->
+            <div class="ue-acc-body" style="display:none;padding:0 12px 14px;border-top:1px solid #f1f5f9;">
+ 
+                <!-- Row 1: SKU + Name -->
+                <div style="display:grid;grid-template-columns:140px 1fr;gap:8px;margin-top:12px;margin-bottom:8px;">
+                    <div>
+                        <label style="font-size:10px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:0.04em;display:block;margin-bottom:4px;">SKU / Kod</label>
+                        <input class="det-edit-input ue-code" value="${code.replace(/"/g,'&quot;')}" placeholder="Ürün kodu"
+                            style="width:100%;font-family:'Geist Mono',monospace;font-size:12px;color:#2563eb;font-weight:700;padding:7px 10px;border:1px solid #e2e8f0;border-radius:8px;outline:none;box-sizing:border-box;">
+                    </div>
+                    <div>
+                        <label style="font-size:10px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:0.04em;display:block;margin-bottom:4px;">Ürün Adı</label>
+                        <input class="det-edit-input ue-name" value="${String(it.product_name||'').replace(/"/g,'&quot;')}" placeholder="Ürün adı"
+                            style="width:100%;font-size:12px;font-weight:600;padding:7px 10px;border:1px solid #e2e8f0;border-radius:8px;outline:none;box-sizing:border-box;">
+                    </div>
+                </div>
+ 
+                <!-- Row 2: Qty + Price + Total -->
+                <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:8px;">
+                    <div>
+                        <label style="font-size:10px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:0.04em;display:block;margin-bottom:4px;">Miktar</label>
+                        <input class="det-edit-input ue-qty" type="number" step="any" min="0" value="${qty}"
+                            style="width:100%;font-size:12px;text-align:right;padding:7px 10px;border:1px solid #e2e8f0;border-radius:8px;outline:none;box-sizing:border-box;">
+                    </div>
+                    <div>
+                        <label style="font-size:10px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:0.04em;display:block;margin-bottom:4px;">Birim Fiyat</label>
+                        <input class="det-edit-input ue-price" type="number" step="any" min="0" value="${price}"
+                            style="width:100%;font-size:12px;text-align:right;padding:7px 10px;border:1px solid #e2e8f0;border-radius:8px;outline:none;box-sizing:border-box;">
+                    </div>
+                    <div>
+                        <label style="font-size:10px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:0.04em;display:block;margin-bottom:4px;">Toplam</label>
+                        <div class="ue-total" style="font-size:13px;font-weight:800;color:#2563eb;padding:7px 10px;background:#eff6ff;border-radius:8px;text-align:right;">${fmtP(qty * price)}</div>
+                    </div>
+                </div>
+ 
+                <!-- Row 3: Ofis İçi + Kategori + Marka + Model -->
+                <div style="display:grid;grid-template-columns:auto 1fr 1fr 1fr;gap:8px;align-items:start;">
+                    <div>
+                        <label style="font-size:10px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:0.04em;display:block;margin-bottom:4px;">Ofis İçi</label>
+                        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;padding:7px 10px;background:#f5f3ff;border-radius:8px;white-space:nowrap;">
+                            <input type="checkbox" class="ue-isint-chk" ${isInt ? 'checked' : ''}
+                                style="width:14px;height:14px;accent-color:#7c3aed;">
+                            <span style="font-size:12px;font-weight:700;color:#7c3aed;">Ofis İçi</span>
+                        </label>
+                    </div>
+                    <div>
+                        <label style="font-size:10px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:0.04em;display:block;margin-bottom:4px;">Kategori</label>
+                        <div class="ue-cat-wrap" style="position:relative;"></div>
+                    </div>
+                    <div>
+                        <label style="font-size:10px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:0.04em;display:block;margin-bottom:4px;">Marka</label>
+                        <div class="ue-brand-wrap" style="position:relative;"></div>
+                    </div>
+                    <div>
+                        <label style="font-size:10px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:0.04em;display:block;margin-bottom:4px;">Model</label>
+                        <div class="ue-model-wrap" style="position:relative;"></div>
+                    </div>
+                </div>
+ 
+            </div>
         </div>`;
-    }).join('');
+    }
 
     body.innerHTML = `
-        <div style="display:flex; flex-direction:column; gap:8px; padding:12px;" id="ueCards_${id}">
-            ${cards || '<div style="padding:20px; text-align:center; color:#94a3b8; font-size:13px;">Ürün bulunamadı</div>'}
+        <div style="display:flex;flex-direction:column;gap:6px;padding:12px;" id="ueList_${id}">
+            ${items.length ? items.map((it, i) => buildItem(it, i)).join('') : '<div style="padding:20px;text-align:center;color:#94a3b8;font-size:13px;">Ürün bulunamadı</div>'}
         </div>
-        <div class="det-actions" style="padding:0 12px 12px;">
-            <button class="fatura-action-btn fatura-action-btn--primary" onclick="saveUrunlerEdit('${id}')">💾 Kaydet</button>
+        <div class="det-actions" style="padding:0 12px 12px;justify-content:space-between;">
             <button class="fatura-action-btn" onclick="switchFatDetailTab('${id}','urunler')">İptal</button>
+            <button class="fatura-action-btn fatura-action-btn--primary" onclick="saveUrunlerEdit('${id}')">💾 Kaydet</button>
         </div>`;
 
-    const container = document.getElementById(`ueCards_${id}`);
-    if (!container) return;
+    const listEl = document.getElementById(`ueList_${id}`);
+    if (!listEl) return;
 
-    container.querySelectorAll('[data-idx]').forEach((card) => {
-        const idx    = parseInt(card.dataset.idx);
-        const isInt  = card.dataset.internal === '1';
-        const it     = items[idx] || {};
-        const code   = String(it.product_code || it.sku || '').trim();
-        const curCat = isInt
+    listEl.querySelectorAll('.ue-acc-item').forEach(item => {
+        const idx      = parseInt(item.dataset.idx);
+        const it       = items[idx] || {};
+        const isInt    = !!it.is_internal;
+        const code     = String(it.product_code || it.sku || '').trim();
+        const curCat   = isInt
             ? (it.internal_category || '')
-            : (productCategoryByCodeMap?.get(normalizeProductCodeForMatch(code)) || '');
+            : (it.category || productCategoryByCodeMap?.get(normalizeProductCodeForMatch(code)) || '');
+        const curBrand = it.brand_name || it.brand || '';
+        const curModel = it.model || '';
 
-        const chk       = card.querySelector('.ue-isint-chk');
-        const catSel    = card.querySelector('.ue-cat-select');
-        const quickWrap = card.querySelector('.ue-cat-quick');
-        const catInput  = card.querySelector('.ue-cat-input');
-        const catSave   = card.querySelector('.ue-cat-save');
-        const catCancel = card.querySelector('.ue-cat-cancel');
+        const hdr       = item.querySelector('.ue-acc-hdr');
+        const bodyEl    = item.querySelector('.ue-acc-body');
+        const chev      = item.querySelector('.ue-chev');
+        const delBtn    = item.querySelector('.ue-del-btn');
+        const chk       = item.querySelector('.ue-isint-chk');
+        const catWrap   = item.querySelector('.ue-cat-wrap');
+        const brandWrap = item.querySelector('.ue-brand-wrap');
+        const modelWrap = item.querySelector('.ue-model-wrap');
+        const qtyInp    = item.querySelector('.ue-qty');
+        const priceInp  = item.querySelector('.ue-price');
+        const totalEl   = item.querySelector('.ue-total');
+        const hdrTotal  = item.querySelector('.ue-hdr-total');
+        const hdrName   = item.querySelector('.ue-hdr-name');
+        const nameInp   = item.querySelector('.ue-name');
+        const codeInp   = item.querySelector('.ue-code');
 
-        // Checkbox event
-        if (chk) {
-            chk.addEventListener('change', () => {
-                const nowInt = chk.checked;
-                card.dataset.internal = nowInt ? '1' : '0';
-                if (catSel) {
-                    renderRowCategorySelect(catSel, nowInt, nowInt ? '' : catSel.value);
+        // Toggle accordion
+        hdr.addEventListener('click', e => {
+            if (delBtn.contains(e.target)) return;
+            const isOpen = bodyEl.style.display !== 'none';
+            if (isOpen) {
+                bodyEl.style.display   = 'none';
+                chev.style.transform   = '';
+                item.style.borderColor = '#e2e8f0';
+                _openIdx = null;
+            } else {
+                if (_openIdx !== null) {
+                    const prev = listEl.querySelector(`.ue-acc-item[data-idx="${_openIdx}"]`);
+                    if (prev) {
+                        prev.querySelector('.ue-acc-body').style.display = 'none';
+                        prev.querySelector('.ue-chev').style.transform   = '';
+                        prev.style.borderColor = '#e2e8f0';
+                    }
                 }
-            });
-        }
-
-        if (catSel) {
-            renderRowCategorySelect(catSel, isInt, curCat);
-            catSel.addEventListener('change', () => {
-                if (catSel.value !== '__add_new_category__') return;
-                catSel.value = '';
-                if (quickWrap) quickWrap.style.display = 'flex';
-                if (catInput) { catInput.value = ''; catInput.focus(); }
-            });
-        }
-        
-        catSave?.addEventListener('click', () => {
-            const next = String(catInput?.value || '').trim();
-            if (!next) return;
-            if (!productCategoryOptionList.includes(next)) {
-                productCategoryOptionList.push(next);
-                productCategoryOptionList.sort((a, b) => a.localeCompare(b, 'tr'));
+                bodyEl.style.display   = 'block';
+                chev.style.transform   = 'rotate(90deg)';
+                item.style.borderColor = '#2563eb';
+                _openIdx = idx;
             }
-            if (catSel) renderRowCategorySelect(catSel, false, next);
-            if (quickWrap) quickWrap.style.display = 'none';
-        });
-        
-        catCancel?.addEventListener('click', () => {
-            if (quickWrap) quickWrap.style.display = 'none';
         });
 
-        const qtyInput   = card.querySelector('.ue-qty');
-        const priceInput = card.querySelector('.ue-price');
-        const totalSpan  = card.querySelector('.ue-total');
+        // Delete
+        delBtn.addEventListener('click', e => { e.stopPropagation(); item.remove(); });
 
-        const updateTot = () => {
-            const q = parseFloat(qtyInput?.value) || 0;
-            const p = parseFloat(priceInput?.value) || 0;
-            if (totalSpan) totalSpan.textContent = (q * p).toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        // Init dropdowns
+        _makeCategoryDropdown(catWrap, isInt, curCat, () => {}, code);
+        _makeBrandDropdown(brandWrap, curBrand, (newBrand) => {
+            // When brand changes, rebuild model dropdown
+            if (modelWrap._getValue) {
+                const curModel2 = modelWrap._getValue();
+                _makeModelDropdown(modelWrap, curModel2, () => brandWrap._getValue?.() || '');
+            }
+        });
+        _makeModelDropdown(modelWrap, curModel, () => brandWrap._getValue?.() || '');
+
+        // Ofis İçi toggle → rebuild category
+        chk?.addEventListener('change', () => {
+            const nowInt   = chk.checked;
+            const currentCat = catWrap?._getValue?.() || '';
+            const activeSku  = codeInp?.value?.trim() || '';
+            _makeCategoryDropdown(catWrap, nowInt, nowInt ? '' : currentCat, () => {}, activeSku);
+        });
+
+        // SKU blur → auto-fill category + brand from product map
+        codeInp?.addEventListener('blur', async () => {
+            const sku = codeInp.value.trim();
+            if (!sku || chk?.checked) return;
+            // Category
+            const cat = productCategoryByCodeMap?.get(normalizeProductCodeForMatch(sku)) || '';
+            if (cat && catWrap?._setValue) catWrap._setValue(cat);
+            // Brand/model from products — try to find in _modelsByBrand
+            // We don't have a sku→brand map yet so just leave brand as-is
+        });
+
+        // Total recalc
+        const updateTotal = () => {
+            const q = parseFloat(qtyInp?.value)   || 0;
+            const p = parseFloat(priceInp?.value)  || 0;
+            const t = fmtP(q * p);
+            if (totalEl)  totalEl.textContent  = t;
+            if (hdrTotal) hdrTotal.textContent = t;
         };
-        qtyInput?.addEventListener('input', updateTot);
-        priceInput?.addEventListener('input', updateTot);
+        qtyInp?.addEventListener('input', updateTotal);
+        priceInp?.addEventListener('input', updateTotal);
+
+        // Sync header name
+        nameInp?.addEventListener('input', () => {
+            if (hdrName) hdrName.textContent = nameInp.value || '—';
+        });
     });
 }
 
+// ─── 3. saveUrunlerEdit ───────────────────────────────────────────────────────
 async function saveUrunlerEdit(id) {
     const { inv } = _findInvAndBody(id);
     if (!inv) return;
 
-    const container = document.getElementById(`ueCards_${id}`);
-    if (!container) return;
+    const listEl = document.getElementById(`ueList_${id}`);
+    if (!listEl) return;
 
     const originalItems = inv.invoice_items || [];
     const updatedItems  = [];
-    container.querySelectorAll('[data-idx]').forEach((card, idx) => {
+
+    listEl.querySelectorAll('.ue-acc-item').forEach(item => {
+        const idx        = parseInt(item.dataset.idx);
         const orig       = originalItems[idx] || {};
-        const qty        = parseFloat(card.querySelector('.ue-qty')?.value)   || 0;
-        const price      = parseFloat(card.querySelector('.ue-price')?.value)  || 0;
-        const name       = card.querySelector('.ue-name')?.value?.trim()       || '';
-        const code       = card.querySelector('.ue-code')?.value?.trim()       || null;
-        const isInternal = card.dataset.internal === '1';
-        const catVal     = card.querySelector('.ue-cat-select')?.value         || '';
+        const qty        = parseFloat(item.querySelector('.ue-qty')?.value)    || 0;
+        const price      = parseFloat(item.querySelector('.ue-price')?.value)  || 0;
+        const name       = item.querySelector('.ue-name')?.value?.trim()       || '';
+        const code       = item.querySelector('.ue-code')?.value?.trim()       || null;
+        const isInternal = !!item.querySelector('.ue-isint-chk')?.checked;
+        const catWrap    = item.querySelector('.ue-cat-wrap');
+        const brandWrap  = item.querySelector('.ue-brand-wrap');
+        const modelWrap  = item.querySelector('.ue-model-wrap');
+        const catVal     = catWrap?._getValue?.()   || '';
+        const brandVal   = brandWrap?._getValue?.() || '';
+        const modelVal   = modelWrap?._getValue?.() || '';
+
         if (qty > 0 && name) {
             updatedItems.push({
                 ...orig,
-                product_name:    name,
-                product_code:    code,
-                quantity:        qty,
-                unit_price_cur:  price,
-                total_price_cur: qty * price,
-                ...(isInternal ? { internal_category: catVal } : { internal_category: orig.internal_category ?? null })
+                product_name:      name,
+                product_code:      code,
+                quantity:          qty,
+                unit_price_cur:    price,
+                total_price_cur:   qty * price,
+                is_internal:       isInternal,
+                brand_name:        brandVal   || null,
+                model:             modelVal   || null,
+                product_category:  isInternal ? null : (catVal || null),  // ← for syncInvoiceItemInternalMeta
+                internal_category: isInternal ? (catVal || null) : (orig.internal_category ?? null),
             });
         }
     });
@@ -712,11 +963,14 @@ async function saveUrunlerEdit(id) {
         if (!res.ok) throw new Error(result.error || 'Güncelleme hatası');
 
         inv.invoice_items = updatedItems;
-        clearStockCaches();
-        switchFatDetailTab(id, 'urunler');
-        const bekIdx = bekleyenCache.findIndex(i => i.id === id);
-        if (bekIdx >= 0) bekleyenCache[bekIdx] = inv;
-        refreshData(true);
+        if (typeof clearStockCaches === 'function') clearStockCaches();
+
+        if (typeof loadInvoice === 'function') {
+            await loadInvoice(id);
+        } else {
+            switchFatDetailTab(id, 'urunler');
+            if (typeof refreshData === 'function') refreshData(true);
+        }
     } catch (e) {
         alert('Hata: ' + e.message);
         if (btn) { btn.disabled = false; btn.textContent = '💾 Kaydet'; }

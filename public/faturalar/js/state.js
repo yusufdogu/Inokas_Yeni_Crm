@@ -11,6 +11,7 @@ const filterMemory = {
     giden: { search: '', company: '', currency: '', year: '', month: '', status: '', category: '', product: '' }
 };
 
+
 // ─── Ürün kodu lookup cache ────────────────────────────────────────────────────
 const PRODUCT_CODE_CACHE_TTL_MS = 5 * 60 * 1000;
 let productCodeLookupSet = null;

@@ -172,39 +172,7 @@
 
   </div>
 
-  <!-- ─── Fatura Detay Sayfası ──────────────────────────────────── -->
-  <div id="fatDetailPage" style="display:none; flex:1; flex-direction:column; overflow:hidden; min-height:0;">
 
-    <div style="display:flex; align-items:center; gap:10px; padding:10px 16px; border-bottom:1px solid #e2e8f0; flex-shrink:0; background:#fff;">
-      <button onclick="closeFatDetailPage()"
-        style="display:flex; align-items:center; gap:6px; background:#f1f5f9; border:none; border-radius:8px; padding:6px 12px; font-size:12px; font-weight:700; color:#475569; cursor:pointer; white-space:nowrap; flex-shrink:0;">
-        <i class="ti ti-arrow-left" style="font-size:13px;"></i> Geri
-      </button>
-      <span id="fatDetailFirmaAdi" style="font-weight:700; font-size:14px; color:#0f172a; flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;"></span>
-      <div id="fatDetailActions" style="display:flex; gap:6px; margin-right:6px;"></div>
-      <button id="fatDetailPrevBtn" onclick="navigateFatDetail(-1)"
-        style="width:32px; height:32px; display:flex; align-items:center; justify-content:center; background:#f1f5f9; border:none; border-radius:8px; cursor:pointer; color:#475569; font-size:18px; font-weight:700; flex-shrink:0;">‹</button>
-      <button id="fatDetailNextBtn" onclick="navigateFatDetail(1)"
-        style="width:32px; height:32px; display:flex; align-items:center; justify-content:center; background:#f1f5f9; border:none; border-radius:8px; cursor:pointer; color:#475569; font-size:18px; font-weight:700; flex-shrink:0;">›</button>
-    </div>
-
-    <div style="flex:1; display:grid; grid-template-columns:1fr 1fr; overflow:hidden; min-height:0;">
-      <div style="border-right:1px solid #e2e8f0; overflow:hidden; position:relative; display:flex; flex-direction:column; background:#f8fafc;">
-        <iframe id="fatDetailPdfIframe" style="display:none; width:100%; flex:1; border:none;"></iframe>
-        <div id="fatDetailPdfEmpty" style="flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:8px; color:#94a3b8;">
-          <svg width="48" height="48" fill="none" stroke="#cbd5e1" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
-              d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
-          </svg>
-          <p style="font-size:13px; font-weight:600;">PDF bulunamadı</p>
-        </div>
-      </div>
-      <div style="display:flex; flex-direction:column; overflow:hidden; background:#fff;">
-        <div id="fatDetailTabBar" class="fat-dtab-bar" style="flex-shrink:0;"></div>
-        <div id="fatDetailTabBody" class="fat-dtab-body"></div>
-      </div>
-    </div>
-  </div>
 
   </div><!-- /.page-area -->
 </div><!-- /.app-shell -->

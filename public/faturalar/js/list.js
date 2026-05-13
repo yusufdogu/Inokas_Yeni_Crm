@@ -583,84 +583,10 @@ function renderListView(invoices) {
 // ─── Tam ekran detay sayfası ──────────────────────────────────────────────────
 
 function openFatDetailPage(id) {
-    const sid = String(id);
-    let inv = (allInvoicesCache || []).find(i => String(i.id) === sid);
-    let sourceList = _fatDetailList;
-    if (!inv && typeof bekleyenCache !== 'undefined') {
-        inv = bekleyenCache.find(i => String(i.id) === sid);
-        sourceList = bekleyenCache;
-    }
-    if (!inv) return;
-
-    _fatDetailIdx = sourceList.findIndex(i => String(i.id) === sid);
-    window._fatDetailCurrentList = sourceList;
-
-    const firmaEl = document.getElementById('fatDetailFirmaAdi');
-    const prevBtn = document.getElementById('fatDetailPrevBtn');
-    const nextBtn = document.getElementById('fatDetailNextBtn');
-    if (firmaEl) firmaEl.textContent = inv.companies?.name || '—';
-
-    const actionsEl = document.getElementById('fatDetailActions');
-    if (actionsEl) {
-        if (inv.approval_status === 'pending') {
-            actionsEl.innerHTML = `
-                <button onclick="approveDetailInvoice('${inv.id}')" style="background:#10b981; color:#fff; border:none; border-radius:6px; padding:6px 12px; font-weight:600; cursor:pointer; font-size:12px;">Aktar</button>
-            `;
-            actionsEl.style.display = 'flex';
-        } else {
-            actionsEl.innerHTML = '';
-            actionsEl.style.display = 'none';
-        }
-    }
-
-    if (prevBtn) prevBtn.disabled = _fatDetailIdx <= 0;
-    if (nextBtn) nextBtn.disabled = _fatDetailIdx >= sourceList.length - 1;
-
-    window._fatDetailSourcePage = 'faturaPage';
-    document.getElementById('faturaPage').style.display = 'none';
-    const detailPage = document.getElementById('fatDetailPage');
-    if (detailPage) detailPage.style.display = 'flex';
-
-    const iframe = document.getElementById('fatDetailPdfIframe');
-    const empty  = document.getElementById('fatDetailPdfEmpty');
-    if (iframe) { iframe.style.display = 'none'; iframe.src = ''; }
-    if (empty)  empty.style.display = 'flex';
-
-    const tabs      = ['bilgiler', 'urunler'];
-    const tabLabels = { bilgiler: 'Fatura Bilgileri', urunler: 'Fatura Ürünleri' };
-    const curTab    = tabs.includes(activeDetailTab[id]) ? activeDetailTab[id] : 'bilgiler';
-    const tabBar    = document.getElementById('fatDetailTabBar');
-    if (tabBar) {
-        tabBar.innerHTML = tabs.map(t =>
-            `<button class="fat-dtab${curTab === t ? ' fat-dtab--active' : ''}"
-                onclick="switchFatDetailPageTab('${id}','${t}')">
-                ${tabLabels[t]}
-            </button>`
-        ).join('');
-    }
-
-    const tabBody = document.getElementById('fatDetailTabBody');
-    if (tabBody) renderDetailTabContent(id, curTab, inv, tabBody);
-
-    loadDetailPdfInto(id, inv,
-        document.getElementById('fatDetailPdfIframe'),
-        document.getElementById('fatDetailPdfEmpty')
-    );
+    window.location.href = `/faturalar/pages/fatura-detay.html?id=${encodeURIComponent(id)}`;
 }
 
-function closeFatDetailPage() {
-    const detailPage = document.getElementById('fatDetailPage');
-    if (detailPage) detailPage.style.display = 'none';
-    const fp = document.getElementById('faturaPage');
-    if (fp) fp.style.display = '';
-}
 
-function navigateFatDetail(dir) {
-    const list   = window._fatDetailCurrentList || _fatDetailList || [];
-    const newIdx = _fatDetailIdx + dir;
-    if (newIdx < 0 || newIdx >= list.length) return;
-    openFatDetailPage(list[newIdx].id);
-}
 
 function switchFatDetailPageTab(id, tab) {
     switchFatDetailTab(id, tab);

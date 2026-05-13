@@ -5,12 +5,13 @@
     let _fatOpen     = false;
     let _stokOpen    = false;
     let _dmoOpen     = false;
+    let _bekOpen = false;
 
     const path        = location.pathname;
-    const isFaturalar = path === '/' || path === '/index.html' || path.includes('/faturalar/pages/');
-    const isStok      = path.includes('/stok');
+    const isFaturalar = path === '/' || path === '/index.html' || path.includes('/faturalar/pages/');    const isStok      = path.includes('/stok');
     const isDmo       = path.includes('/dmo');
     const isCari      = path.includes('/cari');
+    const isBekleyen  = path.includes('bekleyen');
 
     function buildHtml() {
         return `<aside id="sidebar">
@@ -32,14 +33,32 @@
       <a href="/faturalar/pages/giden-faturalar.html" class="sb-child${path.includes('giden-faturalar') ? ' active' : ''}">
         <i class="ti ti-message-arrow-up"></i><span class="sb-label">Giden</span>
       </a>
-      <a href="/faturalar/pages/bekleyen.html" class="sb-child">
-        <i class="ti ti-clock-hour-4"></i><span class="sb-label">Bekleyen</span>
+ 
+      <!-- Bekleyen sub-group -->
+      <button class="sb-item sb-child-group${isBekleyen ? ' active' : ''}" id="bek-toggle" onclick="toggleBekleyen()" style="padding-left:32px;">
+        <i class="ti ti-clock-hour-4"></i>
+        <span class="sb-label">Bekleyen</span>
+        <i class="ti ti-chevron-down sb-chevron" id="bek-chevron"></i>
+      </button>
+      <div class="sb-children" id="bek-children">
+        <a href="/faturalar/pages/bekleyen-gelen.html" class="sb-child${path.includes('bekleyen-gelen') ? ' active' : ''}" style="padding-left:48px;">
+          <i class="ti ti-message-arrow-down"></i><span class="sb-label">Gelen</span>
+        </a>
+        <a href="/faturalar/pages/bekleyen-giden.html" class="sb-child${path.includes('bekleyen-giden') ? ' active' : ''}" style="padding-left:48px;">
+          <i class="ti ti-message-arrow-up"></i><span class="sb-label">Giden</span>
+        </a>
+      </div>
+ 
+      <a href="/faturalar/pages/fatura-yukle.html" class="sb-child${path.includes('fatura-yukle') ? ' active' : ''}">
+        <i class="ti ti-upload"></i><span class="sb-label">Fatura Yükle</span>
       </a>
-      <a href="/faturalar/pages/rapor.html" class="sb-child">
+      <a href="/faturalar/pages/rapor.html" class="sb-child${path.includes('rapor') ? ' active' : ''}">
         <i class="ti ti-chart-bar"></i><span class="sb-label">Rapor</span>
       </a>
     </div>
-
+    
+    
+ 
     <button class="sb-item${isStok ? ' active' : ''}" id="stok-toggle" onclick="toggleStok()">
       <i class="ti ti-package"></i>
       <span class="sb-label">Stok</span>
@@ -98,6 +117,14 @@
     }
 
     function initSidebar() {
+        if (isBekleyen) {
+            _bekOpen = true;
+            _fatOpen = true;
+            document.getElementById('fat-children')?.classList.add('open');
+            document.getElementById('fat-chevron')?.classList.add('open');
+            document.getElementById('bek-children')?.classList.add('open');
+            document.getElementById('bek-chevron')?.classList.add('open');
+        }
         if (isFaturalar) {
             _fatOpen = true;
             document.getElementById('fat-children')?.classList.add('open');
@@ -126,6 +153,12 @@
             el.classList.toggle('active', el.getAttribute('data-hash') === h);
         });
     }
+
+    window.toggleBekleyen = function () {
+        _bekOpen = !_bekOpen;
+        document.getElementById('bek-children')?.classList.toggle('open', _bekOpen);
+        document.getElementById('bek-chevron')?.classList.toggle('open', _bekOpen);
+    };
 
     window.toggleSidebar = function () {
         _sidebarOpen = !_sidebarOpen;

@@ -134,3 +134,74 @@ async function refreshData(forceFetch = false) {
         tableBody.innerHTML = '<tr><td colspan="7" class="text-center text-danger">Veriler yüklenirken hata oluştu!</td></tr>';
     }
 }
+
+// ─── ADD THESE TO api.js ─────────────────────────────────────────────────────
+
+// ─── Brand / Model cache ──────────────────────────────────────────────────────
+let _brandOptions   = [];          // ['ASUS', 'EPSON', 'HP', ...]
+let _modelsByBrand  = new Map();   // Map { 'HP' => ['HP LaserJet Pro', ...] }
+let _brandModelFetchedAt = 0;
+let _brandModelPromise   = null;
+const BRAND_MODEL_TTL_MS = 5 * 60 * 1000;
+
+async function ensureBrandModelLoaded(force = false) {
+    const now   = Date.now();
+    const fresh = _brandOptions.length > 0 && (now - _brandModelFetchedAt) < BRAND_MODEL_TTL_MS;
+    if (!force && fresh) return;
+    if (_brandModelPromise) { await _brandModelPromise; return; }
+
+    _brandModelPromise = (async () => {
+        const res = await fetch('/api/products');
+        if (!res.ok) throw new Error('Ürün listesi alınamadı');
+        const products = await res.json();
+
+        const brands   = new Set();
+        const byBrand  = new Map();
+
+        (products || []).forEach(p => {
+            const brand = String(p.brand || '').trim();
+            const model = String(p.model || '').trim();
+            if (brand) {
+                brands.add(brand);
+                if (model) {
+                    if (!byBrand.has(brand)) byBrand.set(brand, new Set());
+                    byBrand.get(brand).add(model);
+                }
+            }
+        });
+
+        _brandOptions  = [...brands].sort((a,b) => a.localeCompare(b,'tr'));
+        _modelsByBrand = new Map([...byBrand.entries()].map(([b, ms]) => [b, [...ms].sort((a,b) => a.localeCompare(b,'tr'))]));
+        _brandModelFetchedAt = Date.now();
+    })();
+
+    try { await _brandModelPromise; }
+    finally { _brandModelPromise = null; }
+}
+
+// ─── Save new category to a product by SKU ───────────────────────────────────
+async function saveNewCategoryToProduct(sku, category) {
+    if (!sku || !category) return;
+    try {
+        const res = await fetch(`/api/products/by-code?code=${encodeURIComponent(sku)}`);
+        if (!res.ok) return; // product not found, skip silently
+        const product = await res.json();
+        if (!product?.id) return;
+
+        await fetch(`/api/products/${product.id}`, {
+            method:  'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body:    JSON.stringify({ category })
+        });
+
+        // Update local cache
+        if (!productCategoryOptionList.includes(category)) {
+            productCategoryOptionList.push(category);
+            productCategoryOptionList.sort((a,b) => a.localeCompare(b,'tr'));
+        }
+        const normalSku = normalizeProductCodeForMatch(sku);
+        if (normalSku) productCategoryByCodeMap.set(normalSku, category);
+    } catch (e) {
+        console.warn('Kategori kaydedilemedi:', e.message);
+    }
+}

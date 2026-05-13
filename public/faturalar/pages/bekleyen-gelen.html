@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Bekleyen Gelen — İnokas CRM</title>
+  <script>
+    if (!sessionStorage.getItem('inokas_token')) window.location.href = '/login.html';
+  </script>
+  <link href="https://fonts.googleapis.com/css2?family=Geist+Mono:wght@400;600&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.x/dist/tabler-icons.min.css">
+  <link rel="stylesheet" href="/sidebar.css">
+  <link rel="stylesheet" href="/faturalar/css/bekleyen.css?v=2">
+  <script src="/sidebar.js" defer></script>
+</head>
+<body>
+<div class="app-shell">
+  <div id="sidebar-container"></div>
+  <div class="page-area">
+    <div class="bek-page">
+
+      <!-- Header -->
+      <div class="bek-page-header">
+        <button class="sb-toggle-btn" onclick="toggleSidebar()"><i class="ti ti-menu-2"></i></button>
+        <div>
+          <p class="bek-page-title">Bekleyen Gelen Faturalar</p>
+          <p class="bek-page-sub" id="bekCount">Yükleniyor...</p>
+        </div>
+        <div style="margin-left:auto;">
+          <button class="bek-refresh-btn" onclick="loadBekleyenInvoices()" title="Yenile">
+            <i class="ti ti-refresh"></i>
+          </button>
+        </div>
+      </div>
+
+      <!-- Search -->
+      <div class="bek-toolbar">
+        <input type="text" id="bekSearch" placeholder="Fatura no veya firma ara..."
+          class="bek-search-input" oninput="renderBekleyenList()">
+      </div>
+
+      <!-- Main split -->
+      <div class="bek-main">
+        <!-- Card list -->
+        <div class="bek-list-panel">
+          <div class="bek-card-list" id="bekTbody"></div>
+        </div>
+        <!-- Detail panel -->
+        <div id="bekDetailPanel" class="bek-detail-panel" style="display:none;"></div>
+        <!-- Empty state when nothing selected -->
+        <div id="bekDetailEmpty" class="bek-detail-empty">
+          <i class="ti ti-file-invoice" style="font-size:40px; color:#cbd5e1;"></i>
+          <p>Bir fatura seçin</p>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<script src="/faturalar/js/utils.js?v=1"></script>
+<script src="/faturalar/js/xml.js?v=1"></script>
+<script src="/faturalar/js/api.js?v=1"></script>
+<script src="/faturalar/js/state.js?v=20260511-detailpage"></script>
+<script src="/faturalar/js/detail.js?v=20260511-embedded-pdf"></script>
+<script src="/faturalar/js/bekleyen-page.js?v=1"></script>
+<script>
+  // Initialize with gelen direction
+  document.addEventListener('DOMContentLoaded', () => {
+    window._BEK_DIR = 'INCOMING';
+    initBekleyen();
+  });
+</script>
+</body>
+</html>

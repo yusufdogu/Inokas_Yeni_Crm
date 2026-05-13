@@ -411,38 +411,74 @@ async function syncInvoiceItemInternalMeta(invoiceId, payloadItems) {
   if (dbItemsErr) throw dbItemsErr;
 
   const count = Math.min(dbItems?.length || 0, items.length);
-  const productCategoryUpdates = new Map();
+
   for (let i = 0; i < count; i += 1) {
     const rowId = dbItems[i]?.id;
     if (!rowId) continue;
-    const src = items[i] || {};
-    const isInternal = src.is_internal === true;
-    const categoryRaw = String(src.internal_category || '').trim();
+
+    const src              = items[i] || {};
+    const isInternal       = src.is_internal === true;
+    const categoryRaw      = String(src.internal_category || '').trim();
     const internalCategory = isInternal && categoryRaw ? categoryRaw : null;
-    const productCode = String(src.product_code || '').trim();
-    const productCategory = String(src.product_category || '').trim();
-    if (!isInternal && productCode && productCategory) {
-      productCategoryUpdates.set(productCode, productCategory);
-    }
+
+    // Save is_internal + internal_category to invoice_items
     const { error: updErr } = await supabase
       .from('invoice_items')
       .update({
-        is_internal: isInternal,
-        internal_category: internalCategory
+        is_internal:       isInternal,
+        internal_category: internalCategory,
       })
       .eq('id', rowId);
     if (updErr) throw updErr;
-  }
 
-  for (const [productCode, category] of productCategoryUpdates.entries()) {
-    const { error: pErr } = await supabase
-      .from('products')
-      .update({ category, updated_at: new Date().toISOString() })
-      .eq('product_code', productCode);
-    if (pErr) throw pErr;
+    // For non-internal items with a product_code, upsert to products
+    if (!isInternal) {
+      const productCode = String(src.product_code || '').trim();
+      if (!productCode) continue;
+
+      const brand    = String(src.brand_name || '').trim() || null;
+      const model    = String(src.model      || '').trim() || null;
+      const category = String(src.product_category || src.category || '').trim() || null;
+      const name     = String(src.product_name || '').trim();
+
+      // Check if product exists
+      const { data: existing } = await supabase
+        .from('products')
+        .select('id, brand, category, model')
+        .eq('product_code', productCode)
+        .maybeSingle();
+
+      if (existing) {
+        // Only update fields that are being set — don't overwrite with nulls
+        const updates = { updated_at: new Date().toISOString() };
+        if (brand)    updates.brand    = brand;
+        if (category) updates.category = category;
+        if (model)    updates.model    = model;
+
+        if (Object.keys(updates).length > 1) {
+          const { error: pErr } = await supabase
+            .from('products')
+            .update(updates)
+            .eq('product_code', productCode);
+          if (pErr) console.warn('Product update hatası:', pErr.message);
+        }
+      } else if (name) {
+        // Create new product from invoice item
+        const { error: insertErr } = await supabase
+          .from('products')
+          .insert({
+            product_code: productCode,
+            product_name: name,
+            brand:        brand    || null,
+            category:     category || null,
+            model:        model    || null,
+            source:       'invoice',
+          });
+        if (insertErr) console.warn('Product insert hatası:', insertErr.message);
+      }
+    }
   }
 }
-
 
 
 
@@ -1673,6 +1709,9 @@ app.post('/api/invoice-items/normalize-sku', async (req, res) => {
 
 
 
+// ─── ADD THIS TO index.js ────────────────────────────────────────────────────
+// Place it BEFORE the existing PUT /api/invoices/:id route (around line 1590)
+// and AFTER the GET /api/invoices route.
 
 
 // 4. PUT ROUTE: Faturanın hem Meta-Data hem de (kilidi açılırsa) Resmi alanlarını günceller
@@ -1882,6 +1921,52 @@ app.get('/api/invoices/pending', async (req, res) => {
     res.status(200).json(data || []);
   } catch (err) {
     console.error('Pending fatura çekme hatası:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+app.get('/api/invoices/:id', async (req, res) => {
+  try {
+    const id = String(req.params.id || '').trim();
+    if (!id) return res.status(400).json({ error: 'Fatura ID zorunlu.' });
+
+    const { data, error } = await supabase
+      .from('invoices')
+      .select('*, companies(*), invoice_items(*)')
+      .eq('id', id)
+      .single();
+
+    if (error || !data) return res.status(404).json({ error: 'Fatura bulunamadı.' });
+
+    // Enrich invoice_items with product metadata
+    if (Array.isArray(data.invoice_items) && data.invoice_items.length > 0) {
+      const skus = [...new Set(
+        data.invoice_items
+          .map(it => String(it.product_code || '').trim())
+          .filter(Boolean)
+      )];
+
+      if (skus.length > 0) {
+        const { data: products } = await supabase
+          .from('products')
+          .select('product_code, brand, category, model')
+          .in('product_code', skus);
+
+        const productMap = new Map(
+          (products || []).map(p => [String(p.product_code || '').trim(), p])
+        );
+
+        data.invoice_items.forEach(item => {
+          const p = productMap.get(String(item.product_code || '').trim());
+          item.brand    = p?.brand    || '';
+          item.category = p?.category || '';
+          item.model    = p?.model    || '';
+        });
+      }
+    }
+
+    res.json(data);
+  } catch (err) {
+    console.error('GET /api/invoices/:id hatası:', err.message);
     res.status(500).json({ error: err.message });
   }
 });

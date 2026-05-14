@@ -8,14 +8,23 @@
 
 // --- INITIALIZATION ---
 document.addEventListener('DOMContentLoaded', () => {
+    // ← SET currentView FIRST before anything else
+    const initHash = location.hash.slice(1);
+    if (initHash === 'giden' || window._FAT_INITIAL_VIEW === 'giden') currentView = 'giden';
+    else currentView = 'gelen';
+
+
+    const cachedIsPending = sessionStorage.getItem('inokas_cache_is_pending') === 'true';
+    const nowIsPending    = !!window._FAT_PENDING;
+    if (cachedIsPending !== nowIsPending) {
+        sessionStorage.removeItem(INVOICE_CACHE_KEY);
+    }
+    sessionStorage.setItem('inokas_cache_is_pending', String(nowIsPending));
+
     setupEventListeners();
     bindModalOutsideClose();
     restoreFilterState();
     initFatFilters();
-
-    const initHash = location.hash.slice(1);
-    if (initHash === 'giden' || window._FAT_INITIAL_VIEW === 'giden') currentView = 'giden';
-    else currentView = 'gelen';
 
     showAllState.gelen = true;
     showAllState.giden = true;

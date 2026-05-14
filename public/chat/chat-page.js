@@ -161,6 +161,8 @@ function suggest(text) {
 }
 
 // ─── Send message ─────────────────────────────────────────────────────────────
+// ─── PATCH: Replace sendMessage() in chat-page.js with this ──────────────────
+
 async function sendMessage() {
   const input   = document.getElementById('chatInput');
   const message = (input?.value || '').trim();
@@ -169,9 +171,7 @@ async function sendMessage() {
   input.value        = '';
   input.style.height = 'auto';
 
-  // Remove welcome
   document.querySelector('.chat-welcome')?.remove();
-
   appendUserMessage(message);
 
   const typingId = appendTyping();
@@ -180,25 +180,115 @@ async function sendMessage() {
 
   const history = getHistory();
 
+  // Streaming state
+  let streamedText      = '';
+  let assistantMsgEl    = null;
+  let assistantBubbleEl = null;
+  let assistantMessage  = null;
+
   try {
-    const res  = await fetch('/api/chat', {
+    const response = await fetch('/api/chat', {
       method:  'POST',
       headers: { 'Content-Type': 'application/json' },
       body:    JSON.stringify({ message, history })
     });
-    const data = await res.json();
+
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({}));
+      throw new Error(err.error || 'Sunucu hatası');
+    }
+
+    // Remove typing indicator, create assistant message container
     removeTyping(typingId);
 
-    if (!res.ok) throw new Error(data.error || 'Bir hata oluştu');
+    const msgs = document.getElementById('chatMessages');
+    assistantMsgEl    = document.createElement('div');
+    assistantMsgEl.className = 'chat-msg chat-msg-assistant';
+    assistantMsgEl.innerHTML = '<div class="chat-msg-label">AI Asistan</div>';
 
-    const resp = data.response || {};
-    appendAssistantMessage(resp);
-    renderResults(resp);
+    assistantBubbleEl = document.createElement('div');
+    assistantBubbleEl.className = 'chat-bubble';
+    assistantBubbleEl.style.minHeight = '20px';
+    assistantMsgEl.appendChild(assistantBubbleEl);
+    msgs?.appendChild(assistantMsgEl);
 
-    // Save history
-    history.push({ role: 'user', content: message });
-    if (data.assistant_message) history.push(data.assistant_message);
-    saveHistory(history.slice(-MAX_HISTORY));
+    // Read SSE stream
+    const reader  = response.body.getReader();
+    const decoder = new TextDecoder();
+    let   buffer  = '';
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n');
+      buffer = lines.pop(); // keep incomplete line
+
+      let eventType = null;
+      let dataLine  = null;
+
+      for (const line of lines) {
+        if (line.startsWith('event: ')) {
+          eventType = line.slice(7).trim();
+        } else if (line.startsWith('data: ')) {
+          dataLine = line.slice(6).trim();
+        } else if (line === '' && eventType && dataLine) {
+          // Process event
+          try {
+            const data = JSON.parse(dataLine);
+
+            if (eventType === 'status') {
+              // Show status in bubble while querying
+              if (assistantBubbleEl) {
+                assistantBubbleEl.innerHTML = `<span style="color:#475569; font-size:12px; font-style:italic;">⚙️ ${escHtml(data.text)}</span>`;
+              }
+            } else if (eventType === 'token') {
+              // Stream text tokens
+              streamedText += data.text || '';
+              if (assistantBubbleEl) {
+                assistantBubbleEl.innerHTML = formatText(streamedText);
+              }
+              scrollToBottom();
+            } else if (eventType === 'done') {
+              // Render results panel
+              renderResults({
+                charts: data.charts || [],
+                tables: data.tables || [],
+                pdfs:   data.pdfs   || [],
+              });
+
+              // Add hint if results exist
+              const hasResults = data.charts?.length || data.tables?.length || data.pdfs?.length;
+              if (hasResults && assistantMsgEl) {
+                const hint = document.createElement('div');
+                hint.style.cssText = 'font-size:11px; color:#475569; margin-top:4px; padding:0 4px;';
+                hint.innerHTML = '<i class="ti ti-arrow-right" style="font-size:11px;"></i> Sonuçlar sağ panelde';
+                assistantMsgEl.appendChild(hint);
+              }
+
+              // Save history
+              assistantMessage = data.assistant_message;
+              if (assistantMessage) {
+                history.push({ role: 'user', content: message });
+                history.push(assistantMessage);
+                saveHistory(history.slice(-MAX_HISTORY));
+              }
+
+            } else if (eventType === 'error') {
+              if (assistantBubbleEl) {
+                assistantBubbleEl.innerHTML = `<span style="color:#fca5a5;">⚠️ ${escHtml(data.text)}</span>`;
+              }
+            }
+          } catch (e) {
+            console.warn('SSE parse error:', e);
+          }
+
+          eventType = null;
+          dataLine  = null;
+        }
+      }
+    }
 
   } catch (err) {
     removeTyping(typingId);
@@ -209,7 +299,6 @@ async function sendMessage() {
     input?.focus();
   }
 }
-
 // ─── Message rendering ────────────────────────────────────────────────────────
 function appendUserMessage(text) {
   const msgs = document.getElementById('chatMessages');

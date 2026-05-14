@@ -362,6 +362,14 @@ app.get('/', (req, res) => {
 
 app.get('/login', (req, res) => res.redirect('/login.html'));
 
+
+app.get('/chat', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'chat', 'index.html'));
+});
+app.get('/chat/', (req, res) => {
+  res.redirect(301, '/chat');
+});
+
 // DMO sayfası (ayrı klasör) erişimi
 app.use('/dmo', express.static(path.join(__dirname, 'dmo')));
 app.get('/dmo', (req, res) => {
@@ -382,12 +390,6 @@ app.get('/cari/', (req, res) => {
 
 app.use('/api/chat', require('./chat-router'));
 
-app.get('/chat', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'chat', 'index.html'));
-});
-app.get('/chat/', (req, res) => {
-  res.redirect(301, '/chat');
-});
 
 app.use(express.static(path.join(__dirname, 'public'), {
   setHeaders: (res, filePath) => {
@@ -399,8 +401,6 @@ app.use(express.static(path.join(__dirname, 'public'), {
     }
   }
 }));
-
-
 
 
 

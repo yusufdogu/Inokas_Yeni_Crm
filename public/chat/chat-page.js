@@ -60,10 +60,13 @@ function newConversation() {
 
 // ─── Dashboard ────────────────────────────────────────────────────────────────
 async function loadDashboard() {
+  const timeout = new Promise((_, reject) =>
+    setTimeout(() => reject(new Error('timeout')), 5000)
+  );
   await Promise.allSettled([
-    loadUnpaidStat(),
-    loadPendingOrdersStat(),
-    loadLowStockStat(),
+    Promise.race([loadUnpaidStat(),        timeout]),
+    Promise.race([loadPendingOrdersStat(), timeout]),
+    Promise.race([loadLowStockStat(),      timeout]),
   ]);
 }
 

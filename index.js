@@ -363,10 +363,10 @@ app.get('/', (req, res) => {
 app.get('/login', (req, res) => res.redirect('/login.html'));
 
 app.get('/chat', (req, res) => {
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Expires', '0');
   res.sendFile(path.join(__dirname, 'chat.html'));
-});
-app.get('/chat/', (req, res) => {
-  res.redirect(301, '/chat');
 });
 
 app.use('/api/chat', require('./chat-router'));

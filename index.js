@@ -380,7 +380,7 @@ app.get('/cari/', (req, res) => {
   res.redirect('/cari/cari-index.html');
 });
 
-app.use('/api/chat', require('./chat'));
+app.use('/api/chat', require('./chat-router'));
 
 app.get('/chat', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'chat', 'index.html'));

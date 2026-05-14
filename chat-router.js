@@ -1,4 +1,4 @@
-// chat.js — İnokas CRM AI Asistan Backend
+// chat-router.js — İnokas CRM AI Asistan Backend
 'use strict';
 
 const express   = require('express');

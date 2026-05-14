@@ -7,11 +7,14 @@
     let _dmoOpen     = false;
     let _bekOpen = false;
 
+
     const path        = location.pathname;
     const isFaturalar = path === '/' || path === '/index.html' || path.includes('/faturalar/pages/');    const isStok      = path.includes('/stok');
     const isDmo       = path.includes('/dmo');
     const isCari      = path.includes('/cari');
     const isBekleyen  = path.includes('bekleyen');
+    const isChat = path.includes('/chat');
+
 
     function buildHtml() {
         return `<aside id="sidebar">
@@ -20,6 +23,17 @@
     <span class="sb-brand-text">İnokas <span>CRM</span></span>
   </a>
   <nav class="sb-nav">
+    <a href="/chat" class="sb-item${isChat ? ' active' : ''}" style="position:relative;">
+      <i class="ti ti-message-bolt" style="color:${isChat ? '#93c5fd' : 'rgba(255,255,255,0.45)'}"></i>
+      <span class="sb-label">AI Asistan</span>
+      <span style="
+        position:absolute; right:10px; top:50%; transform:translateY(-50%);
+        width:7px; height:7px; border-radius:50%;
+        background:#22c55e;
+        box-shadow:0 0 6px rgba(34,197,94,0.7);
+      "></span>
+    </a>
+    <div class="sb-divider"></div>
 
     <button class="sb-item${isFaturalar ? ' active' : ''}" id="fat-toggle" onclick="toggleFaturalar()">
       <i class="ti ti-file-invoice"></i>

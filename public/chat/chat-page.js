@@ -467,44 +467,133 @@ function buildResultPdfs(pdfs) {
   return wrap;
 }
 
-// ─── Voice input ──────────────────────────────────────────────────────────────
+// ─── PATCH: Replace the entire voice section in chat-page.js ─────────────────
+// Replace toggleVoice, startRecording, stopRecording with these:
+
+let _mediaRecorder = null;
+let _audioChunks   = [];
+
 function toggleVoice() {
   _isRecording ? stopRecording() : startRecording();
 }
 
-function startRecording() {
-  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-  if (!SR) { alert('Tarayıcınız sesli girişi desteklemiyor. Chrome kullanın.'); return; }
+async function startRecording() {
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
 
-  _recognition              = new SR();
-  _recognition.lang         = 'tr-TR';
-  _recognition.continuous   = false;
-  _recognition.interimResults = false;
+    // Pick best supported format
+    const mimeType = [
+      'audio/webm;codecs=opus',
+      'audio/webm',
+      'audio/ogg;codecs=opus',
+      'audio/mp4',
+    ].find(t => MediaRecorder.isTypeSupported(t)) || '';
 
-  _recognition.onresult = e => {
-    const t     = e.results[0][0].transcript;
+    _audioChunks   = [];
+    _mediaRecorder = new MediaRecorder(stream, mimeType ? { mimeType } : {});
+
+    _mediaRecorder.ondataavailable = e => {
+      if (e.data.size > 0) _audioChunks.push(e.data);
+    };
+
+    _mediaRecorder.onstop = async () => {
+      // Stop all tracks to release microphone
+      stream.getTracks().forEach(t => t.stop());
+
+      const audioBlob = new Blob(_audioChunks, { type: mimeType || 'audio/webm' });
+      _audioChunks    = [];
+
+      await transcribeAudio(audioBlob, mimeType || 'audio/webm');
+    };
+
+    _mediaRecorder.start(250); // collect data every 250ms
+    _isRecording = true;
+
+    const btn = document.getElementById('chatVoiceBtn');
+    if (btn) {
+      btn.classList.add('recording');
+      btn.innerHTML = '<i class="ti ti-square" style="font-size:13px;"></i>';
+      btn.title     = 'Durdurmak için tıkla';
+    }
+
+    // Show recording indicator in input
     const input = document.getElementById('chatInput');
-    if (input) { input.value = t; input.style.height = 'auto'; input.style.height = Math.min(input.scrollHeight, 120) + 'px'; }
-    stopRecording();
-    setTimeout(sendMessage, 300);
-  };
+    if (input) {
+      input.placeholder = '🔴 Kaydediliyor... durdurmak için mikrofona bas';
+      input.disabled    = true;
+    }
 
-  _recognition.onerror = () => stopRecording();
-  _recognition.onend   = () => stopRecording();
-  _recognition.start();
-  _isRecording = true;
-
-  const btn = document.getElementById('chatVoiceBtn');
-  if (btn) { btn.classList.add('recording'); btn.innerHTML = '<i class="ti ti-microphone-off"></i>'; }
+  } catch (err) {
+    console.error('Mikrofon hatası:', err);
+    if (err.name === 'NotAllowedError') {
+      alert('Mikrofon izni verilmedi. Tarayıcı ayarlarından izin verin.');
+    } else {
+      alert('Mikrofon açılamadı: ' + err.message);
+    }
+    _isRecording = false;
+  }
 }
 
 function stopRecording() {
+  if (_mediaRecorder && _mediaRecorder.state !== 'inactive') {
+    _mediaRecorder.stop();
+  }
   _isRecording = false;
-  _recognition?.stop();
-  _recognition = null;
+
   const btn = document.getElementById('chatVoiceBtn');
-  if (btn) { btn.classList.remove('recording'); btn.innerHTML = '<i class="ti ti-microphone"></i>'; }
+  if (btn) {
+    btn.classList.remove('recording');
+    btn.innerHTML = '<i class="ti ti-microphone"></i>';
+    btn.title     = 'Sesli giriş';
+    btn.disabled  = true; // disable while transcribing
+  }
+
+  const input = document.getElementById('chatInput');
+  if (input) {
+    input.placeholder = 'Transkript alınıyor...';
+  }
 }
+
+async function transcribeAudio(audioBlob, mimeType) {
+  const btn   = document.getElementById('chatVoiceBtn');
+  const input = document.getElementById('chatInput');
+
+  try {
+    const res = await fetch('/api/transcribe', {
+      method:  'POST',
+      headers: { 'Content-Type': mimeType },
+      body:    audioBlob,
+    });
+
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Transkript alınamadı');
+
+    if (input) {
+      input.value       = data.text || '';
+      input.placeholder = 'Bir şey sorun...';
+      input.disabled    = false;
+      input.style.height = 'auto';
+      input.style.height = Math.min(input.scrollHeight, 120) + 'px';
+      input.focus();
+    }
+
+  } catch (err) {
+    console.error('Transkript hatası:', err);
+    if (input) {
+      input.placeholder = 'Bir şey sorun...';
+      input.disabled    = false;
+      input.value       = '';
+    }
+    appendError('Ses transkripti alınamadı: ' + err.message);
+  } finally {
+    if (btn) {
+      btn.disabled  = false;
+      btn.innerHTML = '<i class="ti ti-microphone"></i>';
+    }
+    _mediaRecorder = null;
+  }
+}
+
 
 // ─── History ──────────────────────────────────────────────────────────────────
 function getHistory() {

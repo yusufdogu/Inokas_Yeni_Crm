@@ -284,8 +284,13 @@ body {
 }
 
 .chat-voice-btn:hover     { background: #1e3a5f; border-color: #2563eb; color: #60a5fa; }
-.chat-voice-btn.recording { background: #450a0a; border-color: #ef4444; color: #ef4444; animation: chat-pulse 1s infinite; }
-
+.chat-voice-btn.recording {
+  background: #ef4444 !important;
+  border-color: #ef4444 !important;
+  color: white !important;
+  box-shadow: 0 0 0 4px rgba(239,68,68,0.3);
+  animation: chat-pulse 0.8s infinite;
+}
 @keyframes chat-pulse {
   0%, 100% { opacity: 1; }
   50%       { opacity: 0.55; }

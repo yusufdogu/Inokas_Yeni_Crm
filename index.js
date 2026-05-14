@@ -371,6 +371,9 @@ app.get('/chat', (req, res) => {
 
 app.use('/api/chat', require('./chat-router'));
 
+app.use('/api/transcribe', require('./transcribe-router'));
+
+
 app.use('/dmo', express.static(path.join(__dirname, 'dmo')));
 app.get('/dmo', (req, res) => res.redirect('/dmo/dmo-index.html'));
 app.get('/dmo/', (req, res) => res.redirect('/dmo/dmo-index.html'));
@@ -378,6 +381,9 @@ app.get('/dmo/', (req, res) => res.redirect('/dmo/dmo-index.html'));
 app.use('/cari', express.static(path.join(__dirname, 'cari')));
 app.get('/cari', (req, res) => res.redirect('/cari/cari-index.html'));
 app.get('/cari/', (req, res) => res.redirect('/cari/cari-index.html'));
+
+
+
 
 app.use(express.static(path.join(__dirname, 'public'), {
   setHeaders: (res, filePath) => {

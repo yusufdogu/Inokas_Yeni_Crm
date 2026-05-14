@@ -357,52 +357,37 @@ app.post('/api/invoices/recheck-now', async (req, res) => {
 
 app.get('/', (req, res) => {
   res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
-  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+  res.sendFile(path.join(__dirname, 'chat.html'));
 });
 
 app.get('/login', (req, res) => res.redirect('/login.html'));
 
-
 app.get('/chat', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'chat', 'index.html'));
+  res.sendFile(path.join(__dirname, 'chat.html'));
 });
 app.get('/chat/', (req, res) => {
   res.redirect(301, '/chat');
 });
 
-// DMO sayfası (ayrı klasör) erişimi
-app.use('/dmo', express.static(path.join(__dirname, 'dmo')));
-app.get('/dmo', (req, res) => {
-  res.redirect('/dmo/dmo-index.html');
-});
-app.get('/dmo/', (req, res) => {
-  res.redirect('/dmo/dmo-index.html');
-});
-
-// Cari Analiz (ayrı klasör) erişimi
-app.use('/cari', express.static(path.join(__dirname, 'cari')));
-app.get('/cari', (req, res) => {
-  res.redirect('/cari/cari-index.html');
-});
-app.get('/cari/', (req, res) => {
-  res.redirect('/cari/cari-index.html');
-});
-
 app.use('/api/chat', require('./chat-router'));
 
+app.use('/dmo', express.static(path.join(__dirname, 'dmo')));
+app.get('/dmo', (req, res) => res.redirect('/dmo/dmo-index.html'));
+app.get('/dmo/', (req, res) => res.redirect('/dmo/dmo-index.html'));
+
+app.use('/cari', express.static(path.join(__dirname, 'cari')));
+app.get('/cari', (req, res) => res.redirect('/cari/cari-index.html'));
+app.get('/cari/', (req, res) => res.redirect('/cari/cari-index.html'));
 
 app.use(express.static(path.join(__dirname, 'public'), {
   setHeaders: (res, filePath) => {
-    // Tarayıcıların eski dmo-index.pages / faturalar.js tutmasını engelle (deploy sonrası "eski kod" semptomu)
-    if (filePath.endsWith('.pages') || filePath.endsWith('.js')) {
+    if (filePath.endsWith('.html') || filePath.endsWith('.js')) {
       res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
       res.setHeader('Pragma', 'no-cache');
       res.setHeader('Expires', '0');
     }
   }
 }));
-
-
 
 /** Toplu XML sınıflandırması için (VKN kamuya yakın bilgi; sadece yön tespiti) */
 app.get('/api/inokas-vkn', (req, res) => {

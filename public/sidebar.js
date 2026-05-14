@@ -9,7 +9,7 @@
 
 
     const path        = location.pathname;
-    const isFaturalar = path === '/' || path === '/index.html' || path.includes('/faturalar/pages/');    const isStok      = path.includes('/stok');
+    const isFaturalar = path === '/' || path === '/chat.html' || path.includes('/faturalar/pages/');    const isStok      = path.includes('/stok');
     const isDmo       = path.includes('/dmo');
     const isCari      = path.includes('/cari');
     const isBekleyen  = path.includes('bekleyen');

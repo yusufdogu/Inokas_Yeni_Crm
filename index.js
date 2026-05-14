@@ -383,25 +383,9 @@ app.get('/cari/', (req, res) => {
 app.use('/api/chat', require('./chat-router'));
 
 app.get('/chat', (req, res) => {
-  const filePath = path.join(__dirname, 'public', 'chat', 'index.html');
-  console.log('[CHAT] Request received:', req.url);
-  console.log('[CHAT] File path:', filePath);
-  console.log('[CHAT] __dirname:', __dirname);
-
-  const fs = require('fs');
-  const exists = fs.existsSync(filePath);
-  console.log('[CHAT] File exists:', exists);
-
-  if (!exists) {
-    console.error('[CHAT] FILE NOT FOUND:', filePath);
-    return res.status(404).send('Chat page not found. Path: ' + filePath);
-  }
-
-  res.sendFile(filePath);
+  res.sendFile(path.join(__dirname, 'public', 'chat', 'index.html'));
 });
-
 app.get('/chat/', (req, res) => {
-  console.log('[CHAT/] Trailing slash request, redirecting to /chat');
   res.redirect(301, '/chat');
 });
 

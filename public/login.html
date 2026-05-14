@@ -309,7 +309,8 @@
 
         sessionStorage.setItem('inokas_token', data.token);
         btn.textContent = '✓ Giriş yapıldı';
-        setTimeout(() => window.location.href = '/chat', 600);
+        setTimeout(() => window.location.replace('/chat'), 600);
+
 
       } catch (err) {
         errorEl.textContent   = err.message;

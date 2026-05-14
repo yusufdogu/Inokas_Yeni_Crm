@@ -380,6 +380,16 @@ app.get('/cari/', (req, res) => {
   res.redirect('/cari/cari-index.html');
 });
 
+app.use('/api/chat', require('./chat'));
+
+app.get('/chat', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'chat', 'index.html'));
+});
+
+app.get('/chat/', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'chat', 'index.html'));
+});
+
 app.use(express.static(path.join(__dirname, 'public'), {
   setHeaders: (res, filePath) => {
     // Tarayıcıların eski dmo-index.pages / faturalar.js tutmasını engelle (deploy sonrası "eski kod" semptomu)
@@ -391,17 +401,10 @@ app.use(express.static(path.join(__dirname, 'public'), {
   }
 }));
 
-app.use('/api/chat', require('./chat'));
 
 
 
-app.get('/chat', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'chat', 'index.html'));
-});
 
-app.get('/chat/', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'chat', 'index.html'));
-});
 /** Toplu XML sınıflandırması için (VKN kamuya yakın bilgi; sadece yön tespiti) */
 app.get('/api/inokas-vkn', (req, res) => {
   const vkn = (process.env.INOKAS_VKN || '').trim();

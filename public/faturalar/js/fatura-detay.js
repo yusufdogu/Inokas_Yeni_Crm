@@ -143,13 +143,19 @@ window.switchFatDetailTab = function(id, tab) {
 // approveDetailInvoice may exist in detail.js or main.js — guard it
 if (typeof approveDetailInvoice === 'undefined') {
     window.approveDetailInvoice = async function(id) {
+        const btn = document.querySelector(`[onclick="approveDetailInvoice('${id}')"]`);
+        if (btn) { btn.disabled = true; btn.textContent = 'Aktarılıyor...'; }
         try {
             const res = await fetch(`/api/invoices/${id}/approve`, { method: 'PUT' });
             if (!res.ok) throw new Error('Onay başarısız');
-            // Reload invoice
-            await loadInvoice(id);
+            const isIncoming = String(_detayInv?.direction || '').toUpperCase() === 'INCOMING';
+            alert('Fatura başarıyla aktarıldı.');
+            window.location.href = isIncoming
+                ? '/faturalar/pages/gelen-faturalar.html'
+                : '/faturalar/pages/giden-faturalar.html';
         } catch (err) {
             alert(`Hata: ${err.message}`);
+            if (btn) { btn.disabled = false; btn.textContent = 'Aktar'; }
         }
     };
 }

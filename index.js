@@ -21,7 +21,8 @@ const inokasVknLoaded = !!(process.env.INOKAS_VKN || '').trim();
 console.log('INOKAS_VKN:', inokasVknLoaded ? 'yüklendi ✓' : 'TANIMSIZ — .env veya ortam değişkenini kontrol edin');
 
 // 1. ADD THIS: This allows your server to read the "Big Package" (JSON) sent from the browser
-app.use(express.json());
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 const supabase = createClient(
   process.env.SUPABASE_URL,

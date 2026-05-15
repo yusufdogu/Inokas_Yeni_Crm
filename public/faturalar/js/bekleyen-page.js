@@ -111,10 +111,10 @@ async function importPendingInvoice(rawId) {
         const data = await res.json().catch(() => ({}));
         if (!res.ok) throw new Error(data.error || 'HTTP ' + res.status);
 
-        bekleyenCache = bekleyenCache.filter(i => String(i.id) !== id);
-        activeBekId   = null;
-        renderBekleyenList();
-        _hideDetail();
+        const isIncoming = String(inv?.direction || '').toUpperCase() === 'INCOMING';
+        window.location.href = isIncoming
+            ? '/faturalar/pages/gelen-faturalar.html'
+            : '/faturalar/pages/giden-faturalar.html';
     } catch (e) {
         alert('Aktarım hatası: ' + e.message);
     }

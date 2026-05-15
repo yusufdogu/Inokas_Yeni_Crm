@@ -1693,8 +1693,18 @@ app.get('/api/invoices', async (req, res) => {
       }
     }
 
+    // Tüm kalemleri ofis-içi olan faturaları alışlar/satışlar listesinden çıkar
+    let result = data;
+    if (direction && Array.isArray(data)) {
+      result = data.filter(inv => {
+        const items = inv.invoice_items || [];
+        if (!items.length) return true;
+        return items.some(it => !it.is_internal);
+      });
+    }
+
     // Bulduğumuz faturaları tarayıcıya geri yolla
-    res.status(200).json(data);
+    res.status(200).json(result);
   } catch (err) {
     console.error("Fatura Çekme Hatası:", err.message);
     res.status(500).json({ error: err.message });

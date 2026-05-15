@@ -95,7 +95,6 @@ async function testGelen() {
             console.log(`   profile_id              : ${invoice.profile_id || '(none)'}`);
             console.log(`   invoice_type            : ${invoice.invoice_type || '(none)'}`);
             console.log(`   invoice_date            : ${invoice.invoice_date}`);
-            console.log(`   issue_time              : ${invoice.issue_time || '(none)'}`);
             console.log(`   direction               : ${invoice.direction}`);
             console.log(`   currency                : ${invoice.currency}`);
             console.log(`   base_currency           : ${invoice.base_currency || '(none)'}`);
@@ -256,7 +255,6 @@ async function testGiden() {
             console.log(`   profile_id              : ${invoice.profile_id || '(none)'}`);
             console.log(`   invoice_type            : ${invoice.invoice_type || '(none)'}`);
             console.log(`   invoice_date            : ${invoice.invoice_date}`);
-            console.log(`   issue_time              : ${invoice.issue_time || '(none)'}`);
             console.log(`   direction               : ${invoice.direction}`);
             console.log(`   currency                : ${invoice.currency}`);
             console.log(`   base_currency           : ${invoice.base_currency || '(none)'}`);

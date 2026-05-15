@@ -62,9 +62,9 @@ function parseProductCodeForSku(itemNode, viewKey, unresolvedWarnings) {
         ?.getElementsByTagNameNS(ns.cbc, 'ID')[0]?.textContent;
     const standard = itemNode.getElementsByTagNameNS(ns.cac, 'StandardItemIdentification')[0]
         ?.getElementsByTagNameNS(ns.cbc, 'ID')[0]?.textContent;
-    const name        = itemNode.getElementsByTagNameNS(ns.cbc, 'Name')[0]?.textContent;
+    const name = itemNode.getElementsByTagNameNS(ns.cbc, 'Name')[0]?.textContent;
     const description = itemNode.getElementsByTagNameNS(ns.cbc, 'Description')[0]?.textContent;
-    const keyword     = itemNode.getElementsByTagNameNS(ns.cbc, 'Keyword')[0]?.textContent;
+    const keyword = itemNode.getElementsByTagNameNS(ns.cbc, 'Keyword')[0]?.textContent;
 
     const t = sanitizeSkuCandidate;
 
@@ -123,7 +123,7 @@ function mapProfileIdToFormInvoiceType(profileId) {
     if (!profileId) return null;
     if (profileId.includes('TICARIFATURA')) return 'TICARIFATURA';
     if (profileId.includes('EARSIVFATURA')) return 'EARSIVFATURA';
-    if (profileId.includes('IHRACAT'))      return 'IHRACAT';
+    if (profileId.includes('IHRACAT')) return 'IHRACAT';
     return profileId; // fallback: store raw value
 }
 
@@ -147,12 +147,12 @@ function parseUblFromBase64(base64Content, viewKey = 'gelen') {
 }
 
 function buildInvoicePayload(xml, viewKey) {
-    const f_no           = getVal(xml, 'ID');
-    const f_date         = getVal(xml, 'IssueDate');
-    const profileId      = getVal(xml, 'ProfileID');
+    const f_no = getVal(xml, 'ID');
+    const f_date = getVal(xml, 'IssueDate');
+    const profileId = getVal(xml, 'ProfileID');
     const invoiceTypeCode = getVal(xml, 'InvoiceTypeCode');
     const formInvoiceType = mapProfileIdToFormInvoiceType(profileId);
-    const f_due_date     = parseDueDateFromInvoice(xml);
+    const f_due_date = parseDueDateFromInvoice(xml);
 
     const supplierWrapper = xml.getElementsByTagNameNS(ns.cac, 'AccountingSupplierParty')[0]
         ?.getElementsByTagNameNS(ns.cac, 'Party')[0];
@@ -175,30 +175,30 @@ function buildInvoicePayload(xml, viewKey) {
     const supplierVKN = getVkn(supplierWrapper);
     const customerVKN = getVkn(customerWrapper);
     const party = viewKey === 'gelen' ? supplierWrapper : customerWrapper;
-    const vkn   = viewKey === 'gelen' ? supplierVKN : customerVKN;
+    const vkn = viewKey === 'gelen' ? supplierVKN : customerVKN;
 
     // Company name — org name or person fallback
     const rawOrgName = party.getElementsByTagNameNS(ns.cac, 'PartyName')[0]
         ?.getElementsByTagNameNS(ns.cbc, 'Name')[0]?.textContent ||
         party.getElementsByTagNameNS(ns.cbc, 'RegistrationName')[0]?.textContent || '';
     const personNode = party.getElementsByTagNameNS(ns.cac, 'Person')[0];
-    const firstN  = personNode?.getElementsByTagNameNS(ns.cbc, 'FirstName')[0]?.textContent?.trim() || '';
-    const lastN   = personNode?.getElementsByTagNameNS(ns.cbc, 'FamilyName')[0]?.textContent?.trim() || '';
+    const firstN = personNode?.getElementsByTagNameNS(ns.cbc, 'FirstName')[0]?.textContent?.trim() || '';
+    const lastN = personNode?.getElementsByTagNameNS(ns.cbc, 'FamilyName')[0]?.textContent?.trim() || '';
     const fromPerson = [firstN, lastN].filter(Boolean).join(' ');
     const firmaAdi = rawOrgName.trim() || fromPerson || 'Bilinmeyen Firma';
 
     // Address
-    const addrNode  = party.getElementsByTagNameNS(ns.cac, 'PostalAddress')[0];
-    const street    = addrNode?.getElementsByTagNameNS(ns.cbc, 'StreetName')[0]?.textContent || '';
-    const bldg      = addrNode?.getElementsByTagNameNS(ns.cbc, 'BuildingNumber')[0]?.textContent || '';
-    const citySub   = addrNode?.getElementsByTagNameNS(ns.cbc, 'CitySubdivisionName')[0]?.textContent || '';
-    const city      = addrNode?.getElementsByTagNameNS(ns.cbc, 'CityName')[0]?.textContent || '';
+    const addrNode = party.getElementsByTagNameNS(ns.cac, 'PostalAddress')[0];
+    const street = addrNode?.getElementsByTagNameNS(ns.cbc, 'StreetName')[0]?.textContent || '';
+    const bldg = addrNode?.getElementsByTagNameNS(ns.cbc, 'BuildingNumber')[0]?.textContent || '';
+    const citySub = addrNode?.getElementsByTagNameNS(ns.cbc, 'CitySubdivisionName')[0]?.textContent || '';
+    const city = addrNode?.getElementsByTagNameNS(ns.cbc, 'CityName')[0]?.textContent || '';
     const fullAddress = `${street} No:${bldg} ${citySub} / ${city}`.trim();
 
     // Contact
     const contactNode = party.getElementsByTagNameNS(ns.cac, 'Contact')[0];
-    const phone   = contactNode?.getElementsByTagNameNS(ns.cbc, 'Telephone')[0]?.textContent || '';
-    const email   = contactNode?.getElementsByTagNameNS(ns.cbc, 'ElectronicMail')[0]?.textContent || '';
+    const phone = contactNode?.getElementsByTagNameNS(ns.cbc, 'Telephone')[0]?.textContent || '';
+    const email = contactNode?.getElementsByTagNameNS(ns.cbc, 'ElectronicMail')[0]?.textContent || '';
     const website = contactNode?.getElementsByTagNameNS(ns.cbc, 'WebsiteURI')[0]?.textContent || '';
 
     // Tax office
@@ -211,22 +211,22 @@ function buildInvoicePayload(xml, viewKey) {
     const monetaryTotal = xml.getElementsByTagNameNS(ns.cac, 'LegalMonetaryTotal')[0];
     if (!monetaryTotal) throw new Error("LegalMonetaryTotal not found in UBL");
 
-    const taxTotalNode    = xml.getElementsByTagNameNS(ns.cac, 'TaxTotal')[0];
-    const currencyNode    = monetaryTotal.getElementsByTagNameNS(ns.cbc, 'PayableAmount')[0];
+    const taxTotalNode = xml.getElementsByTagNameNS(ns.cac, 'TaxTotal')[0];
+    const currencyNode = monetaryTotal.getElementsByTagNameNS(ns.cbc, 'PayableAmount')[0];
     const payableCurrencyId = currencyNode?.getAttribute('currencyID') || 'TRY';
 
-    const exchangeRateNode  = xml.getElementsByTagNameNS(ns.cac, 'PricingExchangeRate')[0];
-    const sourceFromRate    = exchangeRateNode?.getElementsByTagNameNS(ns.cbc, 'SourceCurrencyCode')[0]?.textContent?.trim() || '';
-    const targetFromRate    = exchangeRateNode?.getElementsByTagNameNS(ns.cbc, 'TargetCurrencyCode')[0]?.textContent?.trim() || '';
-    const kurRaw            = exchangeRateNode?.getElementsByTagNameNS(ns.cbc, 'CalculationRate')[0]?.textContent || '';
-    const calculationRate   = (() => { const r = parseFloat(kurRaw); return Number.isFinite(r) && r > 0 ? r : 1; })();
+    const exchangeRateNode = xml.getElementsByTagNameNS(ns.cac, 'PricingExchangeRate')[0];
+    const sourceFromRate = exchangeRateNode?.getElementsByTagNameNS(ns.cbc, 'SourceCurrencyCode')[0]?.textContent?.trim() || '';
+    const targetFromRate = exchangeRateNode?.getElementsByTagNameNS(ns.cbc, 'TargetCurrencyCode')[0]?.textContent?.trim() || '';
+    const kurRaw = exchangeRateNode?.getElementsByTagNameNS(ns.cbc, 'CalculationRate')[0]?.textContent || '';
+    const calculationRate = (() => { const r = parseFloat(kurRaw); return Number.isFinite(r) && r > 0 ? r : 1; })();
 
-    const baseIso    = (sourceFromRate || payableCurrencyId || 'TRY').toUpperCase();
-    const targetIso  = (targetFromRate || 'TRY').toUpperCase();
+    const baseIso = (sourceFromRate || payableCurrencyId || 'TRY').toUpperCase();
+    const targetIso = (targetFromRate || 'TRY').toUpperCase();
     const currencyUi = baseIso === 'TL' ? 'TRY' : baseIso;
 
-    const netCur      = parseFloat(getVal(monetaryTotal, 'TaxExclusiveAmount')) || 0;
-    const payableCur  = parseFloat(getVal(monetaryTotal, 'PayableAmount')) || 0;
+    const netCur = parseFloat(getVal(monetaryTotal, 'TaxExclusiveAmount')) || 0;
+    const payableCur = parseFloat(getVal(monetaryTotal, 'PayableAmount')) || 0;
     const taxInclusiveRaw = getVal(monetaryTotal, 'TaxInclusiveAmount');
     let taxCur = taxTotalNode ? parseFloat(getVal(taxTotalNode, 'TaxAmount') || '0') : NaN;
     if (!Number.isFinite(taxCur)) taxCur = payableCur - netCur;
@@ -239,14 +239,14 @@ function buildInvoicePayload(xml, viewKey) {
         ?.getElementsByTagNameNS(ns.cbc, 'InstructionNote')[0]?.textContent?.trim() || null;
 
     const paymentTermsNote = xml.getElementsByTagNameNS(ns.cac, 'PaymentTerms')[0]
-            ?.getElementsByTagNameNS(ns.cbc, 'Note')[0]?.textContent?.trim() || null;
+        ?.getElementsByTagNameNS(ns.cbc, 'Note')[0]?.textContent?.trim() || null;
     // TL conversions
-    const netTl     = netCur     * calculationRate;
-    const taxTl     = taxCur     * calculationRate;
+    const netTl = netCur * calculationRate;
+    const taxTl = taxCur * calculationRate;
     const payableTl = payableCur * calculationRate;
 
     // Notes
-    const noteNodes  = xml.getElementsByTagNameNS(ns.cbc, 'Note');
+    const noteNodes = xml.getElementsByTagNameNS(ns.cbc, 'Note');
     const notesArray = Array.from(noteNodes).map(n => n.textContent.trim()).filter(n => n.length > 0);
 
 
@@ -256,15 +256,15 @@ function buildInvoicePayload(xml, viewKey) {
     const unresolvedSkuWarnings = [];
 
     Array.from(lines).forEach(line => {
-        const itemNode    = line.getElementsByTagNameNS(ns.cac, 'Item')[0];
-        const name        = itemNode.getElementsByTagNameNS(ns.cbc, 'Description')[0]?.textContent
+        const itemNode = line.getElementsByTagNameNS(ns.cac, 'Item')[0];
+        const name = itemNode.getElementsByTagNameNS(ns.cbc, 'Description')[0]?.textContent
             || itemNode.getElementsByTagNameNS(ns.cbc, 'Name')[0]?.textContent
             || 'İsimsiz Ürün';
-        const sku         = parseProductCodeForSku(itemNode, viewKey, unresolvedSkuWarnings);
-        const qty         = parseFloat(getVal(line, 'InvoicedQuantity')) || 0;
-        const priceNode   = line.getElementsByTagNameNS(ns.cac, 'Price')[0];
-        const price       = parseFloat(priceNode?.getElementsByTagNameNS(ns.cbc, 'PriceAmount')[0]?.textContent) || 0;
-        const lineTotal   = parseFloat(getVal(line, 'LineExtensionAmount')) || (qty * price);
+        const sku = parseProductCodeForSku(itemNode, viewKey, unresolvedSkuWarnings);
+        const qty = parseFloat(getVal(line, 'InvoicedQuantity')) || 0;
+        const priceNode = line.getElementsByTagNameNS(ns.cac, 'Price')[0];
+        const price = parseFloat(priceNode?.getElementsByTagNameNS(ns.cbc, 'PriceAmount')[0]?.textContent) || 0;
+        const lineTotal = parseFloat(getVal(line, 'LineExtensionAmount')) || (qty * price);
         const taxSubtotal = line.getElementsByTagNameNS(ns.cac, 'TaxTotal')[0]
             ?.getElementsByTagNameNS(ns.cac, 'TaxSubtotal')[0];
         const taxRate = taxSubtotal
@@ -281,59 +281,57 @@ function buildInvoicePayload(xml, viewKey) {
 
 
         items.push({
-            line_id:          lineId,
-            product_name:     name,
-            product_code:     sku || null,
-            brand_name:       brandName,
+            line_id: lineId,
+            product_name: name,
+            product_code: sku || null,
+            brand_name: brandName,
             manufacturer_code: manufacturerCode,
-            quantity:         qty,
-            unit_code:        unitCode,
-            unit_price_cur:   price,
-            total_price_cur:  lineTotal,
-            tax_rate:         taxRate,
-            currency:         currencyUi,
-            line_note:        lineNote,
+            quantity: qty,
+            unit_code: unitCode,
+            unit_price_cur: price,
+            total_price_cur: lineTotal,
+            tax_rate: taxRate,
+            currency: currencyUi,
+            line_note: lineNote,
             internal_category: null,
         });
     });
 
     return {
         company: {
-            vkn_tckn:    vkn,
-            name:        firmaAdi,
-            tax_office:  taxOffice,
-            address:     fullAddress,
+            vkn_tckn: vkn,
+            name: firmaAdi,
+            tax_office: taxOffice,
+            address: fullAddress,
             city: addrNode?.getElementsByTagNameNS(ns.cbc, 'CityName')[0]?.textContent?.trim() || null,
             postal_code: addrNode?.getElementsByTagNameNS(ns.cbc, 'PostalZone')[0]?.textContent?.trim() || null,
             phone,
             email,
             website,
             is_supplier: viewKey === 'gelen',
-            is_client:   viewKey === 'giden',
-            is_active:   true,
+            is_client: viewKey === 'giden',
+            is_active: true,
         },
         invoice: {
-            efatura_uuid:            xml.getElementsByTagNameNS(ns.cbc, 'UUID')[0]?.textContent?.trim(),
-            invoice_no:              f_no,
-            direction:               viewKey === 'gelen' ? 'INCOMING' : 'OUTGOING',
-            invoice_date:            f_date,
-            due_date:                f_due_date || null,
-            payment_due_date:        f_due_date || null,   // only real dates
-            payment_terms_note:      paymentTermsNote,     // free text like "5 GÜN VADELİ"
+            efatura_uuid: xml.getElementsByTagNameNS(ns.cbc, 'UUID')[0]?.textContent?.trim(),
+            invoice_no: f_no,
+            direction: viewKey === 'gelen' ? 'INCOMING' : 'OUTGOING',
+            invoice_date: f_date,
+            due_date: f_due_date || null,
+            payment_due_date: f_due_date || null,   // only real dates
             payment_instruction_note: paymentInstructionNote,
-            invoice_type:            formInvoiceType,
-            currency:                currencyUi,
-            base_currency:           baseIso,
-            target_currency:         targetIso,
-            calculation_rate:        calculationRate,
+            invoice_type: formInvoiceType,
+            currency: currencyUi,
+            base_currency: baseIso,
+            target_currency: targetIso,
+            calculation_rate: calculationRate,
             total_tax_exclusive_cur: netCur,
             total_tax_inclusive_cur: taxInclusiveCur,
-            payable_amount_cur:      payableCur,
-            total_tax_exclusive_tl:  netTl,
-            tax_amount_tl:           taxTl,
-            payable_amount_tl:       payableTl,
-            profile_id: profileId || null,
-            notes:                   notesArray.join('\n') || null,
+            payable_amount_cur: payableCur,
+            total_tax_exclusive_tl: netTl,
+            tax_amount_tl: taxTl,
+            payable_amount_tl: payableTl,
+            notes: notesArray.join('\n') || null,
         },
         xml_context: { supplier_vkn: supplierVKN, customer_vkn: customerVKN },
         items,

@@ -93,9 +93,9 @@ async function resolveProductId(item) {
         .insert({
             product_code: item.product_code,
             product_name: item.product_name,
-            brand:        item.brand_name || null,
+            brand: item.brand_name || null,
             needs_review: true,
-            source:       'api',
+            source: 'api',
         })
         .select('id').single();
 
@@ -178,11 +178,11 @@ async function syncGelenInvoices(startDate) {
                 const isFinalized = inv.statusCode === 1;
                 const dbInvoice = await upsertInvoice({
                     ...invoiceData,
-                    company_id:             company.id,
-                    approval_status:        'pending',
-                    source:                 'api',
-                    xml_url:                xmlUrl,
-                    gib_status_code:        inv.statusCode ?? null,
+                    company_id: company.id,
+                    approval_status: 'pending',
+                    source: 'api',
+                    xml_url: xmlUrl,
+                    gib_status_code: inv.statusCode ?? null,
                     gib_status_description: inv.status || null,
                 });
 
@@ -271,14 +271,13 @@ async function syncGidenInvoices(startDate) {
                 // Sync invoice
                 const dbInvoice = await upsertInvoice({
                     ...invoiceData,
-                    company_id:             company.id,
-                    approval_status:        'pending',
-                    source:                 'api',
-                    xml_url:                xmlUrl,
-                    gib_status_code:        inv.eStatus ?? null,
+                    company_id: company.id,
+                    approval_status: 'pending',
+                    source: 'api',
+                    xml_url: xmlUrl,
+                    gib_status_code: inv.eStatus ?? null,
                     gib_status_description: inv.eStatusDescription || null,
-                    e_reply_status:         inv.eReplyDescription || null,
-                    e_reply_text:           inv.eReplayText || null,
+                    e_reply_status: inv.eReplyDescription || null,
                 });
 
                 // Resolve product IDs and sync items
@@ -330,7 +329,7 @@ async function recheckPendingGelenInvoices() {
             if (!status) { console.warn(`⚠️ Could not fetch status for ${inv.invoice_no}`); continue; }
 
             const updates = {
-                gib_status_code:        status.statusCode,
+                gib_status_code: status.statusCode,
                 gib_status_description: status.status,
             };
 
@@ -381,10 +380,9 @@ async function recheckGidenReplyStatus() {
             if (!status) { console.warn(`⚠️ Could not fetch status for ${inv.invoice_no}`); continue; }
 
             const updates = {
-                gib_status_code:        status.eStatus,
+                gib_status_code: status.eStatus,
                 gib_status_description: status.eStatusDescription,
-                e_reply_status:         status.eReplyDescription || null,
-                e_reply_text:           status.eReplayText || null,
+                e_reply_status: status.eReplyDescription || null,
             };
 
             if (status.isCancelled) {

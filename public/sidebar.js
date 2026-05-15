@@ -1,23 +1,25 @@
 (function () {
-    'use strict';
+  'use strict';
 
-    let _sidebarOpen = true;
-    let _fatOpen     = false;
-    let _stokOpen    = false;
-    let _dmoOpen     = false;
-    let _bekOpen = false;
-
-
-    const path        = location.pathname;
-    const isFaturalar = path === '/' || path === '/chat.html' || path.includes('/faturalar/pages/');    const isStok      = path.includes('/stok');
-    const isDmo       = path.includes('/dmo');
-    const isCari      = path.includes('/cari');
-    const isBekleyen  = path.includes('bekleyen');
-    const isChat = path.includes('/chat');
+  let _sidebarOpen = true;
+  let _fatOpen = false;
+  let _stokOpen = false;
+  let _dmoOpen = false;
+  let _bekOpen = false;
 
 
-    function buildHtml() {
-        return `<aside id="sidebar">
+  const path = location.pathname;
+  const isFaturalar = path === '/' || path === '/chat.html' || path.includes('/faturalar/pages/');
+  const isOfisIci = path.includes('ofis-ici');
+  const isStok = path.includes('/stok');
+  const isDmo = path.includes('/dmo');
+  const isCari = path.includes('/cari');
+  const isBekleyen = path.includes('bekleyen');
+  const isChat = path.includes('/chat');
+
+
+  function buildHtml() {
+    return `<aside id="sidebar">
   <a href="/" class="sb-brand" style="text-decoration:none;">
     <div class="sb-brand-icon"><i class="ti ti-bolt"></i></div>
     <span class="sb-brand-text">İnokas <span>CRM</span></span>
@@ -62,6 +64,11 @@
           <i class="ti ti-message-arrow-up"></i><span class="sb-label">Giden</span>
         </a>
       </div>
+
+
+      <a href="/faturalar/pages/ofis-ici.html" class="sb-child${path.includes('ofis-ici') ? ' active' : ''}">
+          <i class="ti ti-building"></i><span class="sb-label">Ofis İçi</span>
+        </a>
  
       <a href="/faturalar/pages/fatura-yukle.html" class="sb-child${path.includes('fatura-yukle') ? ' active' : ''}">
         <i class="ti ti-upload"></i><span class="sb-label">Fatura Yükle</span>
@@ -87,6 +94,9 @@
       </a>
       <a href="/stok/pages/urunler.html" class="sb-child${path.includes('urunler') ? ' active' : ''}">
         <i class="ti ti-box"></i><span class="sb-label">Ürünler</span>
+      </a>
+      <a href="/stok/pages/kategori-yonetimi.html" class="sb-child${path.includes('kategori-yonetimi') ? ' active' : ''}">
+        <i class="ti ti-category"></i><span class="sb-label">Kategori Yönetimi</span>
       </a>
     </div>
 
@@ -122,87 +132,87 @@
     </button>
   </div>
 </aside>`;
+  }
+
+  function inject() {
+    const container = document.getElementById('sidebar-container');
+    if (container) container.innerHTML = buildHtml();
+    initSidebar();
+  }
+
+  function initSidebar() {
+    if (isBekleyen) {
+      _bekOpen = true;
+      _fatOpen = true;
+      document.getElementById('fat-children')?.classList.add('open');
+      document.getElementById('fat-chevron')?.classList.add('open');
+      document.getElementById('bek-children')?.classList.add('open');
+      document.getElementById('bek-chevron')?.classList.add('open');
     }
-
-    function inject() {
-        const container = document.getElementById('sidebar-container');
-        if (container) container.innerHTML = buildHtml();
-        initSidebar();
+    if (isFaturalar || isOfisIci) {
+      _fatOpen = true;
+      document.getElementById('fat-children')?.classList.add('open');
+      document.getElementById('fat-chevron')?.classList.add('open');
+      if (!isOfisIci) syncFatHash();
     }
-
-    function initSidebar() {
-        if (isBekleyen) {
-            _bekOpen = true;
-            _fatOpen = true;
-            document.getElementById('fat-children')?.classList.add('open');
-            document.getElementById('fat-chevron')?.classList.add('open');
-            document.getElementById('bek-children')?.classList.add('open');
-            document.getElementById('bek-chevron')?.classList.add('open');
-        }
-        if (isFaturalar) {
-            _fatOpen = true;
-            document.getElementById('fat-children')?.classList.add('open');
-            document.getElementById('fat-chevron')?.classList.add('open');
-            syncFatHash();
-        }
-        if (isStok) {
-            _stokOpen = true;
-            document.getElementById('stok-children')?.classList.add('open');
-            document.getElementById('stok-chevron')?.classList.add('open');
-        }
-        if (isDmo) {
-            _dmoOpen = true;
-            document.getElementById('dmo-children')?.classList.add('open');
-            document.getElementById('dmo-chevron')?.classList.add('open');
-        }
-        document.getElementById('sb-logout-btn')?.addEventListener('click', () => {
-          sessionStorage.removeItem('inokas_token');
-          window.location.replace('/login.html');
-        });
+    if (isStok) {
+      _stokOpen = true;
+      document.getElementById('stok-children')?.classList.add('open');
+      document.getElementById('stok-chevron')?.classList.add('open');
     }
-
-    function syncFatHash() {
-        const h = (location.hash || '#gelen').replace('#', '');
-        document.querySelectorAll('#fat-children .sb-child[data-hash]').forEach(el => {
-            el.classList.toggle('active', el.getAttribute('data-hash') === h);
-        });
+    if (isDmo) {
+      _dmoOpen = true;
+      document.getElementById('dmo-children')?.classList.add('open');
+      document.getElementById('dmo-chevron')?.classList.add('open');
     }
+    document.getElementById('sb-logout-btn')?.addEventListener('click', () => {
+      sessionStorage.removeItem('inokas_token');
+      window.location.replace('/login.html');
+    });
+  }
 
-    window.toggleBekleyen = function () {
-        _bekOpen = !_bekOpen;
-        document.getElementById('bek-children')?.classList.toggle('open', _bekOpen);
-        document.getElementById('bek-chevron')?.classList.toggle('open', _bekOpen);
-    };
+  function syncFatHash() {
+    const h = (location.hash || '#gelen').replace('#', '');
+    document.querySelectorAll('#fat-children .sb-child[data-hash]').forEach(el => {
+      el.classList.toggle('active', el.getAttribute('data-hash') === h);
+    });
+  }
 
-    window.toggleSidebar = function () {
-        _sidebarOpen = !_sidebarOpen;
-        document.getElementById('sidebar')?.classList.toggle('collapsed', !_sidebarOpen);
-        document.body.classList.toggle('sidebar-collapsed', !_sidebarOpen);
-    };
+  window.toggleBekleyen = function () {
+    _bekOpen = !_bekOpen;
+    document.getElementById('bek-children')?.classList.toggle('open', _bekOpen);
+    document.getElementById('bek-chevron')?.classList.toggle('open', _bekOpen);
+  };
 
-    window.toggleFaturalar = function () {
-        _fatOpen = !_fatOpen;
-        document.getElementById('fat-children')?.classList.toggle('open', _fatOpen);
-        document.getElementById('fat-chevron')?.classList.toggle('open', _fatOpen);
-    };
+  window.toggleSidebar = function () {
+    _sidebarOpen = !_sidebarOpen;
+    document.getElementById('sidebar')?.classList.toggle('collapsed', !_sidebarOpen);
+    document.body.classList.toggle('sidebar-collapsed', !_sidebarOpen);
+  };
 
-    window.toggleStok = function () {
-        _stokOpen = !_stokOpen;
-        document.getElementById('stok-children')?.classList.toggle('open', _stokOpen);
-        document.getElementById('stok-chevron')?.classList.toggle('open', _stokOpen);
-    };
+  window.toggleFaturalar = function () {
+    _fatOpen = !_fatOpen;
+    document.getElementById('fat-children')?.classList.toggle('open', _fatOpen);
+    document.getElementById('fat-chevron')?.classList.toggle('open', _fatOpen);
+  };
 
-    window.toggleDMO = function () {
-        _dmoOpen = !_dmoOpen;
-        document.getElementById('dmo-children')?.classList.toggle('open', _dmoOpen);
-        document.getElementById('dmo-chevron')?.classList.toggle('open', _dmoOpen);
-    };
+  window.toggleStok = function () {
+    _stokOpen = !_stokOpen;
+    document.getElementById('stok-children')?.classList.toggle('open', _stokOpen);
+    document.getElementById('stok-chevron')?.classList.toggle('open', _stokOpen);
+  };
 
-    if (isFaturalar) window.addEventListener('hashchange', syncFatHash);
+  window.toggleDMO = function () {
+    _dmoOpen = !_dmoOpen;
+    document.getElementById('dmo-children')?.classList.toggle('open', _dmoOpen);
+    document.getElementById('dmo-chevron')?.classList.toggle('open', _dmoOpen);
+  };
 
-    if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', inject);
-    } else {
-        inject();
-    }
+  if (isFaturalar) window.addEventListener('hashchange', syncFatHash);
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', inject);
+  } else {
+    inject();
+  }
 })();

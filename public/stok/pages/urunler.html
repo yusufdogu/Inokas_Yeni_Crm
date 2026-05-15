@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="tr">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -8,291 +9,310 @@
     if (!sessionStorage.getItem('inokas_token')) window.location.href = '/login.html';
   </script>
   <link rel="stylesheet" href="/shared-filters.css?v=1">
-  <link href="https://fonts.googleapis.com/css2?family=Geist+Mono:wght@400;600&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link
+    href="https://fonts.googleapis.com/css2?family=Geist+Mono:wght@400;600&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap"
+    rel="stylesheet">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.x/dist/tabler-icons.min.css">
   <link rel="stylesheet" href="/sidebar.css">
   <link rel="stylesheet" href="/stok/css/stok-base.css?v=1">
-  <link rel="stylesheet" href="/stok/css/urunler.css?v=1">
+  <link rel="stylesheet" href="/stok/css/urunler.css?v=2">
 </head>
+
 <body>
-<div class="app-shell">
-  <div id="sidebar-container"></div>
+  <div class="app-shell">
+    <div id="sidebar-container"></div>
 
-  <div class="page-area">
+    <div class="page-area">
 
-    <!-- Header -->
-    <div class="page-header">
-      <button class="sb-toggle-btn" onclick="toggleSidebar()"><i class="ti ti-menu-2"></i></button>
-      <div>
-        <p class="page-header-title">Ürünler</p>
-        <p class="page-header-sub" id="urunler-count">Yükleniyor...</p>
+      <!-- Header -->
+      <div class="page-header">
+        <button class="sb-toggle-btn" onclick="toggleSidebar()"><i class="ti ti-menu-2"></i></button>
+        <div>
+          <p class="page-header-title">Ürünler</p>
+          <p class="page-header-sub" id="urunler-count">Yükleniyor...</p>
+        </div>
+        <div style="margin-left:auto;">
+          <button class="btn-primary" onclick="openAddModal()"
+            style="display:flex; align-items:center; gap:6px; font-size:13px;">
+            <i class="ti ti-plus"></i> Ürün Ekle
+          </button>
+        </div>
       </div>
-      <div style="margin-left:auto;">
-        <button class="btn-primary" onclick="openAddModal()" style="display:flex; align-items:center; gap:6px; font-size:13px;">
-          <i class="ti ti-plus"></i> Ürün Ekle
+
+      <!-- Filter Bar -->
+      <div class="filter-bar">
+
+        <!-- MAIN ROW -->
+        <div class="filter-row">
+
+          <!-- Text search -->
+          <div class="filter-tags-wrap" style="flex:2; min-width:160px;"
+            onclick="document.getElementById('urunSearch').focus()">
+            <input type="text" id="urunSearch" class="filter-tags-input" placeholder="Ürün adı, SKU ara...">
+          </div>
+
+          <!-- Brand tags -->
+          <div class="filter-tags-wrap" id="brandTagsWrap" onclick="document.getElementById('brandTagInput').focus()">
+            <div id="brandTags" class="filter-tags"></div>
+            <input type="text" id="brandTagInput" class="filter-tags-input" placeholder="Marka ekle...">
+            <div id="brandDropdown" class="filter-dropdown"></div>
+          </div>
+
+          <!-- Category tags -->
+          <div class="filter-tags-wrap" id="categoryTagsWrap"
+            onclick="document.getElementById('categoryTagInput').focus()">
+            <div id="categoryTags" class="filter-tags"></div>
+            <input type="text" id="categoryTagInput" class="filter-tags-input" placeholder="Kategori ekle...">
+            <div id="categoryDropdown" class="filter-dropdown"></div>
+          </div>
+
+          <!-- Model tags -->
+          <div class="filter-tags-wrap" id="modelTagsWrap" onclick="document.getElementById('modelTagInput').focus()">
+            <div id="modelTags" class="filter-tags"></div>
+            <input type="text" id="modelTagInput" class="filter-tags-input" placeholder="Model ekle...">
+            <div id="modelDropdown" class="filter-dropdown"></div>
+          </div>
+
+          <!-- Buttons -->
+          <div style="display:flex; gap:6px; align-items:center; flex-shrink:0;">
+            <button class="filter-btn-apply" onclick="applyFilters()">
+              <i class="ti ti-filter" style="font-size:13px;"></i>Uygula
+            </button>
+            <button class="filter-btn-clear" onclick="clearFilters()" title="Temizle">
+              <i class="ti ti-trash" style="font-size:14px;"></i>
+            </button>
+          </div>
+
+        </div>
+
+        <!-- ADVANCED TOGGLE -->
+        <button class="filter-advanced-toggle" onclick="toggleAdvancedFilters()">
+          <span id="advancedFiltersBtnText">
+            <i class="ti ti-chevron-down" style="font-size:12px;"></i> Gelişmiş Filtreler
+          </span>
+          <span id="advancedFiltersBadge"
+            style="display:none; background:#2563eb; color:white; border-radius:99px; padding:1px 7px; font-size:11px; font-weight:700; margin-left:4px;">!</span>
         </button>
-      </div>
-    </div>
 
-    <!-- Filter Bar -->
-    <div class="filter-bar">
+        <!-- ADVANCED PANEL -->
+        <div id="advancedFiltersPanel" class="filter-advanced-panel">
+          <div class="filter-row" style="margin-top:10px; align-items:center; flex-wrap:wrap; gap:10px;">
 
-      <!-- MAIN ROW -->
-      <div class="filter-row">
-
-        <!-- Text search -->
-        <div class="filter-tags-wrap" style="flex:2; min-width:160px;" onclick="document.getElementById('urunSearch').focus()">
-          <input type="text" id="urunSearch" class="filter-tags-input" placeholder="Ürün adı, SKU ara...">
-        </div>
-
-        <!-- Brand tags -->
-        <div class="filter-tags-wrap" id="brandTagsWrap" onclick="document.getElementById('brandTagInput').focus()">
-          <div id="brandTags" class="filter-tags"></div>
-          <input type="text" id="brandTagInput" class="filter-tags-input" placeholder="Marka ekle...">
-          <div id="brandDropdown" class="filter-dropdown"></div>
-        </div>
-
-        <!-- Category tags -->
-        <div class="filter-tags-wrap" id="categoryTagsWrap" onclick="document.getElementById('categoryTagInput').focus()">
-          <div id="categoryTags" class="filter-tags"></div>
-          <input type="text" id="categoryTagInput" class="filter-tags-input" placeholder="Kategori ekle...">
-          <div id="categoryDropdown" class="filter-dropdown"></div>
-        </div>
-
-        <!-- Model tags -->
-        <div class="filter-tags-wrap" id="modelTagsWrap" onclick="document.getElementById('modelTagInput').focus()">
-          <div id="modelTags" class="filter-tags"></div>
-          <input type="text" id="modelTagInput" class="filter-tags-input" placeholder="Model ekle...">
-          <div id="modelDropdown" class="filter-dropdown"></div>
-        </div>
-
-        <!-- Buttons -->
-        <div style="display:flex; gap:6px; align-items:center; flex-shrink:0;">
-          <button class="filter-btn-apply" onclick="applyFilters()">
-            <i class="ti ti-filter" style="font-size:13px;"></i>Uygula
-          </button>
-          <button class="filter-btn-clear" onclick="clearFilters()" title="Temizle">
-            <i class="ti ti-trash" style="font-size:14px;"></i>
-          </button>
-        </div>
-
-      </div>
-
-      <!-- ADVANCED TOGGLE -->
-      <button class="filter-advanced-toggle" onclick="toggleAdvancedFilters()">
-        <span id="advancedFiltersBtnText">
-          <i class="ti ti-chevron-down" style="font-size:12px;"></i> Gelişmiş Filtreler
-        </span>
-        <span id="advancedFiltersBadge" style="display:none; background:#2563eb; color:white; border-radius:99px; padding:1px 7px; font-size:11px; font-weight:700; margin-left:4px;">!</span>
-      </button>
-
-      <!-- ADVANCED PANEL -->
-      <div id="advancedFiltersPanel" class="filter-advanced-panel">
-        <div class="filter-row" style="margin-top:10px; align-items:center;">
-
-          <!-- Maliyet (USD) range -->
-          <div class="filter-range-wrap" style="min-width:220px;">
-            <div class="filter-range-label-row">
-              <span>Maliyet (USD)</span>
-              <span class="range-value" id="maliyetRangeLabel">$0 — ∞</span>
+            <!-- Currency tags -->
+            <div class="filter-tags-wrap" id="currencyTagsWrap" style="max-width:160px;"
+              onclick="document.getElementById('currencyTagInput').focus()">
+              <div id="currencyTags" class="filter-tags"></div>
+              <input type="text" id="currencyTagInput" class="filter-tags-input" placeholder="Para birimi...">
+              <div id="currencyDropdown" class="filter-dropdown"></div>
             </div>
-            <div class="filter-range-inputs">
-              <input type="range" id="maliyetMin" min="0" max="1000" step="10" value="0" oninput="updateMaliyetRange()">
-              <input type="range" id="maliyetMax" min="0" max="1000" step="10" value="1000" oninput="updateMaliyetRange()">
-            </div>
+
+            <!-- Depoda olanlar toggle -->
+            <label class="dmo-toggle-label">
+              <input type="checkbox" id="filterInStockOnly" onchange="updateAdvancedBadge(); applyFilters();">
+              <span style="font-size:12px; background:#dcfce7; color:#166534; font-weight:700; padding:2px 8px; border-radius:20px; border:1px solid #bbf7d0;">📦 Depoda</span>
+            </label>
+
+            <!-- DMO only toggle -->
+            <label class="dmo-toggle-label">
+              <input type="checkbox" id="filterDmoOnly" onchange="updateAdvancedBadge(); applyFilters();">
+              <span class="badge-dmo" style="font-size:12px;">DMO</span>
+            </label>
+
+            <!-- Eksik özellik toggle -->
+            <label class="dmo-toggle-label" id="filterMissingAttrsWrap" style="display:none;">
+              <input type="checkbox" id="filterMissingAttrs" onchange="onAttrFilterChange();">
+              <span style="font-size:12px; background:#fef3c7; color:#92400e; font-weight:700; padding:2px 8px; border-radius:20px; border:1px solid #fde68a;">⚠ Eksik Özellik</span>
+            </label>
+
           </div>
 
-          <!-- Currency tags -->
-          <div class="filter-tags-wrap" id="currencyTagsWrap" onclick="document.getElementById('currencyTagInput').focus()">
-            <div id="currencyTags" class="filter-tags"></div>
-            <input type="text" id="currencyTagInput" class="filter-tags-input" placeholder="Para birimi ekle...">
-            <div id="currencyDropdown" class="filter-dropdown"></div>
-          </div>
+          <!-- Dinamik kategori özellikleri -->
+          <div id="dynamic-attr-filters" style="display:none; margin-top:10px; display:none;"></div>
 
-          <!-- DMO only toggle -->
-          <label class="dmo-toggle-label">
-            <input type="checkbox" id="filterDmoOnly" onchange="updateAdvancedBadge(); applyFilters();">
-            <span class="badge-dmo" style="font-size:12px;">DMO</span>
-            <span>Sadece DMO ürünleri</span>
-          </label>
+        </div>
 
+      </div>
+
+      <!-- KPI Cards -->
+      <div class="kpi-grid" style="grid-template-columns:repeat(4,1fr);">
+        <div class="kpi-card">
+          <p class="kpi-card-label">Toplam Ürün</p>
+          <p class="kpi-card-value" id="kpi-total">—</p>
+        </div>
+        <div class="kpi-card">
+          <p class="kpi-card-label">Kategori</p>
+          <p class="kpi-card-value primary" id="kpi-categories">—</p>
+        </div>
+        <div class="kpi-card">
+          <p class="kpi-card-label">Marka</p>
+          <p class="kpi-card-value" id="kpi-brands">—</p>
+        </div>
+        <div class="kpi-card">
+          <p class="kpi-card-label">Model</p>
+          <p class="kpi-card-value" id="kpi-models">—</p>
         </div>
       </div>
 
-    </div>
-
-    <!-- KPI Cards -->
-    <div class="kpi-grid" style="grid-template-columns:repeat(3,1fr);">
-      <div class="kpi-card">
-        <p class="kpi-card-label">Toplam Ürün</p>
-        <p class="kpi-card-value" id="kpi-total">—</p>
-      </div>
-      <div class="kpi-card">
-        <p class="kpi-card-label">Kategori</p>
-        <p class="kpi-card-value primary" id="kpi-categories">—</p>
-      </div>
-      <div class="kpi-card">
-        <p class="kpi-card-label">Marka</p>
-        <p class="kpi-card-value" id="kpi-brands">—</p>
-      </div>
-    </div>
-
-    <!-- Table -->
-    <div class="table-area">
-      <table class="data-table">
-        <thead>
-          <tr>
-            <th>Ürün Adı</th>
-            <th>SKU / Kod</th>
-            <th>Marka</th>
-            <th>Kategori</th>
-            <th>Model</th>
-            <th class="text-right">Maliyet (USD)</th>
-            <th class="text-right">Sözleşme (EUR)</th>
-            <th class="text-right">Son Alış</th>
-            <th>Para Birimi</th>
-            <th>DMO</th>
-          </tr>
-        </thead>
-        <tbody id="urunlerTableBody"></tbody>
-      </table>
-      <div id="urunlerEmpty" class="empty-state">Ürün bulunamadı.</div>
-    </div>
-
-  </div>
-</div>
-
-<!-- ── Product Edit/Add Modal ── -->
-<div id="productModal" class="modal-overlay" style="display:none;" onclick="if(event.target===this) closeModal()">
-  <div class="modal-box">
-    <div class="modal-header">
-      <div>
-        <h2 id="modalTitle">Ürün Detayı</h2>
-        <div class="modal-header-sub" id="modalSubTitle"></div>
-      </div>
-      <button class="modal-close-btn" onclick="closeModal()">✕</button>
-    </div>
-
-    <div class="modal-body">
-
-      <!-- Temel Bilgiler -->
-      <div class="modal-section">
-        <div class="modal-section-title">Temel Bilgiler</div>
-        <div class="modal-grid">
-          <div class="modal-field modal-field--full">
-            <label>Ürün Adı <span class="req">*</span></label>
-            <input type="text" id="pf-product_name">
-          </div>
-          <div class="modal-field">
-            <label>Ürün Kodu / SKU <span class="req">*</span></label>
-            <input type="text" id="pf-product_code">
-          </div>
-          <div class="modal-field">
-            <label>Marka</label>
-            <select id="pf-brand"></select>
-          </div>
-          <div class="modal-field">
-            <label>Kategori</label>
-            <select id="pf-category"></select>
-          </div>
-          <div class="modal-field">
-            <label>Model</label>
-            <input type="text" id="pf-model">
-          </div>
-        </div>
+      <!-- Table -->
+      <div class="table-area">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th style="width:30%;">Ürün Adı</th>
+              <th style="width:15%;">SKU / Kod</th>
+              <th style="width:12%;">Marka</th>
+              <th style="width:12%;">Kategori</th>
+              <th style="width:12%;">Model</th>
+              <th style="width:12%; text-align:right;">Mevcut Miktar</th>
+              <th style="width:19%; text-align:right;">Son Alış Fiyatı</th>
+            </tr>
+          </thead>
+          <tbody id="urunlerTableBody"></tbody>
+        </table>
+        <div id="urunlerEmpty" class="empty-state">Ürün bulunamadı.</div>
       </div>
 
-      <!-- Fiyatlar -->
-      <div class="modal-section">
-        <div class="modal-section-title">Fiyatlar</div>
-        <div class="modal-grid">
-          <div class="modal-field">
-            <label>Maliyet (USD)</label>
-            <input type="number" step="0.01" id="pf-maliyet_usd">
-          </div>
-          <div class="modal-field">
-            <label>Sözleşme Fiyatı (EUR)</label>
-            <input type="number" step="0.01" id="pf-sozlesme_fiyat_eur">
-          </div>
-          <div class="modal-field">
-            <label>Son Alış Fiyatı</label>
-            <input type="number" step="0.01" id="pf-last_purchase_price_cur">
-          </div>
-          <div class="modal-field">
-            <label>Para Birimi</label>
-            <input type="text" id="pf-last_purchase_currency" placeholder="USD / EUR / TRY">
-          </div>
-          <div class="modal-field">
-            <label>Son Alış Kuru</label>
-            <input type="number" step="0.0001" id="pf-last_purchase_rate">
-          </div>
-          <div class="modal-field">
-            <label>Son Alış (TL)</label>
-            <input type="number" step="0.01" id="pf-last_purchase_price_tl">
-          </div>
-          <div class="modal-field">
-            <label>Ort. Alış (TL)</label>
-            <input type="number" step="0.01" id="pf-avg_purchase_price_tl">
-          </div>
-        </div>
-      </div>
-
-      <!-- DMO -->
-      <div class="modal-section">
-        <div class="modal-section-title">DMO Bilgileri</div>
-        <div class="modal-grid">
-          <div class="modal-field">
-            <label>DMO Kodu</label>
-            <input type="text" id="pf-dmo_code">
-          </div>
-          <div class="modal-field">
-            <label>DMO Fiyatı (TRY)</label>
-            <input type="number" step="0.01" id="pf-dmo_fiyat_try">
-          </div>
-          <div class="modal-field modal-field--full">
-            <label>DMO URL</label>
-            <input type="text" id="pf-dmo_url" placeholder="https://www.dmo.gov.tr/...">
-          </div>
-          <div class="modal-field">
-            <label>Hediye Miktarı</label>
-            <input type="number" step="1" id="pf-gift_quantity">
-          </div>
-        </div>
-      </div>
-
-      <!-- Sistem -->
-      <div class="modal-section">
-        <div class="modal-section-title">Sistem Bilgileri</div>
-        <div class="modal-grid">
-          <div class="modal-field">
-            <label>Oluşturulma</label>
-            <input type="text" id="pf-created_at" readonly class="readonly-field">
-          </div>
-          <div class="modal-field">
-            <label>Son Güncelleme</label>
-            <input type="text" id="pf-updated_at" readonly class="readonly-field">
-          </div>
-          <div class="modal-field">
-            <label>DMO Fiyat Güncelleme</label>
-            <input type="text" id="pf-dmo_fiyat_updated" readonly class="readonly-field">
-          </div>
-        </div>
-      </div>
-
-    </div>
-
-    <div class="modal-footer">
-      <span id="modalMsg" class="modal-msg"></span>
-      <button class="btn-secondary" onclick="closeModal()">İptal</button>
-      <button class="btn-primary" id="modalSaveBtn" onclick="saveProduct()">Kaydet</button>
     </div>
   </div>
-</div>
 
-<div id="toast-container"></div>
+  <!-- ── Product Edit/Add Modal ── -->
+  <div id="productModal" class="modal-overlay" style="display:none;" onclick="if(event.target===this) closeModal()">
+    <div class="modal-box">
+      <div class="modal-header">
+        <div>
+          <h2 id="modalTitle">Ürün Detayı</h2>
+          <div class="modal-header-sub" id="modalSubTitle"></div>
+        </div>
+        <button class="modal-close-btn" onclick="closeModal()">✕</button>
+      </div>
 
-<script src="/sidebar.js" defer></script>
-<script src="/stok/js/utils.js"></script>
-<script src="/stok/js/urunler.js"></script>
+      <div class="modal-body">
+
+        <!-- Temel Bilgiler -->
+        <div class="modal-section">
+          <div class="modal-section-title">Temel Bilgiler</div>
+          <div class="modal-grid">
+            <div class="modal-field modal-field--full">
+              <label>Ürün Adı <span class="req">*</span></label>
+              <input type="text" id="pf-product_name">
+            </div>
+            <div class="modal-field">
+              <label>Ürün Kodu / SKU <span class="req">*</span></label>
+              <input type="text" id="pf-product_code">
+            </div>
+            <div class="modal-field">
+              <label>Marka</label>
+              <select id="pf-brand"></select>
+            </div>
+            <div class="modal-field">
+              <label>Kategori</label>
+              <select id="pf-category"></select>
+            </div>
+            <div class="modal-field">
+              <label>Model</label>
+              <input type="text" id="pf-model">
+            </div>
+          </div>
+        </div>
+
+        <!-- Kategori Özellikleri -->
+        <div class="modal-section" id="dynamic-attrs-section" style="display:none;">
+          <div class="modal-section-title">Kategori Özellikleri</div>
+          <div class="modal-grid" id="dynamic-attrs-grid"></div>
+        </div>
+
+        <!-- Fiyatlar -->
+        <div class="modal-section">
+          <div class="modal-section-title">Fiyatlar</div>
+          <div class="modal-grid">
+            <div class="modal-field">
+              <label>Maliyet (USD)</label>
+              <input type="number" step="0.01" id="pf-maliyet_usd">
+            </div>
+            <div class="modal-field">
+              <label>Sözleşme Fiyatı (EUR)</label>
+              <input type="number" step="0.01" id="pf-sozlesme_fiyat_eur">
+            </div>
+            <div class="modal-field">
+              <label>Son Alış Fiyatı</label>
+              <input type="number" step="0.01" id="pf-last_purchase_price_cur">
+            </div>
+            <div class="modal-field">
+              <label>Para Birimi</label>
+              <input type="text" id="pf-last_purchase_currency" placeholder="USD / EUR / TRY">
+            </div>
+            <div class="modal-field">
+              <label>Son Alış Kuru</label>
+              <input type="number" step="0.0001" id="pf-last_purchase_rate">
+            </div>
+            <div class="modal-field">
+              <label>Son Alış (TL)</label>
+              <input type="number" step="0.01" id="pf-last_purchase_price_tl">
+            </div>
+            <div class="modal-field">
+              <label>Ort. Alış (TL)</label>
+              <input type="number" step="0.01" id="pf-avg_purchase_price_tl">
+            </div>
+          </div>
+        </div>
+
+        <!-- DMO -->
+        <div class="modal-section">
+          <div class="modal-section-title">DMO Bilgileri</div>
+          <div class="modal-grid">
+            <div class="modal-field">
+              <label>DMO Kodu</label>
+              <input type="text" id="pf-dmo_code">
+            </div>
+            <div class="modal-field">
+              <label>DMO Fiyatı (TRY)</label>
+              <input type="number" step="0.01" id="pf-dmo_fiyat_try">
+            </div>
+            <div class="modal-field modal-field--full">
+              <label>DMO URL</label>
+              <input type="text" id="pf-dmo_url" placeholder="https://www.dmo.gov.tr/...">
+            </div>
+            <div class="modal-field">
+              <label>Hediye Miktarı</label>
+              <input type="number" step="1" id="pf-gift_quantity">
+            </div>
+          </div>
+        </div>
+
+        <!-- Sistem -->
+        <div class="modal-section">
+          <div class="modal-section-title">Sistem Bilgileri</div>
+          <div class="modal-grid">
+            <div class="modal-field">
+              <label>Oluşturulma</label>
+              <input type="text" id="pf-created_at" readonly class="readonly-field">
+            </div>
+            <div class="modal-field">
+              <label>Son Güncelleme</label>
+              <input type="text" id="pf-updated_at" readonly class="readonly-field">
+            </div>
+            <div class="modal-field">
+              <label>DMO Fiyat Güncelleme</label>
+              <input type="text" id="pf-dmo_fiyat_updated" readonly class="readonly-field">
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <div class="modal-footer">
+        <span id="modalMsg" class="modal-msg"></span>
+        <button class="btn-secondary" onclick="closeModal()">İptal</button>
+        <button class="btn-primary" id="modalSaveBtn" onclick="saveProduct()">Kaydet</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast-container"></div>
+
+  <script src="/sidebar.js" defer></script>
+  <script src="/stok/js/utils.js"></script>
+  <script src="/stok/js/urunler.js"></script>
 </body>
+
 </html>

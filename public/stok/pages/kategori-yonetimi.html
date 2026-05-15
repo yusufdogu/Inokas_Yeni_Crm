@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="tr">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Kategori Yönetimi — İnokas CRM</title>
+  <script>
+    if (!sessionStorage.getItem('inokas_token')) window.location.href = '/login.html';
+  </script>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.x/dist/tabler-icons.min.css">
+  <link rel="stylesheet" href="/sidebar.css">
+  <link rel="stylesheet" href="/stok/css/stok-base.css?v=1">
+  <link rel="stylesheet" href="/stok/css/kategori-yonetimi.css?v=1">
+</head>
+
+<body>
+  <div class="app-shell">
+    <div id="sidebar-container"></div>
+
+    <div class="page-area">
+
+      <!-- Header -->
+      <div class="page-header">
+        <button class="sb-toggle-btn" onclick="toggleSidebar()"><i class="ti ti-menu-2"></i></button>
+        <div>
+          <p class="page-header-title">Kategori Yönetimi</p>
+          <p class="page-header-sub">Ürün kategorileri ve özellik şablonları</p>
+        </div>
+        <div style="margin-left:auto;">
+          <button class="btn-primary" onclick="openAddCategoryModal()" style="display:flex; align-items:center; gap:6px; font-size:13px;">
+            <i class="ti ti-plus"></i> Yeni Kategori
+          </button>
+        </div>
+      </div>
+
+      <!-- Content -->
+      <div class="ky-content">
+
+        <!-- Kategori listesi (sol panel) -->
+        <div class="ky-sidebar">
+          <div class="ky-sidebar-header">
+            <span>Kategoriler</span>
+            <span id="ky-cat-count" class="ky-count-badge">—</span>
+          </div>
+          <div id="ky-cat-list" class="ky-cat-list">
+            <div class="ky-empty">Yükleniyor...</div>
+          </div>
+        </div>
+
+        <!-- Özellik paneli (sağ) -->
+        <div class="ky-detail" id="ky-detail">
+          <div class="ky-detail-empty">
+            <i class="ti ti-category" style="font-size:32px; color:#94a3b8;"></i>
+            <p>Düzenlemek için sol taraftan bir kategori seçin.</p>
+          </div>
+        </div>
+
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Kategori adı modal -->
+  <div id="ky-cat-modal" class="modal-overlay" style="display:none;" onclick="if(event.target===this) closeAddCategoryModal()">
+    <div class="modal-box" style="max-width:420px;">
+      <div class="modal-header">
+        <h2 id="ky-cat-modal-title">Yeni Kategori</h2>
+        <button class="modal-close-btn" onclick="closeAddCategoryModal()">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="modal-field">
+          <label>Kategori Adı <span class="req">*</span></label>
+          <input type="text" id="ky-cat-name-input" placeholder="ör. Elektronik, Kırtasiye..." onkeydown="if(event.key==='Enter') saveCategoryModal()">
+        </div>
+      </div>
+      <div class="modal-footer">
+        <span id="ky-cat-modal-msg" class="modal-msg"></span>
+        <button class="btn-secondary" onclick="closeAddCategoryModal()">İptal</button>
+        <button class="btn-primary" onclick="saveCategoryModal()">Kaydet</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Özellik ekle/düzenle modal -->
+  <div id="ky-attr-modal" class="modal-overlay" style="display:none;" onclick="if(event.target===this) closeAttrModal()">
+    <div class="modal-box" style="max-width:460px;">
+      <div class="modal-header">
+        <h2 id="ky-attr-modal-title">Özellik Ekle</h2>
+        <button class="modal-close-btn" onclick="closeAttrModal()">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="modal-grid">
+          <div class="modal-field modal-field--full">
+            <label>Özellik Adı <span class="req">*</span></label>
+            <input type="text" id="ky-attr-name" placeholder="ör. Watt, Renk, Kapasite">
+          </div>
+          <div class="modal-field">
+            <label>Tür <span class="req">*</span></label>
+            <select id="ky-attr-type" onchange="onAttrTypeChange()">
+              <option value="text">Metin</option>
+              <option value="number">Sayı</option>
+              <option value="select">Seçim Listesi</option>
+            </select>
+          </div>
+          <div class="modal-field" id="ky-attr-order-wrap">
+            <label>Sıra</label>
+            <input type="number" id="ky-attr-order" value="0" min="0">
+          </div>
+          <div class="modal-field modal-field--full" id="ky-attr-options-wrap" style="display:none;">
+            <label>Seçenekler <span style="color:#94a3b8; font-weight:400;">(virgülle ayır)</span></label>
+            <input type="text" id="ky-attr-options" placeholder="ör. Beyaz, Siyah, Gri">
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <span id="ky-attr-modal-msg" class="modal-msg"></span>
+        <button class="btn-secondary" onclick="closeAttrModal()">İptal</button>
+        <button class="btn-primary" onclick="saveAttrModal()">Kaydet</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast-container"></div>
+  <script src="/sidebar.js" defer></script>
+  <script src="/stok/js/kategori-yonetimi.js?v=1"></script>
+</body>
+
+</html>

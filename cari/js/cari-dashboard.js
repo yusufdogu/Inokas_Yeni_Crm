@@ -106,9 +106,14 @@ function openFirma(companyId, companyName) {
 
 // ── SEARCH FILTER ─────────────────────────────────────────────────────────────
 function filterCariTable() {
-    const q = (document.getElementById('cari-search')?.value || '').toLowerCase().trim();
-    if (!q) { renderCariTable(_allRows); return; }
-    renderCariTable(_allRows.filter(r => r.company_name.toLowerCase().includes(q)));
+    const q    = (document.getElementById('cari-search')?.value || '').toLowerCase().trim();
+    const type = (document.getElementById('cari-type-filter')?.value || '').trim();
+    const filtered = _allRows.filter(r => {
+        if (q    && !r.company_name.toLowerCase().includes(q)) return false;
+        if (type && r.type !== type) return false;
+        return true;
+    });
+    renderCariTable(filtered);
 }
 
 // ── HELPERS ───────────────────────────────────────────────────────────────────

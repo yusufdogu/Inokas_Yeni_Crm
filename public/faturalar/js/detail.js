@@ -658,7 +658,7 @@ async function renderUrunlerView(id, body, inv) {
                         ${model ? pill(model) : ''}
                     </div>
                 </div>
-                <span style="font-size:14px;font-weight:800;color:#2563eb;white-space:nowrap;flex-shrink:0;">${fmtP(it.total_price_cur)}</span>
+                <span style="font-size:14px;font-weight:800;color:#2563eb;white-space:nowrap;flex-shrink:0;">${fmtP((parseFloat(it.total_price_cur) || 0) * (1 + (parseFloat(it.tax_rate) || 0) / 100))}</span>
             </div>
         </div>`;
     }).join('');
@@ -865,15 +865,27 @@ function enterUrunlerEdit(id) {
             _makeCategoryDropdown(catWrap, nowInt, nowInt ? '' : currentCat, () => {}, activeSku);
         });
 
-        // SKU blur → auto-fill category + brand from product map
+        // SKU blur → auto-fill name, category, brand, model from DB
         codeInp?.addEventListener('blur', async () => {
             const sku = codeInp.value.trim();
             if (!sku || chk?.checked) return;
-            // Category
-            const cat = productCategoryByCodeMap?.get(normalizeProductCodeForMatch(sku)) || '';
-            if (cat && catWrap?._setValue) catWrap._setValue(cat);
-            // Brand/model from products — try to find in _modelsByBrand
-            // We don't have a sku→brand map yet so just leave brand as-is
+
+            try {
+                const res = await fetch(`/api/products/by-code?code=${encodeURIComponent(sku)}`);
+                if (!res.ok) return;
+                const p = await res.json();
+
+                if (p.product_name && nameInp) {
+                    nameInp.value = p.product_name;
+                    if (hdrName) hdrName.textContent = p.product_name;
+                }
+                if (p.category && catWrap?._setValue) catWrap._setValue(p.category);
+
+                if (p.brand && brandWrap?._setValue) brandWrap._setValue(p.brand);
+                if (p.model && modelWrap?._setValue) modelWrap._setValue(p.model);
+            } catch (e) {
+                // ürün bulunamazsa sessizce geç
+            }
         });
 
         // Total recalc

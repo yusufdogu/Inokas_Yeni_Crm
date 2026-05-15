@@ -19,6 +19,18 @@
   height: 14px;
 }
 
+/* ── Scrollable content area (form + table) ── */
+.bo-scroll-area {
+  flex: 1;
+  overflow-y: auto;
+  min-height: 0;
+}
+
+.bo-scroll-area .table-area {
+  flex: none;
+  overflow: visible;
+}
+
 /* ── New Backorder Form ── */
 .bo-new-form-wrap {
   padding: 10px 20px;
@@ -46,8 +58,13 @@
   user-select: none;
 }
 
-.bo-new-form-summary:hover { color: #2563eb; }
-.bo-new-form-summary::-webkit-details-marker { display: none; }
+.bo-new-form-summary:hover {
+  color: #2563eb;
+}
+
+.bo-new-form-summary::-webkit-details-marker {
+  display: none;
+}
 
 .bo-new-form-body {
   padding: 14px 16px 16px;
@@ -90,13 +107,25 @@
   transition: border-color 0.15s;
 }
 
-.bo-new-form-field input:focus { border-color: #2563eb; }
-.bo-new-form-field input[readonly] { background: #f8fafc; color: #64748b; }
+.bo-new-form-field input:focus {
+  border-color: #2563eb;
+}
 
-.req { color: #ef4444; }
+.bo-new-form-field input[readonly] {
+  background: #f8fafc;
+  color: #64748b;
+}
+
+.req {
+  color: #ef4444;
+}
 
 /* ── Lines table ── */
-.bo-lines-wrap { display: flex; flex-direction: column; gap: 8px; }
+.bo-lines-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
 
 .bo-lines-table {
   width: 100%;
@@ -137,7 +166,9 @@
 }
 
 .bo-lines-table input:focus,
-.bo-lines-table select:focus { border-color: #2563eb; }
+.bo-lines-table select:focus {
+  border-color: #2563eb;
+}
 
 .bo-add-line-btn {
   align-self: flex-start;
@@ -155,7 +186,10 @@
   font-family: inherit;
 }
 
-.bo-add-line-btn:hover { background: #e2e8f0; color: #1e293b; }
+.bo-add-line-btn:hover {
+  background: #e2e8f0;
+  color: #1e293b;
+}
 
 .bo-form-footer {
   display: flex;
@@ -175,7 +209,10 @@
   font-family: inherit;
 }
 
-.po-edit-input:focus { outline: none; border-color: #2563eb; }
+.po-edit-input:focus {
+  outline: none;
+  border-color: #2563eb;
+}
 
 .po-cur-select {
   width: 70px;
@@ -186,7 +223,11 @@
   font-family: inherit;
 }
 
-.po-actions { display: flex; gap: 5px; flex-wrap: wrap; }
+.po-actions {
+  display: flex;
+  gap: 5px;
+  flex-wrap: wrap;
+}
 
 .po-btn {
   padding: 4px 8px;
@@ -199,16 +240,35 @@
   white-space: nowrap;
 }
 
-.po-btn-save   { background: #dcfce7; color: #166534; border-color: #bbf7d0; }
-.po-btn-delete { background: #fee2e2; color: #991b1b; border-color: #fecaca; }
-.po-btn-save:hover   { background: #bbf7d0; }
-.po-btn-delete:hover { background: #fecaca; }
+.po-btn-save {
+  background: #dcfce7;
+  color: #166534;
+  border-color: #bbf7d0;
+}
+
+.po-btn-delete {
+  background: #fee2e2;
+  color: #991b1b;
+  border-color: #fecaca;
+}
+
+.po-btn-save:hover {
+  background: #bbf7d0;
+}
+
+.po-btn-delete:hover {
+  background: #fecaca;
+}
 
 /* Remaining qty highlight */
-.remaining-cell strong { font-size: 13px; }
+.remaining-cell strong {
+  font-size: 13px;
+}
 
 @media (max-width: 900px) {
-  .bo-new-form-grid { grid-template-columns: 1fr; }
+  .bo-new-form-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 /* ── Dropdown + inline new value ── */
@@ -225,3 +285,242 @@
   color: #0f172a;
 }
 
+
+
+/* ── Advanced Filters Panel ── */
+
+/* Filtreleme panelini açıp kapatan butonun ana stili */
+.bo-adv-filter-toggle {
+  display: flex;
+  /* İçindeki simge ve metni esnek kutu modelinde yan yana dizer */
+  align-items: center;
+  /* Elemanları dikeyde tam merkeze hizalar */
+  gap: 5px;
+  /* İkon ve metin arasına 5 piksellik bir mesafe koyar */
+  padding: 5px 10px;
+  /* Butonun içine üst-alttan 5px, sağ-soldan 10px boşluk verir */
+  font-size: 12px;
+  /* Yazı boyutunu 12 piksel yapar */
+  font-weight: 600;
+  /* Yazıyı yarı kalın (semi-bold) yapar */
+  color: #475569;
+  /* Yazı rengini koyu gri/mavi tonu yapar */
+  background: #f1f5f9;
+  /* Hafif gri bir arka plan rengi verir */
+  border: 1px solid #e2e8f0;
+  /* İnce, açık renkli bir çerçeve ekler */
+  border-radius: 7px;
+  /* Köşeleri 7 piksel yumuşatır */
+  cursor: pointer;
+  /* Fare üzerine geldiğinde el (tıklama) işareti çıkarır */
+  font-family: inherit;
+  /* Yazı tipini ana sayfadan/ebeveynden miras alır */
+  flex-shrink: 0;
+  /* Butonun dar alanlarda sıkışıp küçülmesini engeller */
+  transition: background 0.15s;
+  /* Arka plan değişirken 0.15 saniyelik yumuşak bir geçiş sağlar */
+}
+
+/* Butonun üzerine fareyle gelindiğindeki (hover) hali */
+.bo-adv-filter-toggle:hover {
+  background: #e2e8f0;
+  /* Arka planı biraz daha koyulaştırır */
+  color: #1e293b;
+  /* Yazı rengini daha belirgin bir siyaha yaklaştırır */
+}
+
+/* Buton aktifken (panel açıkken) uygulanacak stil */
+.bo-adv-filter-toggle.active {
+  background: #dbeafe;
+  /* Arka planı hafif mavi yapar */
+  color: #1d4ed8;
+  /* Yazı rengini koyu maviye dönüştürür */
+  border-color: #bfdbfe;
+  /* Çerçeveyi de mavi tonlarına çeker */
+}
+
+/* Filtrelerin içine dizildiği ana panel konteynırı */
+.bo-adv-panel {
+  display: none;
+  /* Başlangıçta paneli tamamen gizler */
+  padding: 10px 16px;
+  /* Panel içine boşluk vererek içeriği nefeslendirir */
+  background: #f8fafc;
+  /* Çok açık gri bir arka plan rengi */
+  border-bottom: 1px solid #e2e8f0;
+  /* Panelin altına ayırıcı bir çizgi çeker */
+  gap: 12px;
+  /* Filtre elemanlarının arasına 12px boşluk koyar */
+  align-items: flex-end;
+  /* Elemanları panelin altına hizalar (label-input dengesi için) */
+  flex-wrap: wrap;
+  /* Alan daralırsa filtreleri alt satıra kaydırır */
+}
+
+/* Panel görünür hale geldiğinde (.open sınıfı eklendiğinde) çalışacak stil */
+.bo-adv-panel.open {
+  display: flex;
+  /* Paneli görünür yapar ve esnek kutu modelini aktif eder */
+}
+
+/* Her bir filtre birimi (Etiket + Input) */
+.bo-adv-field {
+  display: flex;
+  /* İçindekileri yönetmek için esnek yapıyı kullanır */
+  flex-direction: column;
+  /* Etiket ve kutuyu alt alta dizmek için dikey yön seçer */
+  gap: 4px;
+  /* Etiket (label) ve kutu (input) arasına 4px boşluk verir */
+  min-width: 160px;
+  /* Filtrelerin 160px'ten daha fazla küçülmesini engeller */
+  flex: 1;
+  /* Boş alan varsa filtrelerin o alanı doldurmasını sağlar */
+  position: relative;
+  /* İçindeki dropdown'ın (açılır liste) buna göre konumlanmasını sağlar */
+}
+
+/* Filtre giriş kutularının üzerindeki başlık metni */
+.bo-adv-field label {
+  font-size: 11px;
+  /* Küçük, zarif bir font boyutu */
+  font-weight: 700;
+  /* Yazıyı tam kalın (bold) yapar */
+  color: #64748b;
+  /* Daha sönük bir gri tonu kullanır */
+  text-transform: uppercase;
+  /* Tüm harfleri otomatik büyük harf yapar */
+  letter-spacing: 0.04em;
+  /* Harfler arasına çok hafif boşluk açar (okunabilirlik için) */
+}
+
+/* Yazı yazılan giriş kutusu (input) */
+.bo-adv-field input {
+  padding: 7px 10px;
+  /* Yazı ile kutu kenarı arasına mesafe koyar */
+  border: 1px solid #e2e8f0;
+  /* Standart ince çerçeve */
+  border-radius: 8px;
+  /* Kutunun köşelerini modern, yuvarlak yapar */
+  font-size: 12px;
+  /* Kutu içindeki yazı boyutu */
+  font-family: inherit;
+  /* Font tipini korur */
+  color: #0f172a;
+  /* Yazılan yazının rengi (koyu lacivert/siyah) */
+  background: #fff;
+  /* Kutu içini saf beyaz yapar */
+  outline: none;
+  /* Tıklandığında çıkan varsayılan tarayıcı çerçevesini siler */
+  transition: border-color 0.15s;
+  /* Odaklanma (focus) sırasında çerçeve rengini yumuşak değiştirir */
+}
+
+/* Kutuya tıklandığında (odaklandığında) oluşacak görünüm */
+.bo-adv-field input:focus {
+  border-color: #2563eb;
+  /* Çerçeveyi belirgin bir maviye boyar */
+}
+
+/* Kutu devre dışı (disabled) bırakıldığında oluşacak görünüm */
+.bo-adv-field input:disabled {
+  background: #f1f5f9;
+  /* Arka planı grileştirir */
+  color: #94a3b8;
+  /* Yazı rengini silikleştirir */
+  cursor: not-allowed;
+  /* Fareyi "yasak" işaretine dönüştürür */
+}
+
+/* Otomatik tamamlama (autocomplete) açılır listesi */
+.bo-ac-dropdown {
+  position: absolute;
+  /* Kendi ebeveynine (.bo-adv-field) göre konumlanır */
+  top: calc(100% + 2px);
+  /* Giriş kutusunun hemen 2px altına yerleşir */
+  left: 0;
+  /* Sol kenarı giriş kutusuyla hizalar */
+  right: 0;
+  /* Sağ kenarı giriş kutusuyla hizalar (genişliği eşitler) */
+  background: #fff;
+  /* Liste arka planı beyaz */
+  border: 1px solid #e2e8f0;
+  /* İnce çerçeve */
+  border-radius: 8px;
+  /* Listenin köşelerini yuvarlar */
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.10);
+  /* Listeyi havada duruyormuş gibi gösteren hafif gölge */
+  z-index: 999;
+  /* Diğer elemanların her zaman üzerinde görünmesini sağlar */
+  max-height: 200px;
+  /* Liste çok uzarsa 200px'te sabit kalır */
+  overflow-y: auto;
+  /* Çok fazla eleman varsa içinde kaydırma çubuğu çıkarır */
+  display: none;
+  /* Başlangıçta gizlidir */
+}
+
+/* Otomatik tamamlama listesi görünür olduğunda */
+.bo-ac-dropdown.open {
+  display: block;
+  /* Listeyi blok eleman olarak gösterir */
+}
+
+/* Liste içindeki her bir öneri satırı */
+.bo-ac-item {
+  padding: 8px 12px;
+  /* Satır içi boşluk */
+  font-size: 12px;
+  /* Yazı boyutu */
+  color: #1e293b;
+  /* Yazı rengi */
+  cursor: pointer;
+  /* Seçilebilir olduğunu hissettiren fare imleci */
+  border-bottom: 1px solid #f1f5f9;
+  /* Satırlar arasına çok ince ayırıcı çizgi atar */
+}
+
+/* Listenin en son elemanındaki alt çizgiyi kaldırır */
+.bo-ac-item:last-child {
+  border-bottom: none;
+}
+
+/* Listenin üzerindeyken veya ok tuşlarıyla seçilmişken (active) hali */
+.bo-ac-item:hover,
+.bo-ac-item.active {
+  background: #eff6ff;
+  /* Arka planı çok açık mavi yapar */
+  color: #1d4ed8;
+  /* Metni koyu mavi yapar */
+}
+
+/* Filtreleri temizle butonu */
+.bo-adv-clear {
+  padding: 7px 12px;
+  /* Buton iç boşluğu */
+  font-size: 12px;
+  /* Yazı boyutu */
+  font-weight: 600;
+  /* Kalın yazı */
+  color: #ef4444;
+  /* Uyarı/Temizleme anlamında kırmızı renk */
+  background: #fff;
+  /* Beyaz arka plan */
+  border: 1px solid #fecaca;
+  /* Kırmızımsı açık renk çerçeve */
+  border-radius: 8px;
+  /* Yuvarlak köşeler */
+  cursor: pointer;
+  /* Tıklama imleci */
+  font-family: inherit;
+  /* Font uyumu */
+  white-space: nowrap;
+  /* Metnin alt satıra geçmesini (kırılmasını) engeller */
+  align-self: flex-end;
+  /* Butonu panelin en altına (diğer inputlarla hizalı) iter */
+}
+
+/* Temizle butonunun üzerine gelindiğinde */
+.bo-adv-clear:hover {
+  background: #fee2e2;
+  /* Arka planı hafif kırmızımsı bir tona çevirir */
+}

@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ofis İçi Faturalar — İnokas CRM</title>
+  <script>
+    if (!sessionStorage.getItem('inokas_token')) window.location.href = '/login.html';
+  </script>
+  <link href="https://fonts.googleapis.com/css2?family=Geist+Mono:wght@400;600&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.x/dist/tabler-icons.min.css">
+  <link rel="stylesheet" href="/sidebar.css">
+  <link rel="stylesheet" href="/shared-filters.css?v=1">
+  <link rel="stylesheet" href="/faturalar/css/gelen-giden.css?v=1">
+  <script src="/sidebar.js?v=4" defer></script>
+  <style>
+    .ofis-cat-badge {
+      display: inline-block;
+      padding: 2px 8px;
+      background: #1e3a5f;
+      color: #93c5fd;
+      border-radius: 99px;
+      font-size: 11px;
+      font-weight: 600;
+      margin-right: 4px;
+    }
+
+    /* KPI kartları: normal kartlar dar, harcama kartları biraz daha geniş */
+    #fatKpiBar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      padding: 14px 20px;
+    }
+
+    #fatKpiBar .fat-kpi {
+      padding: 7px 10px;
+      min-width: 0;
+      flex: 0 0 auto;
+      width: auto;
+    }
+
+    #fatKpiBar .fat-kpi-slim {
+      flex: 0 0 auto;
+    }
+
+    #fatKpiBar .fat-kpi-spend {
+      flex: 0 0 auto;
+    }
+
+    #fatKpiBar .fat-kpi-value {
+      font-size: 15px;
+    }
+
+    #fatKpiBar .fat-kpi-value.spend-val {
+      font-size: 15px;
+    }
+  </style>
+</head>
+<body>
+
+<div class="app-shell">
+  <div id="sidebar-container"></div>
+  <div class="page-area">
+  <div class="fatura-page" id="faturaPage">
+
+    <div class="fat-page-header">
+      <button class="sb-toggle-btn" onclick="toggleSidebar()" title="Menüyü aç/kapat">
+        <i class="ti ti-menu-2"></i>
+      </button>
+      <p class="fat-page-title" id="fatPageTitle">Ofis İçi Faturalar</p>
+    </div>
+
+    <div class="fatura-topbar" style="flex-direction:column; align-items:stretch; gap:8px; padding:10px 16px; background:#111827; border-bottom:1px solid #1e293b;">
+      <div style="display:flex; gap:8px; align-items:flex-start; flex-wrap:wrap;">
+
+        <input type="text" id="mainSearch" onkeyup="renderOfisIciList()"
+          placeholder="Fatura no / firma ara..."
+          class="fatura-filter-input" style="min-width:160px; flex:1;">
+
+        <div style="display:flex; align-items:center; gap:4px; flex-shrink:0;">
+          <input type="date" id="filterDateStart" onchange="renderOfisIciList()" class="fatura-filter-input" title="Başlangıç tarihi">
+          <span style="color:#94a3b8; font-size:13px;">—</span>
+          <input type="date" id="filterDateEnd" onchange="renderOfisIciList()" class="fatura-filter-input" title="Bitiş tarihi">
+        </div>
+
+        <select id="filterCategory" onchange="renderOfisIciList()" class="fatura-filter-select">
+          <option value="">Tüm Kategoriler</option>
+        </select>
+
+        <div style="display:flex; gap:6px; align-items:center; flex-shrink:0;">
+          <button onclick="renderOfisIciList()"
+            style="height:32px; padding:0 14px; background:#2563eb; color:white; border:none; border-radius:7px; font-size:12px; font-weight:600; cursor:pointer; font-family:inherit; display:flex; align-items:center; gap:4px;">
+            <i class="ti ti-filter" style="font-size:13px;"></i>Uygula
+          </button>
+          <button onclick="clearOfisFilters()" title="Temizle"
+            style="height:32px; width:32px; display:flex; align-items:center; justify-content:center; border:1px solid #334155; border-radius:7px; background:transparent; cursor:pointer; color:#64748b; flex-shrink:0;">
+            <i class="ti ti-trash" style="font-size:14px;"></i>
+          </button>
+        </div>
+
+      </div>
+    </div>
+
+    <div class="fat-kpi-bar" id="fatKpiBar"></div>
+
+    <div class="fat-area">
+      <div class="fat-tabbar" id="fatTabBar">
+        <button class="fat-tab fat-tab--active">OFİS İÇİ FATURALAR</button>
+      </div>
+      <div class="fat-content" id="fatContent">
+        <div style="padding:40px; text-align:center; color:#64748b;">Yükleniyor…</div>
+      </div>
+    </div>
+
+  </div>
+  </div>
+</div>
+
+<div id="toast-container"></div>
+
+<script src="/faturalar/js/utils.js?v=1"></script>
+<script src="/faturalar/js/ofis-ici.js?v=1"></script>
+
+</body>
+</html>

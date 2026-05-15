@@ -177,6 +177,21 @@ function normalizeProductCodeForMatch(code) {
     return String(code || '').trim().toUpperCase();
 }
 
+/** Ofis içi (is_internal) kalemleri düşülmüş kaynak para tutarı — KDV dahil */
+function invNonInternalPayableAmountSrc(inv) {
+    const items = inv?.invoice_items;
+    if (!items || !items.length) return invPayableAmountSrc(inv);
+    const hasInternal = items.some(it => it.is_internal);
+    if (!hasInternal) return invPayableAmountSrc(inv);
+    return items
+        .filter(it => !it.is_internal)
+        .reduce((sum, it) => {
+            const net     = parseFloat(it.total_price_cur) || 0;
+            const taxRate = parseFloat(it.tax_rate) || 0;
+            return sum + net * (1 + taxRate / 100);
+        }, 0);
+}
+
 // ─── Tag-input multi-select helper ───────────────────────────────────────────
 function createTagFilter({ wrapId, inputId, dropdownId, getOptions, onChange }) {
     const wrap     = document.getElementById(wrapId);

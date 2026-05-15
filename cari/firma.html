@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="tr">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -8,74 +9,86 @@
   <script>
     if (!sessionStorage.getItem('inokas_token')) window.location.href = '/login.html';
   </script>
-  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap"
+    rel="stylesheet">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.x/dist/tabler-icons.min.css">
   <link rel="stylesheet" href="/cari/css/sidebar.css">
   <link rel="stylesheet" href="/cari/css/cari.css">
   <link rel="stylesheet" href="/cari/css/firma.css">
 </head>
+
 <body>
 
-<div class="app-shell">
+  <div class="app-shell">
 
-  <div id="sidebar-container"></div>
+    <div id="sidebar-container"></div>
 
-  <div class="page-area">
+    <div class="page-area">
 
-    <!-- Header -->
-    <div class="page-header">
-      <div class="page-header-left">
-        <button class="sb-toggle-btn" onclick="toggleSidebar()">
-          <i class="ti ti-menu-2"></i>
-        </button>
-        <button class="sb-toggle-btn" id="firma-back-btn" title="Geri dön" style="margin-right:4px;">
-          <i class="ti ti-arrow-left"></i>
-        </button>
-        <div>
-          <p class="page-header-title" id="firma-page-title">Firma Detayı</p>
-          <p class="page-header-sub"  id="firma-page-sub">Fatura ve ödeme geçmişi</p>
+      <!-- Header -->
+      <div class="page-header">
+        <div class="page-header-left">
+          <button class="sb-toggle-btn" onclick="toggleSidebar()">
+            <i class="ti ti-menu-2"></i>
+          </button>
+          <button class="sb-toggle-btn" id="firma-back-btn" title="Geri dön" style="margin-right:4px;">
+            <i class="ti ti-arrow-left"></i>
+          </button>
+          <div>
+            <p class="page-header-title" id="firma-page-title">Firma Detayı</p>
+            <p class="page-header-sub" id="firma-page-sub">Fatura ve ödeme geçmişi</p>
+          </div>
         </div>
       </div>
-    </div>
 
-    <!-- Split content -->
-    <div class="page-content-split">
-      <div class="firma-split">
+      <!-- Split content -->
+      <div class="page-content-split">
+        <div class="firma-split">
 
-        <!-- Sol: fatura listesi -->
-        <div class="firma-left">
-          <div class="firma-left-header">
-            <span class="firma-left-title">Faturalar</span>
-          </div>
-          <div id="firma-invoice-list">
-            <div class="fl-empty">Yükleniyor...</div>
-          </div>
-        </div>
-
-        <!-- Sağ: ödeme detayı -->
-        <div class="firma-right">
-          <div id="firma-detail-panel">
-            <div class="fd-empty">
-              <i class="ti ti-receipt" style="font-size:40px; color:#cbd5e1; display:block; margin-bottom:12px;"></i>
-              Soldan bir fatura seçin
+          <!-- Sol: fatura listesi -->
+          <div class="firma-left">
+            <div class="firma-left-header">
+              <span class="firma-left-title">Faturalar</span>
+            </div>
+            <div id="firma-invoice-list">
+              <div class="fl-empty">Yükleniyor...</div>
             </div>
           </div>
+
+          <!-- Orta: ödeme detayı -->
+          <div class="firma-middle">
+            <div id="firma-detail-panel">
+              <div class="fd-empty">
+                <i class="ti ti-receipt" style="font-size:40px; color:#cbd5e1; display:block; margin-bottom:12px;"></i>
+                Soldan bir fatura seçin
+              </div>
+            </div>
+          </div>
+
+          <!-- Sağ: PDF görüntüleyici -->
+          <div class="firma-pdf">
+            <div id="firma-pdf-empty" class="firma-pdf-empty-msg">
+              <i class="ti ti-file-text" style="font-size:40px; color:#cbd5e1; display:block; margin-bottom:12px;"></i>
+              PDF'i görüntülemek için faturaya tıklayın
+            </div>
+            <iframe id="firma-pdf-iframe" style="display:none; width:100%; height:100%; border:none;"></iframe>
+          </div>
+
         </div>
-
       </div>
+
     </div>
-
   </div>
-</div>
 
-<div id="toast-container"></div>
-<script src="/cari/js/cari-core.js"></script>
-<script src="/cari/js/firma-api.js?v=20260512-init"></script>
-<script src="/cari/js/firma-state.js?v=20260512-init"></script>
-<script src="/cari/js/firma-list.js?v=20260512-init"></script>
-<script src="/cari/js/firma-detail.js?v=20260512-init"></script>
-<script src="/cari/js/firma-main.js?v=20260512-init"></script>
-<script src="/cari/js/sidebar.js"></script>
+  <div id="toast-container"></div>
+  <script src="/cari/js/cari-core.js"></script>
+  <script src="/cari/js/firma-api.js?v=20260512-init"></script>
+  <script src="/cari/js/firma-state.js?v=20260512-init"></script>
+  <script src="/cari/js/firma-list.js?v=20260512-init"></script>
+  <script src="/cari/js/firma-detail.js?v=20260512-init"></script>
+  <script src="/cari/js/firma-main.js?v=20260512-init"></script>
+  <script src="/cari/js/sidebar.js"></script>
 
 </body>
+
 </html>

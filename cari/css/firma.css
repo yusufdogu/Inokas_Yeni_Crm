@@ -1,11 +1,3 @@
-/* ── SPLIT LAYOUT ────────────────────────────────────────────────────────────── */
-.firma-split {
-  display: grid;
-  grid-template-columns: 380px 1fr;
-  height: 100%;
-  overflow: hidden;
-}
-
 /* ── SOL PANEL ───────────────────────────────────────────────────────────────── */
 .firma-left {
   border-right: 1px solid #e2e8f0;
@@ -52,13 +44,13 @@
 
 .fl-row:hover {
   transform: scale(1.012);
-  box-shadow: 0 4px 14px rgba(37,99,235,0.09);
+  box-shadow: 0 4px 14px rgba(37, 99, 235, 0.09);
 }
 
 .fl-row--active {
   border-left-color: #2563eb;
   background: #eff6ff;
-  box-shadow: 0 2px 10px rgba(37,99,235,0.12);
+  box-shadow: 0 2px 10px rgba(37, 99, 235, 0.12);
 }
 
 .fl-row-top {
@@ -68,15 +60,44 @@
   margin-bottom: 4px;
 }
 
+.fl-dir-badge {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 5px;
+  letter-spacing: 0.03em;
+  flex-shrink: 0;
+}
+
+.fl-dir-gelen {
+  background: #dcfce7;
+  color: #15803d;
+}
+
+.fl-dir-giden {
+  background: #dbeafe;
+  color: #1e40af;
+}
+
 .fl-dot {
   width: 8px;
   height: 8px;
   border-radius: 50%;
   flex-shrink: 0;
 }
-.fl-dot-paid    { background: #16a34a; }
-.fl-dot-partial { background: #d97706; }
-.fl-dot-unpaid  { background: #ef4444; }
+
+.fl-dot-paid {
+  background: #16a34a;
+}
+
+.fl-dot-partial {
+  background: #d97706;
+}
+
+.fl-dot-unpaid {
+  background: #ef4444;
+}
 
 .fl-inv-no {
   font-size: 13px;
@@ -120,7 +141,9 @@
   color: #374151;
 }
 
-.fl-amt-warn .fl-amt-val { color: #dc2626; }
+.fl-amt-warn .fl-amt-val {
+  color: #dc2626;
+}
 
 .fl-empty {
   padding: 40px 20px;
@@ -187,9 +210,20 @@
   gap: 3px;
 }
 
-.fd-sum-total     { background: #eff6ff; border: 1px solid #bfdbfe; }
-.fd-sum-paid      { background: #f0fdf4; border: 1px solid #dcfce7; }
-.fd-sum-remaining { background: #fff1f2; border: 1px solid #ffe4e6; }
+.fd-sum-total {
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+}
+
+.fd-sum-paid {
+  background: #f0fdf4;
+  border: 1px solid #dcfce7;
+}
+
+.fd-sum-remaining {
+  background: #fff1f2;
+  border: 1px solid #ffe4e6;
+}
 
 .fd-sum-label {
   font-size: 10px;
@@ -204,9 +238,17 @@
   font-weight: 800;
 }
 
-.fd-sum-total     .fd-sum-val { color: #2563eb; }
-.fd-sum-paid      .fd-sum-val { color: #16a34a; }
-.fd-sum-remaining .fd-sum-val { color: #e11d48; }
+.fd-sum-total .fd-sum-val {
+  color: #2563eb;
+}
+
+.fd-sum-paid .fd-sum-val {
+  color: #16a34a;
+}
+
+.fd-sum-remaining .fd-sum-val {
+  color: #e11d48;
+}
 
 /* ── SECTION HEADER ──────────────────────────────────────────────────────────── */
 .fd-section-header {
@@ -237,8 +279,14 @@
   font-family: inherit;
   transition: background 0.15s;
 }
-.fd-add-btn:hover { background: #1d4ed8; }
-.fd-add-btn i { font-size: 13px; }
+
+.fd-add-btn:hover {
+  background: #1d4ed8;
+}
+
+.fd-add-btn i {
+  font-size: 13px;
+}
 
 /* ── ÖDEME EKLEME FORMU ──────────────────────────────────────────────────────── */
 .fd-add-form {
@@ -264,7 +312,9 @@
   min-width: 120px;
 }
 
-.fd-form-group--wide { flex: 2; }
+.fd-form-group--wide {
+  flex: 2;
+}
 
 .fd-form-group label {
   font-size: 10px;
@@ -284,7 +334,9 @@
   background: white;
 }
 
-.fd-form-group input:focus { border-color: #2563eb; }
+.fd-form-group input:focus {
+  border-color: #2563eb;
+}
 
 .fd-form-actions {
   display: flex;
@@ -303,7 +355,10 @@
   cursor: pointer;
   font-family: inherit;
 }
-.fd-btn-save:hover { background: #0284c7; }
+
+.fd-btn-save:hover {
+  background: #0284c7;
+}
 
 .fd-btn-cancel {
   background: #f1f5f9;
@@ -346,16 +401,41 @@
   color: #374151;
 }
 
-.fd-tr-alt { background: #f8fafc; }
+.fd-tr-alt {
+  background: #f8fafc;
+}
 
-.fd-td-right    { text-align: right; }
-.fd-td-paid     { font-weight: 700; color: #16a34a; }
-.fd-td-remaining { font-weight: 700; color: #e11d48; }
-.fd-td-zero     { font-weight: 700; color: #16a34a; }
-.fd-td-note     { color: #64748b; font-size: 12px; }
-.fd-td-actions  { text-align: right; white-space: nowrap; }
+.fd-td-right {
+  text-align: right;
+}
 
-.fd-btn-edit, .fd-btn-delete {
+.fd-td-paid {
+  font-weight: 700;
+  color: #16a34a;
+}
+
+.fd-td-remaining {
+  font-weight: 700;
+  color: #e11d48;
+}
+
+.fd-td-zero {
+  font-weight: 700;
+  color: #16a34a;
+}
+
+.fd-td-note {
+  color: #64748b;
+  font-size: 12px;
+}
+
+.fd-td-actions {
+  text-align: right;
+  white-space: nowrap;
+}
+
+.fd-btn-edit,
+.fd-btn-delete {
   border: none;
   border-radius: 6px;
   padding: 4px 8px;
@@ -363,8 +443,16 @@
   cursor: pointer;
   margin-left: 4px;
 }
-.fd-btn-edit   { background: #dbeafe; color: #2563eb; }
-.fd-btn-delete { background: #fee2e2; color: #ef4444; }
+
+.fd-btn-edit {
+  background: #dbeafe;
+  color: #2563eb;
+}
+
+.fd-btn-delete {
+  background: #fee2e2;
+  color: #ef4444;
+}
 
 .fd-inline-input {
   padding: 5px 8px;
@@ -374,7 +462,8 @@
   font-family: inherit;
 }
 
-.fd-btn-save-sm, .fd-btn-cancel-sm {
+.fd-btn-save-sm,
+.fd-btn-cancel-sm {
   border: none;
   border-radius: 6px;
   padding: 5px 10px;
@@ -382,12 +471,88 @@
   cursor: pointer;
   margin-left: 4px;
 }
-.fd-btn-save-sm   { background: #0ea5e9; color: white; }
-.fd-btn-cancel-sm { background: #f1f5f9; color: #64748b; border: 1px solid #e2e8f0; }
 
-.fd-loading, .fd-no-payments {
+.fd-btn-save-sm {
+  background: #0ea5e9;
+  color: white;
+}
+
+.fd-btn-cancel-sm {
+  background: #f1f5f9;
+  color: #64748b;
+  border: 1px solid #e2e8f0;
+}
+
+.fd-loading,
+.fd-no-payments {
   padding: 30px;
   text-align: center;
   color: #94a3b8;
   font-size: 13px;
+}
+
+
+
+/* ── 3'LÜ SPLIT LAYOUT (PDF PANELİ) ─────────────────────────────────────────── */
+.firma-split {
+  display: grid;
+  grid-template-columns: 380px 2fr 2fr;
+  height: 100%;
+  overflow: hidden;
+}
+
+/* Ortadaki "Detay" panelinin genel kutu özellikleri */
+.firma-middle {
+  /* Sağ tarafa ince bir ayırıcı çizgi ekler */
+  border-right: 1px solid #e2e8f0;
+  /* İçindeki elemanları yukarıdan aşağıya (dikey) dizer */
+  display: flex;
+  flex-direction: column;
+  /* Dışarı taşan içerikleri gizler (kaydırma çubuğu karmaşasını önler) */
+  overflow: hidden;
+  background: white;
+}
+
+/* Orta panelin içindeki asıl içerik alanı */
+.firma-middle #firma-detail-panel {
+  /* Paneldeki tüm boş alanı kaplamasını sağlar */
+  flex: 1;
+  /* İçerik uzarsa sadece bu bölgede dikey kaydırma çubuğu çıkarır */
+  overflow-y: auto;
+  /* İçeriğin kenarlara yapışmaması için boşluk bırakır */
+  padding: 20px 24px;
+}
+
+/* En sağdaki PDF görüntüleme paneli */
+.firma-pdf {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  /* PDF alanı olduğunu belli etmek için hafif gri/mavi bir arka plan */
+  background: #f8fafc;
+  /* Sol tarafa (orta panel ile arasına) ayırıcı çizgi ekler */
+  border-left: 1px solid #e2e8f0;
+  /* İçindeki mutlak konumlandırılmış öğeler için referans noktası olur */
+  position: relative;
+}
+
+/* Henüz bir PDF seçilmediğinde görünen uyarı mesajı */
+.firma-pdf-empty-msg {
+  /* Panelin tüm yüksekliğini kaplar */
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  /* Metni tam olarak dikey ve yatayda merkeze hizalar */
+  align-items: center;
+  justify-content: center;
+  /* Soft bir gri renk ve küçük yazı boyutuyla "ikincil bilgi" havası verir */
+  color: #94a3b8;
+  font-size: 14px;
+  text-align: center;
+}
+
+/* PDF'in görüntülendiği iframe (çerçeve) */
+#firma-pdf-iframe {
+  /* PDF yüklendiğinde panelin içindeki tüm boşluğu doldurmasını sağlar */
+  flex: 1;
 }

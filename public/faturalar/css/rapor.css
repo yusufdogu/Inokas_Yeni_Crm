@@ -48,7 +48,11 @@
   flex-shrink: 0;
   transition: color 0.12s, border-color 0.12s;
 }
-.rapor-filter-clear:hover { color: #ef4444; border-color: #fca5a5; }
+
+.rapor-filter-clear:hover {
+  color: #ef4444;
+  border-color: #fca5a5;
+}
 
 .rapor-mode-tab {
   padding: 8px 18px;
@@ -144,9 +148,19 @@
   transition: background 0.12s, color 0.12s;
 }
 
-.rapor-th:hover { background: #e2e8f0; color: #1e293b; }
-.rapor-th--active { color: #2563eb; background: #dbeafe; }
-.rapor-th-num { text-align: right; }
+.rapor-th:hover {
+  background: #e2e8f0;
+  color: #1e293b;
+}
+
+.rapor-th--active {
+  color: #2563eb;
+  background: #dbeafe;
+}
+
+.rapor-th-num {
+  text-align: right;
+}
 
 .rapor-th-arrow {
   display: inline-block;
@@ -161,8 +175,13 @@
   transition: background 0.1s;
 }
 
-.rapor-row:hover { background: #f8fafc; }
-.rapor-row.rapor-row--open { background: #eff6ff; }
+.rapor-row:hover {
+  background: #f8fafc;
+}
+
+.rapor-row.rapor-row--open {
+  background: #eff6ff;
+}
 
 .rapor-row--open {
   background: #eff6ff !important;
@@ -218,11 +237,25 @@
   color: #2563eb;
 }
 
-.rapor-td-num { text-align: right; font-variant-numeric: tabular-nums; }
-.rapor-td-money { font-weight: 700; color: #1d4ed8; }
+.rapor-td-num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.rapor-td-money {
+  font-weight: 700;
+  color: #1d4ed8;
+}
+
+.rapor-td-money-try {
+  font-weight: 700;
+  color: #059669;
+}
 
 /* Detay satırı (accordion) */
-.rapor-detail-row { display: none; }
+.rapor-detail-row {
+  display: none;
+}
 
 .rapor-detail-cell {
   padding: 0 !important;
@@ -245,7 +278,9 @@
   font-size: 12px;
 }
 
-.rapor-comp-head { background: #eff6ff; }
+.rapor-comp-head {
+  background: #eff6ff;
+}
 
 .rapor-comp-th {
   padding: 8px 16px 8px 52px;
@@ -256,10 +291,18 @@
   text-align: left;
 }
 
-.rapor-comp-th.rapor-comp-num { text-align: right; padding-left: 0; }
+.rapor-comp-th.rapor-comp-num {
+  text-align: right;
+  padding-left: 0;
+}
 
-.rapor-comp-row { border-top: 1px solid #e2e8f0; }
-.rapor-comp-row:hover { background: #eff6ff; }
+.rapor-comp-row {
+  border-top: 1px solid #e2e8f0;
+}
+
+.rapor-comp-row:hover {
+  background: #eff6ff;
+}
 
 .rapor-comp-td {
   padding: 9px 16px 9px 52px;
@@ -267,10 +310,16 @@
   color: #334155;
 }
 
-.rapor-comp-td.rapor-comp-num { text-align: right; padding-left: 0; }
+.rapor-comp-td.rapor-comp-num {
+  text-align: right;
+  padding-left: 0;
+}
 
 /* Progress bar */
-.rapor-bar-cell { padding: 9px 16px; min-width: 140px; }
+.rapor-bar-cell {
+  padding: 9px 16px;
+  min-width: 140px;
+}
 
 .rapor-bar-wrap {
   display: flex;

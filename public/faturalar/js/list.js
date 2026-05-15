@@ -418,11 +418,11 @@ function renderKpiBar(invoices) {
 
     let usdTotal = 0, tryTotal = 0;
     invoices.forEach(inv => {
-        const src  = invPayableAmountSrc(inv);
-        const rate = invCalculationRate(inv);
+        const src   = invNonInternalPayableAmountSrc(inv);
+        const rate  = invCalculationRate(inv);
         const isUSD = invBaseCurrencyIso(inv) !== 'TRY';
         if (isUSD) { usdTotal += src; tryTotal += src * rate; }
-        else       { tryTotal += src; usdTotal += rate > 0 ? src / rate : 0; }
+        else       { tryTotal += src; }
     });
 
     const usdLabel = isGelen ? 'HARCAMA (USD)' : 'CİRO (USD)';
@@ -554,7 +554,7 @@ function renderListView(invoices) {
     _fatDetailList = sorted;
 
     const rows = sorted.map(inv => {
-        const total = formatMoneyDisplay(inv, invPayableAmountSrc(inv));
+        const total = formatMoneyDisplay(inv, invNonInternalPayableAmountSrc(inv));
         const comp  = (inv.companies?.name || 'Bilinmeyen').replace(/</g, '&lt;');
         const no    = (inv.invoice_no || '-').replace(/</g, '&lt;');
         return `<tr onclick="openFatDetailPage('${inv.id}')">

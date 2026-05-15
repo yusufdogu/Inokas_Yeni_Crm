@@ -105,6 +105,7 @@ function createTagFilter({ wrapId, inputId, dropdownId, placeholder, getOptions,
     dropdown.classList.toggle('open', opts.length > 0);
   }
 
+  input.addEventListener('focus', () => renderDropdown(input.value));
   input.addEventListener('input', () => renderDropdown(input.value));
   input.addEventListener('keydown', (e) => {
     if (e.key === 'Backspace' && !input.value && selected.length) {

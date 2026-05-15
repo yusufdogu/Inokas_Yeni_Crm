@@ -44,8 +44,8 @@ function _invoiceRowHtml(inv) {
             : '<span class="fl-dot fl-dot-unpaid" title="Ödenmedi"></span>';
 
     const dirIcon = inv.direction === 'INCOMING'
-        ? '<i class="ti ti-arrow-down-circle" style="color:#16a34a; font-size:14px;"></i>'
-        : '<i class="ti ti-arrow-up-circle"   style="color:#2563eb; font-size:14px;"></i>';
+        ? '<span class="fl-dir-badge fl-dir-gelen">Gelen</span>'
+        : '<span class="fl-dir-badge fl-dir-giden">Giden</span>';
 
     return `
 <div class="fl-row${isSelected ? ' fl-row--active' : ''}" onclick="selectInvoice('${inv.id}')">

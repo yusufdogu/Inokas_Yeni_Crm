@@ -1,11 +1,18 @@
 // stok/backorder.js — Bekleyen Siparişler page
 
-const PO_CACHE_KEY    = 'inokas_pending_po_v1';
+const PO_CACHE_KEY = 'inokas_pending_po_v1';
 const STOCK_CACHE_KEY = 'inokas_stock_v3';
 
 let allPendingOrders = [];
-let _brandList       = [];
-let _categoryList    = [];
+let _brandList = [];
+let _categoryList = [];
+
+// Advanced filter state
+let _advFilterData = []; // [{category, brand, model}] — DB'den çekilir
+let _advSelCategory = '';
+let _advSelBrand = '';
+let _advSelModel = '';
+
 
 // ─── INIT ─────────────────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', async () => {
@@ -24,9 +31,12 @@ async function loadBrandsCategories() {
     const res = await fetch('/api/products/category-map');
     if (!res.ok) return;
     const data = await res.json();
-    _brandList    = data.brands     || [];
+    _brandList = data.brands || [];
     _categoryList = data.categories || [];
-  } catch {}
+    // Advanced filter için zengin veri — [{category, brand, model}]
+    _advFilterData = data.items || data.rows || [];
+  } catch { }
+  initAdvFilters();
 }
 
 // ─── DATA ─────────────────────────────────────────────────────────────────────
@@ -54,37 +64,47 @@ async function loadPendingOrders() {
 
 // ─── KPIs ─────────────────────────────────────────────────────────────────────
 function renderKpis() {
-  const pending    = allPendingOrders.filter(po => (Number(po.ordered_qty) - Number(po.received_qty)) > 0);
+  const pending = allPendingOrders.filter(po => (Number(po.ordered_qty) - Number(po.received_qty)) > 0);
   const pendingQty = pending.reduce((s, po) => s + (Number(po.ordered_qty) - Number(po.received_qty)), 0);
   const receivedQty = allPendingOrders.reduce((s, po) => s + Number(po.received_qty || 0), 0);
 
-  document.getElementById('kpi-pending').textContent  = fmtQty(pending.length);
-  document.getElementById('kpi-qty').textContent      = fmtQty(pendingQty);
+  document.getElementById('kpi-pending').textContent = fmtQty(pending.length);
+  document.getElementById('kpi-qty').textContent = fmtQty(pendingQty);
   document.getElementById('kpi-received').textContent = fmtQty(receivedQty);
-  document.getElementById('bo-count').textContent     = `${fmtQty(pending.length)} bekleyen kalem`;
+  document.getElementById('bo-count').textContent = `${fmtQty(pending.length)} bekleyen kalem`;
 }
 
 // ─── RENDER TABLE ─────────────────────────────────────────────────────────────
 function renderTable() {
-  const body          = document.getElementById('poTableBody');
-  const emptyEl       = document.getElementById('poEmpty');
-  const search        = (document.getElementById('boSearch')?.value || '').trim().toLocaleLowerCase('tr-TR');
+  const body = document.getElementById('poTableBody');
+  const emptyEl = document.getElementById('poEmpty');
+  const search = (document.getElementById('boSearch')?.value || '').trim().toLocaleLowerCase('tr-TR');
   const showCompleted = !!document.getElementById('showCompleted')?.checked;
-  const dateStart     = document.getElementById('filterDateStart')?.value || '';
-  const dateEnd       = document.getElementById('filterDateEnd')?.value   || '';
+  const dateStart = document.getElementById('filterDateStart')?.value || '';
+  const dateEnd = document.getElementById('filterDateEnd')?.value || '';
   if (!body) return;
 
   const filtered = allPendingOrders.filter(po => {
     const remaining = Number(po.ordered_qty) - Number(po.received_qty);
     if (!showCompleted && remaining <= 0) return false;
-    const d = String(po.purchase_orders?.order_date || '').slice(0,10);
+    const d = String(po.purchase_orders?.order_date || '').slice(0, 10);
     if (dateStart && d < dateStart) return false;
-    if (dateEnd   && d > dateEnd)   return false;
+    if (dateEnd && d > dateEnd) return false;
     if (search) {
       const company = (po.purchase_orders?.companies?.name || '').toLocaleLowerCase('tr-TR');
       const product = (po.products?.product_name || '').toLocaleLowerCase('tr-TR');
-      const sku     = (po.products?.product_code || '').toLocaleLowerCase('tr-TR');
+      const sku = (po.products?.product_code || '').toLocaleLowerCase('tr-TR');
       if (!company.includes(search) && !product.includes(search) && !sku.includes(search)) return false;
+    }
+    // Advanced filters
+    if (_advSelCategory) {
+      if ((po.products?.category || '').toLocaleLowerCase('tr-TR') !== _advSelCategory.toLocaleLowerCase('tr-TR')) return false;
+    }
+    if (_advSelBrand) {
+      if ((po.products?.brand || '').toLocaleLowerCase('tr-TR') !== _advSelBrand.toLocaleLowerCase('tr-TR')) return false;
+    }
+    if (_advSelModel) {
+      if ((po.products?.model || '').toLocaleLowerCase('tr-TR') !== _advSelModel.toLocaleLowerCase('tr-TR')) return false;
     }
     return true;
   });
@@ -98,23 +118,23 @@ function renderTable() {
   emptyEl.classList.remove('visible');
 
   filtered.forEach(po => {
-    const ordered   = Number(po.ordered_qty)  || 0;
-    const received  = Number(po.received_qty) || 0;
+    const ordered = Number(po.ordered_qty) || 0;
+    const received = Number(po.received_qty) || 0;
     const remaining = ordered - received;
-    const isDone    = remaining <= 0;
+    const isDone = remaining <= 0;
     const unitPrice = po.unit_price_cur ?? '';
-    const currency  = String(po.currency || '').trim();
+    const currency = String(po.currency || '').trim();
     const lineTotal = po.line_total_cur ?? '';
 
     const tr = document.createElement('tr');
     tr.innerHTML = `
       <td><span class="badge-sku">${esc(po.purchase_orders?.po_number || '—')}</span></td>
       <td style="white-space:nowrap;">${esc(po.purchase_orders?.order_date || '—')}</td>
-      <td style="max-width:130px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="${esc(po.purchase_orders?.companies?.name||'')}">${esc(po.purchase_orders?.companies?.name || '—')}</td>
-      <td style="max-width:130px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-weight:500;" title="${esc(po.products?.product_name||'')}">${esc(po.products?.product_name || '—')}</td>
+      <td style="max-width:130px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="${esc(po.purchase_orders?.companies?.name || '')}">${esc(po.purchase_orders?.companies?.name || '—')}</td>
+      <td style="max-width:130px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-weight:500;" title="${esc(po.products?.product_name || '')}">${esc(po.products?.product_name || '—')}</td>
       <td><span class="badge-sku">${esc(po.products?.product_code || '—')}</span></td>
       <td class="text-right">
-        <input type="number" min="${Math.max(1,Math.ceil(received))}" step="1"
+        <input type="number" min="${Math.max(1, Math.ceil(received))}" step="1"
           class="po-edit-input po-ordered-input" value="${ordered}"
           data-po-id="${po.id}" data-original="${ordered}">
       </td>
@@ -125,10 +145,10 @@ function renderTable() {
       </td>
       <td>
         <select class="po-cur-select po-cur-input" data-po-id="${po.id}" data-original="${currency}">
-          <option value="" ${!currency?'selected':''}>—</option>
-          <option value="TRY" ${currency==='TRY'?'selected':''}>TRY</option>
-          <option value="USD" ${currency==='USD'?'selected':''}>USD</option>
-          <option value="EUR" ${currency==='EUR'?'selected':''}>EUR</option>
+          <option value="" ${!currency ? 'selected' : ''}>—</option>
+          <option value="TRY" ${currency === 'TRY' ? 'selected' : ''}>TRY</option>
+          <option value="USD" ${currency === 'USD' ? 'selected' : ''}>USD</option>
+          <option value="EUR" ${currency === 'EUR' ? 'selected' : ''}>EUR</option>
         </select>
       </td>
       <td class="text-right">
@@ -148,12 +168,12 @@ function renderTable() {
       </td>
     `;
 
-    const qtyInput   = tr.querySelector('.po-ordered-input');
-    const unitInput  = tr.querySelector('.po-unit-input');
+    const qtyInput = tr.querySelector('.po-ordered-input');
+    const unitInput = tr.querySelector('.po-unit-input');
     const totalInput = tr.querySelector('.po-total-input');
     const recalc = () => {
       if (!totalInput) return;
-      totalInput.value = (Number(qtyInput?.value||0) * Number(unitInput?.value||0)).toFixed(2);
+      totalInput.value = (Number(qtyInput?.value || 0) * Number(unitInput?.value || 0)).toFixed(2);
     };
     qtyInput?.addEventListener('input', recalc);
     unitInput?.addEventListener('input', recalc);
@@ -169,6 +189,133 @@ function clearFilters() {
   document.getElementById('showCompleted').checked = false;
   renderTable();
 }
+
+
+// ─── ADVANCED FILTERS ─────────────────────────────────────────────────────────
+
+function toggleAdvPanel() {
+  const panel = document.getElementById('advFilterPanel');
+  const toggle = document.getElementById('advFilterToggle');
+  const isOpen = panel.classList.toggle('open');
+  toggle.classList.toggle('active', isOpen);
+}
+
+function initAdvFilters() {
+  buildAcField({
+    inputId: 'advCategory',
+    dropId: 'advCategoryDrop',
+    getList: () => [...new Set(_advFilterData.map(x => x.category).filter(Boolean))],
+    onSelect: (val) => {
+      _advSelCategory = val;
+      _advSelBrand = '';
+      _advSelModel = '';
+      document.getElementById('advBrand').value = '';
+      document.getElementById('advModel').value = '';
+      document.getElementById('advBrand').disabled = false;
+      document.getElementById('advModel').disabled = true;
+      renderTable();
+    },
+    onClear: () => {
+      _advSelCategory = '';
+      _advSelBrand = '';
+      _advSelModel = '';
+      document.getElementById('advBrand').value = '';
+      document.getElementById('advModel').value = '';
+      document.getElementById('advBrand').disabled = true;
+      document.getElementById('advModel').disabled = true;
+      renderTable();
+    }
+  });
+
+  buildAcField({
+    inputId: 'advBrand',
+    dropId: 'advBrandDrop',
+    getList: () => {
+      const rows = _advSelCategory
+        ? _advFilterData.filter(x => x.category === _advSelCategory)
+        : _advFilterData;
+      return [...new Set(rows.map(x => x.brand).filter(Boolean))];
+    },
+    onSelect: (val) => {
+      _advSelBrand = val;
+      _advSelModel = '';
+      document.getElementById('advModel').value = '';
+      document.getElementById('advModel').disabled = false;
+      renderTable();
+    },
+    onClear: () => {
+      _advSelBrand = '';
+      _advSelModel = '';
+      document.getElementById('advModel').value = '';
+      document.getElementById('advModel').disabled = true;
+      renderTable();
+    }
+  });
+
+  buildAcField({
+    inputId: 'advModel',
+    dropId: 'advModelDrop',
+    getList: () => {
+      let rows = _advFilterData;
+      if (_advSelCategory) rows = rows.filter(x => x.category === _advSelCategory);
+      if (_advSelBrand) rows = rows.filter(x => x.brand === _advSelBrand);
+      return [...new Set(rows.map(x => x.model).filter(Boolean))];
+    },
+    onSelect: (val) => { _advSelModel = val; renderTable(); },
+    onClear: () => { _advSelModel = ''; renderTable(); }
+  });
+}
+
+function buildAcField({ inputId, dropId, getList, onSelect, onClear }) {
+  const input = document.getElementById(inputId);
+  const drop = document.getElementById(dropId);
+  if (!input || !drop) return;
+
+  input.addEventListener('input', () => {
+    const q = input.value.trim().toLocaleLowerCase('tr-TR');
+    if (!q) { closeDrop(drop); onClear(); return; }
+
+    const matches = getList().filter(v => v.toLocaleLowerCase('tr-TR').startsWith(q));
+    if (!matches.length) { closeDrop(drop); return; }
+
+    drop.innerHTML = '';
+    matches.forEach(val => {
+      const item = document.createElement('div');
+      item.className = 'bo-ac-item';
+      item.textContent = val;
+      item.addEventListener('mousedown', (e) => {
+        e.preventDefault();
+        input.value = val;
+        closeDrop(drop);
+        onSelect(val);
+      });
+      drop.appendChild(item);
+    });
+    drop.classList.add('open');
+  });
+
+  input.addEventListener('blur', () => setTimeout(() => closeDrop(drop), 150));
+  input.addEventListener('focus', () => { if (input.value.trim()) input.dispatchEvent(new Event('input')); });
+}
+
+function closeDrop(drop) { drop.classList.remove('open'); drop.innerHTML = ''; }
+
+function clearAdvFilters() {
+  _advSelCategory = ''; _advSelBrand = ''; _advSelModel = '';
+  ['advCategory', 'advBrand', 'advModel'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.value = '';
+  });
+  document.getElementById('advBrand').disabled = true;
+  document.getElementById('advModel').disabled = true;
+  ['advCategoryDrop', 'advBrandDrop', 'advModelDrop'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) { el.classList.remove('open'); el.innerHTML = ''; }
+  });
+  renderTable();
+}
+
+
 
 // ─── DATALIST HELPERS ─────────────────────────────────────────────────────────
 
@@ -219,7 +366,7 @@ async function autoFillCompanyByVkn() {
     if (!ct.includes('application/json')) return;
     const data = await res.json();
     nameEl.value = data?.name || '';
-  } catch {}
+  } catch { }
 }
 
 async function autoFillProductByCode(codeEl, nameEl, brandTd, categoryTd) {
@@ -240,7 +387,7 @@ async function autoFillProductByCode(codeEl, nameEl, brandTd, categoryTd) {
       const inp = categoryTd.querySelector('input');
       if (inp) inp.value = data.category;
     }
-  } catch {}
+  } catch { }
 }
 
 function addPoLine() {
@@ -324,7 +471,7 @@ function addPoLine() {
   tr.append(tdCode, tdName, tdBrand, tdCategory, tdQty, tdUnit, tdCur, tdTotal, tdDel);
 
   codeInput.addEventListener('blur', () => autoFillProductByCode(codeInput, nameInput, tdBrand, tdCategory));
-  const recalc = () => { totalInput.value = (Number(qtyInput.value||0) * Number(unitInput.value||0)).toFixed(2); };
+  const recalc = () => { totalInput.value = (Number(qtyInput.value || 0) * Number(unitInput.value || 0)).toFixed(2); };
   qtyInput.addEventListener('input', recalc);
   unitInput.addEventListener('input', recalc);
 
@@ -341,23 +488,23 @@ async function submitPoForm(forceCreate = false) {
   const msgEl = document.getElementById('poFormMsg');
 
   const payload = {
-    company_vkn:  String(document.getElementById('poCompanyVkn')?.value || '').trim(),
+    company_vkn: String(document.getElementById('poCompanyVkn')?.value || '').trim(),
     company_name: String(document.getElementById('poCompanyName')?.value || '').trim(),
     force_create: forceCreate,
     items: Array.from(document.querySelectorAll('#poLinesBody tr')).map(row => {
-      const unitRaw  = String(row.querySelector('.po-line-unit')?.value  || '').trim();
+      const unitRaw = String(row.querySelector('.po-line-unit')?.value || '').trim();
       const totalRaw = String(row.querySelector('.po-line-total')?.value || '').trim();
-      const qty      = Number(row.querySelector('.po-line-qty')?.value   || 0);
-      const unitVal  = Number(row.querySelector('.po-line-unit')?.value  || 0);
+      const qty = Number(row.querySelector('.po-line-qty')?.value || 0);
+      const unitVal = Number(row.querySelector('.po-line-unit')?.value || 0);
 
       return {
-        product_code:   String(row.querySelector('.po-line-code')?.value     || '').trim(),
-        product_name:   String(row.querySelector('.po-line-name')?.value     || '').trim(),
-        brand:          String(row.querySelector('.po-line-brand')?.value    || '').trim(),
-        category:       String(row.querySelector('.po-line-category')?.value || '').trim(),
-        ordered_qty:    qty,
-        unit_price_cur: unitRaw  === '' ? null : Number(unitRaw),
-        currency:       String(row.querySelector('.po-line-currency')?.value || '').trim() || null,
+        product_code: String(row.querySelector('.po-line-code')?.value || '').trim(),
+        product_name: String(row.querySelector('.po-line-name')?.value || '').trim(),
+        brand: String(row.querySelector('.po-line-brand')?.value || '').trim(),
+        category: String(row.querySelector('.po-line-category')?.value || '').trim(),
+        ordered_qty: qty,
+        unit_price_cur: unitRaw === '' ? null : Number(unitRaw),
+        currency: String(row.querySelector('.po-line-currency')?.value || '').trim() || null,
         line_total_cur: totalRaw === '' ? (unitVal > 0 ? Number((qty * unitVal).toFixed(2)) : null) : Number(totalRaw),
       };
     }).filter(x => x.product_code && x.ordered_qty > 0)
@@ -376,7 +523,7 @@ async function submitPoForm(forceCreate = false) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
     });
-    const ct   = res.headers.get('content-type') || '';
+    const ct = res.headers.get('content-type') || '';
     if (!ct.includes('application/json')) throw new Error('Sunucudan beklenmeyen cevap alındı.');
     const data = await res.json();
 
@@ -396,7 +543,7 @@ async function submitPoForm(forceCreate = false) {
     }
 
     if (msgEl) { msgEl.textContent = `✓ ${data?.po_number || 'PO oluşturuldu'}`; msgEl.className = 'modal-msg success'; }
-    document.getElementById('poCompanyVkn').value  = '';
+    document.getElementById('poCompanyVkn').value = '';
     document.getElementById('poCompanyName').value = '';
     const linesBody = document.getElementById('poLinesBody');
     if (linesBody) linesBody.innerHTML = '';
@@ -410,23 +557,23 @@ async function submitPoForm(forceCreate = false) {
 
 // ─── INLINE EDIT / DELETE ─────────────────────────────────────────────────────
 async function savePo(poItemId, btnEl) {
-  const qtyEl   = document.querySelector(`.po-ordered-input[data-po-id="${poItemId}"]`);
-  const unitEl  = document.querySelector(`.po-unit-input[data-po-id="${poItemId}"]`);
-  const curEl   = document.querySelector(`.po-cur-input[data-po-id="${poItemId}"]`);
+  const qtyEl = document.querySelector(`.po-ordered-input[data-po-id="${poItemId}"]`);
+  const unitEl = document.querySelector(`.po-unit-input[data-po-id="${poItemId}"]`);
+  const curEl = document.querySelector(`.po-cur-input[data-po-id="${poItemId}"]`);
   const totalEl = document.querySelector(`.po-total-input[data-po-id="${poItemId}"]`);
   if (!qtyEl) return;
 
   const orderedQty = Number(qtyEl.value || 0);
-  const unitRaw    = String(unitEl?.value  || '').trim();
-  const totalRaw   = String(totalEl?.value || '').trim();
-  const curRaw     = String(curEl?.value   || '').trim();
+  const unitRaw = String(unitEl?.value || '').trim();
+  const totalRaw = String(totalEl?.value || '').trim();
+  const curRaw = String(curEl?.value || '').trim();
 
   if (!Number.isFinite(orderedQty) || orderedQty <= 0) { alert('Sipariş miktarı pozitif sayı olmalı.'); return; }
 
   if (
     orderedQty === Number(qtyEl.dataset.original) &&
-    unitRaw  === String(unitEl?.dataset.original  || '') &&
-    curRaw   === String(curEl?.dataset.original   || '') &&
+    unitRaw === String(unitEl?.dataset.original || '') &&
+    curRaw === String(curEl?.dataset.original || '') &&
     totalRaw === String(totalEl?.dataset.original || '')
   ) return;
 
@@ -436,19 +583,19 @@ async function savePo(poItemId, btnEl) {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        ordered_qty:    orderedQty,
-        unit_price_cur: unitRaw  === '' ? null : Number(unitRaw),
-        currency:       curRaw   || null,
+        ordered_qty: orderedQty,
+        unit_price_cur: unitRaw === '' ? null : Number(unitRaw),
+        currency: curRaw || null,
         line_total_cur: totalRaw === '' ? null : Number(totalRaw),
       })
     });
-    const ct   = res.headers.get('content-type') || '';
+    const ct = res.headers.get('content-type') || '';
     if (!ct.includes('application/json')) throw new Error('Sunucudan beklenmeyen cevap.');
     const data = await res.json();
     if (!res.ok) throw new Error(data?.error || 'Güncelleme başarısız');
-    qtyEl.dataset.original   = String(orderedQty);
-    if (unitEl)  unitEl.dataset.original  = unitRaw;
-    if (curEl)   curEl.dataset.original   = curRaw;
+    qtyEl.dataset.original = String(orderedQty);
+    if (unitEl) unitEl.dataset.original = unitRaw;
+    if (curEl) curEl.dataset.original = curRaw;
     if (totalEl) totalEl.dataset.original = totalRaw;
     clearCache(PO_CACHE_KEY, STOCK_CACHE_KEY);
     await loadPendingOrders();
@@ -464,7 +611,7 @@ async function deletePo(poItemId, btnEl) {
   btnEl.disabled = true;
   try {
     const res = await fetch(`/api/purchase-order-items/${encodeURIComponent(poItemId)}`, { method: 'DELETE' });
-    const ct   = res.headers.get('content-type') || '';
+    const ct = res.headers.get('content-type') || '';
     if (!ct.includes('application/json')) throw new Error('Sunucudan beklenmeyen cevap.');
     const data = await res.json();
     if (!res.ok) throw new Error(data?.error || 'Silme başarısız');

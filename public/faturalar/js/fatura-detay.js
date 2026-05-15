@@ -73,11 +73,16 @@ function renderHeader(inv) {
 
 // ─── BACK BUTTON ─────────────────────────────────────────────────────────────
 function goBack() {
+    const params = new URLSearchParams(location.search);
+    const from   = params.get('from') || '';
+    if (from === 'ofis-ici') {
+        window.location.href = '/faturalar/pages/ofis-ici.html';
+        return;
+    }
     const isIn = String(_detayInv?.direction || '').toUpperCase() === 'INCOMING';
-    const target = isIn
+    window.location.href = isIn
         ? '/faturalar/pages/gelen-faturalar.html'
         : '/faturalar/pages/giden-faturalar.html';
-    window.location.href = target;
 }
 
 // ─── PDF ──────────────────────────────────────────────────────────────────────

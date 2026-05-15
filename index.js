@@ -34,7 +34,7 @@ app.set('supabase', supabase);
 // ─── AUTH ─────────────────────────────────────────────────────────────────────
 app.post('/api/auth/login', (req, res) => {
   const { email, password } = req.body || {};
-  const validEmail    = process.env.ADMIN_EMAIL;
+  const validEmail = process.env.ADMIN_EMAIL;
   const validPassword = process.env.ADMIN_PASSWORD;
 
   if (!email || !password) {
@@ -63,19 +63,19 @@ app.post('/api/auth/logout', (req, res) => {
 /** Ana sayfa: static’ten ÖNCE — aksi halde GET / hiç buraya düşmez, toplu XML için VKN enjekte edilemez */
 function getFaturalarIndexHtml() {
   const htmlPath = path.join(__dirname, 'public', 'index.pages'); // 1) public klasöründeki dmo-index.pages dosyasının tam yolunu üretir (şimdi bu dosyayı okuyacağız)
-  
+
   let html = fs.readFileSync(htmlPath, 'utf8'); // 2) dmo-index.pages içeriğini düz metin olarak RAM'e alır (response olarak bunu döneceğiz)
-  
+
   const vkn = (process.env.INOKAS_VKN || '').trim(); // 3) Ortam değişkeninden INOKAS_VKN değerini alır; yoksa boş string kullanır
-  
+
   const inject = `<script>window.__INOKAS_VKN__=${JSON.stringify(vkn)};</script>`; // 4) Tarayıcıya enjekte edilecek küçük script'i hazırlar: window.__INOKAS_VKN__
-  
+
   // 5) Güvenli kontrol: </head> etiketi varsa script'i head kapanmadan hemen önce ekler
   if (html.includes('</head>')) {
-    
+
     html = html.replace('</head>', `${inject}\n</head>`); // 6) Script enjekte edilmiş yeni HTML metnini üretir (frontend bu global değişkene buradan erişir)
   }
- 
+
   return html; // 7) Son HTML'i route'a geri döner; app.get('/') bunu browser'a gönderir
 }
 
@@ -114,193 +114,193 @@ app.post('/api/dmo/parse-pdf', (req, res) => {
 });
 
 async function fetchAndSaveTCMBRates() {
-    try {
-        const usdRegex = /CurrencyCode="USD"[\s\S]*?<ForexBuying>([\d.]+)<\/ForexBuying>/;
-        const eurRegex = /CurrencyCode="EUR"[\s\S]*?<ForexBuying>([\d.]+)<\/ForexBuying>/;
+  try {
+    const usdRegex = /CurrencyCode="USD"[\s\S]*?<ForexBuying>([\d.]+)<\/ForexBuying>/;
+    const eurRegex = /CurrencyCode="EUR"[\s\S]*?<ForexBuying>([\d.]+)<\/ForexBuying>/;
 
-        let usd_try = null;
-        let eur_try = null;
-        let foundDate = null;
+    let usd_try = null;
+    let eur_try = null;
+    let foundDate = null;
 
-        for (let daysBack = 0; daysBack <= 5; daysBack++) {
-            const date = new Date();
-            date.setDate(date.getDate() - daysBack);
-            const dd   = String(date.getDate()).padStart(2, '0');
-            const mm   = String(date.getMonth() + 1).padStart(2, '0');
-            const yyyy = date.getFullYear();
+    for (let daysBack = 0; daysBack <= 5; daysBack++) {
+      const date = new Date();
+      date.setDate(date.getDate() - daysBack);
+      const dd = String(date.getDate()).padStart(2, '0');
+      const mm = String(date.getMonth() + 1).padStart(2, '0');
+      const yyyy = date.getFullYear();
 
-            const url = daysBack === 0
-                ? 'https://www.tcmb.gov.tr/kurlar/today.xml'
-                : `https://www.tcmb.gov.tr/kurlar/${yyyy}${mm}/${dd}${mm}${yyyy}.xml`;
+      const url = daysBack === 0
+        ? 'https://www.tcmb.gov.tr/kurlar/today.xml'
+        : `https://www.tcmb.gov.tr/kurlar/${yyyy}${mm}/${dd}${mm}${yyyy}.xml`;
 
-            const res  = await fetch(url);
-            const body = await res.text();
+      const res = await fetch(url);
+      const body = await res.text();
 
-            const usdMatch = body.match(usdRegex);
-            const eurMatch = body.match(eurRegex);
+      const usdMatch = body.match(usdRegex);
+      const eurMatch = body.match(eurRegex);
 
-            if (usdMatch && eurMatch) {
-                usd_try   = parseFloat(usdMatch[1]);
-                eur_try   = parseFloat(eurMatch[1]);
-                foundDate = `${yyyy}-${mm}-${dd}`;
-                console.log(`TCMB: ${foundDate} tarihli kur bulundu — USD ${usd_try} EUR ${eur_try}`);
-                break;
-            }
+      if (usdMatch && eurMatch) {
+        usd_try = parseFloat(usdMatch[1]);
+        eur_try = parseFloat(eurMatch[1]);
+        foundDate = `${yyyy}-${mm}-${dd}`;
+        console.log(`TCMB: ${foundDate} tarihli kur bulundu — USD ${usd_try} EUR ${eur_try}`);
+        break;
+      }
 
-            console.log(`TCMB: ${yyyy}-${mm}-${dd} verisi yok, bir önceki güne bakılıyor...`);
-        }
-
-        if (!usd_try || !eur_try || !foundDate) {
-            console.error('TCMB: Son 5 gün için kur verisi bulunamadı');
-            return;
-        }
-
-        const today = new Date().toISOString().slice(0, 10);
-
-        const { data: existing } = await supabase
-            .from('rate_history')
-            .select('id')
-            .gte('recorded_at', today + 'T00:00:00')
-            .lte('recorded_at', today + 'T23:59:59')
-            .maybeSingle();
-
-        if (existing) {
-            await supabase
-                .from('rate_history')
-                .update({ usd_try, eur_try, rate_date: foundDate })
-                .eq('id', existing.id);
-            console.log(`TCMB güncellendi: USD ${usd_try} EUR ${eur_try} (kur tarihi: ${foundDate})`);
-        } else {
-            await supabase
-                .from('rate_history')
-                .insert({ usd_try, eur_try, rate_date: foundDate });
-            console.log(`TCMB eklendi: USD ${usd_try} EUR ${eur_try} (kur tarihi: ${foundDate})`);
-        }
-    } catch (err) {
-        console.error('TCMB fetch hatası:', err.message);
+      console.log(`TCMB: ${yyyy}-${mm}-${dd} verisi yok, bir önceki güne bakılıyor...`);
     }
+
+    if (!usd_try || !eur_try || !foundDate) {
+      console.error('TCMB: Son 5 gün için kur verisi bulunamadı');
+      return;
+    }
+
+    const today = new Date().toISOString().slice(0, 10);
+
+    const { data: existing } = await supabase
+      .from('rate_history')
+      .select('id')
+      .gte('recorded_at', today + 'T00:00:00')
+      .lte('recorded_at', today + 'T23:59:59')
+      .maybeSingle();
+
+    if (existing) {
+      await supabase
+        .from('rate_history')
+        .update({ usd_try, eur_try, rate_date: foundDate })
+        .eq('id', existing.id);
+      console.log(`TCMB güncellendi: USD ${usd_try} EUR ${eur_try} (kur tarihi: ${foundDate})`);
+    } else {
+      await supabase
+        .from('rate_history')
+        .insert({ usd_try, eur_try, rate_date: foundDate });
+      console.log(`TCMB eklendi: USD ${usd_try} EUR ${eur_try} (kur tarihi: ${foundDate})`);
+    }
+  } catch (err) {
+    console.error('TCMB fetch hatası:', err.message);
+  }
 }
 async function fetchAndSaveDMORate() {
-    try {
-        // Find product 106776's id first
-        const { data: product } = await supabase
-            .from('products')
-            .select('id')
-            .eq('dmo_code', '106776')
-            .maybeSingle();
+  try {
+    // Find product 106776's id first
+    const { data: product } = await supabase
+      .from('products')
+      .select('id')
+      .eq('dmo_code', '106776')
+      .maybeSingle();
 
-        if (!product) {
-            console.error('DMO rate: 106776 ürünü bulunamadı');
-            return;
-        }
-
-        // Trigger the existing Python scraper via internal proxy
-        const res  = await fetch(`http://${DMO_PY_HOST}:${DMO_PY_PORT}/find-dmo-url`, {
-            method:  'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body:    JSON.stringify({ dmo_code: '106776', product_id: product.id })
-        });
-
-        const data = await res.json();
-
-        if (!data.price) {
-            console.error('DMO rate: fiyat alınamadı', data);
-            return;
-        }
-
-        const dmo_eur_try = (data.price / 1.08) / 355;
-        const today       = new Date().toISOString().slice(0, 10);
-
-        // Check if today's row exists
-        const { data: existing } = await supabase
-            .from('rate_history')
-            .select('id')
-            .gte('recorded_at', today + 'T00:00:00')
-            .lte('recorded_at', today + 'T23:59:59')
-            .maybeSingle();
-
-        const dmo_rate_date = new Date().toISOString().slice(0, 10);
-
-        if (existing) {
-            await supabase
-                .from('rate_history')
-                .update({ dmo_eur_try, dmo_rate_date })
-                .eq('id', existing.id);
-        } else {
-            await supabase
-                .from('rate_history')
-                .insert({ dmo_eur_try, dmo_rate_date });
-        }
-        console.log(`DMO EUR/TRY güncellendi: ${dmo_eur_try} (tarih: ${dmo_rate_date})`);
-
-    } catch (err) {
-        console.error('DMO rate fetch hatası:', err.message);
+    if (!product) {
+      console.error('DMO rate: 106776 ürünü bulunamadı');
+      return;
     }
+
+    // Trigger the existing Python scraper via internal proxy
+    const res = await fetch(`http://${DMO_PY_HOST}:${DMO_PY_PORT}/find-dmo-url`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ dmo_code: '106776', product_id: product.id })
+    });
+
+    const data = await res.json();
+
+    if (!data.price) {
+      console.error('DMO rate: fiyat alınamadı', data);
+      return;
+    }
+
+    const dmo_eur_try = (data.price / 1.08) / 355;
+    const today = new Date().toISOString().slice(0, 10);
+
+    // Check if today's row exists
+    const { data: existing } = await supabase
+      .from('rate_history')
+      .select('id')
+      .gte('recorded_at', today + 'T00:00:00')
+      .lte('recorded_at', today + 'T23:59:59')
+      .maybeSingle();
+
+    const dmo_rate_date = new Date().toISOString().slice(0, 10);
+
+    if (existing) {
+      await supabase
+        .from('rate_history')
+        .update({ dmo_eur_try, dmo_rate_date })
+        .eq('id', existing.id);
+    } else {
+      await supabase
+        .from('rate_history')
+        .insert({ dmo_eur_try, dmo_rate_date });
+    }
+    console.log(`DMO EUR/TRY güncellendi: ${dmo_eur_try} (tarih: ${dmo_rate_date})`);
+
+  } catch (err) {
+    console.error('DMO rate fetch hatası:', err.message);
+  }
 
 
 }
 
 app.get('/dmo/sidebar-snippet.html', (req, res) => {
-    res.sendFile(path.join(__dirname, 'dmo', 'sidebar-snippet.pages'));
+  res.sendFile(path.join(__dirname, 'dmo', 'sidebar-snippet.pages'));
 });
 
 app.get('/cari/sidebar-snippet.html', (req, res) => {
-    res.sendFile(path.join(__dirname, 'cari', 'sidebar-snippet.pages'));
+  res.sendFile(path.join(__dirname, 'cari', 'sidebar-snippet.pages'));
 });
 
 app.get('/api/debug-tcmb', async (req, res) => {
-    try {
-        const res2 = await fetch('https://www.tcmb.gov.tr/kurlar/today.xml');
-        const text = await res2.text();
-        res.send(`<pre>STATUS: ${res2.status}\n\nBODY:\n${text.slice(0, 3000)}</pre>`);
-    } catch (err) {
-        res.send('ERROR: ' + err.message);
-    }
+  try {
+    const res2 = await fetch('https://www.tcmb.gov.tr/kurlar/today.xml');
+    const text = await res2.text();
+    res.send(`<pre>STATUS: ${res2.status}\n\nBODY:\n${text.slice(0, 3000)}</pre>`);
+  } catch (err) {
+    res.send('ERROR: ' + err.message);
+  }
 });
 
 app.post('/api/dmo/fetch-tcmb-now', async (req, res) => {
-    await fetchAndSaveTCMBRates();
-    res.json({ ok: true });
+  await fetchAndSaveTCMBRates();
+  res.json({ ok: true });
 });
 
 app.post('/api/dmo/fetch-dmo-rate-now', async (req, res) => {
-    await fetchAndSaveDMORate();
-    res.json({ ok: true });
+  await fetchAndSaveDMORate();
+  res.json({ ok: true });
 });
 
 
 app.get('/api/dmo/rates', async (req, res) => {
-    try {
-        // Get most recent row with dmo_eur_try
-        const { data: dmoRow } = await supabase
-            .from('rate_history')
-            .select('dmo_eur_try, recorded_at')
-            .not('dmo_eur_try', 'is', null)
-            .order('recorded_at', { ascending: false })
-            .limit(1)
-            .maybeSingle();
+  try {
+    // Get most recent row with dmo_eur_try
+    const { data: dmoRow } = await supabase
+      .from('rate_history')
+      .select('dmo_eur_try, recorded_at')
+      .not('dmo_eur_try', 'is', null)
+      .order('recorded_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
 
-        // Get most recent row with usd_try and eur_try
-        const { data: tcmbRow } = await supabase
-            .from('rate_history')
-            .select('usd_try, eur_try, recorded_at')
-            .not('usd_try', 'is', null)
-            .not('eur_try', 'is', null)
-            .order('recorded_at', { ascending: false })
-            .limit(1)
-            .maybeSingle();
+    // Get most recent row with usd_try and eur_try
+    const { data: tcmbRow } = await supabase
+      .from('rate_history')
+      .select('usd_try, eur_try, recorded_at')
+      .not('usd_try', 'is', null)
+      .not('eur_try', 'is', null)
+      .order('recorded_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
 
-        res.json({
-            usd_try:       tcmbRow?.usd_try      || null,
-            eur_try:       tcmbRow?.eur_try      || null,
-            dmo_eur_try:   dmoRow?.dmo_eur_try   || null,
-            rate_date:     tcmbRow?.rate_date    || null,
-            dmo_rate_date: dmoRow?.dmo_rate_date || null,
-        });
-    } catch (err) {
-        console.error('rates endpoint hatası:', err.message);
-        res.status(500).json({ error: err.message });
-    }
+    res.json({
+      usd_try: tcmbRow?.usd_try || null,
+      eur_try: tcmbRow?.eur_try || null,
+      dmo_eur_try: dmoRow?.dmo_eur_try || null,
+      rate_date: tcmbRow?.rate_date || null,
+      dmo_rate_date: dmoRow?.dmo_rate_date || null,
+    });
+  } catch (err) {
+    console.error('rates endpoint hatası:', err.message);
+    res.status(500).json({ error: err.message });
+  }
 });
 
 
@@ -338,21 +338,21 @@ app.post('/api/dmo/scrape-dmo-prices', async (req, res) => {
 });
 
 app.post('/api/invoices/sync-now', async (req, res) => {
-    try {
-        runSync(); // fire and forget — don't await, it takes too long for a request
-        res.json({ ok: true, message: 'Sync started in background.' });
-    } catch (err) {
-        res.status(500).json({ error: err.message });
-    }
+  try {
+    runSync(); // fire and forget — don't await, it takes too long for a request
+    res.json({ ok: true, message: 'Sync started in background.' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 app.post('/api/invoices/recheck-now', async (req, res) => {
-    try {
-        runDailyRecheck(); // fire and forget
-        res.json({ ok: true, message: 'Re-check started in background.' });
-    } catch (err) {
-        res.status(500).json({ error: err.message });
-    }
+  try {
+    runDailyRecheck(); // fire and forget
+    res.json({ ok: true, message: 'Re-check started in background.' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 app.get('/', (req, res) => {
@@ -421,16 +421,16 @@ async function syncInvoiceItemInternalMeta(invoiceId, payloadItems) {
     const rowId = dbItems[i]?.id;
     if (!rowId) continue;
 
-    const src              = items[i] || {};
-    const isInternal       = src.is_internal === true;
-    const categoryRaw      = String(src.internal_category || '').trim();
+    const src = items[i] || {};
+    const isInternal = src.is_internal === true;
+    const categoryRaw = String(src.internal_category || '').trim();
     const internalCategory = isInternal && categoryRaw ? categoryRaw : null;
 
     // Save is_internal + internal_category to invoice_items
     const { error: updErr } = await supabase
       .from('invoice_items')
       .update({
-        is_internal:       isInternal,
+        is_internal: isInternal,
         internal_category: internalCategory,
       })
       .eq('id', rowId);
@@ -441,10 +441,10 @@ async function syncInvoiceItemInternalMeta(invoiceId, payloadItems) {
       const productCode = String(src.product_code || '').trim();
       if (!productCode) continue;
 
-      const brand    = String(src.brand_name || '').trim() || null;
-      const model    = String(src.model      || '').trim() || null;
+      const brand = String(src.brand_name || '').trim() || null;
+      const model = String(src.model || '').trim() || null;
       const category = String(src.product_category || src.category || '').trim() || null;
-      const name     = String(src.product_name || '').trim();
+      const name = String(src.product_name || '').trim();
 
       // Check if product exists
       const { data: existing } = await supabase
@@ -456,9 +456,9 @@ async function syncInvoiceItemInternalMeta(invoiceId, payloadItems) {
       if (existing) {
         // Only update fields that are being set — don't overwrite with nulls
         const updates = { updated_at: new Date().toISOString() };
-        if (brand)    updates.brand    = brand;
+        if (brand) updates.brand = brand;
         if (category) updates.category = category;
-        if (model)    updates.model    = model;
+        if (model) updates.model = model;
 
         if (Object.keys(updates).length > 1) {
           const { error: pErr } = await supabase
@@ -474,10 +474,10 @@ async function syncInvoiceItemInternalMeta(invoiceId, payloadItems) {
           .insert({
             product_code: productCode,
             product_name: name,
-            brand:        brand    || null,
-            category:     category || null,
-            model:        model    || null,
-            source:       'invoice',
+            brand: brand || null,
+            category: category || null,
+            model: model || null,
+            source: 'invoice',
           });
         if (insertErr) console.warn('Product insert hatası:', insertErr.message);
       }
@@ -650,7 +650,7 @@ app.post('/api/save-invoice', async (req, res) => {
               .from('purchase_order_items')
               .update({ received_qty: newQty })
               .eq('id', item.purchase_order_item_id);
-            
+
             // Update order status to 'Kısmi Geldi' or 'Tamamlandı'
             // For simplicity, just set it to 'Kısmi Geldi' if it was 'Bekliyor'
             await supabase
@@ -722,12 +722,12 @@ app.get('/api/stocks/summary', async (req, res) => {
         .map((p) => [
           String(p.product_code || '').trim(),
           {
-            id:                p.id,
+            id: p.id,
             reserved_quantity: Number(p.reserved_quantity || 0),
-            gift_quantity:     Number(p.gift_quantity || 0),
-            brand:             String(p.brand || '').trim(),
-            category:          String(p.category || '').trim(),
-            model:             String(p.model || '').trim()
+            gift_quantity: Number(p.gift_quantity || 0),
+            brand: String(p.brand || '').trim(),
+            category: String(p.category || '').trim(),
+            model: String(p.model || '').trim()
           }
         ])
     );
@@ -858,7 +858,7 @@ app.get('/api/stocks/summary', async (req, res) => {
 
     const summary = Object.values(grouped).map((row) => {
       const productMeta = row.sku ? productByCode.get(String(row.sku).trim()) : null;
-      const avgInUnitUsd  = row.in_qty_for_avg_usd  > 0 ? (row.total_in_usd  / row.in_qty_for_avg_usd)  : null;
+      const avgInUnitUsd = row.in_qty_for_avg_usd > 0 ? (row.total_in_usd / row.in_qty_for_avg_usd) : null;
       const avgOutUnitUsd = row.out_qty_for_avg_usd > 0 ? (row.total_out_usd / row.out_qty_for_avg_usd) : null;
       const fifoStockUsd = row.fifo_lots.reduce((acc, lot) => acc + (Number(lot.remaining || 0) * Number(lot.unitUsd || 0)), 0);
       const stockUsd = row.in_qty_for_avg_usd > 0 ? fifoStockUsd : (row.current_stock > 0 ? null : 0);
@@ -875,12 +875,12 @@ app.get('/api/stocks/summary', async (req, res) => {
         fifo_cogs_usd: row.fifo_out_cost_usd,
         fifo_revenue_usd: row.fifo_revenue_usd,
         fifo_gross_profit_usd: row.fifo_gross_profit_usd,
-        product_id:        productMeta?.id || null,
+        product_id: productMeta?.id || null,
         reserved_quantity: Number(productMeta?.reserved_quantity || 0),
-        gift_quantity:     Number(productMeta?.gift_quantity || 0),
-        brand:             productMeta?.brand || '',
-        category:          productMeta?.category || '',
-        model:             productMeta?.model || ''
+        gift_quantity: Number(productMeta?.gift_quantity || 0),
+        brand: productMeta?.brand || '',
+        category: productMeta?.category || '',
+        model: productMeta?.model || ''
       };
     }).sort((a, b) => {
       if (b.current_stock !== a.current_stock) return b.current_stock - a.current_stock;
@@ -888,10 +888,10 @@ app.get('/api/stocks/summary', async (req, res) => {
     });
 
     const stats = summary.reduce((acc, row) => {
-      acc.total_in_qty  += Number(row.total_in      || 0);
-      acc.total_out_qty += Number(row.total_out     || 0);
-      acc.current_qty   += Number(row.current_stock || 0);
-      acc.stock_usd     += Number(row.stock_usd     || 0);
+      acc.total_in_qty += Number(row.total_in || 0);
+      acc.total_out_qty += Number(row.total_out || 0);
+      acc.current_qty += Number(row.current_stock || 0);
+      acc.stock_usd += Number(row.stock_usd || 0);
       acc.total_out_usd += Number(row.total_out_usd || 0);
       acc.fifo_cogs_usd += Number(row.fifo_cogs_usd || 0);
       acc.fifo_revenue_usd += Number(row.fifo_revenue_usd || 0);
@@ -938,8 +938,8 @@ app.get('/api/stocks/summary', async (req, res) => {
 app.get('/api/stocks/movements', async (req, res) => {
   try {
     res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
-    const skuFilter      = String(req.query.sku || '').trim();
-    const skuLower       = skuFilter.toLowerCase();
+    const skuFilter = String(req.query.sku || '').trim();
+    const skuLower = skuFilter.toLowerCase();
     const approvalFilter = String(req.query.approval_status || 'approved').trim().toLowerCase();
 
     let query = supabase
@@ -973,8 +973,8 @@ app.get('/api/stocks/movements', async (req, res) => {
     const movements = [];
     (invoices || []).forEach((inv) => {
       const headerCurrency = inv.currency;
-      const companyName    = inv.companies?.name || '—';
-      const direction      = String(inv.direction || '').toUpperCase();
+      const companyName = inv.companies?.name || '—';
+      const direction = String(inv.direction || '').toUpperCase();
       const approvalStatus = String(inv.approval_status || '').toLowerCase();
 
       (inv.invoice_items || []).forEach((item) => {
@@ -982,17 +982,17 @@ app.get('/api/stocks/movements', async (req, res) => {
         if (skuFilter && sku.toLowerCase() !== skuLower) return;
 
         movements.push({
-          invoice_date:    inv.invoice_date,
+          invoice_date: inv.invoice_date,
           direction,
-          invoice_no:      inv.invoice_no,
-          company_name:    companyName,
-          product_name:    item.product_name,
+          invoice_no: inv.invoice_no,
+          company_name: companyName,
+          product_name: item.product_name,
           sku,
-          quantity:        item.quantity,
-          unit_price_cur:  item.unit_price_cur,
-          currency:        item.currency || headerCurrency,
+          quantity: item.quantity,
+          unit_price_cur: item.unit_price_cur,
+          currency: item.currency || headerCurrency,
           approval_status: approvalStatus,
-          pdf_url:         inv.pdf_url || null,
+          pdf_url: inv.pdf_url || null,
         });
       });
     });
@@ -1011,10 +1011,10 @@ app.get('/api/stocks/movements', async (req, res) => {
       );
 
       movements.forEach(m => {
-        const p    = productMap.get(m.sku);
-        m.brand    = p?.brand    || '';
+        const p = productMap.get(m.sku);
+        m.brand = p?.brand || '';
         m.category = p?.category || '';
-        m.model    = p?.model    || '';
+        m.model = p?.model || '';
       });
     }
 
@@ -1104,7 +1104,7 @@ app.get('/api/products/by-code', async (req, res) => {
     if (!code) return res.status(400).json({ error: 'Ürün kodu zorunlu' });
     const { data, error } = await supabase
       .from('products')
-      .select('id, product_code, product_name, category, brand')
+      .select('id, product_code, product_name, category, brand, model')
       .eq('product_code', code)
       .single();
     if (error || !data) return res.status(404).json({ error: 'Ürün bulunamadı' });
@@ -1118,17 +1118,18 @@ app.get('/api/products/category-map', async (req, res) => {
   try {
     const { data, error } = await supabase
       .from('products')
-      .select('product_code, category, brand')
+      .select('product_code, category, brand, model')  // model eklendi
       .not('product_code', 'is', null);
     if (error) throw error;
     const rows = (data || []).map((r) => ({
       product_code: String(r.product_code || '').trim(),
       category: String(r.category || '').trim(),
-      brand: String(r.brand || '').trim()
+      brand: String(r.brand || '').trim(),
+      model: String(r.model || '').trim(),  // model eklendi
     })).filter((r) => r.product_code);
     const categories = [...new Set(rows.map((r) => r.category).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'tr'));
-    const brands     = [...new Set(rows.map((r) => r.brand).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'tr'));
-    res.json({ rows, categories, brands });
+    const brands = [...new Set(rows.map((r) => r.brand).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'tr'));
+    res.json({ items: rows, categories, brands });  // rows → items
   } catch (err) {
     console.error('GET /api/products/category-map hatası:', err.message);
     res.status(500).json({ error: err.message });
@@ -1260,22 +1261,22 @@ app.post('/api/products', async (req, res) => {
 
 app.post('/api/purchase-orders', async (req, res) => {
   try {
-    const companyVkn   = String(req.body?.company_vkn || '').trim();
-    const companyName  = String(req.body?.company_name || '').trim();
+    const companyVkn = String(req.body?.company_vkn || '').trim();
+    const companyName = String(req.body?.company_name || '').trim();
     const inputPoNumber = String(req.body?.po_number || '').trim();
-    const forceCreate  = req.body?.force_create === true;
+    const forceCreate = req.body?.force_create === true;
     const rawItems = Array.isArray(req.body?.items) ? req.body.items : [];
 
     const items = rawItems
       .map((it) => ({
-        product_code:  String(it?.product_code || '').trim(),
-        product_name:  String(it?.product_name || '').trim(),
-        brand:         String(it?.brand || '').trim() || null,
-        category:      String(it?.category || '').trim() || null,
-        ordered_qty:   Number(it?.ordered_qty || 0),
+        product_code: String(it?.product_code || '').trim(),
+        product_name: String(it?.product_name || '').trim(),
+        brand: String(it?.brand || '').trim() || null,
+        category: String(it?.category || '').trim() || null,
+        ordered_qty: Number(it?.ordered_qty || 0),
         unit_price_cur: it?.unit_price_cur === null || it?.unit_price_cur === undefined || it?.unit_price_cur === ''
           ? null : Number(it?.unit_price_cur),
-        currency:      String(it?.currency || '').trim() || null,
+        currency: String(it?.currency || '').trim() || null,
         line_total_cur: it?.line_total_cur === null || it?.line_total_cur === undefined || it?.line_total_cur === ''
           ? null : Number(it?.line_total_cur)
       }))
@@ -1329,8 +1330,8 @@ app.post('/api/purchase-orders', async (req, res) => {
           .insert({
             product_code: code,
             product_name: it?.product_name || code,
-            brand:        it?.brand || null,
-            category:     it?.category || null,
+            brand: it?.brand || null,
+            category: it?.category || null,
           })
           .select('id, product_code, product_name')
           .single();
@@ -1567,7 +1568,10 @@ app.get('/api/purchase-orders/all-pending', async (req, res) => {
         products (
           id,
           product_code,
-          product_name
+          product_name,
+          brand,
+          category,
+          model
         )
       `)
       .order('created_at', { ascending: false });
@@ -1585,16 +1589,16 @@ app.get('/api/purchase-orders/pending-by-vkn', async (req, res) => {
   try {
     const { vkn } = req.query;
     if (!vkn) return res.json([]);
-    
+
     // Önce firmayı bulalım
     const { data: company, error: companyError } = await supabase
       .from('companies')
       .select('id')
       .eq('vkn_tckn', vkn)
       .single();
-      
+
     if (companyError || !company) {
-       return res.json([]);
+      return res.json([]);
     }
 
     const { data, error } = await supabase
@@ -1633,8 +1637,8 @@ app.get('/api/purchase-orders/pending-by-vkn', async (req, res) => {
 app.get('/api/invoices', async (req, res) => {
   try {
     // direction parametresini tarayıcıdan alıyoruz (?direction=INCOMING gibi)
-    const direction  = req.query.direction;
-    const companyId  = req.query.company_id;
+    const direction = req.query.direction;
+    const companyId = req.query.company_id;
 
     // invoices tablosundan çekiyoruz, company_id üzerinden companies tablosuna bağlanıp firma adını alıyoruz
     let query = supabase.from('invoices')
@@ -1681,9 +1685,9 @@ app.get('/api/invoices', async (req, res) => {
         data.forEach(inv => {
           (inv.invoice_items || []).forEach(item => {
             const p = productMap.get(String(item.product_code || '').trim());
-            item.brand    = p?.brand    || '';
+            item.brand = p?.brand || '';
             item.category = p?.category || '';
-            item.model    = p?.model    || '';
+            item.model = p?.model || '';
           });
         });
       }
@@ -1955,6 +1959,37 @@ app.get('/api/invoices/pending', async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
+
+
+app.get('/api/invoices/ofis-ici', async (req, res) => {
+  try {
+    const { data: items, error: itemsErr } = await supabase
+      .from('invoice_items')
+      .select('invoice_id')
+      .eq('is_internal', true);
+
+    if (itemsErr) throw itemsErr;
+
+    const invoiceIds = [...new Set((items || []).map(it => it.invoice_id).filter(Boolean))];
+    if (!invoiceIds.length) return res.status(200).json([]);
+
+    const { data, error } = await supabase
+      .from('invoices')
+      .select('*, companies(*), invoice_items(*)')
+      .in('id', invoiceIds)
+      .or('approval_status.eq.approved,approval_status.is.null')
+      .order('invoice_date', { ascending: false });
+
+    if (error) throw error;
+    res.status(200).json(data || []);
+  } catch (err) {
+    console.error('Ofis içi fatura çekme hatası:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+
+
 app.get('/api/invoices/:id', async (req, res) => {
   try {
     const id = String(req.params.id || '').trim();
@@ -1988,9 +2023,9 @@ app.get('/api/invoices/:id', async (req, res) => {
 
         data.invoice_items.forEach(item => {
           const p = productMap.get(String(item.product_code || '').trim());
-          item.brand    = p?.brand    || '';
+          item.brand = p?.brand || '';
           item.category = p?.category || '';
-          item.model    = p?.model    || '';
+          item.model = p?.model || '';
         });
       }
     }
@@ -2078,26 +2113,26 @@ app.get('/api/cari/dashboard', async (req, res) => {
 
     // ── KPI: alacak (OUTGOING receivable), odenecek (INCOMING payable) ──────
     const kpis = {
-      alacak:   { usd: 0, tl: 0 },
+      alacak: { usd: 0, tl: 0 },
       odenecek: { usd: 0, tl: 0 },
-      odenen:   { usd: 0, tl: 0 }
+      odenen: { usd: 0, tl: 0 }
     };
 
     list.forEach(inv => {
-      const iso      = getIso(inv);
-      const payable  = getPayableSrc(inv);
-      const paid     = Math.min(getPaidSrc(inv), payable);
+      const iso = getIso(inv);
+      const payable = getPayableSrc(inv);
+      const paid = Math.min(getPaidSrc(inv), payable);
       const payableTl = getPayableTlActual(inv);
-      const paidTl   = Math.min(getPaidTl(inv), payableTl);
-      const remaining     = Math.max(payable - paid, 0);
-      const remainingTl   = Math.max(payableTl - paidTl, 0);
+      const paidTl = Math.min(getPaidTl(inv), payableTl);
+      const remaining = Math.max(payable - paid, 0);
+      const remainingTl = Math.max(payableTl - paidTl, 0);
 
       if (inv.direction === 'OUTGOING') {
         if (iso === 'USD') { kpis.alacak.usd += remaining; }
-        else               { kpis.alacak.tl  += remainingTl; }
+        else { kpis.alacak.tl += remainingTl; }
       } else if (inv.direction === 'INCOMING') {
-        if (iso === 'USD') { kpis.odenecek.usd += remaining;  kpis.odenen.usd += paid; }
-        else               { kpis.odenecek.tl  += remainingTl; kpis.odenen.tl += paidTl; }
+        if (iso === 'USD') { kpis.odenecek.usd += remaining; kpis.odenen.usd += paid; }
+        else { kpis.odenecek.tl += remainingTl; kpis.odenen.tl += paidTl; }
       }
     });
 
@@ -2108,54 +2143,54 @@ app.get('/api/cari/dashboard', async (req, res) => {
       const name = inv.companies?.name || 'Bilinmiyor';
       if (!firmaMap[name]) firmaMap[name] = {
         company_name: name,
-        company_id:   inv.company_id || null,
+        company_id: inv.company_id || null,
         has_incoming: false,
         has_outgoing: false,
         odenecek_usd: 0, odenecek_tl: 0,  // INCOMING: borcumuz
-        odenen_usd:   0, odened_tl:   0,  // INCOMING: ödediğimiz
-        alacak_usd:   0, alacak_tl:   0,  // OUTGOING: alacağımız (kalan)
-        ciro_usd:     0, ciro_tl:     0,  // OUTGOING: toplam ciro
+        odenen_usd: 0, odened_tl: 0,  // INCOMING: ödediğimiz
+        alacak_usd: 0, alacak_tl: 0,  // OUTGOING: alacağımız (kalan)
+        ciro_usd: 0, ciro_tl: 0,  // OUTGOING: toplam ciro
       };
       const f = firmaMap[name];
-      const iso      = getIso(inv);
-      const payable  = getPayableSrc(inv);
-      const paid     = Math.min(getPaidSrc(inv), payable);
+      const iso = getIso(inv);
+      const payable = getPayableSrc(inv);
+      const paid = Math.min(getPaidSrc(inv), payable);
       const payableTl = getPayableTlActual(inv);
-      const paidTl   = Math.min(getPaidTl(inv), payableTl);
+      const paidTl = Math.min(getPaidTl(inv), payableTl);
 
       if (inv.direction === 'INCOMING') {
         f.has_incoming = true;
         if (iso === 'USD') { f.odenecek_usd += payable; f.odened_usd = (f.odened_usd || 0) + paid; }
-        else               { f.odenecek_tl  += payableTl; f.odened_tl = (f.odened_tl || 0) + paidTl; }
+        else { f.odenecek_tl += payableTl; f.odened_tl = (f.odened_tl || 0) + paidTl; }
       } else if (inv.direction === 'OUTGOING') {
         f.has_outgoing = true;
         if (iso === 'USD') { f.ciro_usd += payable; f.alacak_usd += Math.max(payable - paid, 0); }
-        else               { f.ciro_tl  += payableTl; f.alacak_tl += Math.max(payableTl - paidTl, 0); }
+        else { f.ciro_tl += payableTl; f.alacak_tl += Math.max(payableTl - paidTl, 0); }
       }
     });
 
     const firmalar = Object.values(firmaMap).map(f => {
       const type = f.has_incoming && f.has_outgoing ? 'İkisi de'
-                 : f.has_incoming ? 'Tedarikçi'
-                 : 'Müşteri';
+        : f.has_incoming ? 'Tedarikçi'
+          : 'Müşteri';
       const odenen_usd = f.odened_usd || 0;
-      const odened_tl  = f.odened_tl  || 0;
+      const odened_tl = f.odened_tl || 0;
       return {
-        company_name:  f.company_name,
-        company_id:    f.company_id,
+        company_name: f.company_name,
+        company_id: f.company_id,
         type,
         // Tedarikçi tarafı
-        odenecek_usd:  f.odenecek_usd,
-        odenecek_tl:   f.odenecek_tl,
+        odenecek_usd: f.odenecek_usd,
+        odenecek_tl: f.odenecek_tl,
         odenen_usd,
-        odenen_tl:     odened_tl,
-        kalan_usd:     Math.max(f.odenecek_usd - odenen_usd, 0),
-        kalan_tl:      Math.max(f.odenecek_tl  - odened_tl,  0),
+        odenen_tl: odened_tl,
+        kalan_usd: Math.max(f.odenecek_usd - odenen_usd, 0),
+        kalan_tl: Math.max(f.odenecek_tl - odened_tl, 0),
         // Müşteri tarafı — alacak (kalan)
-        alacak_usd:    f.alacak_usd,
-        alacak_tl:     f.alacak_tl,
-        ciro_usd:      f.ciro_usd,
-        ciro_tl:       f.ciro_tl,
+        alacak_usd: f.alacak_usd,
+        alacak_tl: f.alacak_tl,
+        ciro_usd: f.ciro_usd,
+        ciro_tl: f.ciro_tl,
         // sort key
         _sort: f.odenecek_usd * 35 + f.odenecek_tl + f.ciro_usd * 35 + f.ciro_tl
       };
@@ -2261,10 +2296,10 @@ app.put('/api/payments/:id', async (req, res) => {
     if (fetchErr) throw fetchErr;
 
     const fields = {};
-    if (amount     !== undefined) fields.amount       = amount;
-    if (currency   !== undefined) fields.currency     = currency;
+    if (amount !== undefined) fields.amount = amount;
+    if (currency !== undefined) fields.currency = currency;
     if (payment_date !== undefined) fields.payment_date = payment_date;
-    if (notes      !== undefined) fields.notes        = notes;
+    if (notes !== undefined) fields.notes = notes;
 
     const { error: updateErr } = await supabase
       .from('payments')
@@ -2311,6 +2346,261 @@ app.delete('/api/payments/:id', async (req, res) => {
     res.status(200).json({ message: 'Ödeme silindi.' });
   } catch (err) {
     console.error('Ödeme silme hatası:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/product-attribute-values?category=X — kategori bazlı toplu özellik değerleri
+app.get('/api/product-attribute-values', async (req, res) => {
+  try {
+    const { category } = req.query;
+
+    const { data: template, error: tErr } = await supabase
+      .from('category_templates')
+      .select('id, name, category_attributes(id, attr_name, attr_type, attr_values, sort_order)')
+      .eq('name', category)
+      .maybeSingle();
+    if (tErr) throw tErr;
+
+    if (!template) return res.json({ template: null, values: [] });
+
+    const { data: products, error: pErr } = await supabase
+      .from('products')
+      .select('id')
+      .eq('category', category);
+    if (pErr) throw pErr;
+
+    const productIds = (products || []).map(p => p.id);
+
+    let values = [];
+    if (productIds.length) {
+      const { data: vals, error: vErr } = await supabase
+        .from('product_attribute_values')
+        .select('product_id, attribute_id, value')
+        .in('product_id', productIds);
+      if (vErr) throw vErr;
+      values = vals || [];
+    }
+
+    res.json({
+      template: { id: template.id, name: template.name, attributes: template.category_attributes || [] },
+      values
+    });
+  } catch (err) {
+    console.error('product-attribute-values hatası:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── KATEGORİ ŞABLONLARI ───────────────────────────────────────────────────────
+
+// 1. GET /api/category-templates — tüm kategoriler ve özellikleri
+app.get('/api/category-templates', async (req, res) => {
+  try {
+    const { data: templates, error: tErr } = await supabase
+      .from('category_templates')
+      .select('id, name, created_at')
+      .order('name');
+    if (tErr) throw tErr;
+
+    const { data: attributes, error: aErr } = await supabase
+      .from('category_attributes')
+      .select('id, category_id, attr_name, attr_type, attr_values, sort_order')
+      .order('sort_order');
+    if (aErr) throw aErr;
+
+    const result = templates.map(t => ({
+      ...t,
+      attributes: attributes.filter(a => a.category_id === t.id)
+    }));
+
+    res.json(result);
+  } catch (err) {
+    console.error('category-templates fetch hatası:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 8. PUT /api/products/:id/attributes — ürünün özellik değerlerini kaydet (upsert)
+app.put('/api/products/:id/attributes', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { attributes } = req.body; // [{ attribute_id, value }]
+    if (!Array.isArray(attributes)) return res.status(400).json({ error: 'attributes dizisi zorunlu.' });
+
+    const rows = attributes
+      .filter(a => a.attribute_id != null)
+      .map(a => ({ product_id: id, attribute_id: a.attribute_id, value: a.value ?? null }));
+
+    if (rows.length) {
+      const { error } = await supabase
+        .from('product_attribute_values')
+        .upsert(rows, { onConflict: 'product_id,attribute_id' });
+      if (error) throw error;
+    }
+
+    res.json({ message: 'Özellikler kaydedildi.' });
+  } catch (err) {
+    console.error('product attributes upsert hatası:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 7. GET /api/products/:id/attributes — ürünün özellik değerlerini getir
+app.get('/api/products/:id/attributes', async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const { data: product, error: pErr } = await supabase
+      .from('products')
+      .select('id, category')
+      .eq('id', id)
+      .single();
+    if (pErr) throw pErr;
+
+    const { data: template, error: tErr } = await supabase
+      .from('category_templates')
+      .select('id, name, category_attributes(id, attr_name, attr_type, attr_values, sort_order)')
+      .eq('name', product.category)
+      .maybeSingle();
+    if (tErr) throw tErr;
+
+    const { data: values, error: vErr } = await supabase
+      .from('product_attribute_values')
+      .select('attribute_id, value')
+      .eq('product_id', id);
+    if (vErr) throw vErr;
+
+    const valueMap = {};
+    (values || []).forEach(v => { valueMap[v.attribute_id] = v.value; });
+
+    const attributes = (template?.category_attributes || [])
+      .sort((a, b) => a.sort_order - b.sort_order)
+      .map(a => ({ ...a, value: valueMap[a.id] ?? null }));
+
+    res.json({ category_template: template ? { id: template.id, name: template.name } : null, attributes });
+  } catch (err) {
+    console.error('product attributes fetch hatası:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 6. DELETE /api/category-attributes/:id — özelliği sil
+app.delete('/api/category-attributes/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const { error } = await supabase
+      .from('category_attributes')
+      .delete()
+      .eq('id', id);
+    if (error) throw error;
+
+    res.json({ message: 'Özellik silindi.' });
+  } catch (err) {
+    console.error('category-attributes delete hatası:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 5. PUT /api/category-attributes/:id — özelliği güncelle
+app.put('/api/category-attributes/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { attr_name, attr_type, attr_values, sort_order } = req.body;
+
+    const updates = {};
+    if (attr_name !== undefined) updates.attr_name = attr_name.trim();
+    if (attr_type !== undefined) {
+      if (!['text', 'number', 'select'].includes(attr_type)) return res.status(400).json({ error: 'attr_type text | number | select olmalı.' });
+      updates.attr_type = attr_type;
+    }
+    if (attr_values !== undefined) updates.attr_values = attr_values;
+    if (sort_order !== undefined) updates.sort_order = sort_order;
+
+    if (!Object.keys(updates).length) return res.status(400).json({ error: 'Güncellenecek alan yok.' });
+
+    const { data, error } = await supabase
+      .from('category_attributes')
+      .update(updates)
+      .eq('id', id)
+      .select()
+      .single();
+    if (error) throw error;
+
+    res.json(data);
+  } catch (err) {
+    console.error('category-attributes update hatası:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 4. POST /api/category-templates/:id/attributes — kategoriye yeni özellik ekle
+app.post('/api/category-templates/:id/attributes', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { attr_name, attr_type, attr_values, sort_order } = req.body;
+    if (!attr_name || !attr_name.trim()) return res.status(400).json({ error: 'Özellik adı zorunlu.' });
+    if (!['text', 'number', 'select'].includes(attr_type)) return res.status(400).json({ error: 'attr_type text | number | select olmalı.' });
+
+    const { data, error } = await supabase
+      .from('category_attributes')
+      .insert({
+        category_id: id,
+        attr_name: attr_name.trim(),
+        attr_type,
+        attr_values: attr_values || null,
+        sort_order: sort_order ?? 0
+      })
+      .select()
+      .single();
+    if (error) throw error;
+
+    res.status(201).json(data);
+  } catch (err) {
+    console.error('category-attributes insert hatası:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 3. PUT /api/category-templates/:id — kategori adını güncelle
+app.put('/api/category-templates/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { name } = req.body;
+    if (!name || !name.trim()) return res.status(400).json({ error: 'Kategori adı zorunlu.' });
+
+    const { data, error } = await supabase
+      .from('category_templates')
+      .update({ name: name.trim() })
+      .eq('id', id)
+      .select()
+      .single();
+    if (error) throw error;
+
+    res.json(data);
+  } catch (err) {
+    console.error('category-templates update hatası:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 2. POST /api/category-templates — yeni kategori oluştur
+app.post('/api/category-templates', async (req, res) => {
+  try {
+    const { name } = req.body;
+    if (!name || !name.trim()) return res.status(400).json({ error: 'Kategori adı zorunlu.' });
+
+    const { data, error } = await supabase
+      .from('category_templates')
+      .insert({ name: name.trim() })
+      .select()
+      .single();
+    if (error) throw error;
+
+    res.status(201).json({ ...data, attributes: [] });
+  } catch (err) {
+    console.error('category-templates insert hatası:', err.message);
     res.status(500).json({ error: err.message });
   }
 });
@@ -2376,35 +2666,35 @@ process.on('SIGTERM', () => {
 
 // 08:00 every day — fetch DMO EUR rate (Turkey timezone = UTC+3, so 05:00 UTC)
 cron.schedule('0 5 * * *', () => {
-    console.log('Cron: DMO EUR rate fetching...');
-    fetchAndSaveDMORate();
+  console.log('Cron: DMO EUR rate fetching...');
+  fetchAndSaveDMORate();
 });
 
 // 15:40 every day — fetch TCMB USD/EUR rates (15:40 Turkey = 12:40 UTC)
 cron.schedule('40 12 * * *', () => {
-    console.log('Cron: TCMB rates fetching...');
-    fetchAndSaveTCMBRates();
+  console.log('Cron: TCMB rates fetching...');
+  fetchAndSaveTCMBRates();
 });
 const { runSync, runDailyRecheck } = require('./services/sync-service');
 
 // Every hour — fetch new invoices (auto-detects initial vs incremental)
 cron.schedule('*/10 * * * *', async () => {
-    console.log('Cron: Invoice sync starting...');
-    try {
-        await runSync();
-    } catch (err) {
-        console.error('Cron: Invoice sync failed:', err.message);
-    }
+  console.log('Cron: Invoice sync starting...');
+  try {
+    await runSync();
+  } catch (err) {
+    console.error('Cron: Invoice sync failed:', err.message);
+  }
 });
 
 // Every day at 06:00 Turkey time (03:00 UTC) — re-check pending/waiting invoices
 cron.schedule('0 3 * * *', async () => {
-    console.log('Cron: Daily invoice re-check starting...');
-    try {
-        await runDailyRecheck();
-    } catch (err) {
-        console.error('Cron: Daily re-check failed:', err.message);
-    }
+  console.log('Cron: Daily invoice re-check starting...');
+  try {
+    await runDailyRecheck();
+  } catch (err) {
+    console.error('Cron: Daily re-check failed:', err.message);
+  }
 });
 
 app.listen(PORT, () => {

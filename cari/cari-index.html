@@ -11,6 +11,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.x/dist/tabler-icons.min.css">
   <link rel="stylesheet" href="/sidebar.css">
+  <link rel="stylesheet" href="/faturalar/css/gelen-giden.css?v=1">
   <link rel="stylesheet" href="/cari/css/cari.css">
 </head>
 <body>
@@ -22,25 +23,22 @@
   <div class="page-area">
 
     <!-- Header -->
-    <div class="page-header">
-      <div class="page-header-left">
-        <button class="sb-toggle-btn" onclick="toggleSidebar()">
-          <i class="ti ti-menu-2"></i>
-        </button>
-        <div>
-          <p class="page-header-title">Cari Analiz</p>
-          <p class="page-header-sub">Alacak · Borç · Ciro özeti</p>
-        </div>
-      </div>
-      <div style="display:flex; align-items:center; gap:10px;">
+    <div class="fat-page-header">
+      <button class="sb-toggle-btn" onclick="toggleSidebar()">
+        <i class="ti ti-menu-2"></i>
+      </button>
+      <p class="fat-page-title">Cari Analiz</p>
+      <div style="display:flex; align-items:center; gap:8px; margin-left:auto;">
         <div class="cari-search-wrap">
           <i class="ti ti-search"></i>
           <input type="text" id="cari-search" placeholder="Firma ara..." oninput="filterCariTable()">
         </div>
-        <button class="page-action-btn" onclick="loadDashboard()">
-          <i class="ti ti-refresh"></i>
-          Yenile
-        </button>
+        <select id="cari-type-filter" onchange="filterCariTable()" class="fatura-filter-select">
+          <option value="">Tümü</option>
+          <option value="Tedarikçi">Tedarikçi</option>
+          <option value="Müşteri">Müşteri</option>
+          <option value="İkisi de">Her İkisi de</option>
+        </select>
       </div>
     </div>
 

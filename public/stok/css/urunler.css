@@ -2,13 +2,62 @@
 
 .req { color: #ef4444; }
 
+/* ── Dinamik attr filtre stilleri ── */
+.dattr-group {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  min-width: 120px;
+}
+.dattr-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+.dattr-opts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.dattr-opt {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  font-weight: 500;
+  color: #374151;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  padding: 3px 8px;
+  border-radius: 20px;
+  cursor: pointer;
+  transition: background 0.1s, border-color 0.1s;
+}
+.dattr-opt:hover { background: #eff6ff; border-color: #bfdbfe; }
+.dattr-opt input { margin: 0; cursor: pointer; }
+.dattr-input {
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  padding: 5px 8px;
+  font-size: 12px;
+  color: #374151;
+  background: #f8fafc;
+  outline: none;
+  width: 130px;
+}
+.dattr-input:focus { border-color: #2563eb; background: #fff; }
+
 /* Clickable product rows */
 #urunlerTableBody tr {
   cursor: pointer;
   transition: background 0.1s;
 }
 
-#urunlerTableBody tr:hover { background: #f0f9ff; }
+#urunlerTableBody tr:hover {
+  background: #f0f9ff;
+}
 
 /* Brand/category pills in table */
 .pill-brand {
@@ -70,4 +119,5 @@
   font-family: 'Geist Mono', monospace;
   font-size: 12px;
   color: #0f172a;
+  text-align: right;
 }

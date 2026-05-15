@@ -19,6 +19,7 @@ let productCodeLookupFetchedAt = 0;
 let productCodeLookupPromise = null;
 let productCategoryByCodeMap = new Map();
 let productCategoryOptionList = [];
+let _internalCategoryOptions = [];
 let productCategoryFetchedAt = 0;
 let productCategoryPromise = null;
 

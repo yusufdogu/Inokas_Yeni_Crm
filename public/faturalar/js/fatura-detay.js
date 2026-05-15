@@ -15,6 +15,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         return;
     }
 
+    await loadInternalCategoryOptions();
     await loadInvoice(_detayId);
 });
 
@@ -155,14 +156,18 @@ if (typeof approveDetailInvoice === 'undefined') {
 
 
 // ─── Category select helpers (normally in main.js) ────────────────────────────
-const INTERNAL_CATEGORY_OPTIONS = [
-    'kira', 'fatura & aidat', 'ofis malzemesi', 'yazılım & abonelik',
-    'pazarlama', 'danışmanlık', 'seyahat', 'personel', 'vergi & muhasebe',
-    'elektrik & doğalgaz', 'iletişim', 'yemek & mutfak', 'güvenlik', 'diğer'
-];
+async function loadInternalCategoryOptions() {
+    try {
+        const res = await fetch('/api/ofis-ici-categories');
+        if (!res.ok) return;
+        _internalCategoryOptions = await res.json();
+    } catch (e) {
+        console.warn('Ofis içi kategoriler alınamadı:', e.message);
+    }
+}
 
 function getRowCategoryOptions(isInternal) {
-    if (isInternal) return INTERNAL_CATEGORY_OPTIONS;
+    if (isInternal) return _internalCategoryOptions;
     return productCategoryOptionList;
 }
 
@@ -171,11 +176,10 @@ function renderRowCategorySelect(selectEl, isInternal, value = '') {
     const options = getRowCategoryOptions(isInternal);
     const selectedValue = String(value || '').trim();
     const placeholder = isInternal ? 'Ofis içi kategorisi seçin' : 'Ürün kategorisi seçin';
-    const addNewOptionHtml = isInternal ? '' : '<option value="__add_new_category__">+ Yeni kategori ekle</option>';
     selectEl.innerHTML = [
         `<option value="">${placeholder}</option>`,
         ...options.map(opt => `<option value="${opt}"${opt === selectedValue ? ' selected' : ''}>${opt}</option>`),
-        addNewOptionHtml
+        '<option value="__add_new_category__">+ Yeni kategori ekle</option>'
     ].join('');
 }
 

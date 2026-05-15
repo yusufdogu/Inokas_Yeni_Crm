@@ -25,6 +25,7 @@ document.addEventListener('DOMContentLoaded', () => {
     bindModalOutsideClose();
     restoreFilterState();
     initFatFilters();
+    loadInternalCategoryOptions();
 
     showAllState.gelen = true;
     showAllState.giden = true;
@@ -660,18 +661,18 @@ function recalcInvoiceTotalsFromLines() {
     if (totalEl) totalEl.value = (totalNet + totalTax).toFixed(2);
 }
 
-const INTERNAL_CATEGORY_OPTIONS = [
-    'teknoloji',
-    'araç & yakıt',
-    'elektrik & doğalgaz',
-    'iletişim',
-    'yemek & mutfak',
-    'güvenlik',
-    'diğer'
-];
+async function loadInternalCategoryOptions() {
+    try {
+        const res = await fetch('/api/ofis-ici-categories');
+        if (!res.ok) return;
+        _internalCategoryOptions = await res.json();
+    } catch (e) {
+        console.warn('Ofis içi kategoriler alınamadı:', e.message);
+    }
+}
 
 function getRowCategoryOptions(isInternal) {
-    if (isInternal) return INTERNAL_CATEGORY_OPTIONS;
+    if (isInternal) return _internalCategoryOptions;
     return productCategoryOptionList;
 }
 
@@ -680,7 +681,7 @@ function renderRowCategorySelect(selectEl, isInternal, value = '') {
     const options = getRowCategoryOptions(isInternal);
     const selectedValue = String(value || '').trim();
     const placeholder = isInternal ? 'Ofis içi kategorisi seçin' : 'Ürün kategorisi seçin';
-    const addNewOptionHtml = isInternal ? '' : '<option value="__add_new_category__">+ Yeni kategori ekle</option>';
+    const addNewOptionHtml = '<option value="__add_new_category__">+ Yeni kategori ekle</option>';
     selectEl.innerHTML = [
         `<option value="">${placeholder}</option>`,
         ...options.map((opt) => {
@@ -773,7 +774,6 @@ function addLineItem(
         };
         categorySelect.addEventListener('change', () => {
             if (categorySelect.value !== '__add_new_category__') return;
-            if (internalToggle.checked) return;
             categorySelect.value = '';
             if (quickAddWrap) quickAddWrap.style.display = 'flex';
             if (quickAddInput) {
@@ -784,11 +784,20 @@ function addLineItem(
         quickAddSave?.addEventListener('click', () => {
             const next = String(quickAddInput?.value || '').trim();
             if (!next) return;
-            if (!productCategoryOptionList.includes(next)) {
-                productCategoryOptionList.push(next);
-                productCategoryOptionList.sort((a, b) => a.localeCompare(b, 'tr'));
+            const isInternal = internalToggle.checked;
+            if (isInternal) {
+                if (!_internalCategoryOptions.includes(next)) {
+                    _internalCategoryOptions.push(next);
+                    _internalCategoryOptions.sort((a, b) => a.localeCompare(b, 'tr'));
+                }
+                renderRowCategorySelect(categorySelect, true, next);
+            } else {
+                if (!productCategoryOptionList.includes(next)) {
+                    productCategoryOptionList.push(next);
+                    productCategoryOptionList.sort((a, b) => a.localeCompare(b, 'tr'));
+                }
+                renderRowCategorySelect(categorySelect, false, next);
             }
-            renderRowCategorySelect(categorySelect, false, next);
             if (quickAddWrap) quickAddWrap.style.display = 'none';
         });
         quickAddCancel?.addEventListener('click', () => {

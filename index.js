@@ -1694,14 +1694,11 @@ app.get('/api/invoices', async (req, res) => {
     }
 
     // Tüm kalemleri ofis-içi olan faturaları alışlar/satışlar listesinden çıkar
-    let result = data;
-    if (direction && Array.isArray(data)) {
-      result = data.filter(inv => {
-        const items = inv.invoice_items || [];
-        if (!items.length) return true;
-        return items.some(it => !it.is_internal);
-      });
-    }
+    let result = Array.isArray(data) ? data.filter(inv => {
+      const items = inv.invoice_items || [];
+      if (!items.length) return true;
+      return items.some(it => !it.is_internal);
+    }) : data;
 
     // Bulduğumuz faturaları tarayıcıya geri yolla
     res.status(200).json(result);
@@ -1970,6 +1967,22 @@ app.get('/api/invoices/pending', async (req, res) => {
   }
 });
 
+
+app.get('/api/ofis-ici-categories', async (req, res) => {
+  try {
+    const { data, error } = await supabase
+      .from('invoice_items')
+      .select('internal_category')
+      .eq('is_internal', true)
+      .not('internal_category', 'is', null)
+      .neq('internal_category', '');
+    if (error) throw error;
+    const cats = [...new Set((data || []).map(r => r.internal_category).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'tr'));
+    res.json(cats);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
 
 app.get('/api/invoices/ofis-ici', async (req, res) => {
   try {

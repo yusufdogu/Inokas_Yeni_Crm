@@ -26,8 +26,8 @@ function renderDetailView(id) {
         </div>
         <div class="fat-detail-right">
             <div class="fat-dtab-bar">
-                <button class="fat-dtab${curTab === 'bilgiler'  ? ' fat-dtab--active' : ''}" onclick="switchFatDetailTab('${id}','bilgiler')">Fatura Bilgileri</button>
-                <button class="fat-dtab${curTab === 'urunler'   ? ' fat-dtab--active' : ''}" onclick="switchFatDetailTab('${id}','urunler')">Fatura Ürünleri</button>
+                <button class="fat-dtab${curTab === 'bilgiler' ? ' fat-dtab--active' : ''}" onclick="switchFatDetailTab('${id}','bilgiler')">Fatura Bilgileri</button>
+                <button class="fat-dtab${curTab === 'urunler' ? ' fat-dtab--active' : ''}" onclick="switchFatDetailTab('${id}','urunler')">Fatura Ürünleri</button>
             </div>
             <div class="fat-dtab-body" id="fatDtabBody_${id}"></div>
         </div>
@@ -38,7 +38,7 @@ function renderDetailView(id) {
 }
 
 async function loadDetailPdf(id, inv) {
-    const empty  = document.getElementById(`fatDetailPdfEmpty_${id}`);
+    const empty = document.getElementById(`fatDetailPdfEmpty_${id}`);
     const iframe = document.getElementById(`fatDetailIframe_${id}`);
     if (!iframe) return;
 
@@ -66,7 +66,7 @@ async function loadDetailPdf(id, inv) {
         <p style="font-size:13px;font-weight:600;color:#2563eb;margin-top:10px;">XML yükleniyor...</p>`;
 
     try {
-        const res     = await fetch(inv.xml_url);
+        const res = await fetch(inv.xml_url);
         if (!res.ok) throw new Error('XML alınamadı (' + res.status + ')');
         const xmlText = await res.text();
         _detailXmlCache[id] = xmlText;
@@ -108,10 +108,10 @@ function _extractEmbeddedPdfUrl(xmlText, id) {
     try {
         const parser = new DOMParser();
         const xmlDoc = parser.parseFromString(xmlText, 'text/xml');
-        const nodes  = xmlDoc.getElementsByTagName('cbc:EmbeddedDocumentBinaryObject');
+        const nodes = xmlDoc.getElementsByTagName('cbc:EmbeddedDocumentBinaryObject');
         for (let i = 0; i < nodes.length; i++) {
-            const fn       = (nodes[i].getAttribute('filename') || '').toLowerCase();
-            const mime     = (nodes[i].getAttribute('mimeCode') || '').toLowerCase();
+            const fn = (nodes[i].getAttribute('filename') || '').toLowerCase();
+            const mime = (nodes[i].getAttribute('mimeCode') || '').toLowerCase();
             if (!fn.endsWith('.pdf') && mime !== 'application/pdf') continue;
             const b64 = nodes[i].textContent.trim();
             const bin = atob(b64);
@@ -121,7 +121,7 @@ function _extractEmbeddedPdfUrl(xmlText, id) {
             _embeddedPdfCache[id] = url;
             return url;
         }
-    } catch (_) {}
+    } catch (_) { }
     return null;
 }
 
@@ -178,7 +178,7 @@ async function renderDetailTabContent(id, tab, inv, _bodyOverride) {
     body.classList.add('fat-tab-anim');
 
     if (tab === 'bilgiler') { renderBilgilerView(id); return; }
-    if (tab === 'urunler')  { renderUrunlerView(id, body, inv); return; }
+    if (tab === 'urunler') { renderUrunlerView(id, body, inv); return; }
 }
 
 function closeInvoiceDetailModal() { /* artık inline tab sistemi kullanılıyor */ }
@@ -186,12 +186,12 @@ function closeInvoiceDetailModal() { /* artık inline tab sistemi kullanılıyor
 // ─── Bilgiler sekmesi ─────────────────────────────────────────────────────────
 
 function _findInvAndBody(id) {
-    const sid  = String(id);
+    const sid = String(id);
     let inv = (allInvoicesCache || []).find(i => String(i.id) === sid) || (typeof bekleyenCache !== 'undefined' ? bekleyenCache : []).find(i => String(i.id) === sid);
-    let body   = document.getElementById(`fatDtabBody_${sid}`)
-             || document.getElementById('fatDetailTabBody');
+    let body = document.getElementById(`fatDtabBody_${sid}`)
+        || document.getElementById('fatDetailTabBody');
     if (!inv || !body) {
-        const bekInv  = bekleyenCache.find(i => String(i.id) === sid);
+        const bekInv = bekleyenCache.find(i => String(i.id) === sid);
         const bekBody = document.getElementById(`bekInfoBody_${sid}`);
         if (bekInv && bekBody) { inv = bekInv; body = bekBody; }
     }
@@ -208,10 +208,10 @@ function renderBilgilerView(id) {
 
     const card = (label, value, opts = {}) => {
         const full = opts.full ? 'grid-column:span 2;' : '';
-        const bg   = opts.accent ? 'background:#eff6ff; border-color:#bfdbfe;' : 'background:#f8fafc;';
-        const vc   = opts.accent ? 'color:#2563eb;' : 'color:#0f172a;';
-        const vs   = opts.large  ? 'font-size:15px;' : 'font-size:13px;';
-        const v    = value != null && value !== '' ? String(value).replace(/</g, '&lt;') : '—';
+        const bg = opts.accent ? 'background:#eff6ff; border-color:#bfdbfe;' : 'background:#f8fafc;';
+        const vc = opts.accent ? 'color:#2563eb;' : 'color:#0f172a;';
+        const vs = opts.large ? 'font-size:15px;' : 'font-size:13px;';
+        const v = value != null && value !== '' ? String(value).replace(/</g, '&lt;') : '—';
         return `<div style="${full} ${bg} border:1px solid #e2e8f0; border-radius:10px; padding:10px 14px; display:flex; flex-direction:column; gap:3px;">
             <span style="font-size:10px; font-weight:800; color:#94a3b8; text-transform:uppercase; letter-spacing:0.05em;">${label}</span>
             <span style="${vs} font-weight:700; ${vc}">${v}</span>
@@ -306,10 +306,10 @@ function enterBilgilerEdit(id) {
 
     const section = t => `<div style="font-size:10px; font-weight:800; color:#94a3b8; text-transform:uppercase; letter-spacing:0.05em; margin-bottom:8px; margin-top:4px;">${t}</div>`;
 
-    const netVal  = invNetAmountSrc(inv);
-    const taxVal  = invTaxAmountSrc(inv);
+    const netVal = invNetAmountSrc(inv);
+    const taxVal = invTaxAmountSrc(inv);
     const totalVal = invPayableAmountSrc(inv);
-    const kurVal  = invCalculationRate(inv);
+    const kurVal = invCalculationRate(inv);
 
     body.innerHTML = `<div style="padding:16px; display:flex; flex-direction:column; gap:14px;">
 
@@ -356,16 +356,16 @@ function enterBilgilerEdit(id) {
     </div>`;
 
     // Auto-update total display when matrah, KDV, or currency changes
-    const netEl     = document.getElementById('edit_net');
-    const taxEl     = document.getElementById('edit_tax');
-    const curSel    = document.getElementById('edit_currency');
+    const netEl = document.getElementById('edit_net');
+    const taxEl = document.getElementById('edit_tax');
+    const curSel = document.getElementById('edit_currency');
     const totalDisp = document.getElementById('bilgilerTotalDisplay');
 
     const updateTotal = () => {
-        const net   = parseFloat(netEl?.value)  || 0;
-        const tax   = parseFloat(taxEl?.value)  || 0;
+        const net = parseFloat(netEl?.value) || 0;
+        const tax = parseFloat(taxEl?.value) || 0;
         const total = net + tax;
-        const lbl   = curSel?.value || currLabel;
+        const lbl = curSel?.value || currLabel;
         if (totalDisp) {
             totalDisp.textContent = total.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' ' + lbl;
         }
@@ -380,21 +380,21 @@ async function saveBilgilerEdit(id) {
     const { inv } = _findInvAndBody(id);
     if (!inv) return;
 
-    const invoice_no   = document.getElementById('edit_invoice_no')?.value?.trim()   || inv.invoice_no  || '';
-    const invoice_date = document.getElementById('edit_invoice_date')?.value         || inv.invoice_date || null;
-    const invoice_type = document.getElementById('edit_invoice_type')?.value         || inv.invoice_type || 'Ticari';
-    const currency_val = document.getElementById('edit_currency')?.value             || invDisplayCurrencyLabel(inv);
-    const kur_raw      = parseFloat(document.getElementById('edit_kur')?.value);
-    const calc_rate    = Number.isFinite(kur_raw) && kur_raw > 0 ? kur_raw : invCalculationRate(inv);
-    const net_cur      = parseFloat(document.getElementById('edit_net')?.value)      || 0;
-    const tax_cur      = parseFloat(document.getElementById('edit_tax')?.value)      || 0;
-    const payable_cur  = net_cur + tax_cur;
-    const due_date     = document.getElementById('edit_due_date')?.value             || null;
-    const phone        = document.getElementById('edit_phone')?.value?.trim()        || '';
-    const email        = document.getElementById('edit_email')?.value?.trim()        || '';
-    const website      = document.getElementById('edit_website')?.value?.trim()      || '';
-    const address      = document.getElementById('edit_address')?.value?.trim()      || '';
-    const notes        = document.getElementById('edit_notes')?.value                || '';
+    const invoice_no = document.getElementById('edit_invoice_no')?.value?.trim() || inv.invoice_no || '';
+    const invoice_date = document.getElementById('edit_invoice_date')?.value || inv.invoice_date || null;
+    const invoice_type = document.getElementById('edit_invoice_type')?.value || inv.invoice_type || 'Ticari';
+    const currency_val = document.getElementById('edit_currency')?.value || invDisplayCurrencyLabel(inv);
+    const kur_raw = parseFloat(document.getElementById('edit_kur')?.value);
+    const calc_rate = Number.isFinite(kur_raw) && kur_raw > 0 ? kur_raw : invCalculationRate(inv);
+    const net_cur = parseFloat(document.getElementById('edit_net')?.value) || 0;
+    const tax_cur = parseFloat(document.getElementById('edit_tax')?.value) || 0;
+    const payable_cur = net_cur + tax_cur;
+    const due_date = document.getElementById('edit_due_date')?.value || null;
+    const phone = document.getElementById('edit_phone')?.value?.trim() || '';
+    const email = document.getElementById('edit_email')?.value?.trim() || '';
+    const website = document.getElementById('edit_website')?.value?.trim() || '';
+    const address = document.getElementById('edit_address')?.value?.trim() || '';
+    const notes = document.getElementById('edit_notes')?.value || '';
     const company_name = document.getElementById('edit_company_name')?.value?.trim() || inv.companies?.name || '';
 
     const btn = document.querySelector(`[onclick="saveBilgilerEdit('${id}')"]`);
@@ -415,14 +415,14 @@ async function saveBilgilerEdit(id) {
                     total_tax_exclusive_cur: net_cur,
                     total_tax_inclusive_cur: net_cur + tax_cur,
                     payable_amount_cur: payable_cur,
-                    total_tax_exclusive_tl: net_cur  * calc_rate,
-                    tax_amount_tl:          tax_cur  * calc_rate,
-                    payable_amount_tl:      payable_cur * calc_rate
+                    total_tax_exclusive_tl: net_cur * calc_rate,
+                    tax_amount_tl: tax_cur * calc_rate,
+                    payable_amount_tl: payable_cur * calc_rate
                 },
                 company: {
-                    vkn_tckn:   inv.companies?.vkn_tckn   || '',
-                    name:       company_name,
-                    tax_office: inv.companies?.tax_office  || '',
+                    vkn_tckn: inv.companies?.vkn_tckn || '',
+                    name: company_name,
+                    tax_office: inv.companies?.tax_office || '',
                     phone, email, website, address
                 },
                 items: inv.invoice_items || []
@@ -432,22 +432,22 @@ async function saveBilgilerEdit(id) {
         if (!res.ok) throw new Error(result.error || 'Güncelleme hatası');
 
         // Update in-memory cache
-        inv.invoice_no              = invoice_no;
-        inv.invoice_date            = invoice_date;
-        inv.invoice_type            = invoice_type;
-        inv.currency                = currency_val;
-        inv.base_currency           = baseIso;
-        inv.calculation_rate        = calc_rate;
+        inv.invoice_no = invoice_no;
+        inv.invoice_date = invoice_date;
+        inv.invoice_type = invoice_type;
+        inv.currency = currency_val;
+        inv.base_currency = baseIso;
+        inv.calculation_rate = calc_rate;
         inv.total_tax_exclusive_cur = net_cur;
-        inv.tax_amount_tl           = tax_cur  * calc_rate;
-        inv.payable_amount_cur      = payable_cur;
-        inv.payable_amount_tl       = payable_cur * calc_rate;
-        inv.due_date                = due_date;
-        inv.notes                   = notes;
+        inv.tax_amount_tl = tax_cur * calc_rate;
+        inv.payable_amount_cur = payable_cur;
+        inv.payable_amount_tl = payable_cur * calc_rate;
+        inv.due_date = due_date;
+        inv.notes = notes;
         if (inv.companies) {
-            inv.companies.name    = company_name;
-            inv.companies.phone   = phone;
-            inv.companies.email   = email;
+            inv.companies.name = company_name;
+            inv.companies.phone = phone;
+            inv.companies.email = email;
             inv.companies.website = website;
             inv.companies.address = address;
         }
@@ -475,22 +475,22 @@ async function saveBilgilerEdit(id) {
 function _makeSearchableDropdown(wrapEl, {
     getOptions,       // () => string[]
     initialValue = '',
-    placeholder  = 'Ara...',
-    onChange     = () => {},
-    onAddNew     = null,  // null = no add new; fn(value) = called when confirmed
-    addNewLabel  = v => `+ "${v}" ekle`,
+    placeholder = 'Ara...',
+    onChange = () => { },
+    onAddNew = null,  // null = no add new; fn(value) = called when confirmed
+    addNewLabel = v => `+ "${v}" ekle`,
 }) {
     if (!wrapEl) return;
-    wrapEl.innerHTML  = '';
+    wrapEl.innerHTML = '';
     wrapEl.style.position = 'relative';
 
     const input = document.createElement('input');
-    input.type        = 'text';
-    input.value       = initialValue || '';
+    input.type = 'text';
+    input.value = initialValue || '';
     input.placeholder = placeholder;
     input.style.cssText = 'width:100%;padding:7px 10px;border:1px solid #e2e8f0;border-radius:8px;font-size:12px;font-family:inherit;outline:none;box-sizing:border-box;background:#fff;color:#0f172a;transition:border-color 0.15s;';
     input.addEventListener('focus', () => { input.style.borderColor = '#2563eb'; renderList(input.value); });
-    input.addEventListener('blur',  () => { input.style.borderColor = '#e2e8f0'; setTimeout(() => { list.style.display = 'none'; }, 160); });
+    input.addEventListener('blur', () => { input.style.borderColor = '#e2e8f0'; setTimeout(() => { list.style.display = 'none'; }, 160); });
     wrapEl.appendChild(input);
 
     const list = document.createElement('ul');
@@ -499,22 +499,22 @@ function _makeSearchableDropdown(wrapEl, {
 
     function makeLi(text, onClick, style = '') {
         const li = document.createElement('li');
-        li.textContent   = text;
+        li.textContent = text;
         li.style.cssText = `padding:7px 12px;font-size:12px;color:#1e293b;cursor:pointer;${style}`;
         li.addEventListener('mouseenter', () => li.style.background = '#f1f5f9');
         li.addEventListener('mouseleave', () => li.style.background = '');
-        li.addEventListener('mousedown',  e => { e.preventDefault(); onClick(); });
+        li.addEventListener('mousedown', e => { e.preventDefault(); onClick(); });
         list.appendChild(li);
     }
 
     function renderList(query) {
-        const q        = (query || '').toLocaleLowerCase('tr-TR');
-        const opts     = getOptions();
+        const q = (query || '').toLocaleLowerCase('tr-TR');
+        const opts = getOptions();
         const filtered = opts.filter(o => !q || o.toLocaleLowerCase('tr-TR').includes(q));
-        list.innerHTML  = '';
+        list.innerHTML = '';
 
         if (!filtered.length && !onAddNew) {
-            makeLi('Sonuç bulunamadı', () => {}, 'color:#94a3b8;cursor:default;');
+            makeLi('Sonuç bulunamadı', () => { }, 'color:#94a3b8;cursor:default;');
         }
 
         filtered.forEach(opt => makeLi(opt, () => {
@@ -527,7 +527,7 @@ function _makeSearchableDropdown(wrapEl, {
         const trimmed = (query || '').trim();
         if (onAddNew && trimmed && !opts.some(o => o.toLowerCase() === trimmed.toLowerCase())) {
             const li = document.createElement('li');
-            li.textContent   = addNewLabel(trimmed);
+            li.textContent = addNewLabel(trimmed);
             li.style.cssText = 'padding:7px 12px;font-size:12px;color:#059669;font-weight:700;cursor:pointer;border-top:1px solid #f1f5f9;margin-top:2px;';
             li.addEventListener('mouseenter', () => li.style.background = '#f0fdf4');
             li.addEventListener('mouseleave', () => li.style.background = '');
@@ -547,12 +547,12 @@ function _makeSearchableDropdown(wrapEl, {
     input.addEventListener('input', () => { renderList(input.value); onChange(input.value); });
 
     // Public API
-    wrapEl._getValue    = ()  => input.value.trim();
-    wrapEl._setValue    = v   => { input.value = v || ''; };
-    wrapEl._setOptions  = ()  => {}; // options are dynamic via getOptions()
-    wrapEl._rebuild     = (placeholder2, val) => {
+    wrapEl._getValue = () => input.value.trim();
+    wrapEl._setValue = v => { input.value = v || ''; };
+    wrapEl._setOptions = () => { }; // options are dynamic via getOptions()
+    wrapEl._rebuild = (placeholder2, val) => {
         input.placeholder = placeholder2 || placeholder;
-        input.value       = val || '';
+        input.value = val || '';
     };
 
     return wrapEl;
@@ -561,7 +561,7 @@ function _makeSearchableDropdown(wrapEl, {
 // ─── Category dropdown (with add new → saves to product) ─────────────────────
 function _makeCategoryDropdown(wrapEl, isInternal, initialValue, onChange, sku = '') {
     const getOptions = () => isInternal
-        ? ['teknoloji','araç & yakıt','elektrik & doğalgaz','iletişim','yemek & mutfak','güvenlik','diğer']
+        ? (_internalCategoryOptions || [])
         : (productCategoryOptionList || []);
 
     _makeSearchableDropdown(wrapEl, {
@@ -569,16 +569,21 @@ function _makeCategoryDropdown(wrapEl, isInternal, initialValue, onChange, sku =
         initialValue,
         placeholder: isInternal ? 'Ofis içi kategorisi...' : 'Kategori ara...',
         onChange,
-        onAddNew: isInternal ? null : async (newCat) => {
-            // Add to local list immediately
-            if (!productCategoryOptionList.includes(newCat)) {
-                productCategoryOptionList.push(newCat);
-                productCategoryOptionList.sort((a,b) => a.localeCompare(b,'tr'));
-            }
-            // Save to product if we have a SKU
-            const activeSku = sku || wrapEl.closest?.('.ue-acc-item')?.querySelector?.('.ue-code')?.value?.trim() || '';
-            if (activeSku) {
-                saveNewCategoryToProduct(activeSku, newCat).catch(() => {});
+        onAddNew: async (newCat) => {
+            if (isInternal) {
+                if (!_internalCategoryOptions.includes(newCat)) {
+                    _internalCategoryOptions.push(newCat);
+                    _internalCategoryOptions.sort((a, b) => a.localeCompare(b, 'tr'));
+                }
+            } else {
+                if (!productCategoryOptionList.includes(newCat)) {
+                    productCategoryOptionList.push(newCat);
+                    productCategoryOptionList.sort((a, b) => a.localeCompare(b, 'tr'));
+                }
+                const activeSku = sku || wrapEl.closest?.('.ue-acc-item')?.querySelector?.('.ue-code')?.value?.trim() || '';
+                if (activeSku) {
+                    saveNewCategoryToProduct(activeSku, newCat).catch(() => { });
+                }
             }
         },
         addNewLabel: v => `+ Yeni kategori: "${v}"`,
@@ -588,10 +593,10 @@ function _makeCategoryDropdown(wrapEl, isInternal, initialValue, onChange, sku =
 // ─── Brand dropdown ───────────────────────────────────────────────────────────
 function _makeBrandDropdown(wrapEl, initialValue, onBrandChange) {
     _makeSearchableDropdown(wrapEl, {
-        getOptions:  () => _brandOptions || [],
+        getOptions: () => _brandOptions || [],
         initialValue,
         placeholder: 'Marka ara...',
-        onChange:    onBrandChange,
+        onChange: onBrandChange,
     });
 }
 
@@ -599,16 +604,16 @@ function _makeBrandDropdown(wrapEl, initialValue, onBrandChange) {
 function _makeModelDropdown(wrapEl, initialValue, getBrand) {
     _makeSearchableDropdown(wrapEl, {
         getOptions: () => {
-            const brand  = getBrand();
+            const brand = getBrand();
             if (brand && _modelsByBrand.has(brand)) return _modelsByBrand.get(brand);
             // No brand selected → show all models
             const all = new Set();
             (_modelsByBrand || new Map()).forEach(models => models.forEach(m => all.add(m)));
-            return [...all].sort((a,b) => a.localeCompare(b,'tr'));
+            return [...all].sort((a, b) => a.localeCompare(b, 'tr'));
         },
         initialValue,
         placeholder: 'Model ara...',
-        onChange:    () => {},
+        onChange: () => { },
     });
 }
 
@@ -626,8 +631,8 @@ async function renderUrunlerView(id, body, inv) {
         if (missing.length) {
             warnHtml = `<div class="det-sku-warn"><strong>⚠️ Yeni ürün kodu olabilir</strong><br>${missing.join(', ')} — products tablosunda kayıtlı değil.</div>`;
         }
-    } catch (e) {}
-    try { await ensureProductCategoryLookupLoaded(); } catch (e) {}
+    } catch (e) { }
+    try { await ensureProductCategoryLookupLoaded(); } catch (e) { }
 
     const fmtP = n => (parseFloat(n) || 0).toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     const pill = (val, color = '#64748b', bg = '#f1f5f9') => val
@@ -636,9 +641,9 @@ async function renderUrunlerView(id, body, inv) {
 
     const cards = items.map(it => {
         const isInt = !!it.is_internal;
-        const code  = String(it.product_code || it.sku || '').trim();
-        const name  = String(it.product_name || '').trim();
-        const cat   = isInt
+        const code = String(it.product_code || it.sku || '').trim();
+        const name = String(it.product_name || '').trim();
+        const cat = isInt
             ? (it.internal_category || '—')
             : (it.category || productCategoryByCodeMap?.get(normalizeProductCodeForMatch(code)) || '—');
         const brand = it.brand_name || it.brand || '';
@@ -647,12 +652,12 @@ async function renderUrunlerView(id, body, inv) {
         return `<div style="background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:11px 14px;">
             <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
                 <div style="flex:1;min-width:0;">
-                    <div style="font-size:13px;font-weight:700;color:#0f172a;margin-bottom:5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${name.replace(/</g,'&lt;') || '—'}</div>
+                    <div style="font-size:13px;font-weight:700;color:#0f172a;margin-bottom:5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${name.replace(/</g, '&lt;') || '—'}</div>
                     <div style="display:flex;flex-wrap:wrap;gap:4px;align-items:center;">
                         ${code ? `<span style="font-size:11px;font-weight:700;color:#2563eb;background:#eff6ff;border-radius:5px;padding:2px 7px;font-family:'Geist Mono',monospace;">${code}</span>` : ''}
                         ${pill(`× ${it.quantity}`)}
                         ${pill(fmtP(it.unit_price_cur) + ' / adet')}
-                        ${isInt ? pill('Ofis İçi','#7c3aed','#f5f3ff') : ''}
+                        ${isInt ? pill('Ofis İçi', '#7c3aed', '#f5f3ff') : ''}
                         ${cat !== '—' ? pill(cat) : ''}
                         ${brand ? pill(brand) : ''}
                         ${model ? pill(model) : ''}
@@ -679,21 +684,21 @@ function enterUrunlerEdit(id) {
     const { inv, body } = _findInvAndBody(id);
     if (!inv || !body) return;
 
-    const items  = inv.invoice_items || [];
+    const items = inv.invoice_items || [];
     let _openIdx = null;
 
     // Pre-load brand/model data
-    ensureBrandModelLoaded().catch(() => {});
+    ensureBrandModelLoaded().catch(() => { });
 
     const fmtP = n => (parseFloat(n) || 0).toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
     function buildItem(it, idx) {
         const isInt = !!it.is_internal;
-        const code  = String(it.product_code || it.sku || '').trim();
-        const name  = String(it.product_name || '').replace(/</g,'&lt;');
-        const brand = String(it.brand_name || it.brand || '').replace(/"/g,'&quot;');
-        const model = String(it.model || '').replace(/"/g,'&quot;');
-        const qty   = parseFloat(it.quantity) || 0;
+        const code = String(it.product_code || it.sku || '').trim();
+        const name = String(it.product_name || '').replace(/</g, '&lt;');
+        const brand = String(it.brand_name || it.brand || '').replace(/"/g, '&quot;');
+        const model = String(it.model || '').replace(/"/g, '&quot;');
+        const qty = parseFloat(it.quantity) || 0;
         const price = parseFloat(it.unit_price_cur) || 0;
 
         return `<div class="ue-acc-item" data-idx="${idx}"
@@ -723,12 +728,12 @@ function enterUrunlerEdit(id) {
                 <div style="display:grid;grid-template-columns:140px 1fr;gap:8px;margin-top:12px;margin-bottom:8px;">
                     <div>
                         <label style="font-size:10px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:0.04em;display:block;margin-bottom:4px;">SKU / Kod</label>
-                        <input class="det-edit-input ue-code" value="${code.replace(/"/g,'&quot;')}" placeholder="Ürün kodu"
+                        <input class="det-edit-input ue-code" value="${code.replace(/"/g, '&quot;')}" placeholder="Ürün kodu"
                             style="width:100%;font-family:'Geist Mono',monospace;font-size:12px;color:#2563eb;font-weight:700;padding:7px 10px;border:1px solid #e2e8f0;border-radius:8px;outline:none;box-sizing:border-box;">
                     </div>
                     <div>
                         <label style="font-size:10px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:0.04em;display:block;margin-bottom:4px;">Ürün Adı</label>
-                        <input class="det-edit-input ue-name" value="${String(it.product_name||'').replace(/"/g,'&quot;')}" placeholder="Ürün adı"
+                        <input class="det-edit-input ue-name" value="${String(it.product_name || '').replace(/"/g, '&quot;')}" placeholder="Ürün adı"
                             style="width:100%;font-size:12px;font-weight:600;padding:7px 10px;border:1px solid #e2e8f0;border-radius:8px;outline:none;box-sizing:border-box;">
                     </div>
                 </div>
@@ -792,39 +797,39 @@ function enterUrunlerEdit(id) {
     if (!listEl) return;
 
     listEl.querySelectorAll('.ue-acc-item').forEach(item => {
-        const idx      = parseInt(item.dataset.idx);
-        const it       = items[idx] || {};
-        const isInt    = !!it.is_internal;
-        const code     = String(it.product_code || it.sku || '').trim();
-        const curCat   = isInt
+        const idx = parseInt(item.dataset.idx);
+        const it = items[idx] || {};
+        const isInt = !!it.is_internal;
+        const code = String(it.product_code || it.sku || '').trim();
+        const curCat = isInt
             ? (it.internal_category || '')
             : (it.category || productCategoryByCodeMap?.get(normalizeProductCodeForMatch(code)) || '');
         const curBrand = it.brand_name || it.brand || '';
         const curModel = it.model || '';
 
-        const hdr       = item.querySelector('.ue-acc-hdr');
-        const bodyEl    = item.querySelector('.ue-acc-body');
-        const chev      = item.querySelector('.ue-chev');
-        const delBtn    = item.querySelector('.ue-del-btn');
-        const chk       = item.querySelector('.ue-isint-chk');
-        const catWrap   = item.querySelector('.ue-cat-wrap');
+        const hdr = item.querySelector('.ue-acc-hdr');
+        const bodyEl = item.querySelector('.ue-acc-body');
+        const chev = item.querySelector('.ue-chev');
+        const delBtn = item.querySelector('.ue-del-btn');
+        const chk = item.querySelector('.ue-isint-chk');
+        const catWrap = item.querySelector('.ue-cat-wrap');
         const brandWrap = item.querySelector('.ue-brand-wrap');
         const modelWrap = item.querySelector('.ue-model-wrap');
-        const qtyInp    = item.querySelector('.ue-qty');
-        const priceInp  = item.querySelector('.ue-price');
-        const totalEl   = item.querySelector('.ue-total');
-        const hdrTotal  = item.querySelector('.ue-hdr-total');
-        const hdrName   = item.querySelector('.ue-hdr-name');
-        const nameInp   = item.querySelector('.ue-name');
-        const codeInp   = item.querySelector('.ue-code');
+        const qtyInp = item.querySelector('.ue-qty');
+        const priceInp = item.querySelector('.ue-price');
+        const totalEl = item.querySelector('.ue-total');
+        const hdrTotal = item.querySelector('.ue-hdr-total');
+        const hdrName = item.querySelector('.ue-hdr-name');
+        const nameInp = item.querySelector('.ue-name');
+        const codeInp = item.querySelector('.ue-code');
 
         // Toggle accordion
         hdr.addEventListener('click', e => {
             if (delBtn.contains(e.target)) return;
             const isOpen = bodyEl.style.display !== 'none';
             if (isOpen) {
-                bodyEl.style.display   = 'none';
-                chev.style.transform   = '';
+                bodyEl.style.display = 'none';
+                chev.style.transform = '';
                 item.style.borderColor = '#e2e8f0';
                 _openIdx = null;
             } else {
@@ -832,12 +837,12 @@ function enterUrunlerEdit(id) {
                     const prev = listEl.querySelector(`.ue-acc-item[data-idx="${_openIdx}"]`);
                     if (prev) {
                         prev.querySelector('.ue-acc-body').style.display = 'none';
-                        prev.querySelector('.ue-chev').style.transform   = '';
+                        prev.querySelector('.ue-chev').style.transform = '';
                         prev.style.borderColor = '#e2e8f0';
                     }
                 }
-                bodyEl.style.display   = 'block';
-                chev.style.transform   = 'rotate(90deg)';
+                bodyEl.style.display = 'block';
+                chev.style.transform = 'rotate(90deg)';
                 item.style.borderColor = '#2563eb';
                 _openIdx = idx;
             }
@@ -847,7 +852,7 @@ function enterUrunlerEdit(id) {
         delBtn.addEventListener('click', e => { e.stopPropagation(); item.remove(); });
 
         // Init dropdowns
-        _makeCategoryDropdown(catWrap, isInt, curCat, () => {}, code);
+        _makeCategoryDropdown(catWrap, isInt, curCat, () => { }, code);
         _makeBrandDropdown(brandWrap, curBrand, (newBrand) => {
             // When brand changes, rebuild model dropdown
             if (modelWrap._getValue) {
@@ -859,10 +864,10 @@ function enterUrunlerEdit(id) {
 
         // Ofis İçi toggle → rebuild category
         chk?.addEventListener('change', () => {
-            const nowInt   = chk.checked;
+            const nowInt = chk.checked;
             const currentCat = catWrap?._getValue?.() || '';
-            const activeSku  = codeInp?.value?.trim() || '';
-            _makeCategoryDropdown(catWrap, nowInt, nowInt ? '' : currentCat, () => {}, activeSku);
+            const activeSku = codeInp?.value?.trim() || '';
+            _makeCategoryDropdown(catWrap, nowInt, nowInt ? '' : currentCat, () => { }, activeSku);
         });
 
         // SKU blur → auto-fill name, category, brand, model from DB
@@ -890,10 +895,10 @@ function enterUrunlerEdit(id) {
 
         // Total recalc
         const updateTotal = () => {
-            const q = parseFloat(qtyInp?.value)   || 0;
-            const p = parseFloat(priceInp?.value)  || 0;
+            const q = parseFloat(qtyInp?.value) || 0;
+            const p = parseFloat(priceInp?.value) || 0;
             const t = fmtP(q * p);
-            if (totalEl)  totalEl.textContent  = t;
+            if (totalEl) totalEl.textContent = t;
             if (hdrTotal) hdrTotal.textContent = t;
         };
         qtyInp?.addEventListener('input', updateTotal);
@@ -915,35 +920,35 @@ async function saveUrunlerEdit(id) {
     if (!listEl) return;
 
     const originalItems = inv.invoice_items || [];
-    const updatedItems  = [];
+    const updatedItems = [];
 
     listEl.querySelectorAll('.ue-acc-item').forEach(item => {
-        const idx        = parseInt(item.dataset.idx);
-        const orig       = originalItems[idx] || {};
-        const qty        = parseFloat(item.querySelector('.ue-qty')?.value)    || 0;
-        const price      = parseFloat(item.querySelector('.ue-price')?.value)  || 0;
-        const name       = item.querySelector('.ue-name')?.value?.trim()       || '';
-        const code       = item.querySelector('.ue-code')?.value?.trim()       || null;
+        const idx = parseInt(item.dataset.idx);
+        const orig = originalItems[idx] || {};
+        const qty = parseFloat(item.querySelector('.ue-qty')?.value) || 0;
+        const price = parseFloat(item.querySelector('.ue-price')?.value) || 0;
+        const name = item.querySelector('.ue-name')?.value?.trim() || '';
+        const code = item.querySelector('.ue-code')?.value?.trim() || null;
         const isInternal = !!item.querySelector('.ue-isint-chk')?.checked;
-        const catWrap    = item.querySelector('.ue-cat-wrap');
-        const brandWrap  = item.querySelector('.ue-brand-wrap');
-        const modelWrap  = item.querySelector('.ue-model-wrap');
-        const catVal     = catWrap?._getValue?.()   || '';
-        const brandVal   = brandWrap?._getValue?.() || '';
-        const modelVal   = modelWrap?._getValue?.() || '';
+        const catWrap = item.querySelector('.ue-cat-wrap');
+        const brandWrap = item.querySelector('.ue-brand-wrap');
+        const modelWrap = item.querySelector('.ue-model-wrap');
+        const catVal = catWrap?._getValue?.() || '';
+        const brandVal = brandWrap?._getValue?.() || '';
+        const modelVal = modelWrap?._getValue?.() || '';
 
         if (qty > 0 && name) {
             updatedItems.push({
                 ...orig,
-                product_name:      name,
-                product_code:      code,
-                quantity:          qty,
-                unit_price_cur:    price,
-                total_price_cur:   qty * price,
-                is_internal:       isInternal,
-                brand_name:        brandVal   || null,
-                model:             modelVal   || null,
-                product_category:  isInternal ? null : (catVal || null),  // ← for syncInvoiceItemInternalMeta
+                product_name: name,
+                product_code: code,
+                quantity: qty,
+                unit_price_cur: price,
+                total_price_cur: qty * price,
+                is_internal: isInternal,
+                brand_name: brandVal || null,
+                model: modelVal || null,
+                product_category: isInternal ? null : (catVal || null),  // ← for syncInvoiceItemInternalMeta
                 internal_category: isInternal ? (catVal || null) : (orig.internal_category ?? null),
             });
         }
@@ -960,13 +965,13 @@ async function saveUrunlerEdit(id) {
                 update_stock: true,
                 invoice: { due_date: inv.due_date, notes: inv.notes },
                 company: {
-                    vkn_tckn:   inv.companies?.vkn_tckn   || '',
-                    name:       inv.companies?.name       || '',
+                    vkn_tckn: inv.companies?.vkn_tckn || '',
+                    name: inv.companies?.name || '',
                     tax_office: inv.companies?.tax_office || '',
-                    phone:      inv.companies?.phone      || '',
-                    email:      inv.companies?.email      || '',
-                    website:    inv.companies?.website    || '',
-                    address:    inv.companies?.address    || ''
+                    phone: inv.companies?.phone || '',
+                    email: inv.companies?.email || '',
+                    website: inv.companies?.website || '',
+                    address: inv.companies?.address || ''
                 },
                 items: updatedItems
             })
@@ -1001,22 +1006,22 @@ function switchDetailTab(n) {
     lastActiveDetailTab = n;
     btn1.classList.toggle('active', n === 1);
     btn2.classList.toggle('active', n === 2);
-    tab1.style.display = n === 1 ? 'flex'  : 'none';
+    tab1.style.display = n === 1 ? 'flex' : 'none';
     tab2.style.display = n === 2 ? 'block' : 'none';
 
     if (n === 1) loadPdfTab();
 }
 
 async function loadPdfTab() {
-    const inv     = currentDetailInvId ? (allInvoicesCache || []).find(i => i.id === currentDetailInvId) : null;
-    const noXml   = document.getElementById('pdfNoXml');
+    const inv = currentDetailInvId ? (allInvoicesCache || []).find(i => i.id === currentDetailInvId) : null;
+    const noXml = document.getElementById('pdfNoXml');
     const loading = document.getElementById('pdfLoading');
-    const iframe  = document.getElementById('pdfDetailIframe');
+    const iframe = document.getElementById('pdfDetailIframe');
     if (!noXml || !loading || !iframe) return;
 
-    noXml.style.display   = 'none';
+    noXml.style.display = 'none';
     loading.style.display = 'none';
-    iframe.style.display  = 'none';
+    iframe.style.display = 'none';
 
     if (!inv || !inv.xml_url || inv.approval_status !== 'pending') {
         noXml.style.display = 'flex';
@@ -1025,12 +1030,12 @@ async function loadPdfTab() {
 
     loading.style.display = 'flex';
     try {
-        const res     = await fetch(inv.xml_url);
+        const res = await fetch(inv.xml_url);
         if (!res.ok) throw new Error('XML dosyası alınamadı (' + res.status + ')');
         const xmlText = await res.text();
         await renderXmlToPdfIframe(xmlText, iframe);
         loading.style.display = 'none';
-        iframe.style.display  = 'block';
+        iframe.style.display = 'block';
     } catch (err) {
         loading.style.display = 'none';
         const msgEl = noXml.querySelector('p');
@@ -1055,14 +1060,14 @@ async function renderXmlToPdfIframe(xmlString, iframe) {
     if (!base64Xslt) throw new Error('XML içinde XSLT şablonu bulunamadı.');
 
     const decodedXslt = decodeURIComponent(escape(window.atob(base64Xslt))).replace(/^﻿/, '');
-    const xsltDoc     = parser.parseFromString(decodedXslt, 'text/xml');
-    const proc        = new XSLTProcessor();
+    const xsltDoc = parser.parseFromString(decodedXslt, 'text/xml');
+    const proc = new XSLTProcessor();
     proc.importStylesheet(xsltDoc);
     const fragment = proc.transformToFragment(xmlDoc, document);
     if (!fragment) throw new Error('XSLT dönüşümü başarısız oldu.');
 
-    const html       = new XMLSerializer().serializeToString(fragment);
-    const iframeDoc  = iframe.contentDocument || iframe.contentWindow.document;
+    const html = new XMLSerializer().serializeToString(fragment);
+    const iframeDoc = iframe.contentDocument || iframe.contentWindow.document;
     iframeDoc.open();
     iframeDoc.write(html);
     iframeDoc.close();

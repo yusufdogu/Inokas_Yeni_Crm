@@ -7,7 +7,6 @@ const HISTORY_KEY = 'inokas_chat_history_v1';
 const MAX_HISTORY = 20; // messages kept in localStorage
 let _isLoading    = false;
 let _isRecording  = false;
-let _recognition  = null;
 let _charts       = {};  // Chart.js instances
 
 // ─── Init ──────────────────────────────────────────────────────────────────────

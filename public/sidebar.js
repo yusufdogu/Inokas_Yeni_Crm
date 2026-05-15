@@ -37,12 +37,12 @@
   function updatePendingBadges() {
     const gb = document.getElementById('sb-badge-alis-onayla');
     const sb = document.getElementById('sb-badge-satis-onayla');
-    if (gb) { gb.textContent = _pendingGelen; gb.style.display = _pendingGelen > 0 ? 'inline-flex' : 'none'; }
-    if (sb) { sb.textContent = _pendingGiden; sb.style.display = _pendingGiden > 0 ? 'inline-flex' : 'none'; }
+    if (gb) { gb.textContent = _pendingGelen; gb.classList.toggle('visible', _pendingGelen > 0); }
+    if (sb) { sb.textContent = _pendingGiden; sb.classList.toggle('visible', _pendingGiden > 0); }
   }
 
   function mkBadge(id) {
-    return `<span id="${id}" style="display:none;align-items:center;justify-content:center;margin-left:auto;min-width:18px;height:18px;padding:0 5px;background:#ef4444;color:#fff;border-radius:999px;font-size:10px;font-weight:800;font-family:inherit;flex-shrink:0;"></span>`;
+    return `<span id="${id}" class="sb-badge"></span>`;
   }
 
   // ─── HTML ─────────────────────────────────────────────────────────────────

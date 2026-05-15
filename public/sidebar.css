@@ -72,9 +72,13 @@
     gap: 2px;
     overflow-y: auto;
     overflow-x: hidden;
+    scrollbar-width: thin;
+    scrollbar-color: #1e293b transparent;
 }
 
-.sb-nav::-webkit-scrollbar { width: 0; }
+.sb-nav::-webkit-scrollbar { width: 3px; }
+.sb-nav::-webkit-scrollbar-track { background: transparent; }
+.sb-nav::-webkit-scrollbar-thumb { background: #1e293b; border-radius: 3px; }
 
 /* Nav item */
 .sb-item {
@@ -134,10 +138,13 @@
     gap: 1px;
     overflow: hidden;
     max-height: 0;
-    transition: max-height 0.25s ease;
+    transition: max-height 0.3s ease;
 }
 
-.sb-children.open { max-height: 260px; }
+/* Each group has enough height for its children:
+   Faturalar has 6 items (~30px each = 180px),
+   Stok has 4, DMO has 3, Cari has 2, Giderler has 1 */
+.sb-children.open { max-height: 600px; }
 
 .sb-child {
     display: flex;
@@ -169,6 +176,27 @@
     text-align: center;
 }
 
+/* ── Pending badge ────────────────────────────────────────────────────────── */
+.sb-badge {
+    display: none;
+    align-items: center;
+    justify-content: center;
+    margin-left: auto;
+    min-width: 18px;
+    height: 18px;
+    padding: 0 5px;
+    background: #ef4444;
+    color: #fff;
+    border-radius: 999px;
+    font-size: 10px;
+    font-weight: 800;
+    font-family: inherit;
+    flex-shrink: 0;
+    box-shadow: 0 0 6px rgba(239,68,68,0.5);
+}
+
+.sb-badge.visible { display: flex; }
+
 /* Divider */
 .sb-divider {
     height: 1px;
@@ -183,11 +211,12 @@
     flex-shrink: 0;
 }
 
-/* Collapsed state — hide labels, chevrons, children */
+/* Collapsed state */
 #sidebar.collapsed .sb-label,
 #sidebar.collapsed .sb-chevron,
 #sidebar.collapsed .sb-children,
-#sidebar.collapsed .sb-brand-text {
+#sidebar.collapsed .sb-brand-text,
+#sidebar.collapsed .sb-badge {
     display: none;
 }
 
@@ -206,7 +235,7 @@
     min-width: 0;
 }
 
-/* Sidebar toggle button (in topbars) */
+/* Sidebar toggle button */
 .sb-toggle-btn {
     background: none;
     border: none;
@@ -223,25 +252,25 @@
 .sb-toggle-btn:hover { background: #f1f5f9; }
 .sb-toggle-btn i { font-size: 18px; }
 
-#sidebar-container {
-    display: contents;
+#sidebar-container { display: contents; }
+
+/* Sub-group button (nested collapsible) */
+.sb-child-group {
+    width: 100%;
+    background: none;
+    border: none;
+    font-family: inherit;
+    text-align: left;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 7px 10px 7px 32px;
+    border-radius: 8px;
+    color: rgba(255,255,255,0.35);
+    font-size: 12px;
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s;
 }
 
-.sb-child-group {
-     width: 100%;
-     background: none;
-     border: none;
-     font-family: inherit;
-     text-align: left;
-     display: flex;
-     align-items: center;
-     gap: 10px;
-     padding: 7px 10px 7px 32px;
-     border-radius: 8px;
-     color: rgba(255,255,255,0.35);
-     font-size: 12px;
-     cursor: pointer;
-     transition: background 0.15s, color 0.15s;
- }
-.sb-child-group:hover { background: rgba(255,255,255,0.05); color: rgba(255,255,255,0.65); }
-.sb-child-group.active { background: rgba(37,99,235,0.15); color: #93c5fd; }
+.sb-child-group:hover  { background: rgba(255,255,255,0.05); color: rgba(255,255,255,0.65); }
+.sb-child-group.active { background: rgba(37,99,235,0.15);   color: #93c5fd; }

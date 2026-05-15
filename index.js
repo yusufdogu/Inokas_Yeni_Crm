@@ -357,7 +357,7 @@ app.post('/api/invoices/recheck-now', async (req, res) => {
 
 app.get('/', (req, res) => {
   res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
-  res.sendFile(path.join(__dirname, 'chat.html'));
+  res.sendFile(path.join(__dirname, 'public', 'chat.html'));
 });
 
 app.get('/login', (req, res) => res.redirect('/login.html'));
@@ -366,12 +366,12 @@ app.get('/chat', (req, res) => {
   res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
   res.setHeader('Pragma', 'no-cache');
   res.setHeader('Expires', '0');
-  res.sendFile(path.join(__dirname, 'chat.html'));
+  res.sendFile(path.join(__dirname, 'public', 'chat.html'));
 });
 
-app.use('/api/chat', require('./chat-router'));
+app.use('/api/chat', require('./routes/chat-router'));
 
-app.use('/api/transcribe', require('./transcribe-router'));
+app.use('/api/transcribe', require('./routes/transcribe-router'));
 
 
 app.use('/dmo', express.static(path.join(__dirname, 'dmo')));

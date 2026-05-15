@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AI Asistan — İnokas CRM</title>
+  <script>
+    if (!sessionStorage.getItem('inokas_token')) {
+      window.location.replace('/login.html');
+    }
+  </script>
+  <link href="https://fonts.googleapis.com/css2?family=Geist+Mono:wght@400;600&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.x/dist/tabler-icons.min.css">
+  <link rel="stylesheet" href="/sidebar.css">
+  <link rel="stylesheet" href="/chat/chat-page.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+  <script src="/sidebar.js" defer></script>
+</head>
+<body>
+<div class="app-shell">
+  <div id="sidebar-container"></div>
+
+  <div class="chat-page">
+
+    <!-- LEFT: Chat panel -->
+    <div class="chat-left">
+
+      <!-- Header -->
+      <div class="chat-left-header">
+        <button class="sb-toggle-btn" onclick="toggleSidebar()" style="color:#94a3b8;">
+          <i class="ti ti-menu-2"></i>
+        </button>
+        <div class="chat-left-header-info">
+          <div class="chat-left-header-dot"></div>
+          <span>AI Asistan</span>
+        </div>
+        <button class="chat-new-btn" onclick="newConversation()" title="Yeni konuşma">
+          <i class="ti ti-plus"></i>
+          <span>Yeni</span>
+        </button>
+      </div>
+
+      <!-- Messages -->
+      <div class="chat-messages" id="chatMessages">
+        <!-- Welcome shown by JS -->
+      </div>
+
+      <!-- Input -->
+      <div class="chat-input-area">
+        <div class="chat-input-row">
+          <textarea
+            id="chatInput"
+            class="chat-input"
+            placeholder="Bir şey sorun... "
+            rows="1"
+          ></textarea>
+          <button class="chat-voice-btn" id="chatVoiceBtn" title="Sesli giriş">
+            <i class="ti ti-microphone"></i>
+          </button>
+          <button class="chat-send-btn" id="chatSendBtn" title="Gönder">
+            <i class="ti ti-send"></i>
+          </button>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- RIGHT: Results panel -->
+    <div class="chat-right" id="chatRight">
+
+      <!-- Dashboard (shown initially) -->
+      <div id="chatDashboard">
+        <div class="chat-right-header">
+          <i class="ti ti-layout-dashboard" style="font-size:15px; color:#2563eb;"></i>
+          <span>Genel Bakış</span>
+        </div>
+
+        <!-- Stat cards -->
+        <div class="chat-stat-grid" id="chatStatGrid">
+          <div class="chat-stat-card chat-stat-loading">
+            <div class="chat-stat-spinner"></div>
+          </div>
+          <div class="chat-stat-card chat-stat-loading">
+            <div class="chat-stat-spinner"></div>
+          </div>
+          <div class="chat-stat-card chat-stat-loading">
+            <div class="chat-stat-spinner"></div>
+          </div>
+        </div>
+
+        <!-- Divider -->
+        <div class="chat-right-divider"></div>
+
+        <!-- Suggestions -->
+        <div class="chat-right-header" style="margin-top:0;">
+          <i class="ti ti-bulb" style="font-size:15px; color:#f59e0b;"></i>
+          <span>Önerilen Sorular</span>
+        </div>
+        <div class="chat-suggestions">
+          <button class="chat-suggestion" onclick="suggest(this.textContent)">Bu ay gelen faturaların toplamı nedir?</button>
+          <button class="chat-suggestion" onclick="suggest(this.textContent)">En çok sipariş veren 5 firma kimler?</button>
+          <button class="chat-suggestion" onclick="suggest(this.textContent)">Ödenmemiş faturalarım var mı?</button>
+          <button class="chat-suggestion" onclick="suggest(this.textContent)">HP ürünlerinin stok durumu nedir?</button>
+          <button class="chat-suggestion" onclick="suggest(this.textContent)">Bu ay DMO karı ne kadar?</button>
+          <button class="chat-suggestion" onclick="suggest(this.textContent)">Geçen ay ile bu ayı karşılaştır</button>
+          <button class="chat-suggestion" onclick="suggest(this.textContent)">Vadesi geçmiş faturalar hangileri?</button>
+        </div>
+      </div>
+
+      <!-- Results (shown after assistant responds) -->
+      <div id="chatResults" style="display:none;">
+        <div class="chat-right-header" id="chatResultsHeader">
+          <i class="ti ti-chart-bar" style="font-size:15px; color:#2563eb;"></i>
+          <span>Sonuçlar</span>
+        </div>
+        <div id="chatResultsBody"></div>
+      </div>
+
+    </div>
+
+  </div>
+</div>
+
+<script src="/chat/chat-page.js"></script>
+</body>
+</html>

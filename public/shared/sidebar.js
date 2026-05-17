@@ -195,7 +195,13 @@
         <i class="ti ti-arrow-up-circle"></i>
         <span class="sb-label">Satışlar Analiz</span>
       </a>
+      
     </div>
+    
+    <a href="teknik/teknik-sorunlar.html" class="sb-item${path.includes('teknik') ? ' active' : ''}">
+      <i class="ti ti-tool"></i>
+      <span class="sb-label">Teknik Sorunlar</span>
+    </a>
 
   </nav>
 

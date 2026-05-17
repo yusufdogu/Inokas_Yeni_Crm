@@ -219,7 +219,8 @@
       
     </div>
     
-    <a href="teknik/teknik-sorunlar.html" class="sb-item${path.includes('teknik') ? ' active' : ''}">
+    <div class="sb-divider"></div>
+    <a href="/teknik/pages/teknik-sorunlar.html" class="sb-item${path.includes('teknik') ? ' active' : ''}">
       <i class="ti ti-tool"></i>
       <span class="sb-label">Teknik Sorunlar</span>
     </a>

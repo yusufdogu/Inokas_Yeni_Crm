@@ -663,7 +663,7 @@ function recalcInvoiceTotalsFromLines() {
 
 async function loadInternalCategoryOptions() {
     try {
-        const res = await fetch('/api/ofis-ici-categories');
+        const res = await fetch('/api/invoices/ofis-ici-categories');
         if (!res.ok) return;
         _internalCategoryOptions = await res.json();
     } catch (e) {

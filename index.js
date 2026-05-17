@@ -50,6 +50,8 @@ app.use('/api/dmo',                 require('./routes/dmo'));
 app.use('/api/debug-tcmb',          require('./routes/dmo'));
 app.use('/api/chat',                require('./routes/chat'));
 app.use('/api/transcribe',          require('./routes/transcribe'));
+app.use('/api/whatsapp', require('./routes/whatsapp'));
+
 
 // Invoice sync trigger routes (depend on sync-service)
 const { runSync, runDailyRecheck } = require('./services/sync-service');

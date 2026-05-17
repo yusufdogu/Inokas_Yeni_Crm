@@ -2,7 +2,7 @@
 nixPkgs = ["nodejs_20", "python311", "python311Packages.pip", "stdenv.cc.cc.lib", "chromium", "nss", "freetype", "harfbuzz", "liberation_ttf"]
 
 [phases.install]
-cmds = ["npm ci", "pip install -r requirements.txt --break-system-packages"]
+cmds = ["PUPPETEER_SKIP_DOWNLOAD=true npm ci", "pip install -r requirements.txt --break-system-packages"]
 
 [variables]
 LD_LIBRARY_PATH = "${stdenv.cc.cc.lib}/lib"

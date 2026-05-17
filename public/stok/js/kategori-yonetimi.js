@@ -1,15 +1,19 @@
 // ── STATE ─────────────────────────────────────────────────────────────────────
-let _categories = [];
-let _activeCatId = null;
-let _editingCatId = null;
+let _categories    = [];
+let _activeCatId   = null;
+let _editingCatId  = null;
 let _editingAttrId = null;
 
+let _internalCats      = [];
+let _activeIntCat      = null;
+let _editingIntCatName = null;
+
 // ── INIT ──────────────────────────────────────────────────────────────────────
-document.addEventListener('DOMContentLoaded', loadCategories);
+document.addEventListener('DOMContentLoaded', () => { loadCategories(); loadInternalCats(); });
 
 async function loadCategories() {
     try {
-        const res = await fetch('/api/category-templates');
+        const res = await fetch('/api/products/category-templates');
         if (!res.ok) throw new Error(await res.text());
         _categories = await res.json();
         renderCatList();
@@ -48,8 +52,10 @@ function renderCatList() {
 }
 
 function selectCategory(id) {
-    _activeCatId = id;
+    _activeCatId  = id;
+    _activeIntCat = null;
     renderCatList();
+    renderInternalCatList();
     const cat = _categories.find(c => c.id === id);
     if (cat) renderDetail(cat);
 }
@@ -139,13 +145,13 @@ async function saveCategoryModal() {
     try {
         let res;
         if (_editingCatId) {
-            res = await fetch(`/api/category-templates/${_editingCatId}`, {
+            res = await fetch(`/api/products/category-templates/${_editingCatId}`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ name })
             });
         } else {
-            res = await fetch('/api/category-templates', {
+            res = await fetch('/api/products/category-templates', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ name })
@@ -215,13 +221,13 @@ async function saveAttrModal() {
     try {
         let res;
         if (_editingAttrId) {
-            res = await fetch(`/api/category-attributes/${_editingAttrId}`, {
+            res = await fetch(`/api/products/category-attributes/${_editingAttrId}`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ attr_name: name, attr_type: type, attr_values, sort_order: order })
             });
         } else {
-            res = await fetch(`/api/category-templates/${_activeCatId}/attributes`, {
+            res = await fetch(`/api/products/category-templates/${_activeCatId}/attributes`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ attr_name: name, attr_type: type, attr_values, sort_order: order })
@@ -241,12 +247,114 @@ async function saveAttrModal() {
 async function deleteAttr(attrId) {
     if (!confirm('Bu özellik silinecek. Emin misiniz?')) return;
     try {
-        const res = await fetch(`/api/category-attributes/${attrId}`, { method: 'DELETE' });
+        const res = await fetch(`/api/products/category-attributes/${attrId}`, { method: 'DELETE' });
         if (!res.ok) throw new Error(await res.text());
         await loadCategories();
         const cat = _categories.find(c => c.id === _activeCatId);
         if (cat) renderDetail(cat);
         showToast('Özellik silindi.', 'success');
+    } catch (err) {
+        showToast('Silinemedi: ' + err.message, 'error');
+    }
+}
+
+// ── OFİS İÇİ KATEGORİLER ─────────────────────────────────────────────────────
+async function loadInternalCats() {
+    try {
+        const res = await fetch('/api/invoices/internal-categories');
+        if (!res.ok) throw new Error(await res.text());
+        _internalCats = await res.json();
+        renderInternalCatList();
+    } catch (err) {
+        showToast('Ofis içi kategoriler yüklenemedi: ' + err.message, 'error');
+    }
+}
+
+function renderInternalCatList() {
+    const list  = document.getElementById('ky-int-list');
+    const badge = document.getElementById('ky-int-count');
+    if (badge) badge.textContent = _internalCats.length;
+    if (!_internalCats.length) {
+        list.innerHTML = '<div class="ky-empty">Kategori yok.</div>';
+        return;
+    }
+    list.innerHTML = _internalCats.map(c => {
+        const active = c.name === _activeIntCat ? ' active' : '';
+        return `
+<div class="ky-cat-item${active}" onclick="selectInternalCat('${esc(c.name)}')">
+  <span class="ky-cat-item-name">${esc(c.name)}</span>
+  <span class="ky-cat-attr-count">${c.count} fatura</span>
+  <button class="ky-cat-rename-btn" style="color:#ef4444;" onclick="event.stopPropagation(); deleteInternalCat('${esc(c.name)}')" title="Sil">
+    <i class="ti ti-trash"></i>
+  </button>
+</div>`;
+    }).join('');
+}
+
+function selectInternalCat(name) {
+    _activeIntCat = name;
+    _activeCatId  = null;
+    renderInternalCatList();
+    renderCatList();
+    const cat = _internalCats.find(c => c.name === name);
+    const panel = document.getElementById('ky-detail');
+    panel.innerHTML = `
+<div class="ky-detail-header">
+  <span class="ky-detail-title">${esc(name)}</span>
+  <button class="btn-danger" onclick="deleteInternalCat('${esc(name)}')" style="font-size:13px; display:flex; align-items:center; gap:6px;">
+    <i class="ti ti-trash"></i> Sil
+  </button>
+</div>
+<div class="ky-detail-body" style="padding:20px;">
+  <div style="max-width:360px;">
+    <label style="font-size:12px; font-weight:600; color:#64748b; display:block; margin-bottom:6px;">Yeni Kategori Adı</label>
+    <input type="text" id="int-rename-input" value="${esc(name)}" style="width:100%; border:1px solid #e2e8f0; border-radius:8px; padding:8px 12px; font-size:13px; font-family:inherit; outline:none;">
+    <button class="btn-primary" onclick="saveRenameIntCat('${esc(name)}')" style="margin-top:12px; font-size:13px; display:flex; align-items:center; gap:6px;">
+      <i class="ti ti-check"></i> Kaydet
+    </button>
+    <p style="margin-top:12px; font-size:11px; color:#94a3b8;">${cat?.count || 0} fatura bu kategoride. Yeniden adlandırılınca tüm faturalar güncellenir.</p>
+  </div>
+</div>`;
+}
+
+function openRenameIntModal(name) {
+    selectInternalCat(name);
+    setTimeout(() => document.getElementById('int-rename-input')?.focus(), 50);
+}
+
+async function saveRenameIntCat(oldName) {
+    const newName = document.getElementById('int-rename-input')?.value.trim();
+    if (!newName) { showToast('Kategori adı boş olamaz.', 'error'); return; }
+    if (newName === oldName) return;
+    try {
+        const res = await fetch('/api/invoices/internal-categories/rename', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ from: oldName, to: newName })
+        });
+        if (!res.ok) throw new Error(await res.text());
+        _activeIntCat = newName;
+        await loadInternalCats();
+        selectInternalCat(newName);
+        showToast('Kategori yeniden adlandırıldı.', 'success');
+    } catch (err) {
+        showToast('Hata: ' + err.message, 'error');
+    }
+}
+
+async function deleteInternalCat(name) {
+    if (!confirm(`"${name}" kategorisi silinecek. Bu kategorideki faturalar kategorisiz kalacak. Emin misiniz?`)) return;
+    try {
+        const res = await fetch(`/api/invoices/internal-categories/${encodeURIComponent(name)}`, { method: 'DELETE' });
+        if (!res.ok) throw new Error(await res.text());
+        _activeIntCat = null;
+        document.getElementById('ky-detail').innerHTML = `
+<div class="ky-detail-empty">
+  <i class="ti ti-category" style="font-size:32px; color:#94a3b8;"></i>
+  <p>Düzenlemek için sol taraftan bir kategori seçin.</p>
+</div>`;
+        await loadInternalCats();
+        showToast('Kategori silindi.', 'success');
     } catch (err) {
         showToast('Silinemedi: ' + err.message, 'error');
     }

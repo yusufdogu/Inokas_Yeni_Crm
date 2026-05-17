@@ -1,0 +1,127 @@
+/* teklif-form.css */
+
+.back-btn {
+  display: flex; align-items: center; justify-content: center;
+  width: 32px; height: 32px; border-radius: 8px;
+  background: #f1f5f9; color: var(--text-sub);
+  text-decoration: none; font-size: 16px;
+  border: 1px solid var(--border);
+}
+.back-btn:hover { background: #e2e8f0; }
+
+.form-area {
+  flex: 1; display: flex; gap: 20px;
+  padding: 20px 24px; overflow-y: auto;
+  align-items: flex-start;
+}
+
+.form-card {
+  background: #fff; border-radius: 12px;
+  border: 1px solid var(--border);
+  padding: 20px; flex-shrink: 0; width: 340px;
+}
+
+.form-card--items {
+  flex: 1; width: auto;
+  display: flex; flex-direction: column;
+}
+
+.form-card-title {
+  font-size: 13px; font-weight: 700;
+  color: var(--text-sub); text-transform: uppercase;
+  letter-spacing: 0.5px; margin-bottom: 16px;
+}
+
+.form-row {
+  display: flex; gap: 12px; flex-wrap: wrap;
+}
+.form-row .form-group { flex: 1; min-width: 130px; }
+
+.form-group { display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px; }
+.form-group:last-child { margin-bottom: 0; }
+
+.form-label { font-size: 12px; font-weight: 600; color: var(--text-sub); }
+
+.form-input {
+  border: 1px solid var(--border); border-radius: 8px;
+  padding: 8px 12px; font-size: 13px; font-family: inherit;
+  outline: none; color: var(--text-main); width: 100%;
+  background: #fff;
+}
+.form-input:focus { border-color: var(--primary); }
+textarea.form-input { resize: vertical; min-height: 80px; }
+
+/* ── Items Table ── */
+.items-table-wrap { overflow-x: auto; flex: 1; }
+
+.items-table {
+  width: 100%; border-collapse: collapse;
+  font-size: 13px;
+}
+
+.items-table th {
+  background: #f8fafc; padding: 8px 10px;
+  font-size: 11px; font-weight: 700;
+  text-transform: uppercase; letter-spacing: 0.4px;
+  color: var(--text-sub); border-bottom: 1px solid var(--border);
+  text-align: left; white-space: nowrap;
+}
+
+.items-table td {
+  padding: 6px 6px;
+  border-bottom: 1px solid #f1f5f9;
+  vertical-align: middle;
+}
+
+.items-table tr:last-child td { border-bottom: none; }
+
+.item-input {
+  width: 100%; border: 1px solid transparent;
+  border-radius: 6px; padding: 5px 8px;
+  font-size: 13px; font-family: inherit;
+  background: transparent; outline: none;
+  color: var(--text-main);
+}
+.item-input:focus { border-color: var(--primary); background: #fff; }
+.item-input[type="number"] { text-align: right; }
+
+/* Birim cell */
+.unit-cell { display: flex; gap: 4px; align-items: center; }
+
+.unit-select {
+  border: 1px solid transparent; border-radius: 6px;
+  padding: 5px 6px; font-size: 12px; font-family: inherit;
+  background: transparent; outline: none; cursor: pointer;
+  color: var(--text-main); max-width: 70px;
+}
+.unit-select:focus { border-color: var(--primary); background: #fff; }
+
+.takim-select {
+  border: 1px solid var(--border); border-radius: 6px;
+  padding: 5px 6px; font-size: 12px; font-family: inherit;
+  background: #f8fafc; outline: none; cursor: pointer;
+  color: var(--text-main); display: none; max-width: 130px;
+}
+.takim-select.visible { display: block; }
+.takim-select:focus { border-color: var(--primary); }
+
+.btn-row-del {
+  background: none; border: none; cursor: pointer;
+  color: #cbd5e1; font-size: 16px; padding: 4px;
+  border-radius: 4px;
+}
+.btn-row-del:hover { color: var(--danger); background: #fee2e2; }
+
+.sira-no {
+  font-size: 11px; color: var(--text-sub);
+  text-align: center; font-weight: 600;
+}
+
+/* ── Total ── */
+.items-total {
+  display: flex; align-items: center; justify-content: flex-end;
+  gap: 16px; padding: 14px 10px 0;
+  border-top: 1px solid var(--border); margin-top: 12px;
+  font-size: 14px; color: var(--text-sub);
+}
+.items-total strong { font-size: 18px; color: var(--text-main); }

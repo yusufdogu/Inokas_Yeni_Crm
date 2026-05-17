@@ -579,3 +579,9 @@ body {
   .kpi-grid { grid-template-columns: 1fr 1fr; }
   .filter-row { flex-direction: column; }
 }
+.btn-danger {
+  background: #dc2626; color: #fff; border: none;
+  border-radius: 8px; padding: 8px 16px; font-size: 13px;
+  font-weight: 600; cursor: pointer; font-family: inherit;
+}
+.btn-danger:hover { background: #b91c1c; }

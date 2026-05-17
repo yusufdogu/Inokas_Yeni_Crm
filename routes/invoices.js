@@ -408,7 +408,7 @@ router.post('/items/normalize-sku', async (req, res) => {
   }
 });
 
-// GET /api/ofis-ici-categories
+// GET /api/invoices/ofis-ici-categories
 router.get('/ofis-ici-categories', async (req, res) => {
   try {
     const supabase = req.app.get('supabase');
@@ -416,6 +416,53 @@ router.get('/ofis-ici-categories', async (req, res) => {
     if (error) throw error;
     const cats = [...new Set((data || []).map(r => r.internal_category).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'tr'));
     res.json(cats);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/invoices/internal-categories (with count)
+router.get('/internal-categories', async (req, res) => {
+  try {
+    const supabase = req.app.get('supabase');
+    const { data, error } = await supabase.from('invoice_items').select('internal_category').eq('is_internal', true).not('internal_category', 'is', null).neq('internal_category', '');
+    if (error) throw error;
+    const countMap = {};
+    (data || []).forEach(r => {
+      const c = r.internal_category;
+      if (c) countMap[c] = (countMap[c] || 0) + 1;
+    });
+    const result = Object.entries(countMap)
+      .map(([name, count]) => ({ name, count }))
+      .sort((a, b) => a.name.localeCompare(b.name, 'tr'));
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// PUT /api/invoices/internal-categories/rename
+router.put('/internal-categories/rename', async (req, res) => {
+  try {
+    const supabase = req.app.get('supabase');
+    const { from, to } = req.body;
+    if (!from || !to) return res.status(400).json({ error: 'from ve to zorunlu.' });
+    const { error } = await supabase.from('invoice_items').update({ internal_category: to }).eq('internal_category', from);
+    if (error) throw error;
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// DELETE /api/invoices/internal-categories/:name
+router.delete('/internal-categories/:name', async (req, res) => {
+  try {
+    const supabase = req.app.get('supabase');
+    const name = decodeURIComponent(req.params.name);
+    const { error } = await supabase.from('invoice_items').update({ internal_category: null }).eq('internal_category', name);
+    if (error) throw error;
+    res.json({ ok: true });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

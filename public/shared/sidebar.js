@@ -7,6 +7,7 @@
   let _dmoOpen     = false;
   let _bekOpen     = false;
   let _cariOpen    = false;
+  let _quotesOpen  = false;
   let _giderOpen   = false;
 
   const path        = location.pathname;
@@ -15,6 +16,7 @@
   const isStok      = path.includes('/stok');
   const isDmo       = path.includes('/dmo');
   const isCari      = path.includes('/cari');
+  const isQuotes    = path.includes('/quotes');
   const isBekleyen  = path.includes('bekleyen');
   const isChat      = path === '/chat' || path.startsWith('/chat?');
   const isGider     = path.includes('ofis-ici');
@@ -180,6 +182,25 @@
 
     <div class="sb-divider"></div>
 
+    <!-- Teklifler -->
+    <button class="sb-item${isQuotes ? ' active' : ''}" id="quotes-toggle" onclick="toggleQuotes()">
+      <i class="ti ti-file-description"></i>
+      <span class="sb-label">Teklifler</span>
+      <i class="ti ti-chevron-down sb-chevron" id="quotes-chevron"></i>
+    </button>
+    <div class="sb-children" id="quotes-children">
+      <a href="/quotes/pages/teklifler.html" class="sb-child${path.includes('teklifler') ? ' active' : ''}">
+        <i class="ti ti-list"></i>
+        <span class="sb-label">Tekliflerim</span>
+      </a>
+      <a href="/quotes/pages/teklif-form.html" class="sb-child${path.includes('teklif-form') ? ' active' : ''}">
+        <i class="ti ti-plus"></i>
+        <span class="sb-label">Teklif Ekle</span>
+      </a>
+    </div>
+
+    <div class="sb-divider"></div>
+
     <!-- Cari Analiz -->
     <button class="sb-item${isCari ? ' active' : ''}" id="cari-toggle" onclick="toggleCari()">
       <i class="ti ti-users"></i>
@@ -247,6 +268,11 @@
       document.getElementById('cari-children')?.classList.add('open');
       document.getElementById('cari-chevron')?.classList.add('open');
     }
+    if (isQuotes) {
+      _quotesOpen = true;
+      document.getElementById('quotes-children')?.classList.add('open');
+      document.getElementById('quotes-chevron')?.classList.add('open');
+    }
 
     document.getElementById('sb-logout-btn')?.addEventListener('click', () => {
       sessionStorage.removeItem('inokas_token');
@@ -286,6 +312,12 @@
     _dmoOpen = !_dmoOpen;
     document.getElementById('dmo-children')?.classList.toggle('open', _dmoOpen);
     document.getElementById('dmo-chevron')?.classList.toggle('open', _dmoOpen);
+  };
+
+  window.toggleQuotes = function () {
+    _quotesOpen = !_quotesOpen;
+    document.getElementById('quotes-children')?.classList.toggle('open', _quotesOpen);
+    document.getElementById('quotes-chevron')?.classList.toggle('open', _quotesOpen);
   };
 
   window.toggleCari = function () {

@@ -145,7 +145,10 @@ async function generateAndStorePdf(supabase, quoteId) {
   qt.quote_items = (qt.quote_items || []).sort((a, b) => a.sort_order - b.sort_order);
 
   const html    = buildPdfHtml(qt, logoBase64());
-  const browser = await puppeteer.launch({ args: ['--no-sandbox', '--disable-setuid-sandbox'] });
+  const browser = await puppeteer.launch({
+    executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || undefined,
+    args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'],
+  });
   const pg      = await browser.newPage();
   await pg.setContent(html, { waitUntil: 'networkidle0' });
   const pdfBuf  = await pg.pdf({ format: 'A4', printBackground: true });

@@ -5,7 +5,7 @@ let activePdfIndex = null;
 // ── LOAD URUNLER ──────────────────────────────────────────────────────────────
 async function loadUrunler() {
     if (urunlerLoaded) return;
-    const { data, error } = await db
+    const {data, error} = await db
         .from("products")
         .select("dmo_code, product_name, maliyet_usd");
 
@@ -14,10 +14,11 @@ async function loadUrunler() {
         return;
     }
 
+
     data.forEach(p => {
         if (p.dmo_code) {
             URUNLER[parseInt(p.dmo_code)] = {
-                urun:        p.product_name,
+                urun: p.product_name,
                 maliyet_usd: p.maliyet_usd || 0,
             };
         }

@@ -1,4 +1,4 @@
-// chat-router.js — İnokas CRM AI Asistan Backend
+// chat.js — İnokas CRM AI Asistan Backend
 // Optimizations: Haiku model + streaming + parallel tool execution
 'use strict';
 

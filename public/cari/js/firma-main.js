@@ -5,7 +5,7 @@ document.addEventListener('DOMContentLoaded', () => {
     firmaCompanyName = params.get('name') ? decodeURIComponent(params.get('name')) : null;
 
     if (!firmaCompanyId) {
-        window.location.href = '/cari/cari-index.html';
+        window.location.href = '../cari-index.html';
         return;
     }
 
@@ -17,7 +17,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Geri butonu
     document.getElementById('firma-back-btn')?.addEventListener('click', () => {
-        window.location.href = '/cari/cari-index.html';
+        window.location.href = '../cari-index.html';
     });
 
     // Boş sağ panel

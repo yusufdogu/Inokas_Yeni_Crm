@@ -1,0 +1,134 @@
+/* Üst menü — tüm sayfalarda ortak; sayfa CSS’inden sonra yüklenir */
+
+/*
+ * Kısa sayfada (ör. Cari Analiz) dikey kaydırma çubuğu yok, uzun sayfada var.
+ * Çubuk gelince viewport genişliği değişir → üst bar “oynuyor” gibi görünür.
+ * Alanı her zaman ayırarak geçişleri sabitler.
+ */
+html {
+  scrollbar-gutter: stable;
+}
+
+@supports not (scrollbar-gutter: stable) {
+  html {
+    overflow-y: scroll;
+  }
+}
+
+.topbar-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/* Ana sekmeler; çıkış ayrı */
+.nav-cluster {
+  position: relative;
+  display: flex;
+  align-items: stretch;
+}
+
+.nav-pill {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 0;
+  height: 0;
+  border-radius: 10px;
+  background: rgba(139, 92, 246, 0.13);
+  border: 1px solid rgba(139, 92, 246, 0.12);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.45),
+    0 1px 2px rgba(91, 33, 182, 0.06);
+  z-index: 0;
+  pointer-events: none;
+  opacity: 0;
+  /* Opacity animasyona dahil değil: sayfa yükünde “yeniden beliriyor” hissi vermesin */
+  /* “Çizgi film” hissi: sürenin başında az yer değiştir (yavaş / gerilme), sonunda hızlı kapanış */
+  --nav-pill-dur: 0.58s;
+  --nav-pill-ease: cubic-bezier(0.92, 0.02, 0.15, 1);
+  transition:
+    left var(--nav-pill-dur) var(--nav-pill-ease),
+    top var(--nav-pill-dur) var(--nav-pill-ease),
+    width var(--nav-pill-dur) var(--nav-pill-ease),
+    height var(--nav-pill-dur) var(--nav-pill-ease);
+}
+
+.nav-pill.nav-pill--visible {
+  opacity: 1;
+}
+
+.nav-links-row {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  gap: 4px;
+  align-items: stretch;
+  min-height: 40px;
+}
+
+.nav-links-row .nav-link {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: auto;
+  min-width: 96px;
+  padding: 8px 10px;
+  margin: 0;
+  font: inherit;
+  font-size: 0.875rem;
+  font-weight: 600;
+  appearance: none;
+  -webkit-appearance: none;
+  line-height: 1.25;
+  letter-spacing: -0.01em;
+  text-align: center;
+  text-decoration: none;
+  color: var(--text-sub, #64748b);
+  background: transparent !important;
+  border: none;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: color 0.2s ease;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.nav-links-row .nav-link:hover {
+  color: var(--text-main, #1e293b);
+}
+
+.nav-links-row .nav-link.active {
+  color: #5b21b6;
+}
+
+.nav-links-row a.nav-link:visited {
+  color: var(--text-sub, #64748b);
+}
+
+.nav-links-row a.nav-link.active:visited {
+  color: #5b21b6;
+}
+
+/* Çıkış — pill dışında, sabit */
+.nav-link--logout,
+.topbar-right > .nav-link.logout {
+  flex: 0 0 auto;
+  padding: 8px 14px;
+  font-size: 0.875rem;
+  font-weight: 600;
+  border: none;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--text-sub, #64748b);
+  cursor: pointer;
+  text-decoration: none;
+  transition: color 0.2s, background 0.2s;
+}
+
+.nav-link--logout:hover,
+.topbar-right > .nav-link.logout:hover {
+  color: var(--danger, #dc2626);
+  background: rgba(254, 226, 226, 0.85);
+}

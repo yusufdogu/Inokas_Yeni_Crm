@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="tr">
 
 <head>
@@ -10,13 +10,13 @@
   <script>
     if (!sessionStorage.getItem('inokas_token')) window.location.href = '/login.html';
   </script>
-  <script src="/supabase-client.js"></script>
+  <script src="/shared/supabase-client.js"></script>
   <script src="/dmo/js/dmo-core.js"></script>
   <script src="/dmo/js/dmo-sepet.js"></script>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.x/dist/tabler-icons.min.css">
   <link rel="stylesheet" href="/dmo/css/core.css">
-  <link rel="stylesheet" href="/sidebar.css">
+  <link rel="stylesheet" href="/shared/sidebar.css">
   <link rel="stylesheet" href="/dmo/css/sepet-hesapla.css">
 </head>
 
@@ -213,7 +213,7 @@
 </div>
 
 <div id="toast-container"></div>
-<script src="/sidebar.js"></script>
+<script src="/shared/sidebar.js"></script>
 
 <script>
   // Override toggleVergiler arrow to use Tabler icon

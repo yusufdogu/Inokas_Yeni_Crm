@@ -637,6 +637,6 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
 
     window._onTaslakSaved = () => {
-        window.location.href = "/dmo/pages/siparisler.html";
+        window.location.href = "../pages/siparisler.html";
     };
 });

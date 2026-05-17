@@ -235,8 +235,6 @@ function buildInvoicePayload(xml, viewKey) {
 
     // Payment
     const paymentMeans = xml.getElementsByTagNameNS(ns.cac, 'PaymentMeans')[0];
-    const paymentInstructionNote = paymentMeans
-        ?.getElementsByTagNameNS(ns.cbc, 'InstructionNote')[0]?.textContent?.trim() || null;
 
     const paymentTermsNote = xml.getElementsByTagNameNS(ns.cac, 'PaymentTerms')[0]
         ?.getElementsByTagNameNS(ns.cbc, 'Note')[0]?.textContent?.trim() || null;
@@ -319,7 +317,6 @@ function buildInvoicePayload(xml, viewKey) {
             invoice_date: f_date,
             due_date: f_due_date || null,
             payment_due_date: f_due_date || null,   // only real dates
-            payment_instruction_note: paymentInstructionNote,
             invoice_type: formInvoiceType,
             currency: currencyUi,
             base_currency: baseIso,

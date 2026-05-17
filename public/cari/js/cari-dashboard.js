@@ -101,7 +101,7 @@ function _amountLine(usd, tl) {
 // ── NAVİGASYON ────────────────────────────────────────────────────────────────
 function openFirma(companyId, companyName) {
     if (!companyId) { showToast('Firma ID bulunamadı.', 'warn'); return; }
-    window.location.href = `/cari/firma.html?id=${encodeURIComponent(companyId)}&name=${encodeURIComponent(companyName)}`;
+    window.location.href = `../firma.html`;
 }
 
 // ── SEARCH FILTER ─────────────────────────────────────────────────────────────

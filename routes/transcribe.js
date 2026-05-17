@@ -1,4 +1,4 @@
-// transcribe-router.js — Whisper transcription using axios + form-data
+// transcribe.js — Whisper transcription using axios + form-data
 'use strict';
 
 const express   = require('express');

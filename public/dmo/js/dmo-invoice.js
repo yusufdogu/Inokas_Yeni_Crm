@@ -148,10 +148,10 @@ async function loadDetailView(orderId) {
         const tPdf    = document.getElementById("dv-t-btn-add-pdf");
         if (tDelete) tDelete.onclick = () => deleteOrder(orderId);
         if (tEdit)   tEdit.onclick   = () => {
-            window.location.href = `/dmo/pages/sepet-hesapla.html?taslak=${orderId}`;
+            window.location.href = `../pages/sepet-hesapla.html`;
         };
         if (tPdf)    tPdf.onclick    = () => {
-            window.location.href = `/dmo/pages/yeni-siparis.html?taslak=${orderId}`;
+            window.location.href = `../pages/yeni-siparis.html`;
         };
 
         // Stats on right
@@ -407,7 +407,7 @@ async function deleteOrder(orderId) {
 
     showToast("Sipariş silindi!", "success");
     setTimeout(() => {
-        window.location.href = "/dmo/pages/siparisler.html";
+        window.location.href = "../pages/siparisler.html";
     }, 800);
 }
 

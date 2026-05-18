@@ -125,6 +125,7 @@ router.get('/pending', async (req, res) => {
     if (direction) query = query.eq('direction', direction);
     const { data, error } = await query;
     if (error) throw error;
+    await enrichItemsWithProductMeta(supabase, data);
     res.json(data || []);
   } catch (err) {
     console.error('Bekleyen fatura hatası:', err.message);

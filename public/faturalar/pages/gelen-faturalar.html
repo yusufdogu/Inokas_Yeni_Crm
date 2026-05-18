@@ -12,7 +12,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Geist+Mono:wght@400;600&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.x/dist/tabler-icons.min.css">
   <link rel="stylesheet" href="/shared/sidebar.css">
-  <link rel="stylesheet" href="/shared/shared-filters.css?v=1">
+  <link rel="stylesheet" href="/shared/shared-filters.css?v=2">
   <link rel="stylesheet" href="/faturalar/css/gelen-giden.css?v=1">
   <script src="/shared/sidebar.js"></script>
   <script src="/shared/v=3" defer></script>
@@ -41,7 +41,7 @@
         <!-- Search -->
         <input type="text" id="mainSearch" onkeyup="renderCurrentView()"
           placeholder="Fatura no ara..."
-          class="fatura-filter-input" style="min-width:160px; flex:1;">
+          class="fatura-filter-search" style="min-width:160px; flex:1;">
 
         <!-- Company tags -->
         <div class="filter-tags-wrap" id="companyTagsWrap"
@@ -55,10 +55,10 @@
         <!-- Date range -->
         <div style="display:flex; align-items:center; gap:4px; flex-shrink:0;">
           <input type="date" id="filterDateStart" onchange="renderCurrentView()"
-            class="fatura-filter-input" title="Başlangıç tarihi">
-          <span style="color:#94a3b8; font-size:13px;">—</span>
+            class="fatura-filter-date" title="Başlangıç tarihi">
+          <span class="filter-date-sep">—</span>
           <input type="date" id="filterDateEnd" onchange="renderCurrentView()"
-            class="fatura-filter-input" title="Bitiş tarihi">
+            class="fatura-filter-date" title="Bitiş tarihi">
         </div>
 
         <!-- Status -->
@@ -78,12 +78,7 @@
 
         <!-- Buttons -->
         <div style="display:flex; gap:6px; align-items:center; flex-shrink:0;">
-          <button onclick="renderCurrentView()"
-            style="height:32px; padding:0 14px; background:#2563eb; color:white; border:none; border-radius:7px; font-size:12px; font-weight:600; cursor:pointer; font-family:inherit; display:flex; align-items:center; gap:4px;">
-            <i class="ti ti-filter" style="font-size:13px;"></i>Uygula
-          </button>
-          <button onclick="clearAllFilters()" title="Temizle"
-            style="height:32px; width:32px; display:flex; align-items:center; justify-content:center; border:1px solid #334155; border-radius:7px; background:transparent; cursor:pointer; color:#64748b; flex-shrink:0;">
+          <button onclick="clearAllFilters()" title="Temizle" class="filter-btn-clear">
             <i class="ti ti-trash" style="font-size:14px;"></i>
           </button>
         </div>
@@ -137,22 +132,6 @@
             <div id="modelTags" class="filter-tags"></div>
             <input type="text" id="modelTagInput" class="filter-tags-input" placeholder="Model ekle...">
             <div id="modelDropdown" class="filter-dropdown"></div>
-          </div>
-
-          <!-- Price range -->
-          <div style="flex-shrink:0; min-width:200px;">
-            <div style="display:flex; justify-content:space-between; margin-bottom:3px;">
-              <span style="font-size:10px; color:#64748b;">Tutar Aralığı</span>
-              <span id="priceRangeLabel" style="font-size:10px; color:#94a3b8;">0 — ∞</span>
-            </div>
-            <div style="display:flex; align-items:center; gap:6px;">
-              <input type="range" id="priceMin" min="0" max="10000000" step="10000" value="0"
-                oninput="updatePriceRange()"
-                style="flex:1; height:4px; accent-color:#2563eb;">
-              <input type="range" id="priceMax" min="0" max="10000000" step="10000" value="10000000"
-                oninput="updatePriceRange()"
-                style="flex:1; height:4px; accent-color:#2563eb;">
-            </div>
           </div>
 
         </div>
@@ -373,11 +352,11 @@
 
 <div id="toast-container"></div>
 
-<script src="/faturalar/js/utils.js?v=1"></script>
+<script src="/faturalar/js/utils.js?v=20260518-kbd-nav"></script>
 <script src="/faturalar/js/xml.js?v=1"></script>
 <script src="/faturalar/js/api.js?v=1"></script>
 <script src="/faturalar/js/state.js?v=20260511-detailpage"></script>
-<script src="/faturalar/js/list.js?v=20260511-bek-pdf-fix"></script>
+<script src="/faturalar/js/list.js?v=20260518-tag-filter-fix"></script>
 <script src="/faturalar/js/detail.js?v=20260511-embedded-pdf"></script>
 <script src="/faturalar/js/main.js?v=20260511-bek-pdf-fix"></script>
 

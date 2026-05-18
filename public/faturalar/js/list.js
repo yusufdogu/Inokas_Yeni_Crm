@@ -12,6 +12,19 @@ let _fatPriceMin = 0;
 let _fatPriceMax = 10000000;
 let _fatAdvancedOpen = false;
 
+// ─── Shared tag-filter onChange ───────────────────────────────────────────────
+function _onTagFilterChange(advanced = false) {
+    setInteracted(true);
+    if (isShowAll()) {
+        setShowAll(false);
+        const btn = document.getElementById('btnToggleShowAll');
+        if (btn) btn.innerText = 'Tümünü Göster';
+    }
+    if (advanced) updateAdvancedBadge();
+    saveFilterState();
+    renderCurrentView();
+}
+
 // ─── Init tag filters (called from main.js after DOMContentLoaded) ────────────
 function initFatFilters() {
     _fatCompanyFilter = createTagFilter({
@@ -28,7 +41,7 @@ function initFatFilters() {
                     .filter(Boolean)
             )].sort((a,b) => a.localeCompare(b,'tr'));
         },
-        onChange: () => { setInteracted(true); renderCurrentView(); },
+        onChange: () => _onTagFilterChange(false),
     });
 
     _fatProductFilter = createTagFilter({
@@ -48,7 +61,7 @@ function initFatFilters() {
             );
             return [...names].sort((a,b) => a.localeCompare(b,'tr'));
         },
-        onChange: () => { setInteracted(true); updateAdvancedBadge(); renderCurrentView(); },
+        onChange: () => _onTagFilterChange(true),
     });
 
     _fatCategoryFilter = createTagFilter({
@@ -66,7 +79,7 @@ function initFatFilters() {
             );
             return [...cats].sort((a,b) => a.localeCompare(b,'tr'));
         },
-        onChange: () => { setInteracted(true); updateAdvancedBadge(); renderCurrentView(); },
+        onChange: () => _onTagFilterChange(true),
     });
 
     _fatBrandFilter = createTagFilter({
@@ -84,7 +97,7 @@ function initFatFilters() {
             );
             return [...brands].sort((a,b) => a.localeCompare(b,'tr'));
         },
-        onChange: () => { setInteracted(true); updateAdvancedBadge(); renderCurrentView(); },
+        onChange: () => _onTagFilterChange(true),
     });
 
     _fatModelFilter = createTagFilter({
@@ -102,7 +115,7 @@ function initFatFilters() {
             );
             return [...models].sort((a,b) => a.localeCompare(b,'tr'));
         },
-        onChange: () => { setInteracted(true); updateAdvancedBadge(); renderCurrentView(); },
+        onChange: () => _onTagFilterChange(true),
     });
 }
 

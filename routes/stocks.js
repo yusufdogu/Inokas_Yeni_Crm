@@ -62,20 +62,22 @@ router.get('/summary', async (req, res) => {
     const nonInternalSkuSet = new Set();
 
     (items || []).forEach(item => {
-      if (item?.is_internal === true) return;
+      const sku            = item.product_code || null;
+      const isInternalItem = item.is_internal === true;
+
+      // SKU tracking önce yapılmalı — early return'den etkilenmemeli
+      if (sku && !isKargoLine(item)) {
+        if (isInternalItem) internalSkuSet.add(String(sku).trim());
+        else                nonInternalSkuSet.add(String(sku).trim());
+      }
+
+      if (isInternalItem) return;
       if (isKargoLine(item)) return;
       const invoice = item.invoices;
       if (!invoice) return;
       if (invoice.approval_status !== 'approved') return;
 
-      const sku          = item.product_code || null;
-      const key          = sku ? `SKU:${sku}` : `NAME:${item.product_name}`;
-      const isInternalItem = item.is_internal === true;
-      if (sku) {
-        if (isInternalItem) internalSkuSet.add(String(sku).trim());
-        else                nonInternalSkuSet.add(String(sku).trim());
-      }
-
+      const key = sku ? `SKU:${sku}` : `NAME:${item.product_name}`;
       if (!grouped[key]) {
         grouped[key] = {
           product_name:          item.product_name,
@@ -270,7 +272,7 @@ router.get('/movements', async (req, res) => {
         companies ( name ),
         invoice_items (
           id, product_name, product_code,
-          quantity, unit_price_cur, currency
+          quantity, unit_price_cur, currency, is_internal
         )
       `)
       .order('invoice_date', { ascending: false });
@@ -288,6 +290,7 @@ router.get('/movements', async (req, res) => {
       const approvalStatus = String(inv.approval_status || '').toLowerCase();
 
       (inv.invoice_items || []).forEach(item => {
+        if (item.is_internal === true) return;
         const sku = String(item.product_code || '').trim();
         if (skuFilter && sku.toLowerCase() !== skuLower) return;
 
@@ -307,16 +310,20 @@ router.get('/movements', async (req, res) => {
       });
     });
 
-    // Enrich with product metadata
+    // Enrich with product metadata and filter out is_internal products
     const skus = [...new Set(movements.map(m => m.sku).filter(Boolean))];
     if (skus.length > 0) {
       const { data: products } = await supabase
         .from('products')
-        .select('product_code, brand, category, model')
+        .select('product_code, brand, category, model, is_internal')
         .in('product_code', skus);
 
       const productMap = new Map(
         (products || []).map(p => [String(p.product_code || '').trim(), p])
+      );
+
+      const internalProductSkus = new Set(
+        (products || []).filter(p => p.is_internal === true).map(p => String(p.product_code || '').trim())
       );
 
       movements.forEach(m => {
@@ -325,6 +332,8 @@ router.get('/movements', async (req, res) => {
         m.category = p?.category || '';
         m.model    = p?.model    || '';
       });
+
+      return res.json(movements.filter(m => !internalProductSkus.has(m.sku)));
     }
 
     res.json(movements);

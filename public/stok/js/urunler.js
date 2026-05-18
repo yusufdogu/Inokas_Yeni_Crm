@@ -10,8 +10,11 @@ let _attrFilters = {};     // attributeId → string | string[]
 let _attrTagFilters = {};  // attributeId → tagFilter instance
 
 let allProducts = [];
+let _internalOnlySkus = new Set();
+let _internalCatOptions = [];
 let _editingId = null;
 let _isAddMode = false;
+let _isInternalMode = false;
 let _advancedOpen = false;
 
 // Tag filters
@@ -34,15 +37,22 @@ document.addEventListener('DOMContentLoaded', async () => {
 // ─── DATA ─────────────────────────────────────────────────────────────────────
 async function loadProducts() {
   try {
-    const [productsRes, summaryRes] = await Promise.all([
+    const [productsRes, summaryRes, movementsRes] = await Promise.all([
       fetch('/api/products'),
+      fetch('/api/stocks/summary'),
       fetch('/api/stocks/movements')
     ]);
     if (!productsRes.ok) throw new Error();
     allProducts = await productsRes.json();
 
     if (summaryRes.ok) {
-      const movements = await summaryRes.json();
+      const summary = await summaryRes.json();
+      _internalOnlySkus = new Set((summary.internal_only_skus || []).map(s => String(s).trim()));
+      allProducts = allProducts.filter(p => !_internalOnlySkus.has(String(p.product_code || '').trim()));
+    }
+
+    if (movementsRes.ok) {
+      const movements = await movementsRes.json();
       const stockMap = new Map();
       movements.forEach(m => {
         const sku = String(m.sku || '').trim();
@@ -347,13 +357,71 @@ function _buildCategorySelect(selected = '') {
   sel.onchange = () => renderDynamicAttrs(sel.value, {});
 }
 
+// ─── OFİS İÇİ KATEGORİ ───────────────────────────────────────────────────────
+async function _loadInternalCatOptions() {
+  try {
+    const res = await fetch('/api/invoices/internal-categories');
+    if (!res.ok) return;
+    const data = await res.json();
+    _internalCatOptions = (data || []).map(r => String(r.name || '').trim()).filter(Boolean);
+  } catch { }
+}
+
+function onInternalToggle(isInternal) {
+  _isInternalMode = isInternal;
+  const sel   = document.getElementById('pf-category');
+  const wrap  = document.getElementById('pf-internal-cat-wrap');
+  const attrSection = document.getElementById('dynamic-attrs-section');
+  if (isInternal) {
+    sel.style.display   = 'none';
+    wrap.style.display  = 'block';
+    if (attrSection) attrSection.style.display = 'none';
+    if (!_internalCatOptions.length) _loadInternalCatOptions();
+  } else {
+    sel.style.display   = '';
+    wrap.style.display  = 'none';
+    document.getElementById('pf-internal-cat-dropdown').style.display = 'none';
+  }
+}
+
+function onInternalCatInput(query) {
+  const dropdown = document.getElementById('pf-internal-cat-dropdown');
+  if (!dropdown) return;
+  const q = (query || '').toLocaleLowerCase('tr-TR');
+  const matches = _internalCatOptions.filter(o => !q || o.toLocaleLowerCase('tr-TR').includes(q));
+  if (!matches.length) { dropdown.style.display = 'none'; return; }
+  dropdown.innerHTML = matches.map(o =>
+    `<div onclick="selectInternalCat('${esc(o)}')"
+      style="padding:8px 12px; font-size:12px; color:#374151; cursor:pointer;"
+      onmouseover="this.style.background='#f1f5f9'" onmouseout="this.style.background=''">${esc(o)}</div>`
+  ).join('');
+  dropdown.style.display = 'block';
+}
+
+function selectInternalCat(value) {
+  const input    = document.getElementById('pf-internal-cat-input');
+  const dropdown = document.getElementById('pf-internal-cat-dropdown');
+  if (input)    input.value = value;
+  if (dropdown) dropdown.style.display = 'none';
+}
+
+document.addEventListener('click', (e) => {
+  const wrap = document.getElementById('pf-internal-cat-wrap');
+  const dropdown = document.getElementById('pf-internal-cat-dropdown');
+  if (wrap && dropdown && !wrap.contains(e.target)) dropdown.style.display = 'none';
+});
+
 function openAddModal() {
   _editingId = null;
   _isAddMode = true;
+  _isInternalMode = false;
   _ALL_FIELDS.forEach(key => {
     const el = document.getElementById(`pf-${key}`);
     if (el) el.value = '';
   });
+  const toggle = document.getElementById('pf-is-internal');
+  if (toggle) toggle.checked = false;
+  onInternalToggle(false);
   _buildBrandSelect();
   _buildCategorySelect();
   document.getElementById('modalTitle').textContent = 'Yeni Ürün Ekle';
@@ -394,8 +462,18 @@ async function openEditModal(productId) {
         el.value = product[key] ?? '';
       }
     });
+    const isInternal = !!product.is_internal;
+    _isInternalMode = isInternal;
+    const toggle = document.getElementById('pf-is-internal');
+    if (toggle) toggle.checked = isInternal;
+    onInternalToggle(isInternal);
+    if (isInternal) {
+      if (!_internalCatOptions.length) await _loadInternalCatOptions();
+      const input = document.getElementById('pf-internal-cat-input');
+      if (input) input.value = product.category || '';
+    }
     _buildBrandSelect(product.brand || '');
-    _buildCategorySelect(product.category || '');
+    _buildCategorySelect(isInternal ? '' : (product.category || ''));
 
     const attrValues = {};
     try {
@@ -579,6 +657,11 @@ async function saveProduct() {
       ? (raw === '' ? null : Number(raw))
       : (raw === '' ? null : raw);
   });
+  payload.is_internal = _isInternalMode;
+  if (_isInternalMode) {
+    const internalCat = (document.getElementById('pf-internal-cat-input')?.value || '').trim();
+    payload.category = internalCat || null;
+  }
 
   const name = String(document.getElementById('pf-product_name')?.value || '').trim();
   const code = String(document.getElementById('pf-product_code')?.value || '').trim();

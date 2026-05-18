@@ -10,7 +10,8 @@ router.get('/', async (req, res) => {
     const supabase    = req.app.get('supabase');
     const { data, error } = await supabase
       .from('products')
-      .select('id, product_code, product_name, brand, category, model, maliyet_usd, sozlesme_fiyat_eur, last_purchase_price_cur, last_purchase_currency, last_purchase_rate, last_purchase_price_tl, avg_purchase_price_tl, dmo_code, dmo_fiyat_try, dmo_url, gift_quantity, stock_on_hand, reserved_quantity')
+      .select('id, product_code, product_name, brand, category, model, maliyet_usd, sozlesme_fiyat_eur, last_purchase_price_cur, last_purchase_currency, last_purchase_rate, last_purchase_price_tl, avg_purchase_price_tl, dmo_code, dmo_fiyat_try, dmo_url, gift_quantity, stock_on_hand, reserved_quantity, is_internal')
+      .eq('is_internal', false)
       .order('product_name', { ascending: true });
     if (error) throw error;
     res.json(data || []);

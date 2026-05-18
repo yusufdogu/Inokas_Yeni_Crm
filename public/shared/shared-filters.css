@@ -147,6 +147,13 @@
   font-weight: 600;
 }
 
+.filter-dropdown-item.highlighted {
+  background: var(--sf-drop-hover-bg);
+  color: var(--sf-drop-hover-text);
+  outline: 2px solid #2563eb;
+  outline-offset: -2px;
+}
+
 /* ── Advanced toggle button ──────────────────────────────────────────────── */
 .filter-advanced-toggle {
   background: none;

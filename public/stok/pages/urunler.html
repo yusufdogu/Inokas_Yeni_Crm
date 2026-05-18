@@ -205,8 +205,23 @@
               <select id="pf-brand"></select>
             </div>
             <div class="modal-field">
-              <label>Kategori</label>
-              <select id="pf-category"></select>
+              <label style="display:flex; align-items:center; justify-content:space-between;">
+                <span>Kategori</span>
+                <label style="display:flex; align-items:center; gap:5px; font-weight:600; font-size:11px; color:#475569; cursor:pointer; text-transform:none; letter-spacing:0;">
+                  <input type="checkbox" id="pf-is-internal" onchange="onInternalToggle(this.checked)" style="width:auto; accent-color:#2563eb;">
+                  Ofis İçi
+                </label>
+              </label>
+              <select id="pf-category" onchange="renderDynamicAttrs(this.value, {})"></select>
+              <div id="pf-internal-cat-wrap" style="display:none; position:relative;">
+                <input type="text" id="pf-internal-cat-input" placeholder="Kategori yaz veya seç..."
+                  autocomplete="off"
+                  style="width:100%; padding:7px 10px; border:1px solid #e2e8f0; border-radius:8px; font-size:13px; font-family:inherit; color:#0f172a; background:#fff; outline:none; box-sizing:border-box;"
+                  oninput="onInternalCatInput(this.value)"
+                  onfocus="onInternalCatInput(this.value)">
+                <div id="pf-internal-cat-dropdown"
+                  style="display:none; position:absolute; top:calc(100% + 4px); left:0; right:0; background:#fff; border:1px solid #e2e8f0; border-radius:8px; box-shadow:0 8px 24px rgba(0,0,0,0.1); z-index:2000; max-height:200px; overflow-y:auto;"></div>
+              </div>
             </div>
             <div class="modal-field">
               <label>Model</label>
@@ -312,7 +327,7 @@
 
   <script src="/shared/sidebar.js" defer></script>
   <script src="/stok/js/utils.js"></script>
-  <script src="/stok/js/urunler.js"></script>
+  <script src="/stok/js/urunler.js?v=20260518-internal-cat"></script>
 </body>
 
 </html>

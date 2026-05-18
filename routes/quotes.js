@@ -5,7 +5,7 @@ const express   = require('express');
 const router    = express.Router();
 const path      = require('path');
 const fs        = require('fs');
-const puppeteer = require('puppeteer');
+const puppeteer = require('puppeteer-core');
 
 const BUCKET    = 'quotes-pdf';
 const LOGO_PATH = path.join(__dirname, '..', 'public', 'assests', 'inokas_bilgi_sistemleri_for_pdf.jpeg');
@@ -145,8 +145,25 @@ async function generateAndStorePdf(supabase, quoteId) {
   qt.quote_items = (qt.quote_items || []).sort((a, b) => a.sort_order - b.sort_order);
 
   const html    = buildPdfHtml(qt, logoBase64());
+  const { execSync } = require('child_process');
+  let chromePath = process.env.PUPPETEER_EXECUTABLE_PATH;
+  if (!chromePath) {
+    const candidates = [
+      '/run/current-system/sw/bin/chromium',
+      '/usr/bin/chromium',
+      '/usr/bin/chromium-browser',
+      '/usr/bin/google-chrome',
+      '/nix/var/nix/profiles/default/bin/chromium',
+    ];
+    for (const c of candidates) {
+      try { execSync(`test -f ${c}`); chromePath = c; break; } catch {}
+    }
+  }
+  if (!chromePath) {
+    try { chromePath = execSync('which chromium 2>/dev/null || which chromium-browser 2>/dev/null', { encoding: 'utf8' }).trim(); } catch {}
+  }
   const browser = await puppeteer.launch({
-    executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || undefined,
+    executablePath: chromePath,
     args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'],
   });
   const pg      = await browser.newPage();
@@ -166,6 +183,16 @@ async function generateAndStorePdf(supabase, quoteId) {
   await supabase.from('quotes').update({ pdf_url: pdfUrl }).eq('id', quoteId);
   return pdfUrl;
 }
+
+// ─── GET /debug-chrome ───────────────────────────────────────────────────────
+router.get('/debug-chrome', (req, res) => {
+  const { execSync } = require('child_process');
+  const checks = {};
+  ['which chromium', 'which chromium-browser', 'which google-chrome', 'ls /usr/bin/chrom*', 'ls /run/current-system/sw/bin/'].forEach(cmd => {
+    try { checks[cmd] = execSync(cmd, { encoding: 'utf8' }).trim(); } catch (e) { checks[cmd] = 'NOT FOUND'; }
+  });
+  res.json(checks);
+});
 
 // ─── GET /next-ref-no ─────────────────────────────────────────────────────────
 router.get('/next-ref-no', async (req, res) => {

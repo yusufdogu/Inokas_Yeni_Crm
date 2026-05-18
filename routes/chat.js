@@ -8,16 +8,18 @@ const router    = express.Router();
 const client    = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
 // ─── System Prompt ────────────────────────────────────────────────────────────
+// ─── REPLACE buildSystemPrompt() in chat-router.js with this ─────────────────
+
 function buildSystemPrompt() {
-  const now          = new Date();
-  const today        = now.toISOString().slice(0, 10);
-  const yearStart    = `${now.getFullYear()}-01-01`;
-  const monthStart   = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10);
+  const now            = new Date();
+  const today          = now.toISOString().slice(0, 10);
+  const yearStart      = `${now.getFullYear()}-01-01`;
+  const monthStart     = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10);
   const lastMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1).toISOString().slice(0, 10);
   const lastMonthEnd   = new Date(now.getFullYear(), now.getMonth(), 0).toISOString().slice(0, 10);
-  const dateStr      = now.toLocaleDateString('tr-TR', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+  const dateStr        = now.toLocaleDateString('tr-TR', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
 
-  return `Sen İnokas CRM'nin Türkçe konuşan AI asistanısın.
+  return `Sen İnokas CRM'nin Türkçe konuşan AI asistanısın. Şirketin verilerine dayalı analizler ve içgörüler sunuyorsun.
 
 BUGÜNÜN TARİHİ: ${dateStr} (${today})
 Bu yılın başlangıcı: ${yearStart}
@@ -26,33 +28,209 @@ Geçen ayın aralığı: ${lastMonthStart} — ${lastMonthEnd}
 
 KURALLAR:
 - Her zaman Türkçe yanıt ver.
-- Sayısal verileri Türk formatında göster (1.234,56).
-- Para birimlerini açıkça belirt (TL, USD, EUR).
-- Tarihler için GG.AA.YYYY formatını kullan.
-- Yanıtlarını kısa ve net tut.
-- "Bu yıl", "bu ay", "geçen ay" ifadelerini yukarıdaki tarihlere göre yorumla.
-- Veri bulunamazsa bunu açıkça söyle.
+- Sayısal verileri Türk formatında göster: 1.234,56
+- Para birimlerini açıkça belirt: TL, USD, EUR
+- Tarihler için GG.AA.YYYY formatı kullan
+- "Bu yıl", "bu ay", "geçen ay" ifadelerini yukarıdaki tarihlere göre yorumla
+- Yanıtlarını kısa ve net tut — gereksiz tekrar yapma
+- Veri bulunamazsa bunu açıkça söyle
+- Kullanıcı PDF veya fatura belgesi istediğinde MUTLAKA list_invoices_with_pdf aracını kullan
+- get_invoice_summary PDF döndürmez, sadece özet sayısal bilgi verir
 
-VERİTABANI:
-- invoices: direction(INCOMING/OUTGOING), status(Unpaid/Partial/Paid), approval_status(pending/approved), invoice_date, payable_amount_tl, payable_amount_cur, currency, pdf_url
-- invoice_items: product_name, product_code, brand_name, quantity, unit_price_cur, total_price_cur, is_internal, internal_category
-- companies: name, vkn_tckn, is_client, is_supplier
-- products: product_code, product_name, brand, category, model, stock_on_hand, maliyet_usd, dmo_fiyat_try
-- purchase_orders: po_number, status(Bekliyor/Kısmi Geldi/Tamamlandı), order_date
-- purchase_order_items: ordered_qty, received_qty, unit_price_cur
-- dmo_orders: customer_name, net_profit, profit_percentage, status, order_date, toplam_gelir, toplam_gider
-- payments: amount, currency, payment_date
-- rate_history: usd_try, eur_try, rate_date
+VERİTABANI ŞEMASI:
+
+── FATURALAR ────────────────────────────────────────────────────────────────────
+
+invoices (faturalar):
+  id, invoice_no, efatura_uuid
+  company_id → companies(id, name, vkn_tckn)
+  direction: 'INCOMING' (alış/gelen) | 'OUTGOING' (satış/giden)
+  invoice_date: fatura tarihi
+  due_date: vade tarihi (vadesi geçmiş kontrolü için bunu kullan)
+  base_currency: para birimi (TRY, USD, EUR) — "currency" kolonu da var ama base_currency kullan
+  calculation_rate: kur (1 USD = ? TRY, TRY faturalarda 1)
+  total_tax_exclusive_tl: matrah (KDV hariç) TL cinsinden
+  tax_amount_tl: KDV tutarı TL
+  payable_amount_tl: ödenecek toplam TL
+  total_tax_exclusive_cur: matrah kaynak para biriminde
+  payable_amount_cur: ödenecek toplam kaynak para biriminde
+  paid_amount_cur: ödenen tutar kaynak para biriminde
+  status: 'Unpaid' | 'Partial' | 'Paid'
+  approval_status: 'pending' | 'approved' | 'rejected'
+  source: 'api' (e-fatura sistemi) | 'manual' (elle girilmiş)
+  invoice_type: fatura türü (TEMELFATURA, TICARIFATURA vb.)
+  pdf_url: PDF linki
+  NOT: Analizlerde sadece approval_status='approved' faturaları kullan
+
+invoice_items (fatura kalemleri):
+  invoice_id → invoices
+  product_name, product_code
+  brand_name: marka (doğrudan kolonda)
+  quantity: miktar
+  unit_code: birim (ADET, LTR, KG vb.)
+  unit_price_cur: birim fiyat (kaynak para biriminde)
+  total_price_cur: kalem toplam (kaynak para biriminde)
+  tax_rate: KDV oranı (örn: 20 = %20)
+  tax_amount_cur: KDV tutarı
+  currency: kalem para birimi
+  is_internal: true = ofis içi gider kalemi
+  internal_category: ofis içi kategori (teknoloji, araç & yakıt, elektrik & doğalgaz, iletişim, yemek & mutfak, güvenlik, diğer)
+  purchase_order_item_id → purchase_order_items (backorder bağlantısı)
+  NOT: Ürün brand/category/model için products tablosuna product_code ile join yap
+
+── FİRMALAR ─────────────────────────────────────────────────────────────────────
+
+companies (firmalar):
+  id, name, vkn_tckn
+  is_client: müşteri mi
+  is_supplier: tedarikçi mi
+  tax_office, address, phone, email, city
+
+── ÖDEMELER ─────────────────────────────────────────────────────────────────────
+
+payments (ödemeler):
+  invoice_id → invoices
+  amount: ödeme tutarı
+  currency: ödeme para birimi
+  payment_date: ödeme tarihi
+  notes
+
+── ÜRÜNLER ──────────────────────────────────────────────────────────────────────
+
+products (ürünler):
+  product_code (tekil), product_name
+  brand:Markası(Epson,Asus gibi), category(Kartuş,yazıcı gibi), model
+  stock_on_hand: eldeki stok
+  reserved_quantity: rezerve stok
+  ordered_quantity: sipariş edilen
+  maliyet_usd: maliyet (USD)
+  sozlesme_fiyat_eur: sözleşme fiyatı (EUR)
+  dmo_fiyat_try: DMO fiyatı (TRY)
+  last_purchase_price_cur: son alış fiyatı
+  last_purchase_currency: son alış para birimi
+  avg_purchase_price_tl: ortalama alış fiyatı TL
+  is_internal: sadece ofis içi kullanım ürünü mü
+  source: 'manual' | 'invoice' (faturadan otomatik oluşturulmuş)
+
+product_price_history (fiyat geçmişi):
+  product_id → products
+  dmo_fiyat_try, sozlesme_fiyat_eur, maliyet_usd
+  purchase_price, purchase_currency
+  sales_price, sales_currency
+  recorded_at: kayıt tarihi
+  NOT: Fiyat değişimlerini analiz etmek için kullan
+
+── DMO SİPARİŞLERİ ──────────────────────────────────────────────────────────────
+
+dmo_orders (DMO siparişleri):
+  sales_order_no, purchase_order_no
+  customer_name, customer_no
+  order_date, due_date
+  status: 'Taslak' | 'Sipariş Alındı' | 'Tamamlandı' | 'İptal'
+  usd_rate: sipariş anındaki USD kuru
+  dmo_basket_total: DMO sepet toplamı (indirim öncesi)
+  real_dmo_basket: gerçek sepet (indirim sonrası = dmo_basket_total - tutar_indirimi)
+  tutar_indirimi: sepet indirimi tutarı
+  tutar_indirimi_pct: sepet indirimi yüzdesi
+  inokas_basket_total: İnokas maliyet sepeti
+  net_profit: net kar (TL)
+  profit_percentage: kar yüzdesi
+  toplam_gelir: toplam gelir
+  toplam_gider: toplam gider
+  tevkifat, gercek_kdv, kdv_amount, risturn_amount, stamp_tax_total: vergi/kesinti kalemleri
+  pdf_url: sipariş PDF linki
+  NOT: Kar analizi için net_profit ve profit_percentage kullan
+
+dmo_order_items (DMO sipariş kalemleri):
+  order_id → dmo_orders
+  product_id → products
+  katalog_kod: DMO katalog kodu
+  quantity: miktar
+  unit_price_excl_vat: birim fiyat (KDV hariç, TRY)
+  line_total_excl_vat: kalem toplam (KDV hariç, TRY)
+  maliyet_usd: kalem maliyeti (USD)
+  maliyet_tl: kalem maliyeti (TL)
+  indirim_pct: kalem indirim yüzdesi
+  is_gift: hediye mi
+
+── TEKLİFLER ────────────────────────────────────────────────────────────────────
+
+quotes (teklifler):
+  reference_no: teklif numarası
+  company_id → companies | company_name: firma
+  quote_date: teklif tarihi
+  valid_until: geçerlilik tarihi
+  total_excl_tax: KDV hariç toplam
+  currency: para birimi
+  status: 'draft' | 'pending' | 'accepted' | 'rejected'
+  pdf_url
+
+quote_items (teklif kalemleri):
+  quote_id → quotes
+  product_code, product_name
+  quantity, unit_price, total_price, unit
+  sort_order
+
+── TEKNİK SORUNLAR ──────────────────────────────────────────────────────────────
+
+technical_issues (teknik sorunlar — WhatsApp üzerinden gelen):
+  customer_name, phone, company_name
+  product: sorunlu ürün/cihaz
+  issue_description: sorun açıklaması
+  priority: 'acil' | 'normal' | 'düşük'
+  status: 'bekliyor' | 'inceleniyor' | 'çözüldü' | 'kapatıldı'
+  created_at: talep tarihi
+  resolved_at: çözüm tarihi
+  notes: teknik notlar
+
+── KUR GEÇMİŞİ ──────────────────────────────────────────────────────────────────
+
+rate_history (kur geçmişi):
+  usd_try: USD/TRY kuru (TCMB)
+  eur_try: EUR/TRY kuru (TCMB)
+  dmo_eur_try: DMO EUR/TRY kuru
+  rate_date: TCMB kur tarihi
+  dmo_rate_date: DMO kur tarihi
+  recorded_at: kayıt zamanı
+  NOT: Kur analizi ve dönüşüm için kullan. En güncel kur = en son rate_date
+
+── İLİŞKİLER ÖZET ───────────────────────────────────────────────────────────────
+
+invoices.company_id → companies (firma adı için)
+invoice_items.invoice_id → invoices
+invoice_items.product_code → products.product_code (brand/category/model için)
+dmo_order_items.product_id → products
+dmo_order_items.order_id → dmo_orders
+payments.invoice_id → invoices
+quote_items.quote_id → quotes
+quotes.company_id → companies
+product_price_history.product_id → products
+technical_issues: bağımsız tablo
 
 YANIT FORMATI — Her zaman bu JSON formatında döndür:
 {
-  "text": "Açıklama",
-  "charts": [{ "type": "bar|line|pie|doughnut", "title": "Başlık", "labels": [], "datasets": [{ "label": "", "data": [], "color": "#2563eb" }] }],
-  "tables": [{ "title": "Başlık", "headers": [], "rows": [] }],
-  "pdfs": [{ "invoice_no": "", "company": "", "date": "", "amount": "", "currency": "", "pdf_url": "" }]
+  "text": "Açıklama metni",
+  "charts": [{
+    "type": "bar | line | pie | doughnut",
+    "title": "Başlık",
+    "labels": ["Ocak", "Şubat"],
+    "datasets": [{ "label": "Seri adı", "data": [100, 200], "color": "#2563eb" }]
+  }],
+  "tables": [{
+    "title": "Tablo başlığı",
+    "headers": ["Sütun1", "Sütun2"],
+    "rows": [["değer1", "değer2"]]
+  }],
+  "pdfs": [{
+    "invoice_no": "FAT-001",
+    "company": "Firma Adı",
+    "date": "2025-01-15",
+    "amount": "1.234,56",
+    "currency": "TRY",
+    "pdf_url": "https://..."
+  }]
 }`;
 }
-
 // ─── Tools ────────────────────────────────────────────────────────────────────
 const TOOLS = [
   {
@@ -204,7 +382,52 @@ const TOOLS = [
         limit:        { type: 'number' },
       }
     }
-  }
+  },
+
+  // ─── ADD THESE TO THE TOOLS array in chat-router.js ─────────────────────────
+  {
+    name: 'get_quotes',
+    description: 'Teklifleri listeler ve analiz eder.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        status:       { type: 'string', description: 'draft, pending, accepted, rejected' },
+        company_name: { type: 'string' },
+        date_start:   { type: 'string' },
+        date_end:     { type: 'string' },
+        currency:     { type: 'string' },
+        group_by:     { type: 'string', enum: ['month', 'status', 'company', 'none'] },
+      }
+    }
+  },
+  {
+    name: 'get_technical_issues',
+    description: 'Teknik sorunları listeler ve özetler.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        status:    { type: 'string', description: 'bekliyor, inceleniyor, çözüldü, kapatıldı' },
+        priority:  { type: 'string', description: 'acil, normal, düşük' },
+        date_start:{ type: 'string' },
+        date_end:  { type: 'string' },
+        product:   { type: 'string', description: 'Ürün/cihaz adı filtresi' },
+      }
+    }
+  },
+  {
+    name: 'get_price_history',
+    description: 'Ürün fiyat geçmişini sorgular. Fiyat değişimlerini analiz eder.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        product_code: { type: 'string' },
+        product_name: { type: 'string' },
+        date_start:   { type: 'string' },
+        date_end:     { type: 'string' },
+        limit:        { type: 'number' },
+      }
+    }
+  },
 ];
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -398,6 +621,9 @@ async function executeToolsInParallel(toolUseBlocks, supabase) {
         case 'get_payment_history':    result = await getPaymentHistory(block.input, supabase);    break;
         case 'get_rate_history':       result = await getRateHistory(block.input, supabase);       break;
         case 'list_invoices_with_pdf': result = await listInvoicesWithPdf(block.input, supabase);  break;
+        case 'get_quotes':           result = await getQuotes(block.input, supabase);          break;
+        case 'get_technical_issues': result = await getTechnicalIssues(block.input, supabase); break;
+        case 'get_price_history':    result = await getPriceHistory(block.input, supabase);    break;
         default: result = { error: `Bilinmeyen araç: ${block.name}` };
       }
     } catch (e) {
@@ -408,6 +634,191 @@ async function executeToolsInParallel(toolUseBlocks, supabase) {
 
   // Run ALL tools in parallel
   return Promise.all(executions);
+}
+
+async function getQuotes({ status, company_name, date_start, date_end, currency, group_by }, supabase) {
+  let query = supabase
+    .from('quotes')
+    .select('id, reference_no, company_name, quote_date, valid_until, total_excl_tax, currency, status, pdf_url, companies(name)')
+    .order('quote_date', { ascending: false });
+
+  if (status)     query = query.eq('status', status);
+  if (date_start) query = query.gte('quote_date', date_start);
+  if (date_end)   query = query.lte('quote_date', date_end);
+  if (currency)   query = query.eq('currency', currency);
+
+  const { data, error } = await query.limit(200);
+  if (error) return { error: error.message };
+
+  let rows = data || [];
+
+  // Filter by company name client-side (join can't filter in Supabase)
+  if (company_name) {
+    const q = company_name.toLocaleLowerCase('tr-TR');
+    rows = rows.filter(r =>
+      (r.company_name || r.companies?.name || '').toLocaleLowerCase('tr-TR').includes(q)
+    );
+  }
+
+  const total = rows.reduce((s, r) => s + (parseFloat(r.total_excl_tax) || 0), 0);
+
+  let grouped = null;
+  if (group_by === 'status') {
+    const byStatus = {};
+    rows.forEach(r => {
+      const s = r.status || 'unknown';
+      if (!byStatus[s]) byStatus[s] = { count: 0, total: 0 };
+      byStatus[s].count++;
+      byStatus[s].total += parseFloat(r.total_excl_tax) || 0;
+    });
+    grouped = Object.entries(byStatus).map(([status, v]) => ({ status, count: v.count, total: fmtN(v.total) }));
+  } else if (group_by === 'month') {
+    const byMonth = {};
+    rows.forEach(r => {
+      const m = (r.quote_date || '').slice(0, 7);
+      if (!byMonth[m]) byMonth[m] = { count: 0, total: 0 };
+      byMonth[m].count++;
+      byMonth[m].total += parseFloat(r.total_excl_tax) || 0;
+    });
+    grouped = Object.entries(byMonth).sort(([a],[b]) => a.localeCompare(b)).map(([month, v]) => ({ month, count: v.count, total: fmtN(v.total) }));
+  } else if (group_by === 'company') {
+    const byComp = {};
+    rows.forEach(r => {
+      const n = r.company_name || r.companies?.name || 'Bilinmiyor';
+      if (!byComp[n]) byComp[n] = { count: 0, total: 0 };
+      byComp[n].count++;
+      byComp[n].total += parseFloat(r.total_excl_tax) || 0;
+    });
+    grouped = Object.entries(byComp).sort(([,a],[,b]) => b.total - a.total).slice(0, 20).map(([company, v]) => ({ company, count: v.count, total: fmtN(v.total) }));
+  }
+
+  const statusCount = {
+    draft:    rows.filter(r => r.status === 'draft').length,
+    pending:  rows.filter(r => r.status === 'pending').length,
+    accepted: rows.filter(r => r.status === 'accepted').length,
+    rejected: rows.filter(r => r.status === 'rejected').length,
+  };
+  const conversionRate = rows.length > 0
+    ? ((statusCount.accepted / rows.length) * 100).toFixed(1) + '%'
+    : '0%';
+
+  return {
+    count: rows.length,
+    total: fmtN(total),
+    status_breakdown: statusCount,
+    conversion_rate: conversionRate,
+    grouped,
+    sample: rows.slice(0, 10).map(r => ({
+      reference_no: r.reference_no,
+      company:      r.company_name || r.companies?.name,
+      date:         r.quote_date,
+      valid_until:  r.valid_until,
+      total:        fmtN(r.total_excl_tax),
+      currency:     r.currency,
+      status:       r.status,
+      pdf_url:      r.pdf_url,
+    }))
+  };
+}
+
+async function getTechnicalIssues({ status, priority, date_start, date_end, product }, supabase) {
+  let query = supabase
+    .from('technical_issues')
+    .select('id, created_at, resolved_at, customer_name, phone, company_name, product, issue_description, priority, status, notes')
+    .order('created_at', { ascending: false });
+
+  if (status)     query = query.eq('status', status);
+  if (priority)   query = query.eq('priority', priority);
+  if (date_start) query = query.gte('created_at', date_start);
+  if (date_end)   query = query.lte('created_at', date_end + 'T23:59:59');
+  if (product)    query = query.ilike('product', `%${product}%`);
+
+  const { data, error } = await query.limit(200);
+  if (error) return { error: error.message };
+
+  const rows = data || [];
+
+  const summary = {
+    total:       rows.length,
+    bekliyor:    rows.filter(r => r.status === 'bekliyor').length,
+    inceleniyor: rows.filter(r => r.status === 'inceleniyor').length,
+    cozuldu:     rows.filter(r => r.status === 'çözüldü').length,
+    kapatildi:   rows.filter(r => r.status === 'kapatıldı').length,
+    acil:        rows.filter(r => r.priority === 'acil').length,
+    normal:      rows.filter(r => r.priority === 'normal').length,
+    dusuk:       rows.filter(r => r.priority === 'düşük').length,
+  };
+
+  // Average resolution time for solved issues
+  const solved = rows.filter(r => r.resolved_at && r.created_at && r.status === 'çözüldü');
+  let avgResolutionHours = null;
+  if (solved.length > 0) {
+    const totalMs = solved.reduce((s, r) => s + (new Date(r.resolved_at) - new Date(r.created_at)), 0);
+    avgResolutionHours = (totalMs / solved.length / 3600000).toFixed(1);
+  }
+
+  return {
+    summary,
+    avg_resolution_hours: avgResolutionHours,
+    issues: rows.slice(0, 20).map(r => ({
+      id:           r.id,
+      date:         r.created_at?.slice(0, 10),
+      customer:     r.customer_name,
+      company:      r.company_name,
+      phone:        r.phone,
+      product:      r.product,
+      description:  r.issue_description,
+      priority:     r.priority,
+      status:       r.status,
+      notes:        r.notes,
+    }))
+  };
+}
+
+async function getPriceHistory({ product_code, product_name, date_start, date_end, limit = 20 }, supabase) {
+  // First find the product
+  let productQuery = supabase.from('products').select('id, product_code, product_name, brand, category');
+  if (product_code) productQuery = productQuery.ilike('product_code', `%${product_code}%`);
+  if (product_name) productQuery = productQuery.ilike('product_name', `%${product_name}%`);
+
+  const { data: products, error: pErr } = await productQuery.limit(5);
+  if (pErr) return { error: pErr.message };
+  if (!products?.length) return { error: 'Ürün bulunamadı' };
+
+  const productIds = products.map(p => p.id);
+
+  let query = supabase
+    .from('product_price_history')
+    .select('product_id, dmo_fiyat_try, sozlesme_fiyat_eur, maliyet_usd, purchase_price, purchase_currency, sales_price, sales_currency, recorded_at')
+    .in('product_id', productIds)
+    .order('recorded_at', { ascending: true });
+
+  if (date_start) query = query.gte('recorded_at', date_start);
+  if (date_end)   query = query.lte('recorded_at', date_end);
+
+  const { data, error } = await query.limit(limit * productIds.length);
+  if (error) return { error: error.message };
+
+  const productMap = new Map(products.map(p => [p.id, p]));
+
+  const history = (data || []).map(h => ({
+    product_code:      productMap.get(h.product_id)?.product_code,
+    product_name:      productMap.get(h.product_id)?.product_name,
+    date:              h.recorded_at?.slice(0, 10),
+    dmo_fiyat_try:     h.dmo_fiyat_try    ? fmtN(h.dmo_fiyat_try)    : null,
+    sozlesme_fiyat_eur:h.sozlesme_fiyat_eur ? fmtN(h.sozlesme_fiyat_eur) : null,
+    maliyet_usd:       h.maliyet_usd      ? fmtN(h.maliyet_usd)      : null,
+    purchase_price:    h.purchase_price   ? fmtN(h.purchase_price)   : null,
+    purchase_currency: h.purchase_currency,
+    sales_price:       h.sales_price      ? fmtN(h.sales_price)      : null,
+    sales_currency:    h.sales_currency,
+  }));
+
+  return {
+    products: products.map(p => ({ code: p.product_code, name: p.product_name, brand: p.brand })),
+    record_count: history.length,
+    history,
+  };
 }
 
 // ─── Main route — STREAMING ───────────────────────────────────────────────────
@@ -501,5 +912,7 @@ router.post('/', async (req, res) => {
     res.end();
   }
 });
+
+
 
 module.exports = router;

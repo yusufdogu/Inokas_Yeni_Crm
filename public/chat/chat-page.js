@@ -14,6 +14,7 @@ document.addEventListener('DOMContentLoaded', () => {
   showWelcome();
   loadDashboard();
   bindEvents();
+  initResizableSplit();
   restoreHistory();
 });
 
@@ -31,6 +32,71 @@ function bindEvents() {
       input.style.height = Math.min(input.scrollHeight, 120) + 'px';
     });
   }
+}
+
+
+function initResizableSplit() {
+  const container = document.querySelector('.chat-page');
+  const left      = document.getElementById('chatLeft');
+  const divider   = document.getElementById('chatDivider');
+  const right     = document.getElementById('chatRight');
+
+  if (!container || !left || !divider || !right) return;
+
+  const MIN_PX      = 280;
+  const STORAGE_KEY = 'inokas_chat_split_pct';
+
+  function applyPct(pct) {
+    left.style.flex  = 'none';
+    right.style.flex = 'none';
+    left.style.width  = pct + '%';
+    right.style.width = (100 - pct) + '%';
+  }
+
+  // Restore saved position
+  const saved = parseFloat(localStorage.getItem(STORAGE_KEY));
+  if (saved > 0 && saved < 100) applyPct(saved);
+
+  let dragging   = false;
+  let startX     = 0;
+  let startLeftW = 0;
+
+  divider.addEventListener('mousedown', e => {
+    e.preventDefault();
+    dragging   = true;
+    startX     = e.clientX;
+    startLeftW = left.getBoundingClientRect().width;
+    document.body.style.cursor     = 'col-resize';
+    document.body.style.userSelect = 'none';
+    divider.classList.add('chat-divider--dragging');
+  });
+
+  document.addEventListener('mousemove', e => {
+    if (!dragging) return;
+    const totalW = container.getBoundingClientRect().width - divider.offsetWidth;
+    const delta  = e.clientX - startX;
+    const newW   = Math.min(Math.max(startLeftW + delta, MIN_PX), totalW - MIN_PX);
+    const pct    = (newW / totalW) * 100;
+    applyPct(pct);
+  });
+
+  document.addEventListener('mouseup', () => {
+    if (!dragging) return;
+    dragging = false;
+    document.body.style.cursor     = '';
+    document.body.style.userSelect = '';
+    divider.classList.remove('chat-divider--dragging');
+    // Save position
+    const totalW = container.getBoundingClientRect().width - divider.offsetWidth;
+    const pct    = (left.getBoundingClientRect().width / totalW) * 100;
+    localStorage.setItem(STORAGE_KEY, pct.toFixed(2));
+  });
+
+  // Double-click divider to reset to 50/50
+  divider.addEventListener('dblclick', () => {
+    applyPct(50);
+    localStorage.setItem(STORAGE_KEY, '50');
+  });
 }
 
 // ─── Welcome screen ───────────────────────────────────────────────────────────
@@ -702,8 +768,51 @@ function saveHistory(messages) {
 }
 
 function restoreHistory() {
-  // History is sent with each request — no need to re-render on load
-  // Fresh visual chat every page open
+  const history = getHistory();
+  if (!history.length) return;
+
+  // Remove welcome screen since we have history
+  document.querySelector('.chat-welcome')?.remove();
+
+  const msgs = document.getElementById('chatMessages');
+  if (!msgs) return;
+
+  history.forEach(msg => {
+    if (msg.role === 'user') {
+      // Extract text from content
+      const text = typeof msg.content === 'string'
+        ? msg.content
+        : Array.isArray(msg.content)
+          ? msg.content.find(b => b.type === 'text')?.text || ''
+          : '';
+      if (text) appendUserMessage(text);
+
+    } else if (msg.role === 'assistant') {
+      // Extract text from content blocks
+      const textBlock = Array.isArray(msg.content)
+        ? msg.content.find(b => b.type === 'text')
+        : null;
+      const text = typeof msg.content === 'string'
+        ? msg.content
+        : textBlock?.text || '';
+      if (!text) return;
+
+      // Parse structured response
+      let parsed;
+      try {
+        const clean     = text.replace(/```json\n?|\n?```/g, '').trim();
+        const jsonMatch = clean.match(/\{[\s\S]*\}/);
+        parsed = jsonMatch ? JSON.parse(jsonMatch[0]) : { text: clean };
+      } catch {
+        parsed = { text };
+      }
+
+      appendAssistantMessage(parsed);
+      // Don't re-render results panel on restore — just show the chat
+    }
+  });
+
+  scrollToBottom();
 }
 
 // ─── Utilities ────────────────────────────────────────────────────────────────

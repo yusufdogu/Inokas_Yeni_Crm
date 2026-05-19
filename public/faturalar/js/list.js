@@ -268,6 +268,7 @@ function applyFiltersAndFetch() {
   };
 
   refreshData(false);
+  refreshTotals();
 }
 
 function renderCurrentView() {
@@ -291,7 +292,7 @@ function renderPagination() {
   // Remove existing pagination if any
   document.getElementById('fatPagination')?.remove();
 
-  if (_totalPages <= 1 && _totalCount <= _pageLimit) return;
+  if (_totalCount === 0) return;
 
   const container = document.querySelector('.fat-area');
   if (!container) return;
@@ -478,8 +479,11 @@ function renderKpiBar(invoices, totals = null) {
   `;
 }
 
+let _lastKpiTotals = null;
+
 // Called by api.js after refreshTotals() returns
 function updateKpiTotals(totals) {
+  _lastKpiTotals = totals;
   renderKpiBar(allInvoicesCache, totals);
 }
 // ─── Tab bar ──────────────────────────────────────────────────────────────────
@@ -543,7 +547,7 @@ function renderFatContent() {
 
 function renderInvoiceTable(invoices) {
     _lastListInvoices = invoices || [];
-    renderKpiBar(invoices);
+    renderKpiBar(invoices, _lastKpiTotals);
     if (activeTabKey !== 'list') return;
     renderListView(invoices);
 }

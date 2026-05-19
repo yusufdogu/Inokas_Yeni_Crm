@@ -115,11 +115,12 @@ let _totalCount   = 0;
 let _pageLimit    = 10;
 
 async function refreshData(useCache = false) {
-    // Refresh filter options when view changes or on first load
+    // Refresh filter options and totals when view changes or on first load
     if (!window._filterOptionsLoaded || window._lastFilterView !== currentView) {
       window._lastFilterView      = currentView;
       window._filterOptionsLoaded = true;
-      refreshFilterOptions(); // non-blocking
+      refreshFilterOptions();
+      refreshTotals();
     }
     if (useCache && allInvoicesCache.length > 0) {
     renderCurrentView();
@@ -150,15 +151,17 @@ async function refreshData(useCache = false) {
     if (f.companies?.length)      params.set('companies',   f.companies.join(','));
     if (f.brands?.length)         params.set('brands',      f.brands.join(','));
     if (f.categories?.length)     params.set('categories',  f.categories.join(','));
+    if (f.products?.length)       params.set('products',    f.products.join(','));
+    if (f.models?.length)         params.set('models',      f.models.join(','));
 
     const res  = await fetch(`${apiUrl}?${params.toString()}`);
     const json = await res.json();
 
     if (window._FAT_PENDING) {
-      // Pending still returns array
-      allInvoicesCache = Array.isArray(json) ? json : [];
-      _totalCount  = allInvoicesCache.length;
-      _totalPages  = 1;
+      allInvoicesCache = json.data        || [];
+      _totalCount      = json.total       || 0;
+      _totalPages      = json.total_pages || 1;
+      _currentPage     = json.page        || 1;
     } else {
       allInvoicesCache = json.data        || [];
       _totalCount      = json.total       || 0;
@@ -168,7 +171,6 @@ async function refreshData(useCache = false) {
 
     renderCurrentView();
     renderPagination();
-    if (!window._FAT_PENDING) refreshTotals();
 
   } catch (err) {
     console.error('refreshData hatası:', err.message);
@@ -209,15 +211,18 @@ async function refreshTotals() {
     const params = new URLSearchParams();
     const f = window._fatActiveFilters || {};
 
+    if (window._FAT_PENDING) params.set('pending', 'true');
     if (currentView === 'gelen') params.set('direction', 'INCOMING');
     if (currentView === 'giden') params.set('direction', 'OUTGOING');
     if (f.dateStart)         params.set('date_start', f.dateStart);
     if (f.dateEnd)           params.set('date_end',   f.dateEnd);
     if (f.currency)          params.set('currency',   f.currency);
-    if (f.status)            params.set('status',     f.status);
     if (f.search)            params.set('search',     f.search);
     if (f.companies?.length) params.set('companies',  f.companies.join(','));
     if (f.brands?.length)    params.set('brands',     f.brands.join(','));
+    if (f.categories?.length)params.set('categories', f.categories.join(','));
+    if (f.products?.length)  params.set('products',   f.products.join(','));
+    if (f.models?.length)    params.set('models',     f.models.join(','));
 
     const res  = await fetch(`/api/invoices/totals?${params.toString()}`);
     const data = await res.json();

@@ -271,13 +271,12 @@ router.get('/totals', async (req, res) => {
   }
 });
 
-// GET /api/invoices/filter-options
 router.get('/filter-options', async (req, res) => {
   try {
     const supabase  = req.app.get('supabase');
     const direction = req.query.direction;
 
-    // Get non-internal invoice IDs
+    // Step 1: non-internal invoice IDs
     const { data: niItems } = await supabase
       .from('invoice_items')
       .select('invoice_id')
@@ -288,21 +287,20 @@ router.get('/filter-options', async (req, res) => {
     )];
 
     if (!nonInternalIds.length) {
-      return res.json({ companies: [], brands: [], products: [], currencies: [] });
+      return res.json({ companies: [], brands: [], products: [], categories: [], models: [], currencies: [] });
     }
 
-    // Get distinct companies
+    // Step 2: companies + currencies from invoices
     let invQuery = supabase
       .from('invoices')
-      .select('company_id, base_currency, companies(name)')
+      .select('base_currency, companies(name)')
       .or('approval_status.neq.pending,approval_status.is.null')
-      .in('id', nonInternalIds);
+      .in('id', nonInternalIds.slice(0, 1000));
 
     if (direction) invQuery = invQuery.eq('direction', direction);
-
     const { data: invRows } = await invQuery;
 
-    const companies  = [...new Set(
+    const companies = [...new Set(
       (invRows || []).map(r => r.companies?.name).filter(Boolean)
     )].sort((a, b) => a.localeCompare(b, 'tr'));
 
@@ -310,16 +308,21 @@ router.get('/filter-options', async (req, res) => {
       (invRows || []).map(r => r.base_currency).filter(Boolean)
     )].sort();
 
-    // Get distinct brands and products from invoice_items
-    let itemQuery = supabase
+    // Step 3: get invoice IDs filtered by direction for item lookup
+    const directionFilteredIds = direction
+      ? (invRows || []).map(r => r.id).filter(Boolean)
+      : nonInternalIds;
+
+    if (!directionFilteredIds.length) {
+      return res.json({ companies, brands: [], products: [], categories: [], models: [], currencies });
+    }
+
+    // Step 4: brands + products from invoice_items using invoice IDs
+    const { data: itemRows } = await supabase
       .from('invoice_items')
-      .select('brand_name, product_name, product_code, invoices!inner(direction, approval_status)')
+      .select('brand_name, product_name, product_code')
       .eq('is_internal', false)
-      .or('invoices.approval_status.neq.pending,invoices.approval_status.is.null');
-
-    if (direction) itemQuery = itemQuery.eq('invoices.direction', direction);
-
-    const { data: itemRows } = await itemQuery;
+      .in('invoice_id', directionFilteredIds.slice(0, 1000));
 
     const brands = [...new Set(
       (itemRows || []).map(r => r.brand_name).filter(Boolean)
@@ -329,7 +332,31 @@ router.get('/filter-options', async (req, res) => {
       (itemRows || []).map(r => r.product_name).filter(Boolean)
     )].sort((a, b) => a.localeCompare(b, 'tr'));
 
-    res.json({ companies, brands, products, currencies });
+    // Step 5: categories + models from products table
+    const productCodes = [...new Set(
+      (itemRows || []).map(r => r.product_code).filter(Boolean)
+    )];
+
+    let categories = [];
+    let models     = [];
+
+    if (productCodes.length) {
+      const { data: productRows } = await supabase
+        .from('products')
+        .select('category, model')
+        .in('product_code', productCodes.slice(0, 1000))
+        .not('category', 'is', null);
+
+      categories = [...new Set(
+        (productRows || []).map(r => r.category).filter(Boolean)
+      )].sort((a, b) => a.localeCompare(b, 'tr'));
+
+      models = [...new Set(
+        (productRows || []).map(r => r.model).filter(Boolean)
+      )].sort((a, b) => a.localeCompare(b, 'tr'));
+    }
+
+    res.json({ companies, brands, products, categories, models, currencies });
 
   } catch (err) {
     console.error('filter-options hatası:', err.message);

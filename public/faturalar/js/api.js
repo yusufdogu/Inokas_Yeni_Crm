@@ -175,13 +175,12 @@ async function refreshData(useCache = false) {
   }
 }
 
-// Store filter options globally so createTagFilter can read them
 window._fatFilterOptions = {
-  companies:  data.companies  || [],
-  brands:     data.brands     || [],
-  products:   data.products   || [],
-  categories: data.categories || [],
-  models:     data.models     || [],
+  companies:  [],
+  brands:     [],
+  products:   [],
+  categories: [],
+  models:     [],
 };
 
 async function refreshFilterOptions() {

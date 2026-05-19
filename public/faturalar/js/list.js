@@ -22,7 +22,19 @@ function _onTagFilterChange(advanced = false) {
     }
     if (advanced) updateAdvancedBadge();
     saveFilterState();
-    renderCurrentView();
+    applyFiltersAndFetch();
+}
+
+function updateKpiTotals({ count, total_tl, total_usd, unpaid_tl }) {
+  const fmt = n => (parseFloat(n) || 0).toLocaleString('tr-TR', { minimumFractionDigits: 2 });
+
+  // Update whichever KPI elements exist on the page
+  const el = id => document.getElementById(id);
+
+  if (el('kpiTotalCount'))  el('kpiTotalCount').textContent  = count;
+  if (el('kpiTotalTl'))     el('kpiTotalTl').textContent     = '₺' + fmt(total_tl);
+  if (el('kpiTotalUsd'))    el('kpiTotalUsd').textContent    = '$' + fmt(total_usd);
+  if (el('kpiUnpaidTl'))    el('kpiUnpaidTl').textContent    = '₺' + fmt(unpaid_tl);
 }
 
 // ─── Init tag filters (called from main.js after DOMContentLoaded) ────────────
@@ -31,94 +43,42 @@ function initFatFilters() {
         wrapId:     'companyTagsWrap',
         inputId:    'companyTagInput',
         dropdownId: 'companyDropdown',
-        getOptions: () => {
-            if (!allInvoicesCache) return [];
-            const dir = currentView === 'gelen' ? 'INCOMING' : 'OUTGOING';
-            return [...new Set(
-                allInvoicesCache
-                    .filter(inv => inv.direction === dir)
-                    .map(inv => String(inv.companies?.name || '').trim())
-                    .filter(Boolean)
-            )].sort((a,b) => a.localeCompare(b,'tr'));
-        },
-        onChange: () => _onTagFilterChange(false),
+        getOptions: () => window._fatFilterOptions?.companies || [],
+        onChange:   () => _onTagFilterChange(false),
     });
 
     _fatProductFilter = createTagFilter({
         wrapId:     'productTagsWrap',
         inputId:    'productTagInput',
         dropdownId: 'productDropdown',
-        getOptions: () => {
-            if (!allInvoicesCache) return [];
-            const names = new Set();
-            allInvoicesCache.forEach(inv =>
-                (inv.invoice_items || []).forEach(it => {
-                    const n = String(it.product_name || '').trim();
-                    const c = String(it.product_code || it.sku || '').trim();
-                    if (n) names.add(n);
-                    if (c) names.add(c);
-                })
-            );
-            return [...names].sort((a,b) => a.localeCompare(b,'tr'));
-        },
-        onChange: () => _onTagFilterChange(true),
+        getOptions: () => window._fatFilterOptions?.products || [],
+        onChange:   () => _onTagFilterChange(true),
     });
 
     _fatCategoryFilter = createTagFilter({
         wrapId:     'categoryTagsWrap',
         inputId:    'categoryTagInput',
         dropdownId: 'categoryDropdown',
-        getOptions: () => {
-            if (!allInvoicesCache) return [];
-            const cats = new Set();
-            allInvoicesCache.forEach(inv =>
-                (inv.invoice_items || []).forEach(it => {
-                    const c = String(it.category || '').trim();
-                    if (c) cats.add(c);
-                })
-            );
-            return [...cats].sort((a,b) => a.localeCompare(b,'tr'));
-        },
-        onChange: () => _onTagFilterChange(true),
+        getOptions: () => window._fatFilterOptions?.categories || [],
+        onChange:   () => _onTagFilterChange(true),
     });
 
     _fatBrandFilter = createTagFilter({
         wrapId:     'brandTagsWrap',
         inputId:    'brandTagInput',
         dropdownId: 'brandDropdown',
-        getOptions: () => {
-            if (!allInvoicesCache) return [];
-            const brands = new Set();
-            allInvoicesCache.forEach(inv =>
-                (inv.invoice_items || []).forEach(it => {
-                    const b = String(it.brand || '').trim();
-                    if (b) brands.add(b);
-                })
-            );
-            return [...brands].sort((a,b) => a.localeCompare(b,'tr'));
-        },
-        onChange: () => _onTagFilterChange(true),
+        getOptions: () => window._fatFilterOptions?.brands || [],
+        onChange:   () => _onTagFilterChange(true),
     });
 
     _fatModelFilter = createTagFilter({
         wrapId:     'modelTagsWrap',
         inputId:    'modelTagInput',
         dropdownId: 'modelDropdown',
-        getOptions: () => {
-            if (!allInvoicesCache) return [];
-            const models = new Set();
-            allInvoicesCache.forEach(inv =>
-                (inv.invoice_items || []).forEach(it => {
-                    const m = String(it.model || '').trim();
-                    if (m) models.add(m);
-                })
-            );
-            return [...models].sort((a,b) => a.localeCompare(b,'tr'));
-        },
-        onChange: () => _onTagFilterChange(true),
+        getOptions: () => window._fatFilterOptions?.models || [],
+        onChange:   () => _onTagFilterChange(true),
     });
 }
-
 // ─── Advanced panel ───────────────────────────────────────────────────────────
 function toggleAdvancedFilters() {
     _fatAdvancedOpen = !_fatAdvancedOpen;
@@ -160,7 +120,7 @@ function updatePriceRange() {
     }
     updateAdvancedBadge();
     setInteracted(true);
-    renderCurrentView();
+    applyFiltersAndFetch();
 }
 
 function clearAllFilters() {
@@ -183,7 +143,7 @@ function clearAllFilters() {
 
     updateAdvancedBadge();
     saveFilterState();
-    renderCurrentView();
+    applyFiltersAndFetch();
 }
 
 // ─── Session cache ────────────────────────────────────────────────────────────
@@ -288,109 +248,165 @@ function writeInvoicesToSession(invoices) {
 }
 
 // ─── Ana filtre + render döngüsü ──────────────────────────────────────────────
+function applyFiltersAndFetch() {
+  _currentPage = 1;
+
+  // Pass tag filters to api.js via globals so refreshData can read them
+  window._fatActiveFilters = {
+    companies:  _fatCompanyFilter?.getSelected()  || [],
+    products:   _fatProductFilter?.getSelected()  || [],
+    categories: _fatCategoryFilter?.getSelected() || [],
+    brands:     _fatBrandFilter?.getSelected()    || [],
+    models:     _fatModelFilter?.getSelected()    || [],
+    dateStart:  document.getElementById('filterDateStart')?.value || '',
+    dateEnd:    document.getElementById('filterDateEnd')?.value   || '',
+    status:     document.getElementById('filterStatus')?.value    || '',
+    currency:   document.getElementById('filterCurrency')?.value  || '',
+    search:     document.getElementById('mainSearch')?.value      || '',
+    priceMin:   _fatPriceMin,
+    priceMax:   _fatPriceMax,
+  };
+
+  refreshData(false);
+}
 
 function renderCurrentView() {
     updateCompanyColumnHeader();
     if (!allInvoicesCache) return;
 
-    const directionFilter = currentView === 'gelen' ? 'INCOMING' : 'OUTGOING';
-    const scopedInvoices  = allInvoicesCache.filter(inv => inv.direction === directionFilter);
+    const filterMatchedInvoices = allInvoicesCache;
 
-    // Read all filter values
-    const companies  = _fatCompanyFilter?.getSelected()  || [];
-    const products   = _fatProductFilter?.getSelected()  || [];
-    const categories = _fatCategoryFilter?.getSelected() || [];
-    const brands     = _fatBrandFilter?.getSelected()    || [];
-    const models     = _fatModelFilter?.getSelected()    || [];
-    const dateStart  = document.getElementById('filterDateStart')?.value  || '';
-    const dateEnd    = document.getElementById('filterDateEnd')?.value    || '';
-    const status     = document.getElementById('filterStatus')?.value     || '';
-    const currency   = normalizeCurrencyCode(document.getElementById('filterCurrency')?.value || '');
-    const search     = (document.getElementById('mainSearch')?.value || '').toLocaleLowerCase('tr-TR');
-    const sliderMax  = Number(document.getElementById('priceMax')?.max || 10000000);
-
-    const filterMatchedInvoices = scopedInvoices.filter(inv => {
-        // Company tags
-        if (companies.length && !companies.includes(String(inv.companies?.name || '').trim())) return false;
-
-        // Date range
-        const d = inv.invoice_date || '';
-        if (dateStart && d < dateStart) return false;
-        if (dateEnd   && d > dateEnd)   return false;
-
-        // Status
-        const invStatus = (inv.status || 'unpaid').toLowerCase();
-        if (status && invStatus !== status) return false;
-
-        // Currency
-        if (currency && normalizeCurrencyCode(inv.currency) !== currency) return false;
-
-        // Text search (invoice no)
-        if (search) {
-            const noMatch      = (inv.invoice_no || '').toLocaleLowerCase('tr-TR').includes(search);
-            const companyMatch = (inv.companies?.name || '').toLocaleLowerCase('tr-TR').includes(search);
-            const itemMatch    = (inv.invoice_items || []).some(it =>
-                String(it.product_code || '').toLocaleLowerCase('tr-TR').includes(search) ||
-                String(it.product_name || '').toLocaleLowerCase('tr-TR').includes(search)
-            );
-            if (!noMatch && !companyMatch && !itemMatch) return false;
-        }
-
-        // Product tags
-        if (products.length) {
-            const match = (inv.invoice_items || []).some(it =>
-                products.includes(String(it.product_name || '').trim()) ||
-                products.includes(String(it.product_code || it.sku || '').trim())
-            );
-            if (!match) return false;
-        }
-
-        // Category tags
-        if (categories.length) {
-            const match = (inv.invoice_items || []).some(it =>
-                categories.includes(String(it.category || '').trim())
-            );
-            if (!match) return false;
-        }
-
-        // Brand tags
-        if (brands.length) {
-            const match = (inv.invoice_items || []).some(it =>
-                brands.includes(String(it.brand || '').trim())
-            );
-            if (!match) return false;
-        }
-
-        // Model tags
-        if (models.length) {
-            const match = (inv.invoice_items || []).some(it =>
-                models.includes(String(it.model || '').trim())
-            );
-            if (!match) return false;
-        }
-
-        // Price range (TL equivalent)
-        if (_fatPriceMin > 0 || _fatPriceMax < sliderMax) {
-            const amountTl = invPayableAmountTl(inv);
-            if (_fatPriceMin > 0 && amountTl < _fatPriceMin) return false;
-            if (_fatPriceMax < sliderMax && amountTl > _fatPriceMax) return false;
-        }
-
-        return true;
-    });
 
     if (!hasInteracted()) {
         renderInvoiceTable([]);
         return;
     }
 
-    if (isShowAll()) {
-        renderInvoiceTable(scopedInvoices);
-        return;
-    }
 
     renderInvoiceTable(filterMatchedInvoices);
     saveFilterState();
+}
+
+function renderPagination() {
+  // Remove existing pagination if any
+  document.getElementById('fatPagination')?.remove();
+
+  if (_totalPages <= 1 && _totalCount <= _pageLimit) return;
+
+  const container = document.querySelector('.fat-area');
+  if (!container) return;
+
+  const wrap = document.createElement('div');
+  wrap.id = 'fatPagination';
+  wrap.style.cssText = `
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 16px;
+    background: #0f172a;
+    border-top: 1px solid #1e293b;
+    flex-shrink: 0;
+    gap: 12px;
+    flex-wrap: wrap;
+  `;
+
+  // Left: count info
+  const from  = ((_currentPage - 1) * _pageLimit) + 1;
+  const to    = Math.min(_currentPage * _pageLimit, _totalCount);
+  const info  = document.createElement('span');
+  info.style.cssText = 'font-size:12px; color:#64748b;';
+  info.textContent   = `${from}–${to} / ${_totalCount} fatura`;
+
+  // Center: page buttons
+  const pages = document.createElement('div');
+  pages.style.cssText = 'display:flex; align-items:center; gap:4px;';
+
+  // Prev button
+  const prev = document.createElement('button');
+  prev.innerHTML  = '<i class="ti ti-chevron-left"></i>';
+  prev.disabled   = _currentPage <= 1;
+  prev.style.cssText = btnStyle(_currentPage <= 1);
+  prev.onclick    = () => goToPage(_currentPage - 1);
+  pages.appendChild(prev);
+
+  // Page number buttons — show max 5 around current
+  const pageNums = getPageRange(_currentPage, _totalPages);
+  pageNums.forEach(p => {
+    if (p === '...') {
+      const dots = document.createElement('span');
+      dots.textContent   = '…';
+      dots.style.cssText = 'font-size:12px; color:#475569; padding:0 4px;';
+      pages.appendChild(dots);
+      return;
+    }
+    const btn = document.createElement('button');
+    btn.textContent    = p;
+    btn.style.cssText  = btnStyle(false, p === _currentPage);
+    btn.onclick        = () => goToPage(p);
+    pages.appendChild(btn);
+  });
+
+  // Next button
+  const next = document.createElement('button');
+  next.innerHTML  = '<i class="ti ti-chevron-right"></i>';
+  next.disabled   = _currentPage >= _totalPages;
+  next.style.cssText = btnStyle(_currentPage >= _totalPages);
+  next.onclick    = () => goToPage(_currentPage + 1);
+  pages.appendChild(next);
+
+  // Right: page size selector
+  const limitWrap = document.createElement('div');
+  limitWrap.style.cssText = 'display:flex; align-items:center; gap:6px;';
+
+  const limitLabel = document.createElement('span');
+  limitLabel.style.cssText = 'font-size:12px; color:#64748b;';
+  limitLabel.textContent   = 'Sayfa başına:';
+
+  const limitSel = document.createElement('select');
+  limitSel.style.cssText = `
+    height: 28px; padding: 0 8px;
+    border: 1px solid #334155; border-radius: 6px;
+    background: #1e293b; color: #f1f5f9;
+    font-size: 12px; font-family: inherit; cursor: pointer;
+    outline: none;
+  `;
+  [10, 25, 50, 100].forEach(n => {
+    const opt      = document.createElement('option');
+    opt.value      = n;
+    opt.textContent = n;
+    opt.selected   = n === _pageLimit;
+    limitSel.appendChild(opt);
+  });
+  limitSel.onchange = () => changeLimit(limitSel.value);
+
+  limitWrap.appendChild(limitLabel);
+  limitWrap.appendChild(limitSel);
+
+  wrap.appendChild(info);
+  wrap.appendChild(pages);
+  wrap.appendChild(limitWrap);
+  container.appendChild(wrap);
+}
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+function btnStyle(disabled = false, active = false) {
+  const base = `
+    height: 28px; min-width: 28px; padding: 0 8px;
+    border-radius: 6px; font-size: 12px; font-family: inherit;
+    cursor: pointer; border: 1px solid #334155;
+    display: inline-flex; align-items: center; justify-content: center;
+    transition: background 0.15s, color 0.15s;
+  `;
+  if (disabled) return base + 'background:#1e293b; color:#334155; cursor:not-allowed;';
+  if (active)   return base + 'background:#2563eb; color:#fff; border-color:#2563eb; font-weight:700;';
+  return base + 'background:#1e293b; color:#94a3b8;';
+}
+
+function getPageRange(current, total) {
+  if (total <= 7) return Array.from({ length: total }, (_, i) => i + 1);
+  if (current <= 4) return [1, 2, 3, 4, 5, '...', total];
+  if (current >= total - 3) return [1, '...', total-4, total-3, total-2, total-1, total];
+  return [1, '...', current-1, current, current+1, '...', total];
 }
 
 function updateCompanyColumnHeader() {
@@ -412,51 +428,60 @@ function toggleShowAll() {
     }
 
     saveFilterState();
-    renderCurrentView();
+    applyFiltersAndFetch();
 }
 
 // ─── KPI bar ──────────────────────────────────────────────────────────────────
 
-function renderKpiBar(invoices) {
-    const el = document.getElementById('fatKpiBar');
-    if (!el) return;
+function renderKpiBar(invoices, totals = null) {
+  const el = document.getElementById('fatKpiBar');
+  if (!el) return;
 
-    const titleEl = document.getElementById('fatPageTitle');
-    if (titleEl) titleEl.textContent = currentView === 'giden' ? 'Giden Faturalar' : 'Gelen Faturalar';
+  const titleEl = document.getElementById('fatPageTitle');
+  if (titleEl) titleEl.textContent = currentView === 'giden' ? 'Giden Faturalar' : 'Gelen Faturalar';
 
-    if (!invoices || invoices.length === 0) { el.innerHTML = ''; return; }
+  const fmtN    = n => (parseFloat(n) || 0).toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const isGelen = currentView === 'gelen';
+  const usdLabel = isGelen ? 'HARCAMA (USD)' : 'CİRO (USD)';
+  const tryLabel = isGelen ? 'HARCAMA (TL)'  : 'CİRO (TL)';
 
-    const fmtN    = n => n.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-    const isGelen = currentView === 'gelen';
+  // Use server totals if available, otherwise calculate from current page
+  let usdTotal = 0, tryTotal = 0, count = invoices?.length || 0;
 
-    let usdTotal = 0, tryTotal = 0;
-    invoices.forEach(inv => {
-        const src   = invNonInternalPayableAmountSrc(inv);
-        const rate  = invCalculationRate(inv);
-        const isUSD = invBaseCurrencyIso(inv) !== 'TRY';
-        if (isUSD) { usdTotal += src; tryTotal += src * rate; }
-        else       { tryTotal += src; }
+  if (totals) {
+    usdTotal = totals.total_usd || 0;
+    tryTotal = totals.total_tl  || 0;
+    count    = totals.count     || 0;
+  } else {
+    (invoices || []).forEach(inv => {
+      const src   = invNonInternalPayableAmountSrc(inv);
+      const rate  = invCalculationRate(inv);
+      const isUSD = invBaseCurrencyIso(inv) !== 'TRY';
+      if (isUSD) { usdTotal += src; tryTotal += src * rate; }
+      else       { tryTotal += src; }
     });
+  }
 
-    const usdLabel = isGelen ? 'HARCAMA (USD)' : 'CİRO (USD)';
-    const tryLabel = isGelen ? 'HARCAMA (TL)'  : 'CİRO (TL)';
-
-    el.innerHTML = `
-        <div class="fat-kpi">
-            <p class="fat-kpi-label">${usdLabel}</p>
-            <p class="fat-kpi-value" style="color:#2563eb;">$${fmtN(usdTotal)}</p>
-        </div>
-        <div class="fat-kpi">
-            <p class="fat-kpi-label">${tryLabel}</p>
-            <p class="fat-kpi-value">₺${fmtN(tryTotal)}</p>
-        </div>
-        <div class="fat-kpi">
-            <p class="fat-kpi-label">TOPLAM FATURA</p>
-            <p class="fat-kpi-value">${invoices.length}</p>
-        </div>
-    `;
+  el.innerHTML = `
+    <div class="fat-kpi">
+      <p class="fat-kpi-label">${usdLabel}</p>
+      <p class="fat-kpi-value" style="color:#2563eb;">$${fmtN(usdTotal)}</p>
+    </div>
+    <div class="fat-kpi">
+      <p class="fat-kpi-label">${tryLabel}</p>
+      <p class="fat-kpi-value">₺${fmtN(tryTotal)}</p>
+    </div>
+    <div class="fat-kpi">
+      <p class="fat-kpi-label">TOPLAM FATURA</p>
+      <p class="fat-kpi-value">${count}</p>
+    </div>
+  `;
 }
 
+// Called by api.js after refreshTotals() returns
+function updateKpiTotals(totals) {
+  renderKpiBar(allInvoicesCache, totals);
+}
 // ─── Tab bar ──────────────────────────────────────────────────────────────────
 
 function renderTabBar() {
@@ -474,10 +499,11 @@ function renderTabBar() {
     bar.innerHTML = html;
 }
 
-function switchFatTab(key) {
-    activeTabKey = key;
-    renderTabBar();
-    renderFatContent();
+function switchFatTab(view) {
+  currentView  = view;
+  _currentPage = 1;    // ← reset to page 1 when switching tabs
+  window._fatActiveFilters = {};  // ← clear filters on tab switch
+  refreshData(false);
 }
 
 function openInvoiceTab(id) {
@@ -622,7 +648,7 @@ function switchView(view) {
     const _togBtn = document.getElementById('btnToggleShowAll');
     if (_togBtn) _togBtn.innerText = isShowAll() ? 'Tümünü Gizle' : 'Tümünü Göster';
 
-    renderCurrentView();
+    applyFiltersAndFetch();
 }
 
 function updateActionButtonsTheme() {

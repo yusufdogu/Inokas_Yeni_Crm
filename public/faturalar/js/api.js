@@ -108,34 +108,137 @@ async function ensureBulkInokasVkn() {
 
 // ─── Ana veri yükleme ─────────────────────────────────────────────────────────
 
-async function refreshData(forceFetch = false) {
-    if (!forceFetch) {
-        const cachedInvoices = readInvoicesFromSession();
-        if (cachedInvoices !== null) {
-            allInvoicesCache = cachedInvoices;
-            renderCurrentView();
-            return;
-        }
+// ─── Pagination state ─────────────────────────────────────────────────────
+let _currentPage  = 1;
+let _totalPages   = 1;
+let _totalCount   = 0;
+let _pageLimit    = 10;
+
+async function refreshData(useCache = false) {
+    // Refresh filter options when view changes or on first load
+    if (!window._filterOptionsLoaded || window._lastFilterView !== currentView) {
+      window._lastFilterView      = currentView;
+      window._filterOptionsLoaded = true;
+      refreshFilterOptions(); // non-blocking
+    }
+    if (useCache && allInvoicesCache.length > 0) {
+    renderCurrentView();
+    return;
+  }
+
+  try {
+    const params = new URLSearchParams();
+
+    // Direction from current view
+    if (currentView === 'gelen') params.set('direction', 'INCOMING');
+    if (currentView === 'giden') params.set('direction', 'OUTGOING');
+
+    // Pending filter
+    const apiUrl = window._FAT_PENDING ? '/api/invoices/pending' : '/api/invoices';
+
+    // Pagination
+    params.set('page',  _currentPage);
+    params.set('limit', _pageLimit);
+
+    const f = window._fatActiveFilters || {};
+
+    if (f.dateStart)              params.set('date_start',  f.dateStart);
+    if (f.dateEnd)                params.set('date_end',    f.dateEnd);
+    if (f.currency)               params.set('currency',    f.currency);
+    if (f.status)                 params.set('status',      f.status);
+    if (f.search)                 params.set('search',      f.search);
+    if (f.companies?.length)      params.set('companies',   f.companies.join(','));
+    if (f.brands?.length)         params.set('brands',      f.brands.join(','));
+    if (f.categories?.length)     params.set('categories',  f.categories.join(','));
+
+    const res  = await fetch(`${apiUrl}?${params.toString()}`);
+    const json = await res.json();
+
+    if (window._FAT_PENDING) {
+      // Pending still returns array
+      allInvoicesCache = Array.isArray(json) ? json : [];
+      _totalCount  = allInvoicesCache.length;
+      _totalPages  = 1;
+    } else {
+      allInvoicesCache = json.data        || [];
+      _totalCount      = json.total       || 0;
+      _totalPages      = json.total_pages || 1;
+      _currentPage     = json.page        || 1;
     }
 
-    const cardList = document.getElementById('invoiceCardList');
-    if (cardList) cardList.innerHTML = '<div style="padding:20px; text-align:center; color:#94a3b8; font-size:13px;">Yükleniyor...</div>';
+    renderCurrentView();
+    renderPagination();
+    if (!window._FAT_PENDING) refreshTotals();
 
-    try {
-        const apiUrl = window._FAT_PENDING ? '/api/invoices/pending' : '/api/invoices';
-        const invRes = await fetch(apiUrl);
-        if (!invRes.ok) throw new Error("Veriler çekilemedi");
-
-        allInvoicesCache = await invRes.json();
-        writeInvoicesToSession(allInvoicesCache);
-        renderCurrentView();
-
-    } catch (error) {
-        console.error("Tablo Yenileme Hatası:", error);
-        tableBody.innerHTML = '<tr><td colspan="7" class="text-center text-danger">Veriler yüklenirken hata oluştu!</td></tr>';
-    }
+  } catch (err) {
+    console.error('refreshData hatası:', err.message);
+  }
 }
 
+// Store filter options globally so createTagFilter can read them
+window._fatFilterOptions = {
+  companies:  data.companies  || [],
+  brands:     data.brands     || [],
+  products:   data.products   || [],
+  categories: data.categories || [],
+  models:     data.models     || [],
+};
+
+async function refreshFilterOptions() {
+  try {
+    const params = new URLSearchParams();
+    if (currentView === 'gelen') params.set('direction', 'INCOMING');
+    if (currentView === 'giden') params.set('direction', 'OUTGOING');
+
+    const res  = await fetch(`/api/invoices/filter-options?${params.toString()}`);
+    const data = await res.json();
+
+    window._fatFilterOptions = {
+      companies:  data.companies  || [],
+      brands:     data.brands     || [],
+      products:   data.products   || [],
+      categories: data.categories || [],
+      models:     data.models     || [],
+    };
+  } catch (err) {
+    console.error('refreshFilterOptions hatası:', err.message);
+  }
+}
+
+async function refreshTotals() {
+  try {
+    const params = new URLSearchParams();
+    const f = window._fatActiveFilters || {};
+
+    if (currentView === 'gelen') params.set('direction', 'INCOMING');
+    if (currentView === 'giden') params.set('direction', 'OUTGOING');
+    if (f.dateStart)         params.set('date_start', f.dateStart);
+    if (f.dateEnd)           params.set('date_end',   f.dateEnd);
+    if (f.currency)          params.set('currency',   f.currency);
+    if (f.status)            params.set('status',     f.status);
+    if (f.search)            params.set('search',     f.search);
+    if (f.companies?.length) params.set('companies',  f.companies.join(','));
+    if (f.brands?.length)    params.set('brands',     f.brands.join(','));
+
+    const res  = await fetch(`/api/invoices/totals?${params.toString()}`);
+    const data = await res.json();
+    if (typeof updateKpiTotals === 'function') updateKpiTotals(data);
+  } catch (err) {
+    console.error('refreshTotals hatası:', err.message);
+  }
+}
+function goToPage(page) {
+  if (page < 1 || page > _totalPages) return;
+  _currentPage = page;
+  refreshData(false);
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+function changeLimit(newLimit) {
+  _pageLimit   = parseInt(newLimit) || 10;
+  _currentPage = 1;
+  refreshData(false);
+}
 // ─── ADD THESE TO api.js ─────────────────────────────────────────────────────
 
 // ─── Brand / Model cache ──────────────────────────────────────────────────────

@@ -1,7 +1,7 @@
 (function () {
   'use strict';
 
-  let _sidebarOpen = true;
+  let _sidebarOpen = false;
   let _fatOpen     = false;
   let _stokOpen    = false;
   let _dmoOpen     = false;
@@ -114,6 +114,8 @@
 
     </div>
 
+    <div class="sb-divider"></div>
+
     <!-- Giderler -->
     <button class="sb-item${isGider ? ' active' : ''}" id="gider-toggle" onclick="toggleGider()">
       <i class="ti ti-building"></i>
@@ -127,6 +129,8 @@
         <span class="sb-label">Ofis İçi</span>
       </a>
     </div>
+
+    <div class="sb-divider"></div>
 
     <!-- Stok -->
     <button class="sb-item${isStok ? ' active' : ''}" id="stok-toggle" onclick="toggleStok()">
@@ -225,6 +229,8 @@
       <span class="sb-label">Teknik Sorunlar</span>
     </a>
 
+    <div class="sb-divider"></div>
+
   </nav>
 
   <div class="sb-footer">
@@ -280,8 +286,60 @@
       window.location.replace('/login.html');
     });
 
+    // Hover to expand/collapse
+    const sidebar = document.getElementById('sidebar');
+    if (sidebar) {
+      sidebar.addEventListener('mouseenter', () => {
+        _sidebarOpen = true;
+        sidebar.classList.remove('collapsed');
+        document.body.classList.remove('sidebar-collapsed');
+      });
+      sidebar.addEventListener('mouseleave', () => {
+        _sidebarOpen = false;
+        sidebar.classList.add('collapsed');
+        document.body.classList.add('sidebar-collapsed');
+      });
+      // Start collapsed
+      sidebar.classList.add('collapsed');
+      document.body.classList.add('sidebar-collapsed');
+    }
+
     // Load pending counts after render
     loadPendingCounts();
+  }
+
+  // ─── Accordion helper ─────────────────────────────────────────────────────
+  const _allSections = [
+    { key: 'fat',    stateVar: () => _fatOpen,    setState: v => { _fatOpen = v; } },
+    { key: 'gider',  stateVar: () => _giderOpen,  setState: v => { _giderOpen = v; } },
+    { key: 'stok',   stateVar: () => _stokOpen,   setState: v => { _stokOpen = v; } },
+    { key: 'dmo',    stateVar: () => _dmoOpen,    setState: v => { _dmoOpen = v; } },
+    { key: 'quotes', stateVar: () => _quotesOpen, setState: v => { _quotesOpen = v; } },
+    { key: 'cari',   stateVar: () => _cariOpen,   setState: v => { _cariOpen = v; } },
+  ];
+
+  function _accordionToggle(targetKey) {
+    const targetSection = _allSections.find(s => s.key === targetKey);
+    const isAlreadyOpen = targetSection?.stateVar();
+    const hasOpenOther  = _allSections.some(({ key, stateVar }) => key !== targetKey && stateVar());
+
+    // Önce açık olanı kapat
+    _allSections.forEach(({ key, stateVar, setState }) => {
+      if (key !== targetKey && stateVar()) {
+        setState(false);
+        document.getElementById(`${key}-children`)?.classList.remove('open');
+        document.getElementById(`${key}-chevron`)?.classList.remove('open');
+      }
+    });
+
+    // Başka bir bölüm açıksa transition bitince aç, yoksa hemen aç
+    const delay = hasOpenOther && !isAlreadyOpen ? 300 : 0;
+    setTimeout(() => {
+      const newState = !isAlreadyOpen;
+      targetSection.setState(newState);
+      document.getElementById(`${targetKey}-children`)?.classList.toggle('open', newState);
+      document.getElementById(`${targetKey}-chevron`)?.classList.toggle('open', newState);
+    }, delay);
   }
 
   // ─── Toggles ──────────────────────────────────────────────────────────────
@@ -291,41 +349,12 @@
     document.body.classList.toggle('sidebar-collapsed', !_sidebarOpen);
   };
 
-  window.toggleFaturalar = function () {
-    _fatOpen = !_fatOpen;
-    document.getElementById('fat-children')?.classList.toggle('open', _fatOpen);
-    document.getElementById('fat-chevron')?.classList.toggle('open', _fatOpen);
-  };
-
-  window.toggleGider = function () {
-    _giderOpen = !_giderOpen;
-    document.getElementById('gider-children')?.classList.toggle('open', _giderOpen);
-    document.getElementById('gider-chevron')?.classList.toggle('open', _giderOpen);
-  };
-
-  window.toggleStok = function () {
-    _stokOpen = !_stokOpen;
-    document.getElementById('stok-children')?.classList.toggle('open', _stokOpen);
-    document.getElementById('stok-chevron')?.classList.toggle('open', _stokOpen);
-  };
-
-  window.toggleDMO = function () {
-    _dmoOpen = !_dmoOpen;
-    document.getElementById('dmo-children')?.classList.toggle('open', _dmoOpen);
-    document.getElementById('dmo-chevron')?.classList.toggle('open', _dmoOpen);
-  };
-
-  window.toggleQuotes = function () {
-    _quotesOpen = !_quotesOpen;
-    document.getElementById('quotes-children')?.classList.toggle('open', _quotesOpen);
-    document.getElementById('quotes-chevron')?.classList.toggle('open', _quotesOpen);
-  };
-
-  window.toggleCari = function () {
-    _cariOpen = !_cariOpen;
-    document.getElementById('cari-children')?.classList.toggle('open', _cariOpen);
-    document.getElementById('cari-chevron')?.classList.toggle('open', _cariOpen);
-  };
+  window.toggleFaturalar = function () { _accordionToggle('fat'); };
+  window.toggleGider     = function () { _accordionToggle('gider'); };
+  window.toggleStok      = function () { _accordionToggle('stok'); };
+  window.toggleDMO       = function () { _accordionToggle('dmo'); };
+  window.toggleQuotes    = function () { _accordionToggle('quotes'); };
+  window.toggleCari      = function () { _accordionToggle('cari'); };
 
   window.toggleBekleyen = function () {
     _bekOpen = !_bekOpen;

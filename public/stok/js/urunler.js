@@ -344,17 +344,33 @@ function _buildBrandSelect(selected = '') {
 }
 
 function _buildCategorySelect(selected = '') {
-  const sel = document.getElementById('pf-category');
-  if (!sel) return;
+  const input = document.getElementById('pf-category');
+  if (!input) return;
+  input.value = selected;
+}
+
+// ─── NORMAL KATEGORİ (autocomplete) ──────────────────────────────────────────
+function onCatInput(query) {
+  const dropdown = document.getElementById('pf-cat-dropdown');
+  if (!dropdown) return;
+  const q = (query || '').toLocaleLowerCase('tr-TR');
   const opts = productCategoryOptions;
-  sel.innerHTML = [
-    '<option value="">Seçin...</option>',
-    ...opts.map(c => `<option value="${esc(c)}"${c === selected ? ' selected' : ''}>${esc(c)}</option>`),
-    ...(selected && !opts.includes(selected)
-      ? [`<option value="${esc(selected)}" selected>${esc(selected)}</option>`]
-      : [])
-  ].join('');
-  sel.onchange = () => renderDynamicAttrs(sel.value, {});
+  const matches = opts.filter(o => !q || o.toLocaleLowerCase('tr-TR').startsWith(q));
+  const rows = matches.map(o =>
+    `<div onclick="selectCat('${esc(o)}')"
+      style="padding:8px 12px; font-size:12px; color:#374151; cursor:pointer;"
+      onmouseover="this.style.background='#f1f5f9'" onmouseout="this.style.background=''">${esc(o)}</div>`
+  );
+  if (!rows.length && !q) { dropdown.style.display = 'none'; return; }
+  dropdown.innerHTML = rows.join('');
+  dropdown.style.display = rows.length ? 'block' : 'none';
+}
+
+function selectCat(value) {
+  const input    = document.getElementById('pf-category');
+  const dropdown = document.getElementById('pf-cat-dropdown');
+  if (input)    { input.value = value; renderDynamicAttrs(value, {}); }
+  if (dropdown) dropdown.style.display = 'none';
 }
 
 // ─── OFİS İÇİ KATEGORİ ───────────────────────────────────────────────────────
@@ -369,17 +385,17 @@ async function _loadInternalCatOptions() {
 
 function onInternalToggle(isInternal) {
   _isInternalMode = isInternal;
-  const sel   = document.getElementById('pf-category');
-  const wrap  = document.getElementById('pf-internal-cat-wrap');
-  const attrSection = document.getElementById('dynamic-attrs-section');
+  const catWrap      = document.getElementById('pf-cat-wrap');
+  const internalWrap = document.getElementById('pf-internal-cat-wrap');
+  const attrSection  = document.getElementById('dynamic-attrs-section');
   if (isInternal) {
-    sel.style.display   = 'none';
-    wrap.style.display  = 'block';
+    catWrap.style.display      = 'none';
+    internalWrap.style.display = 'block';
     if (attrSection) attrSection.style.display = 'none';
     if (!_internalCatOptions.length) _loadInternalCatOptions();
   } else {
-    sel.style.display   = '';
-    wrap.style.display  = 'none';
+    catWrap.style.display      = '';
+    internalWrap.style.display = 'none';
     document.getElementById('pf-internal-cat-dropdown').style.display = 'none';
   }
 }
@@ -406,9 +422,13 @@ function selectInternalCat(value) {
 }
 
 document.addEventListener('click', (e) => {
-  const wrap = document.getElementById('pf-internal-cat-wrap');
-  const dropdown = document.getElementById('pf-internal-cat-dropdown');
-  if (wrap && dropdown && !wrap.contains(e.target)) dropdown.style.display = 'none';
+  const internalWrap = document.getElementById('pf-internal-cat-wrap');
+  const internalDd   = document.getElementById('pf-internal-cat-dropdown');
+  if (internalWrap && internalDd && !internalWrap.contains(e.target)) internalDd.style.display = 'none';
+
+  const catWrap = document.getElementById('pf-cat-wrap');
+  const catDd   = document.getElementById('pf-cat-dropdown');
+  if (catWrap && catDd && !catWrap.contains(e.target)) catDd.style.display = 'none';
 });
 
 function openAddModal() {

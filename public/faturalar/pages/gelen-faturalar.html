@@ -38,7 +38,7 @@
       <div style="display:flex; gap:8px; align-items:flex-start; flex-wrap:wrap;">
 
         <!-- Search -->
-        <input type="text" id="mainSearch" onkeyup="renderCurrentView()"
+        <input type="text" id="mainSearch" onkeyup="applyFiltersAndFetch()"
           placeholder="Fatura no ara..."
           class="fatura-filter-search" style="min-width:160px; flex:1;">
 
@@ -53,23 +53,15 @@
 
         <!-- Date range -->
         <div style="display:flex; align-items:center; gap:4px; flex-shrink:0;">
-          <input type="date" id="filterDateStart" onchange="renderCurrentView()"
+          <input type="date" id="filterDateStart" onchange="applyFiltersAndFetch()"
             class="fatura-filter-date" title="Başlangıç tarihi">
           <span class="filter-date-sep">—</span>
-          <input type="date" id="filterDateEnd" onchange="renderCurrentView()"
+          <input type="date" id="filterDateEnd" onchange="applyFiltersAndFetch()"
             class="fatura-filter-date" title="Bitiş tarihi">
         </div>
 
-        <!-- Status -->
-        <select id="filterStatus" onchange="renderCurrentView()" class="fatura-filter-select">
-          <option value="">Tüm Durumlar</option>
-          <option value="unpaid">Ödenmedi</option>
-          <option value="partial">Kısmi</option>
-          <option value="paid">Ödendi</option>
-        </select>
-
         <!-- Currency -->
-        <select id="filterCurrency" onchange="renderCurrentView()" class="fatura-filter-select">
+        <select id="filterCurrency" onchange="applyFiltersAndFetch()" class="fatura-filter-select">
           <option value="">Tüm Dövizler</option>
           <option value="TRY">TRY</option>
           <option value="USD">USD</option>

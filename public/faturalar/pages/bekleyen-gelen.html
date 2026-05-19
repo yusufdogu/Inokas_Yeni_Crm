@@ -29,7 +29,7 @@
 
     <div class="fatura-topbar">
       <div class="fatura-filter-row">
-        <input type="text" id="mainSearch" onkeyup="renderCurrentView()" placeholder="Fatura no ara..." class="fatura-filter-search" style="flex:1; min-width:160px;">
+        <input type="text" id="mainSearch" onkeyup="applyFiltersAndFetch()" placeholder="Fatura no ara..." class="fatura-filter-search" style="flex:1; min-width:160px;">
 
         <div class="filter-tags-wrap" id="companyTagsWrap" onclick="document.getElementById('companyTagInput').focus()">
           <div id="companyTags" class="filter-tags"></div>
@@ -38,12 +38,12 @@
         </div>
 
         <div style="display:flex; align-items:center; gap:4px; flex-shrink:0;">
-          <input type="date" id="filterDateStart" onchange="renderCurrentView()" class="fatura-filter-date">
+          <input type="date" id="filterDateStart" onchange="applyFiltersAndFetch()" class="fatura-filter-date">
           <span class="filter-date-sep">—</span>
-          <input type="date" id="filterDateEnd" onchange="renderCurrentView()" class="fatura-filter-date">
+          <input type="date" id="filterDateEnd" onchange="applyFiltersAndFetch()" class="fatura-filter-date">
         </div>
 
-        <select id="filterCurrency" onchange="renderCurrentView()" class="fatura-filter-select">
+        <select id="filterCurrency" onchange="applyFiltersAndFetch()" class="fatura-filter-select">
           <option value="">Tüm Dövizler</option>
           <option value="TRY">TRY</option>
           <option value="USD">USD</option>

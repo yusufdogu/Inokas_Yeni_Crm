@@ -47,62 +47,57 @@ async function loadDetailView(orderId) {
                 ? ((1 - i.unit_price_excl_vat / i.products.dmo_fiyat_try) * 100)
                 : 0);
         return `
-
-        <tr style="border-top:0.5px solid #334155; cursor:pointer;"
+        <tr style="border-top:1px solid #e2e8f0; cursor:pointer;"
             onclick="toggleInvoiceItemDetail('inv-detail-${idx}', 'inv-chevron-${idx}')">
             <td style="padding:10px 8px; text-align:center; width:28px;">
                 <i id="inv-chevron-${idx}" class="ti ti-chevron-right"
-                   style="font-size:12px; color:#64748b; transition:transform 0.15s;"></i>
-            </td>
-            <td style="padding:10px 8px; text-align:center; width:28px;">
-                <i id="inv-chevron-${idx}" class="ti ti-chevron-right"
-                   style="font-size:12px; color:#64748b; transition:transform 0.15s;"></i>
+                   style="font-size:12px; color:#94a3b8; transition:transform 0.15s;"></i>
             </td>
             <td style="padding:10px 8px; font-size:12px; color:#64748b; width:90px; white-space:nowrap;">
                 ${i.katalog_kod || i.products?.dmo_code || "—"}
             </td>
             <td style="padding:10px 8px; min-width:0;">
-                <div style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:#f1f5f9; font-size:13px;">
+                <div style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:#0f172a; font-size:13px; font-weight:500;">
                     ${i.products?.product_name || "—"}
                 </div>
             </td>
-            <td style="padding:10px 8px; text-align:right; color:#f1f5f9; width:50px;">
+            <td style="padding:10px 8px; text-align:right; color:#0f172a; width:50px;">
                 ${i.quantity}
             </td>
-            <td style="padding:10px 8px; text-align:right; font-weight:600; color:#60a5fa; width:110px; white-space:nowrap;">
+            <td style="padding:10px 8px; text-align:right; font-weight:600; color:#2563eb; width:110px; white-space:nowrap;">
                 ${formatAmount(i.line_total_excl_vat)} ₺
             </td>
         </tr>
-        <tr id="inv-detail-${idx}" style="display:none; background:#1a2744;">
-            <td colspan="5" style="padding:0 12px 12px 44px;">
-                <div style="display:grid; grid-template-columns:repeat(4,1fr); gap:10px; padding-top:12px; border-top:0.5px solid #334155;">
+        <tr id="inv-detail-${idx}" style="display:none; background:#f8fafc;">
+            <td colspan="5" style="padding:0 12px 12px 36px;">
+                <div style="display:grid; grid-template-columns:repeat(4,1fr); gap:10px; padding-top:12px; border-top:1px solid #e2e8f0;">
                     <div>
-                        <div style="font-size:11px; color:#64748b; margin-bottom:3px;">Ürün Kodu</div>
-                        <div style="font-size:13px; font-weight:500; color:#f1f5f9;">${i.products?.product_code || "—"}</div>
+                        <div style="font-size:11px; color:#94a3b8; margin-bottom:3px;">Ürün Kodu</div>
+                        <div style="font-size:13px; font-weight:500; color:#0f172a;">${i.products?.product_code || "—"}</div>
                     </div>
                     <div>
-                        <div style="font-size:11px; color:#64748b; margin-bottom:3px;">DMO Katalog Fiyat</div>
-                        <div style="font-size:13px; font-weight:500; color:#f1f5f9;">${i.products?.dmo_fiyat_try ? formatAmount(i.products.dmo_fiyat_try) + " ₺" : "—"}</div>
+                        <div style="font-size:11px; color:#94a3b8; margin-bottom:3px;">DMO Katalog Fiyat</div>
+                        <div style="font-size:13px; font-weight:500; color:#0f172a;">${i.products?.dmo_fiyat_try ? formatAmount(i.products.dmo_fiyat_try) + " ₺" : "—"}</div>
                     </div>
                     <div>
-                        <div style="font-size:11px; color:#64748b; margin-bottom:3px;">İndirim %</div>
-                        <div style="font-size:13px; font-weight:500; color:#f59e0b;">${indirimPct > 0 ? "%" + indirimPct.toFixed(2) : "—"}</div>
+                        <div style="font-size:11px; color:#94a3b8; margin-bottom:3px;">İndirim %</div>
+                        <div style="font-size:13px; font-weight:600; color:#dc2626;">${indirimPct > 0 ? "%" + indirimPct.toFixed(2) : "—"}</div>
                     </div>
                     <div>
-                        <div style="font-size:11px; color:#64748b; margin-bottom:3px;">İndirimli Birim</div>
-                        <div style="font-size:13px; font-weight:500; color:#f1f5f9;">${formatAmount(i.unit_price_excl_vat)} ₺</div>
+                        <div style="font-size:11px; color:#94a3b8; margin-bottom:3px;">İndirimli Birim</div>
+                        <div style="font-size:13px; font-weight:500; color:#0f172a;">${formatAmount(i.unit_price_excl_vat)} ₺</div>
                     </div>
                     <div>
-                        <div style="font-size:11px; color:#64748b; margin-bottom:3px;">Adet</div>
-                        <div style="font-size:13px; font-weight:500; color:#f1f5f9;">${i.quantity}</div>
+                        <div style="font-size:11px; color:#94a3b8; margin-bottom:3px;">Adet</div>
+                        <div style="font-size:13px; font-weight:500; color:#0f172a;">${i.quantity}</div>
                     </div>
                     <div>
-                        <div style="font-size:11px; color:#64748b; margin-bottom:3px;">Maliyet TL</div>
-                        <div style="font-size:13px; font-weight:500; color:#f1f5f9;">${i.maliyet_tl ? formatAmount(i.maliyet_tl) + " ₺" : "—"}</div>
+                        <div style="font-size:11px; color:#94a3b8; margin-bottom:3px;">Maliyet TL</div>
+                        <div style="font-size:13px; font-weight:500; color:#0f172a;">${i.maliyet_tl ? formatAmount(i.maliyet_tl) + " ₺" : "—"}</div>
                     </div>
                     <div>
-                        <div style="font-size:11px; color:#64748b; margin-bottom:3px;">Toplam</div>
-                        <div style="font-size:13px; font-weight:600; color:#60a5fa;">${formatAmount(i.line_total_excl_vat)} ₺</div>
+                        <div style="font-size:11px; color:#94a3b8; margin-bottom:3px;">Toplam</div>
+                        <div style="font-size:13px; font-weight:600; color:#2563eb;">${formatAmount(i.line_total_excl_vat)} ₺</div>
                     </div>
                 </div>
             </td>
@@ -111,11 +106,12 @@ async function loadDetailView(orderId) {
     }
 
     const giftRowHTML = (i) => `
-        <tr style="border-bottom:1px solid #f1f5f9;">
-            <td style="padding:8px 12px; font-weight:500;">${i.products?.product_name || i.katalog_kod || "—"}</td>
-            <td style="padding:8px 12px; text-align:center;">${i.quantity}</td>
-            <td style="padding:8px 12px; text-align:right; color:#94a3b8;">🎁 Hediye</td>
-            <td style="padding:8px 12px; text-align:right;">—</td>
+        <tr style="border-top:1px solid #e2e8f0; background:#fff7ed;">
+            <td style="padding:8px 8px; width:28px; text-align:center; color:#d97706; font-size:13px;">🎁</td>
+            <td style="padding:8px 8px; font-size:12px; color:#94a3b8; width:90px;"></td>
+            <td style="padding:8px 8px; font-size:12px; font-weight:600; color:#0f172a;">${i.products?.product_name || i.katalog_kod || "—"}</td>
+            <td style="padding:8px 8px; text-align:right; font-size:12px; color:#64748b; width:50px;">${i.quantity}</td>
+            <td style="padding:8px 8px; width:110px;"></td>
         </tr>`;
 
     const setEl = (id, val) => {
@@ -306,6 +302,15 @@ function activateInlineEdit(order) {
     document.getElementById("dv-btn-bar").style.display  = "none";
     document.getElementById("dv-edit-bar").style.display = "flex";
 
+    // Show gift button
+    const giftBtn = document.getElementById("dv-btn-gift");
+    if (giftBtn) {
+        giftBtn.style.display = "flex";
+        giftBtn.onclick = () => {
+            window.location.href = `/dmo/pages/sepet-hesapla.html?taslak=${order.id}&from=invoice`;
+        };
+    }
+
     document.getElementById("dv-btn-save-edit").onclick   = () => saveInlineEdit(order.id, order);
     document.getElementById("dv-btn-cancel-edit").onclick = () => loadDetailView(order.id);
 }
@@ -367,8 +372,10 @@ function resetEditMode() {
 
     const btnBar  = document.getElementById("dv-btn-bar");
     const editBar = document.getElementById("dv-edit-bar");
+    const giftBtn = document.getElementById("dv-btn-gift");
     if (btnBar)  btnBar.style.display  = "flex";
     if (editBar) editBar.style.display = "none";
+    if (giftBtn) giftBtn.style.display = "none";
 }
 
 // ── DELETE ORDER ──────────────────────────────────────────────────────────────

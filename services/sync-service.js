@@ -2,27 +2,43 @@ require('dotenv').config();
 
 const logoApi = require('./logo-api');
 const { parseUblFromBase64, setProductCodeLookup } = require('./ubl-parser');
-const AdmZip = require('adm-zip');
+const AdmZip  = require('adm-zip');
 const { createClient } = require('@supabase/supabase-js');
 
 const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_KEY);
-const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+const sleep    = (ms) => new Promise(r => setTimeout(r, ms));
 
 if (!process.env.SUPABASE_URL || !process.env.SUPABASE_KEY) {
     console.error('❌ Critical Error: Supabase URL or Key is missing from .env');
     process.exit(1);
 }
 
-// ─── helpers ────────────────────────────────────────────────────────────────
+// ─── Tenant ID — loaded once at startup ──────────────────────────────────────
+let INOKAS_TENANT_ID = null;
+
+async function loadTenantId() {
+    if (INOKAS_TENANT_ID) return INOKAS_TENANT_ID;
+    const { data, error } = await supabase
+        .from('tenants')
+        .select('id')
+        .eq('slug', 'inokas')
+        .single();
+    if (error || !data) throw new Error('❌ İnokas tenant bulunamadı: ' + (error?.message || 'unknown'));
+    INOKAS_TENANT_ID = data.id;
+    console.log(`🏢 Tenant ID yüklendi: ${INOKAS_TENANT_ID}`);
+    return INOKAS_TENANT_ID;
+}
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 
 async function uploadXmlToStorage(base64Content, uuid) {
     try {
-        const zip = new AdmZip(Buffer.from(base64Content, 'base64'));
+        const zip      = new AdmZip(Buffer.from(base64Content, 'base64'));
         const xmlEntry = zip.getEntries().find(e => e.entryName.endsWith('.xml'));
         if (!xmlEntry) { console.warn(`⚠️ No XML entry in zip for ${uuid}`); return null; }
 
         const xmlBuffer = xmlEntry.getData();
-        const fileName = `${uuid}.xml`;
+        const fileName  = `${uuid}.xml`;
 
         const { error: uploadError } = await supabase.storage
             .from('invoice-xml')
@@ -41,25 +57,25 @@ async function uploadXmlToStorage(base64Content, uuid) {
     }
 }
 
-async function loadProductCodes() {
-    const { data } = await supabase.from('products').select('product_code');
+async function loadProductCodes(tenantId) {
+    const { data } = await supabase.from('products').select('product_code').eq('tenant_id', tenantId);
     if (data) setProductCodeLookup(data.map(p => p.product_code));
     console.log(`📦 Loaded ${data?.length || 0} product codes for SKU matching`);
 }
 
-async function upsertCompany(companyData) {
+async function upsertCompany(companyData, tenantId) {
     const { data, error } = await supabase
         .from('companies')
-        .upsert(companyData, { onConflict: 'vkn_tckn' })
+        .upsert({ ...companyData, tenant_id: tenantId }, { onConflict: 'vkn_tckn' })
         .select().single();
     if (error) throw new Error(`Company sync failed: ${error.message}`);
     return data;
 }
 
-async function upsertInvoice(invoiceData) {
+async function upsertInvoice(invoiceData, tenantId) {
     const { data, error } = await supabase
         .from('invoices')
-        .upsert(invoiceData, { onConflict: 'efatura_uuid' })
+        .upsert({ ...invoiceData, tenant_id: tenantId }, { onConflict: 'efatura_uuid' })
         .select().single();
     if (error) throw new Error(`Invoice sync failed: ${error.message}`);
     return data;
@@ -67,23 +83,20 @@ async function upsertInvoice(invoiceData) {
 
 async function insertItems(items, invoiceId) {
     if (!items.length) return;
-
-    // Delete existing items first to avoid duplicates on re-run
     await supabase.from('invoice_items').delete().eq('invoice_id', invoiceId);
-
     const rows = items.map(item => ({ ...item, invoice_id: invoiceId, is_internal: false }));
     const { error } = await supabase.from('invoice_items').insert(rows);
     if (error) console.error(`❌ Items insert failed for invoice ${invoiceId}:`, error.message);
 }
 
-// Auto-create product if it doesn't exist, then return product_id
-async function resolveProductId(item) {
+async function resolveProductId(item, tenantId) {
     if (!item.product_code) return null;
 
     const { data: existing } = await supabase
         .from('products')
         .select('id')
         .eq('product_code', item.product_code)
+        .eq('tenant_id', tenantId)
         .maybeSingle();
 
     if (existing) return existing.id;
@@ -93,9 +106,10 @@ async function resolveProductId(item) {
         .insert({
             product_code: item.product_code,
             product_name: item.product_name,
-            brand: item.brand_name || null,
+            brand:        item.brand_name || null,
             needs_review: true,
-            source: 'api',
+            source:       'api',
+            tenant_id:    tenantId,
         })
         .select('id').single();
 
@@ -108,30 +122,28 @@ async function resolveProductId(item) {
     return created.id;
 }
 
-// Detect if this is the first ever sync — if invoices table is empty, do full historical load
-async function isInitialSync() {
+async function isInitialSync(tenantId) {
     const { count } = await supabase
         .from('invoices')
-        .select('id', { count: 'exact', head: true });
+        .select('id', { count: 'exact', head: true })
+        .eq('tenant_id', tenantId);
     return (count === 0);
 }
 
-// ─── gelen sync ─────────────────────────────────────────────────────────────
+// ─── Gelen sync ───────────────────────────────────────────────────────────────
 
 async function syncGelenInvoices(startDate) {
+    const tenantId = await loadTenantId();
     console.log('\n🚀 Starting Gelen Invoice Sync...');
     console.log(`📅 Date range: ${startDate} → now`);
-    await loadProductCodes();
+    await loadProductCodes(tenantId);
 
-    let currentPage = 1;
-    let hasMore = true;
-    let totalSynced = 0;
+    let currentPage = 1, hasMore = true, totalSynced = 0;
 
     while (hasMore) {
         console.log(`\n--- 📂 Fetching Gelen Page ${currentPage} ---`);
         const invoices = await logoApi.getGelenInvoiceList(currentPage, 100, startDate);
         console.log(`--- 📂 Got ${invoices.length} invoices ---`);
-
         if (!invoices || invoices.length === 0) { hasMore = false; break; }
 
         for (const inv of invoices) {
@@ -139,7 +151,6 @@ async function syncGelenInvoices(startDate) {
                 const uuid = inv.uuId;
                 if (!uuid) { console.warn(`⚠️ Skipping ${inv.invoiceId || 'Unknown'}: No UUID.`); continue; }
 
-                // Dedup — also check if xml_url is missing
                 const { data: exists } = await supabase
                     .from('invoices').select('id, xml_url')
                     .eq('efatura_uuid', uuid).maybeSingle();
@@ -158,39 +169,30 @@ async function syncGelenInvoices(startDate) {
                     continue;
                 }
 
-                // Fetch UBL
                 const base64Content = await logoApi.getInvoiceUBL(uuid);
                 if (!base64Content) { console.warn(`⚠️ Skipping ${inv.invoiceId}: No UBL content.`); continue; }
 
-                // Upload XML to storage
                 const xmlUrl = await uploadXmlToStorage(base64Content, uuid);
-
-                // Parse
                 const parsed = parseUblFromBase64(base64Content, 'gelen');
                 if (!parsed) { console.warn(`⚠️ Skipping ${inv.invoiceId}: Parse failed.`); continue; }
 
                 const { company: companyData, invoice: invoiceData, items } = parsed;
 
-                // Sync company
-                const company = await upsertCompany(companyData);
-
-                // Sync invoice — statusCode 1 = Acceptance (finalized), 0 = pending
-                const isFinalized = inv.statusCode === 1;
+                const company   = await upsertCompany(companyData, tenantId);
                 const dbInvoice = await upsertInvoice({
                     ...invoiceData,
-                    company_id: company.id,
-                    approval_status: 'pending',
-                    source: 'api',
-                    xml_url: xmlUrl,
-                    gib_status_code: inv.statusCode ?? null,
-                    gib_status_description: inv.status || null,
-                });
+                    company_id:              company.id,
+                    approval_status:         'pending',
+                    source:                  'api',
+                    xml_url:                 xmlUrl,
+                    gib_status_code:         inv.statusCode ?? null,
+                    gib_status_description:  inv.status || null,
+                }, tenantId);
 
-                // Resolve product IDs and sync items
                 const resolvedItems = await Promise.all(
                     items.map(async item => ({
                         ...item,
-                        product_id: await resolveProductId(item),
+                        product_id: await resolveProductId(item, tenantId),
                     }))
                 );
                 await insertItems(resolvedItems, dbInvoice.id);
@@ -212,27 +214,24 @@ async function syncGelenInvoices(startDate) {
     console.log(`\n✨ Gelen sync finished. Total synced: ${totalSynced}`);
 }
 
-// ─── giden sync ─────────────────────────────────────────────────────────────
+// ─── Giden sync ───────────────────────────────────────────────────────────────
 
 async function syncGidenInvoices(startDate) {
+    const tenantId = await loadTenantId();
     console.log('\n🚀 Starting Giden Invoice Sync...');
     console.log(`📅 Date range: ${startDate} → now`);
-    await loadProductCodes();
+    await loadProductCodes(tenantId);
 
-    let currentPage = 1;
-    let hasMore = true;
-    let totalSynced = 0;
+    let currentPage = 1, hasMore = true, totalSynced = 0;
 
     while (hasMore) {
         console.log(`\n--- 📂 Fetching Giden Page ${currentPage} ---`);
         const invoices = await logoApi.getGidenInvoiceList(currentPage, 100, startDate);
         console.log(`--- 📂 Got ${invoices.length} invoices ---`);
-
         if (!invoices || invoices.length === 0) { hasMore = false; break; }
 
         for (const inv of invoices) {
             try {
-                // Dedup — also check if xml_url is missing
                 const { data: exists } = await supabase
                     .from('invoices').select('id, xml_url')
                     .eq('invoice_no', inv.invoiceNumber).maybeSingle();
@@ -252,39 +251,31 @@ async function syncGidenInvoices(startDate) {
                     continue;
                 }
 
-                // Fetch UBL
                 const base64Content = await logoApi.getGidenInvoiceUBL(inv.id);
                 if (!base64Content) { console.warn(`⚠️ Skipping ${inv.id}: No UBL content.`); continue; }
 
-                // Parse first to get UUID for storage filename
                 const parsed = parseUblFromBase64(base64Content, 'giden');
                 if (!parsed) { console.warn(`⚠️ Skipping ${inv.id}: Parse failed.`); continue; }
 
                 const { company: companyData, invoice: invoiceData, items } = parsed;
-
-                // Upload XML to storage using UUID from parsed data
                 const xmlUrl = await uploadXmlToStorage(base64Content, invoiceData.efatura_uuid || inv.id);
 
-                // Sync company (customer for outgoing)
-                const company = await upsertCompany(companyData);
-
-                // Sync invoice
+                const company   = await upsertCompany(companyData, tenantId);
                 const dbInvoice = await upsertInvoice({
                     ...invoiceData,
-                    company_id: company.id,
-                    approval_status: 'pending',
-                    source: 'api',
-                    xml_url: xmlUrl,
-                    gib_status_code: inv.eStatus ?? null,
-                    gib_status_description: inv.eStatusDescription || null,
-                    e_reply_status: inv.eReplyDescription || null,
-                });
+                    company_id:              company.id,
+                    approval_status:         'pending',
+                    source:                  'api',
+                    xml_url:                 xmlUrl,
+                    gib_status_code:         inv.eStatus ?? null,
+                    gib_status_description:  inv.eStatusDescription || null,
+                    e_reply_status:          inv.eReplyDescription || null,
+                }, tenantId);
 
-                // Resolve product IDs and sync items
                 const resolvedItems = await Promise.all(
                     items.map(async item => ({
                         ...item,
-                        product_id: await resolveProductId(item),
+                        product_id: await resolveProductId(item, tenantId),
                     }))
                 );
                 await insertItems(resolvedItems, dbInvoice.id);
@@ -306,14 +297,16 @@ async function syncGidenInvoices(startDate) {
     console.log(`\n✨ Giden sync finished. Total synced: ${totalSynced}`);
 }
 
-// ─── daily re-check: gelen pending invoices ──────────────────────────────────
+// ─── Daily re-check: gelen pending ───────────────────────────────────────────
 
 async function recheckPendingGelenInvoices() {
+    const tenantId = await loadTenantId();
     console.log('\n🔄 Re-checking pending Gelen invoices...');
 
     const { data: pendingInvoices, error } = await supabase
         .from('invoices')
         .select('id, invoice_no, efatura_uuid, gib_status_code')
+        .eq('tenant_id', tenantId)
         .eq('direction', 'INCOMING')
         .eq('source', 'api')
         .eq('approval_status', 'pending');
@@ -329,16 +322,14 @@ async function recheckPendingGelenInvoices() {
             if (!status) { console.warn(`⚠️ Could not fetch status for ${inv.invoice_no}`); continue; }
 
             const updates = {
-                gib_status_code: status.statusCode,
+                gib_status_code:        status.statusCode,
                 gib_status_description: status.status,
             };
 
-            // statusCode 1 = Acceptance — mark as approved
             if (status.statusCode === 1) {
                 updates.approval_status = 'approved';
                 console.log(`✅ ${inv.invoice_no}: Now accepted — marking approved.`);
             } else if (status.rejectNot) {
-                // Has a rejection note — mark as rejected
                 updates.approval_status = 'rejected';
                 console.log(`❌ ${inv.invoice_no}: Rejected — ${status.rejectNot}`);
             } else {
@@ -356,15 +347,16 @@ async function recheckPendingGelenInvoices() {
     console.log('✨ Gelen re-check finished.');
 }
 
-// ─── daily re-check: giden reply status ─────────────────────────────────────
+// ─── Daily re-check: giden reply status ──────────────────────────────────────
 
 async function recheckGidenReplyStatus() {
+    const tenantId = await loadTenantId();
     console.log('\n🔄 Re-checking Giden invoice reply statuses...');
 
-    // Only check invoices where reply is still waiting
     const { data: waitingInvoices, error } = await supabase
         .from('invoices')
         .select('id, invoice_no')
+        .eq('tenant_id', tenantId)
         .eq('direction', 'OUTGOING')
         .eq('source', 'api')
         .eq('e_reply_status', 'WAITING FOR RESPONSE');
@@ -380,9 +372,9 @@ async function recheckGidenReplyStatus() {
             if (!status) { console.warn(`⚠️ Could not fetch status for ${inv.invoice_no}`); continue; }
 
             const updates = {
-                gib_status_code: status.eStatus,
+                gib_status_code:        status.eStatus,
                 gib_status_description: status.eStatusDescription,
-                e_reply_status: status.eReplyDescription || null,
+                e_reply_status:         status.eReplyDescription || null,
             };
 
             if (status.isCancelled) {
@@ -405,11 +397,11 @@ async function recheckGidenReplyStatus() {
     console.log('✨ Giden reply re-check finished.');
 }
 
-// ─── main entry points ───────────────────────────────────────────────────────
+// ─── Main entry points ────────────────────────────────────────────────────────
 
-// Called by hourly cron — detects initial vs incremental automatically
 async function runSync() {
-    const initial = await isInitialSync();
+    const tenantId = await loadTenantId();
+    const initial  = await isInitialSync(tenantId);
 
     if (initial) {
         console.log('🌱 Initial sync detected — fetching all invoices from 2020...');
@@ -422,7 +414,6 @@ async function runSync() {
     }
 }
 
-// Called by daily cron — re-checks pending/waiting statuses
 async function runDailyRecheck() {
     await recheckPendingGelenInvoices();
     await recheckGidenReplyStatus();

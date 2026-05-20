@@ -33,14 +33,14 @@
   <div class="page-area">
 
     <!-- Header -->
-    <div class="page-header">
+    <div class="page-header" style="background:#0f172a; border-bottom:1px solid #1e293b;">
       <div class="page-header-left">
-        <button class="sb-toggle-btn" onclick="toggleSidebar()">
+        <button class="sb-toggle-btn" onclick="toggleSidebar()" style="color:#94a3b8; --hover-bg:rgba(255,255,255,0.06);">
           <i class="ti ti-menu-2"></i>
         </button>
         <div>
-          <p class="page-header-title">Siparişler</p>
-          <p class="page-header-sub" id="sp-order-count">Yükleniyor...</p>
+          <p style="font-size:15px; font-weight:700; color:#f1f5f9; margin:0;">Siparişler</p>
+          <p style="font-size:11px; color:#475569; margin:0;" id="sp-order-count">Yükleniyor...</p>
         </div>
       </div>
     </div>
@@ -178,7 +178,7 @@
         </div>
       </div>
 
-      <!-- Table -->
+      <!-- Table — takes all remaining space, scrolls internally -->
       <div style="flex:1; overflow-y:auto; padding:0 20px 12px; min-height:0;">
         <table style="width:100%; border-collapse:collapse; font-size:13px;">
           <thead>
@@ -196,20 +196,25 @@
         <p id="sp-empty" style="display:none; text-align:center; color:#94a3b8; padding:40px 0; font-size:13px;">Sipariş bulunamadı</p>
       </div>
 
-      <!-- Analiz bar -->
-      <div onclick="toggleAnaliz()"
-        style="padding:10px 20px; background:white; border-top:1px solid #e2e8f0; display:flex; align-items:center; justify-content:space-between; cursor:pointer; flex-shrink:0; user-select:none;">
-        <div style="display:flex; align-items:center; gap:8px; color:#64748b;">
-          <i class="ti ti-chart-bar" style="font-size:16px;"></i>
-          <span style="font-size:13px; font-weight:600;">Analiz</span>
-          <span id="sp-filter-hint" style="font-size:11px; color:#94a3b8;"></span>
-        </div>
-        <i class="ti ti-chevron-down" id="sp-chevron" style="font-size:16px; color:#94a3b8; transition:transform 0.2s;"></i>
-      </div>
+      <!-- Analiz bar + Charts — pinned to bottom, never scrolls away -->
+      <div style="flex-shrink:0;">
 
-      <!-- Charts -->
-      <div id="sp-charts-section" style="display:none; border-top:1px solid #e2e8f0; background:white; padding:16px 20px; flex-shrink:0; overflow-y:auto;">
-        <div id="siparislerChartsGrid" style="display:grid; grid-template-columns:1fr 1fr; gap:14px;"></div>
+        <!-- Analiz bar -->
+        <div onclick="toggleAnaliz()"
+          style="padding:10px 20px; background:white; border-top:1px solid #e2e8f0; display:flex; align-items:center; justify-content:space-between; cursor:pointer; user-select:none;">
+          <div style="display:flex; align-items:center; gap:8px; color:#64748b;">
+            <i class="ti ti-chart-bar" style="font-size:16px;"></i>
+            <span style="font-size:13px; font-weight:600;">Analiz</span>
+            <span id="sp-filter-hint" style="font-size:11px; color:#94a3b8;"></span>
+          </div>
+          <i class="ti ti-chevron-down" id="sp-chevron" style="font-size:16px; color:#94a3b8; transition:transform 0.2s;"></i>
+        </div>
+
+        <!-- Charts -->
+        <div id="sp-charts-section" style="display:none; border-top:1px solid #e2e8f0; background:white; padding:16px 20px; max-height:340px; overflow-y:auto;">
+          <div id="siparislerChartsGrid" style="display:grid; grid-template-columns:1fr 1fr; gap:14px;"></div>
+        </div>
+
       </div>
 
     </div>

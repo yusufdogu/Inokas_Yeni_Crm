@@ -637,6 +637,11 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
 
     window._onTaslakSaved = () => {
-        window.location.href = "../pages/siparisler.html";
+        const from = new URLSearchParams(window.location.search).get("from");
+        if (from === "invoice" && _hhEditingTaslakId) {
+            window.location.href = `/dmo/pages/invoice.html?id=${_hhEditingTaslakId}&edit=true`;
+        } else {
+            window.location.href = "../pages/siparisler.html";
+        }
     };
 });

@@ -7,10 +7,11 @@ const router  = express.Router();
 // GET /api/products
 router.get('/', async (req, res) => {
   try {
-    const supabase    = req.app.get('supabase');
+    const supabase = req.app.get('supabase');
     const { data, error } = await supabase
       .from('products')
       .select('id, product_code, product_name, brand, category, model, maliyet_usd, sozlesme_fiyat_eur, last_purchase_price_cur, last_purchase_currency, last_purchase_rate, last_purchase_price_tl, avg_purchase_price_tl, dmo_code, dmo_fiyat_try, dmo_url, gift_quantity, stock_on_hand, reserved_quantity, is_internal')
+      .eq('tenant_id', req.tenantId)
       .eq('is_internal', false)
       .order('product_name', { ascending: true });
     if (error) throw error;
@@ -25,10 +26,8 @@ router.get('/', async (req, res) => {
 router.post('/', async (req, res) => {
   try {
     const supabase = req.app.get('supabase');
-    const {
-      product_name, product_code, brand, category, dmo_code,
-      purchase_price, purchase_currency, sales_price, sales_currency
-    } = req.body || {};
+    const tenantId = req.tenantId;
+    const { product_name, product_code, brand, category, dmo_code, purchase_price, purchase_currency, sales_price, sales_currency } = req.body || {};
 
     if (!product_name || !String(product_name).trim()) return res.status(400).json({ error: 'Ürün adı zorunlu' });
     if (!product_code || !String(product_code).trim()) return res.status(400).json({ error: 'Ürün kodu zorunlu' });
@@ -36,14 +35,11 @@ router.post('/', async (req, res) => {
     const code = String(product_code).trim();
 
     const { data: existing, error: existingErr } = await supabase
-      .from('products').select('id, product_code').eq('product_code', code).maybeSingle();
+      .from('products').select('id, product_code').eq('product_code', code).eq('tenant_id', tenantId).maybeSingle();
     if (existingErr) throw existingErr;
     if (existing) return res.status(409).json({ error: `"${code}" kodlu ürün zaten mevcut` });
 
-    const insertPayload = {
-      product_code: code,
-      product_name: String(product_name).trim(),
-    };
+    const insertPayload = { product_code: code, product_name: String(product_name).trim(), tenant_id: tenantId };
     if (brand)    insertPayload.brand    = String(brand).trim();
     if (category) insertPayload.category = String(category).trim();
     if (dmo_code) insertPayload.dmo_code = String(dmo_code).trim();
@@ -74,7 +70,7 @@ router.post('/', async (req, res) => {
 router.get('/codes', async (req, res) => {
   try {
     const supabase = req.app.get('supabase');
-    const { data, error } = await supabase.from('products').select('product_code').not('product_code', 'is', null);
+    const { data, error } = await supabase.from('products').select('product_code').eq('tenant_id', req.tenantId).not('product_code', 'is', null);
     if (error) throw error;
     const codes = (data || []).map(r => String(r.product_code || '').trim()).filter(Boolean);
     res.json({ codes });
@@ -88,10 +84,14 @@ router.get('/codes', async (req, res) => {
 router.get('/category-map', async (req, res) => {
   try {
     const supabase = req.app.get('supabase');
+<<<<<<< Updated upstream
     const [{ data, error }, { data: invData }] = await Promise.all([
       supabase.from('products').select('product_code, category, brand, model, is_internal').not('product_code', 'is', null),
       supabase.from('invoice_items').select('internal_category').eq('is_internal', true).not('internal_category', 'is', null).neq('internal_category', ''),
     ]);
+=======
+    const { data, error } = await supabase.from('products').select('product_code, category, brand, model').eq('tenant_id', req.tenantId).not('product_code', 'is', null);
+>>>>>>> Stashed changes
     if (error) throw error;
     const rows = (data || []).map(r => ({
       product_code: String(r.product_code || '').trim(),
@@ -119,7 +119,7 @@ router.get('/by-code', async (req, res) => {
     const supabase = req.app.get('supabase');
     const code     = String(req.query.code || '').trim();
     if (!code) return res.status(400).json({ error: 'Ürün kodu zorunlu' });
-    const { data, error } = await supabase.from('products').select('id, product_code, product_name, category, brand, model').eq('product_code', code).single();
+    const { data, error } = await supabase.from('products').select('id, product_code, product_name, category, brand, model').eq('product_code', code).eq('tenant_id', req.tenantId).single();
     if (error || !data) return res.status(404).json({ error: 'Ürün bulunamadı' });
     res.json(data);
   } catch (err) {
@@ -131,15 +131,16 @@ router.get('/by-code', async (req, res) => {
 router.post('/ensure-by-code', async (req, res) => {
   try {
     const supabase = req.app.get('supabase');
+    const tenantId = req.tenantId;
     const code     = String(req.body?.product_code || '').trim();
     const name     = String(req.body?.product_name || '').trim();
     if (!code) return res.status(400).json({ error: 'product_code zorunlu' });
 
-    const { data: existing, error: existingErr } = await supabase.from('products').select('id, product_code, product_name').eq('product_code', code).maybeSingle();
+    const { data: existing, error: existingErr } = await supabase.from('products').select('id, product_code, product_name').eq('product_code', code).eq('tenant_id', tenantId).maybeSingle();
     if (existingErr) throw existingErr;
     if (existing) return res.json({ created: false, data: existing });
 
-    const { data: created, error: createErr } = await supabase.from('products').insert({ product_code: code, product_name: name || `Ürün ${code}` }).select('id, product_code, product_name').single();
+    const { data: created, error: createErr } = await supabase.from('products').insert({ product_code: code, product_name: name || `Ürün ${code}`, tenant_id: tenantId }).select('id, product_code, product_name').single();
     if (createErr) throw createErr;
 
     res.json({ created: true, data: created });
@@ -155,7 +156,7 @@ router.get('/:id([0-9a-fA-F-]{36})', async (req, res) => {
     const supabase = req.app.get('supabase');
     const id       = String(req.params.id || '').trim();
     if (!id) return res.status(400).json({ error: 'Ürün id zorunlu.' });
-    const { data, error } = await supabase.from('products').select('*').eq('id', id).single();
+    const { data, error } = await supabase.from('products').select('*').eq('id', id).eq('tenant_id', req.tenantId).single();
     if (error || !data) return res.status(404).json({ error: 'Ürün bulunamadı.' });
     res.json(data);
   } catch (err) {
@@ -168,28 +169,26 @@ router.get('/:id([0-9a-fA-F-]{36})', async (req, res) => {
 router.put('/:id([0-9a-fA-F-]{36})', async (req, res) => {
   try {
     const supabase = req.app.get('supabase');
+    const tenantId = req.tenantId;
     const id       = String(req.params.id || '').trim();
     if (!id) return res.status(400).json({ error: 'Ürün id zorunlu.' });
 
-    const { id: _id, created_at, updated_at, dmo_fiyat_updated, ...fields } = req.body || {};
+    const { id: _id, created_at, updated_at, dmo_fiyat_updated, tenant_id, ...fields } = req.body || {};
     if (Object.keys(fields).length === 0) return res.status(400).json({ error: 'Güncellenecek alan bulunamadı.' });
 
     fields.updated_at = new Date().toISOString();
 
-    // Ürün kodu değişiyorsa
     if (fields.product_code) {
       const newCode = String(fields.product_code).trim();
-      const { data: current } = await supabase.from('products').select('product_code').eq('id', id).single();
+      const { data: current } = await supabase.from('products').select('product_code').eq('id', id).eq('tenant_id', tenantId).single();
       const oldCode = current?.product_code;
 
       if (oldCode && oldCode !== newCode) {
-        // Yeni kodla başka ürün var mı? → merge
-        const { data: conflicting } = await supabase.from('products').select('id').eq('product_code', newCode).maybeSingle();
+        const { data: conflicting } = await supabase.from('products').select('id').eq('product_code', newCode).eq('tenant_id', tenantId).maybeSingle();
 
         if (conflicting) {
           const targetId = conflicting.id;
 
-          // UUID referansları hedef ürüne taşı
           await Promise.all([
             supabase.from('invoice_items').update({ product_id: targetId }).eq('product_id', id),
             supabase.from('purchase_order_items').update({ product_id: targetId }).eq('product_id', id),
@@ -197,7 +196,6 @@ router.put('/:id([0-9a-fA-F-]{36})', async (req, res) => {
             supabase.from('product_price_history').update({ product_id: targetId }).eq('product_id', id),
           ]);
 
-          // Özellik değerleri: hedefte olmayan attribute_id'leri ekle
           const { data: srcAttrs } = await supabase.from('product_attribute_values').select('attribute_id, value').eq('product_id', id);
           if (srcAttrs && srcAttrs.length > 0) {
             const { data: dstAttrs } = await supabase.from('product_attribute_values').select('attribute_id').eq('product_id', targetId);
@@ -206,23 +204,20 @@ router.put('/:id([0-9a-fA-F-]{36})', async (req, res) => {
             if (toInsert.length > 0) await supabase.from('product_attribute_values').insert(toInsert);
           }
 
-          // String kod referansları güncelle
           await Promise.all([
             supabase.from('invoice_items').update({ product_code: newCode }).eq('product_code', oldCode),
             supabase.from('product_group_items').update({ product_code: newCode }).eq('product_code', oldCode),
             supabase.from('quote_items').update({ product_code: newCode }).eq('product_code', oldCode),
           ]);
 
-          // Eski ürünü temizle ve sil
           await supabase.from('product_attribute_values').delete().eq('product_id', id);
-          const { error: delErr } = await supabase.from('products').delete().eq('id', id);
+          const { error: delErr } = await supabase.from('products').delete().eq('id', id).eq('tenant_id', tenantId);
           if (delErr) throw delErr;
 
           const { data: merged } = await supabase.from('products').select('*').eq('id', targetId).single();
           return res.json({ message: 'Ürün birleştirildi.', merged: true, data: merged });
         }
 
-        // Normal kod değişimi — sadece string cascade
         await Promise.all([
           supabase.from('invoice_items').update({ product_code: newCode }).eq('product_code', oldCode),
           supabase.from('product_group_items').update({ product_code: newCode }).eq('product_code', oldCode),
@@ -231,7 +226,7 @@ router.put('/:id([0-9a-fA-F-]{36})', async (req, res) => {
       }
     }
 
-    const { data, error } = await supabase.from('products').update(fields).eq('id', id).select().single();
+    const { data, error } = await supabase.from('products').update(fields).eq('id', id).eq('tenant_id', tenantId).select().single();
     if (error) throw error;
     res.json({ message: 'Ürün güncellendi.', data });
   } catch (err) {
@@ -246,7 +241,7 @@ router.get('/:id/attributes', async (req, res) => {
     const supabase = req.app.get('supabase');
     const { id }   = req.params;
 
-    const { data: product, error: pErr } = await supabase.from('products').select('id, category').eq('id', id).single();
+    const { data: product, error: pErr } = await supabase.from('products').select('id, category').eq('id', id).eq('tenant_id', req.tenantId).single();
     if (pErr) throw pErr;
 
     const { data: template, error: tErr } = await supabase
@@ -292,15 +287,10 @@ router.put('/:id/attributes', async (req, res) => {
   }
 });
 
-// ─── Product Attribute Values ─────────────────────────────────────────────────
-
-// GET /api/product-attribute-values
-// Note: mounted separately in index.js as /api/product-attribute-values
-// Add this to index.js: app.use('/api/product-attribute-values', require('./routes/products').attributeValues)
-// OR keep in index.js for now and move later
+// GET /api/products/attribute-values
 router.get('/attribute-values', async (req, res) => {
   try {
-    const supabase    = req.app.get('supabase');
+    const supabase     = req.app.get('supabase');
     const { category } = req.query;
 
     const { data: template, error: tErr } = await supabase
@@ -310,7 +300,7 @@ router.get('/attribute-values', async (req, res) => {
     if (tErr) throw tErr;
     if (!template) return res.json({ template: null, values: [] });
 
-    const { data: products, error: pErr } = await supabase.from('products').select('id').eq('category', category);
+    const { data: products, error: pErr } = await supabase.from('products').select('id').eq('category', category).eq('tenant_id', req.tenantId);
     if (pErr) throw pErr;
 
     const productIds = (products || []).map(p => p.id);
@@ -328,9 +318,8 @@ router.get('/attribute-values', async (req, res) => {
   }
 });
 
-// ─── Category Templates ───────────────────────────────────────────────────────
+// ─── Category Templates (shared — no tenant_id needed) ────────────────────────
 
-// GET /api/category-templates
 router.get('/category-templates', async (req, res) => {
   try {
     const supabase = req.app.get('supabase');
@@ -345,7 +334,6 @@ router.get('/category-templates', async (req, res) => {
   }
 });
 
-// POST /api/category-templates
 router.post('/category-templates', async (req, res) => {
   try {
     const supabase = req.app.get('supabase');
@@ -360,7 +348,6 @@ router.post('/category-templates', async (req, res) => {
   }
 });
 
-// PUT /api/category-templates/:id
 router.put('/category-templates/:id', async (req, res) => {
   try {
     const supabase = req.app.get('supabase');
@@ -376,7 +363,6 @@ router.put('/category-templates/:id', async (req, res) => {
   }
 });
 
-// POST /api/category-templates/:id/attributes
 router.post('/category-templates/:id/attributes', async (req, res) => {
   try {
     const supabase = req.app.get('supabase');
@@ -393,7 +379,6 @@ router.post('/category-templates/:id/attributes', async (req, res) => {
   }
 });
 
-// PUT /api/category-attributes/:id
 router.put('/category-attributes/:id', async (req, res) => {
   try {
     const supabase = req.app.get('supabase');
@@ -417,7 +402,6 @@ router.put('/category-attributes/:id', async (req, res) => {
   }
 });
 
-// DELETE /api/category-attributes/:id
 router.delete('/category-attributes/:id', async (req, res) => {
   try {
     const supabase = req.app.get('supabase');

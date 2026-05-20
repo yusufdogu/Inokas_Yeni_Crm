@@ -8,6 +8,7 @@ const router  = express.Router();
 router.get('/by-vkn', async (req, res) => {
   try {
     const supabase = req.app.get('supabase');
+    const tenantId = req.tenantId;
     const vkn      = String(req.query.vkn || '').trim();
     if (!vkn) return res.status(400).json({ error: 'VKN zorunlu' });
 
@@ -15,6 +16,7 @@ router.get('/by-vkn', async (req, res) => {
       .from('companies')
       .select('id, name, vkn_tckn')
       .eq('vkn_tckn', vkn)
+      .eq('tenant_id', tenantId)
       .single();
 
     if (error || !data) return res.status(404).json({ error: 'Firma bulunamadı' });

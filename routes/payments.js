@@ -10,7 +10,8 @@ router.get('/closure-summary', async (req, res) => {
     const supabase = req.app.get('supabase');
     const { data, error } = await supabase
       .from('payments')
-      .select('invoice_id, amount, payment_date');
+      .select('invoice_id, amount, payment_date')
+      .eq('tenant_id', req.tenantId);
     if (error) throw error;
 
     const map = {};
@@ -19,9 +20,7 @@ router.get('/closure-summary', async (req, res) => {
       if (!invoiceId) return;
       const amount  = Number(p.amount || 0);
       const payDate = String(p.payment_date || '');
-      if (!map[invoiceId]) {
-        map[invoiceId] = { total_paid: 0, last_payment_date: payDate || null };
-      }
+      if (!map[invoiceId]) map[invoiceId] = { total_paid: 0, last_payment_date: payDate || null };
       map[invoiceId].total_paid += amount;
       if (payDate && (!map[invoiceId].last_payment_date || payDate > map[invoiceId].last_payment_date)) {
         map[invoiceId].last_payment_date = payDate;
@@ -35,9 +34,7 @@ router.get('/closure-summary', async (req, res) => {
   }
 });
 
-// GET /api/payments/by-invoice/:id  (invoice bazlı ödemeler)
-// Note: mounted as /api/payments, but called via /api/invoices/:id/payments in index.js
-// Keep both patterns working — add this to invoices router later
+// GET /api/payments/by-invoice/:id
 router.get('/by-invoice/:id', async (req, res) => {
   try {
     const supabase = req.app.get('supabase');
@@ -46,6 +43,7 @@ router.get('/by-invoice/:id', async (req, res) => {
       .from('payments')
       .select('*')
       .eq('invoice_id', id)
+      .eq('tenant_id', req.tenantId)
       .order('payment_date', { ascending: true });
     if (error) throw error;
     res.json(data || []);
@@ -67,7 +65,7 @@ router.post('/', async (req, res) => {
 
     const { data: payment, error: insertErr } = await supabase
       .from('payments')
-      .insert({ invoice_id, amount, currency, payment_date, notes: notes || null })
+      .insert({ invoice_id, amount, currency, payment_date, notes: notes || null, tenant_id: req.tenantId })
       .select()
       .single();
     if (insertErr) throw insertErr;
@@ -94,6 +92,7 @@ router.put('/:id', async (req, res) => {
       .from('payments')
       .select('invoice_id')
       .eq('id', id)
+      .eq('tenant_id', req.tenantId)
       .single();
     if (fetchErr) throw fetchErr;
 
@@ -106,7 +105,8 @@ router.put('/:id', async (req, res) => {
     const { error: updateErr } = await supabase
       .from('payments')
       .update(fields)
-      .eq('id', id);
+      .eq('id', id)
+      .eq('tenant_id', req.tenantId);
     if (updateErr) throw updateErr;
 
     const { error: rpcErr } = await supabase
@@ -130,13 +130,15 @@ router.delete('/:id', async (req, res) => {
       .from('payments')
       .select('invoice_id')
       .eq('id', id)
+      .eq('tenant_id', req.tenantId)
       .single();
     if (fetchErr) throw fetchErr;
 
     const { error: deleteErr } = await supabase
       .from('payments')
       .delete()
-      .eq('id', id);
+      .eq('id', id)
+      .eq('tenant_id', req.tenantId);
     if (deleteErr) throw deleteErr;
 
     const { error: rpcErr } = await supabase

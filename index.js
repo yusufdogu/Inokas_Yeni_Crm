@@ -27,6 +27,13 @@ const supabase = createClient(
 );
 app.set('supabase', supabase);
 
+// ─── Sessions ─────────────────────────────────────────────────────────────────
+const activeSessions = new Map();
+app.set('activeSessions', activeSessions);
+
+// ─── Tenant Middleware ────────────────────────────────────────────────────────
+app.use(require('./middleware/tenant'));
+
 console.log('INOKAS_VKN:', process.env.INOKAS_VKN ? 'yüklendi ✓' : 'TANIMSIZ');
 
 // ─── API Routes ───────────────────────────────────────────────────────────────
@@ -108,8 +115,8 @@ cron.schedule('40 12 * * *', () => {
   dmoRouter.fetchAndSaveTCMBRates(supabase);
 });
 
-// Every 10 minutes — invoice sync
-cron.schedule('*/10 * * * *', async () => {
+// Every 5 minutes — invoice sync
+cron.schedule('*/5 * * * *', async () => {
   console.log('Cron: Invoice sync starting...');
   try { await runSync(); }
   catch (err) { console.error('Cron: Invoice sync failed:', err.message); }

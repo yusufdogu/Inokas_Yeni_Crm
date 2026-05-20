@@ -700,7 +700,8 @@ async function saveProduct() {
     const data = await res.json();
     if (!res.ok) throw new Error(data?.error || 'Kayıt hatası');
 
-    const savedId = _isAddMode ? (data.id || data.product_id) : _editingId;
+    // merge durumunda hedef ürünün id'si kullanılmalı
+    const savedId = _isAddMode ? (data.data?.id || data.id) : (data.merged ? data.data?.id : _editingId);
     const attrPayload = collectAttrValues();
     if (savedId && attrPayload.length) {
       await fetch(`/api/products/${savedId}/attributes`, {
@@ -710,7 +711,7 @@ async function saveProduct() {
       });
     }
 
-    msgEl.textContent = _isAddMode ? `✓ "${name}" eklendi.` : 'Kaydedildi ✓';
+    msgEl.textContent = data.merged ? 'Ürünler birleştirildi ✓' : (_isAddMode ? `✓ "${name}" eklendi.` : 'Kaydedildi ✓');
     msgEl.className = 'modal-msg success';
     document.getElementById('modalSubTitle').textContent = `Kod: ${code}`;
 

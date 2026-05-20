@@ -168,6 +168,61 @@ router.put('/:id([0-9a-fA-F-]{36})', async (req, res) => {
 
     fields.updated_at = new Date().toISOString();
 
+    // Ürün kodu değişiyorsa
+    if (fields.product_code) {
+      const newCode = String(fields.product_code).trim();
+      const { data: current } = await supabase.from('products').select('product_code').eq('id', id).single();
+      const oldCode = current?.product_code;
+
+      if (oldCode && oldCode !== newCode) {
+        // Yeni kodla başka ürün var mı? → merge
+        const { data: conflicting } = await supabase.from('products').select('id').eq('product_code', newCode).maybeSingle();
+
+        if (conflicting) {
+          const targetId = conflicting.id;
+
+          // UUID referansları hedef ürüne taşı
+          await Promise.all([
+            supabase.from('invoice_items').update({ product_id: targetId }).eq('product_id', id),
+            supabase.from('purchase_order_items').update({ product_id: targetId }).eq('product_id', id),
+            supabase.from('dmo_order_items').update({ product_id: targetId }).eq('product_id', id),
+            supabase.from('product_price_history').update({ product_id: targetId }).eq('product_id', id),
+          ]);
+
+          // Özellik değerleri: hedefte olmayan attribute_id'leri ekle
+          const { data: srcAttrs } = await supabase.from('product_attribute_values').select('attribute_id, value').eq('product_id', id);
+          if (srcAttrs && srcAttrs.length > 0) {
+            const { data: dstAttrs } = await supabase.from('product_attribute_values').select('attribute_id').eq('product_id', targetId);
+            const dstIds = new Set((dstAttrs || []).map(a => a.attribute_id));
+            const toInsert = srcAttrs.filter(a => !dstIds.has(a.attribute_id)).map(a => ({ product_id: targetId, attribute_id: a.attribute_id, value: a.value }));
+            if (toInsert.length > 0) await supabase.from('product_attribute_values').insert(toInsert);
+          }
+
+          // String kod referansları güncelle
+          await Promise.all([
+            supabase.from('invoice_items').update({ product_code: newCode }).eq('product_code', oldCode),
+            supabase.from('product_group_items').update({ product_code: newCode }).eq('product_code', oldCode),
+            supabase.from('quote_items').update({ product_code: newCode }).eq('product_code', oldCode),
+          ]);
+
+          // Eski ürünü temizle ve sil
+          await supabase.from('product_attribute_values').delete().eq('product_id', id);
+          const { error: delErr } = await supabase.from('products').delete().eq('id', id);
+          if (delErr) throw delErr;
+
+          const { data: merged } = await supabase.from('products').select('*').eq('id', targetId).single();
+          return res.json({ message: 'Ürün birleştirildi.', merged: true, data: merged });
+        }
+
+        // Normal kod değişimi — sadece string cascade
+        await Promise.all([
+          supabase.from('invoice_items').update({ product_code: newCode }).eq('product_code', oldCode),
+          supabase.from('product_group_items').update({ product_code: newCode }).eq('product_code', oldCode),
+          supabase.from('quote_items').update({ product_code: newCode }).eq('product_code', oldCode),
+        ]);
+      }
+    }
+
     const { data, error } = await supabase.from('products').update(fields).eq('id', id).select().single();
     if (error) throw error;
     res.json({ message: 'Ürün güncellendi.', data });

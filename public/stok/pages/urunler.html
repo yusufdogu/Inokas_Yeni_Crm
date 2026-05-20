@@ -202,7 +202,15 @@
             </div>
             <div class="modal-field">
               <label>Marka</label>
-              <select id="pf-brand"></select>
+              <div id="pf-brand-wrap" style="position:relative;">
+                <input type="text" id="pf-brand" placeholder="Marka yaz veya seç..."
+                  autocomplete="off"
+                  style="width:100%; padding:7px 10px; border:1px solid #e2e8f0; border-radius:8px; font-size:13px; font-family:inherit; color:#0f172a; background:#fff; outline:none; box-sizing:border-box;"
+                  oninput="onBrandInput(this.value)"
+                  onfocus="onBrandInput(this.value)">
+                <div id="pf-brand-dropdown"
+                  style="display:none; position:absolute; top:calc(100% + 4px); left:0; right:0; background:#fff; border:1px solid #e2e8f0; border-radius:8px; box-shadow:0 8px 24px rgba(0,0,0,0.1); z-index:2000; max-height:200px; overflow-y:auto;"></div>
+              </div>
             </div>
             <div class="modal-field">
               <label style="display:flex; align-items:center; justify-content:space-between;">
@@ -233,7 +241,15 @@
             </div>
             <div class="modal-field">
               <label>Model</label>
-              <input type="text" id="pf-model">
+              <div id="pf-model-wrap" style="position:relative;">
+                <input type="text" id="pf-model" placeholder="Model yaz veya seç..."
+                  autocomplete="off"
+                  style="width:100%; padding:7px 10px; border:1px solid #e2e8f0; border-radius:8px; font-size:13px; font-family:inherit; color:#0f172a; background:#fff; outline:none; box-sizing:border-box;"
+                  oninput="onModelInput(this.value)"
+                  onfocus="onModelInput(this.value)">
+                <div id="pf-model-dropdown"
+                  style="display:none; position:absolute; top:calc(100% + 4px); left:0; right:0; background:#fff; border:1px solid #e2e8f0; border-radius:8px; box-shadow:0 8px 24px rgba(0,0,0,0.1); z-index:2000; max-height:200px; overflow-y:auto;"></div>
+              </div>
             </div>
           </div>
         </div>
@@ -335,7 +351,7 @@
 
   <script src="/shared/sidebar.js" defer></script>
   <script src="/stok/js/utils.js"></script>
-  <script src="/stok/js/urunler.js?v=20260520-merge"></script>
+  <script src="/stok/js/urunler.js?v=20260520-brand-model-autocomplete"></script>
 </body>
 
 </html>

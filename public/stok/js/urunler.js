@@ -1,8 +1,9 @@
 // stok/urunler.js — Ürünler page
 
-const _BRAND_OPTIONS = ['ASUS', 'EPSON', 'EPSON-YP', 'EVERTON', 'HP', 'KYOCERA', 'LG', 'OKI', 'SAMSUNG'];
-let _extraBrandOptions = [];
+let brandOptions = [];
+let modelOptions = [];
 let productCategoryOptions = [];
+let internalCategoryOptions = [];
 let _categoryTemplates = [];
 let _attrValues = {};      // productId → { attributeId → value }
 let _attrTemplate = null;
@@ -89,6 +90,15 @@ async function loadCategoryOptions() {
     const data = await res.json();
     productCategoryOptions = Array.isArray(data?.categories)
       ? data.categories.map(x => String(x || '').trim()).filter(Boolean)
+      : [];
+    internalCategoryOptions = Array.isArray(data?.internal_categories)
+      ? data.internal_categories.map(x => String(x || '').trim()).filter(Boolean)
+      : [];
+    brandOptions = Array.isArray(data?.brands)
+      ? data.brands.map(x => String(x || '').trim()).filter(Boolean)
+      : [];
+    modelOptions = Array.isArray(data?.models)
+      ? data.models.map(x => String(x || '').trim()).filter(Boolean)
       : [];
   } catch { }
 }
@@ -333,20 +343,52 @@ const _ALL_FIELDS = [
   'created_at', 'updated_at', 'dmo_fiyat_updated',
 ];
 
-function _buildBrandSelect(selected = '') {
-  const sel = document.getElementById('pf-brand');
-  if (!sel) return;
-  const opts = [..._BRAND_OPTIONS, ..._extraBrandOptions];
-  sel.innerHTML = [
-    '<option value="">Seçin...</option>',
-    ...opts.map(b => `<option value="${esc(b)}"${b === selected ? ' selected' : ''}>${esc(b)}</option>`),
-  ].join('');
-}
-
 function _buildCategorySelect(selected = '') {
   const input = document.getElementById('pf-category');
   if (!input) return;
   input.value = selected;
+}
+
+function onBrandInput(query) {
+  const dropdown = document.getElementById('pf-brand-dropdown');
+  if (!dropdown) return;
+  const q = (query || '').toLocaleLowerCase('tr-TR');
+  const matches = brandOptions.filter(o => !q || o.toLocaleLowerCase('tr-TR').startsWith(q));
+  if (!matches.length && !q) { dropdown.style.display = 'none'; return; }
+  dropdown.innerHTML = matches.map(o =>
+    `<div onclick="selectBrand('${esc(o)}')"
+      style="padding:8px 12px; font-size:12px; color:#374151; cursor:pointer;"
+      onmouseover="this.style.background='#f1f5f9'" onmouseout="this.style.background=''">${esc(o)}</div>`
+  ).join('');
+  dropdown.style.display = matches.length ? 'block' : 'none';
+}
+
+function selectBrand(value) {
+  const input    = document.getElementById('pf-brand');
+  const dropdown = document.getElementById('pf-brand-dropdown');
+  if (input)    input.value = value;
+  if (dropdown) dropdown.style.display = 'none';
+}
+
+function onModelInput(query) {
+  const dropdown = document.getElementById('pf-model-dropdown');
+  if (!dropdown) return;
+  const q = (query || '').toLocaleLowerCase('tr-TR');
+  const matches = modelOptions.filter(o => !q || o.toLocaleLowerCase('tr-TR').startsWith(q));
+  if (!matches.length && !q) { dropdown.style.display = 'none'; return; }
+  dropdown.innerHTML = matches.map(o =>
+    `<div onclick="selectModel('${esc(o)}')"
+      style="padding:8px 12px; font-size:12px; color:#374151; cursor:pointer;"
+      onmouseover="this.style.background='#f1f5f9'" onmouseout="this.style.background=''">${esc(o)}</div>`
+  ).join('');
+  dropdown.style.display = matches.length ? 'block' : 'none';
+}
+
+function selectModel(value) {
+  const input    = document.getElementById('pf-model');
+  const dropdown = document.getElementById('pf-model-dropdown');
+  if (input)    input.value = value;
+  if (dropdown) dropdown.style.display = 'none';
 }
 
 // ─── NORMAL KATEGORİ (autocomplete) ──────────────────────────────────────────
@@ -392,7 +434,6 @@ function onInternalToggle(isInternal) {
     catWrap.style.display      = 'none';
     internalWrap.style.display = 'block';
     if (attrSection) attrSection.style.display = 'none';
-    if (!_internalCatOptions.length) _loadInternalCatOptions();
   } else {
     catWrap.style.display      = '';
     internalWrap.style.display = 'none';
@@ -404,14 +445,14 @@ function onInternalCatInput(query) {
   const dropdown = document.getElementById('pf-internal-cat-dropdown');
   if (!dropdown) return;
   const q = (query || '').toLocaleLowerCase('tr-TR');
-  const matches = _internalCatOptions.filter(o => !q || o.toLocaleLowerCase('tr-TR').includes(q));
-  if (!matches.length) { dropdown.style.display = 'none'; return; }
+  const matches = internalCategoryOptions.filter(o => !q || o.toLocaleLowerCase('tr-TR').startsWith(q));
+  if (!matches.length && !q) { dropdown.style.display = 'none'; return; }
   dropdown.innerHTML = matches.map(o =>
     `<div onclick="selectInternalCat('${esc(o)}')"
       style="padding:8px 12px; font-size:12px; color:#374151; cursor:pointer;"
       onmouseover="this.style.background='#f1f5f9'" onmouseout="this.style.background=''">${esc(o)}</div>`
   ).join('');
-  dropdown.style.display = 'block';
+  dropdown.style.display = matches.length ? 'block' : 'none';
 }
 
 function selectInternalCat(value) {
@@ -429,6 +470,14 @@ document.addEventListener('click', (e) => {
   const catWrap = document.getElementById('pf-cat-wrap');
   const catDd   = document.getElementById('pf-cat-dropdown');
   if (catWrap && catDd && !catWrap.contains(e.target)) catDd.style.display = 'none';
+
+  const brandWrap = document.getElementById('pf-brand-wrap');
+  const brandDd   = document.getElementById('pf-brand-dropdown');
+  if (brandWrap && brandDd && !brandWrap.contains(e.target)) brandDd.style.display = 'none';
+
+  const modelWrap = document.getElementById('pf-model-wrap');
+  const modelDd   = document.getElementById('pf-model-dropdown');
+  if (modelWrap && modelDd && !modelWrap.contains(e.target)) modelDd.style.display = 'none';
 });
 
 function openAddModal() {
@@ -442,7 +491,8 @@ function openAddModal() {
   const toggle = document.getElementById('pf-is-internal');
   if (toggle) toggle.checked = false;
   onInternalToggle(false);
-  _buildBrandSelect();
+  const brandInp = document.getElementById('pf-brand');
+  if (brandInp) brandInp.value = '';
   _buildCategorySelect();
   document.getElementById('modalTitle').textContent = 'Yeni Ürün Ekle';
   document.getElementById('modalSubTitle').textContent = '';
@@ -488,11 +538,11 @@ async function openEditModal(productId) {
     if (toggle) toggle.checked = isInternal;
     onInternalToggle(isInternal);
     if (isInternal) {
-      if (!_internalCatOptions.length) await _loadInternalCatOptions();
       const input = document.getElementById('pf-internal-cat-input');
       if (input) input.value = product.category || '';
     }
-    _buildBrandSelect(product.brand || '');
+    const brandInp2 = document.getElementById('pf-brand');
+    if (brandInp2) brandInp2.value = product.brand || '';
     _buildCategorySelect(isInternal ? '' : (product.category || ''));
 
     const attrValues = {};

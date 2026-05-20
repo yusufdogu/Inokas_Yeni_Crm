@@ -349,6 +349,7 @@ function _buildCategorySelect(selected = '') {
   input.value = selected;
 }
 
+
 function onBrandInput(query) {
   const dropdown = document.getElementById('pf-brand-dropdown');
   if (!dropdown) return;
@@ -589,7 +590,7 @@ async function onCategoryFilterChange() {
 
 async function loadAttrValues(category) {
   try {
-    const res = await fetch(`/api/product-attribute-values?category=${encodeURIComponent(category)}`);
+    const res = await fetch(`/api/products/attribute-values?category=${encodeURIComponent(category)}`);
     if (!res.ok) return;
     const data = await res.json();
     _attrTemplate = data.template;

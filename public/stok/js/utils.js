@@ -105,15 +105,44 @@ function createTagFilter({ wrapId, inputId, dropdownId, placeholder, getOptions,
     dropdown.classList.toggle('open', opts.length > 0);
   }
 
-  input.addEventListener('focus', () => renderDropdown(input.value));
-  input.addEventListener('input', () => renderDropdown(input.value));
+  let highlightIdx = -1;
+
+  function getItems() {
+    const list = dropdown.querySelector('.filter-dropdown-list');
+    return list ? Array.from(list.querySelectorAll('.filter-dropdown-item')) : [];
+  }
+
+  function setHighlight(idx) {
+    const items = getItems();
+    items.forEach((el, i) => el.classList.toggle('highlighted', i === idx));
+    highlightIdx = idx;
+    if (idx >= 0 && items[idx]) items[idx].scrollIntoView({ block: 'nearest' });
+  }
+
+  input.addEventListener('focus', () => { highlightIdx = -1; renderDropdown(input.value); });
+  input.addEventListener('input', () => { highlightIdx = -1; renderDropdown(input.value); });
   input.addEventListener('keydown', (e) => {
-    if (e.key === 'Backspace' && !input.value && selected.length) {
+    const items = getItems();
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      if (!dropdown.classList.contains('open')) { renderDropdown(input.value); return; }
+      setHighlight(Math.min(highlightIdx + 1, items.length - 1));
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setHighlight(Math.max(highlightIdx - 1, 0));
+    } else if (e.key === 'Enter') {
+      if (highlightIdx >= 0 && items[highlightIdx]) {
+        e.preventDefault();
+        items[highlightIdx].click();
+      }
+    } else if (e.key === 'Backspace' && !input.value && selected.length) {
       selected.pop();
       renderTags();
       onChange(selected);
+    } else if (e.key === 'Escape') {
+      dropdown.classList.remove('open');
+      highlightIdx = -1;
     }
-    if (e.key === 'Escape') dropdown.classList.remove('open');
   });
   document.addEventListener('click', (e) => {
     if (!wrap.contains(e.target)) dropdown.classList.remove('open');

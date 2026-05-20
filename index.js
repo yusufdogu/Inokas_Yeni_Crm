@@ -27,9 +27,6 @@ const supabase = createClient(
 );
 app.set('supabase', supabase);
 
-// ─── Sessions ─────────────────────────────────────────────────────────────────
-const activeSessions = new Map();
-app.set('activeSessions', activeSessions);
 
 // ─── Tenant Middleware ────────────────────────────────────────────────────────
 app.use(require('./middleware/tenant'));

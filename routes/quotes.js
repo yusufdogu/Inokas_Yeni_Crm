@@ -1,13 +1,14 @@
 // routes/quotes.js
 'use strict';
 
-const express   = require('express');
-const router    = express.Router();
-const path      = require('path');
-const fs        = require('fs');
+const express = require('express');
+const router = express.Router();
+const nodemailer = require('nodemailer');
+const path = require('path');
+const fs = require('fs');
 const puppeteer = require('puppeteer-core');
 
-const BUCKET    = 'quotes-pdf';
+const BUCKET = 'quotes-pdf';
 const LOGO_PATH = path.join(__dirname, '..', 'public', 'assests', 'inokas_bilgi_sistemleri_for_pdf.jpeg');
 
 function getSupabase(req) { return req.app.get('supabase'); }
@@ -144,7 +145,7 @@ async function generateAndStorePdf(supabase, quoteId) {
 
   qt.quote_items = (qt.quote_items || []).sort((a, b) => a.sort_order - b.sort_order);
 
-  const html    = buildPdfHtml(qt, logoBase64());
+  const html = buildPdfHtml(qt, logoBase64());
   const { execSync } = require('child_process');
   let chromePath = process.env.PUPPETEER_EXECUTABLE_PATH;
   if (!chromePath) {
@@ -156,19 +157,19 @@ async function generateAndStorePdf(supabase, quoteId) {
       '/nix/var/nix/profiles/default/bin/chromium',
     ];
     for (const c of candidates) {
-      try { execSync(`test -f ${c}`); chromePath = c; break; } catch {}
+      try { execSync(`test -f ${c}`); chromePath = c; break; } catch { }
     }
   }
   if (!chromePath) {
-    try { chromePath = execSync('which chromium 2>/dev/null || which chromium-browser 2>/dev/null', { encoding: 'utf8' }).trim(); } catch {}
+    try { chromePath = execSync('which chromium 2>/dev/null || which chromium-browser 2>/dev/null', { encoding: 'utf8' }).trim(); } catch { }
   }
   const browser = await puppeteer.launch({
     executablePath: chromePath,
     args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'],
   });
-  const pg      = await browser.newPage();
+  const pg = await browser.newPage();
   await pg.setContent(html, { waitUntil: 'networkidle0' });
-  const pdfBuf  = await pg.pdf({ format: 'A4', printBackground: true });
+  const pdfBuf = await pg.pdf({ format: 'A4', printBackground: true });
   await browser.close();
 
   const fileName = `teklif-${qt.reference_no || quoteId}.pdf`;
@@ -277,8 +278,8 @@ router.post('/', async (req, res) => {
   try {
     const supabase = getSupabase(req);
     const { company_id, company_name, quote_date, valid_until, currency, status, notes, items } = req.body;
-    const reference_no    = await getNextRefNo(supabase);
-    const total_excl_tax  = (items || []).reduce((s, it) => s + (parseFloat(it.total_price) || 0), 0);
+    const reference_no = await getNextRefNo(supabase);
+    const total_excl_tax = (items || []).reduce((s, it) => s + (parseFloat(it.total_price) || 0), 0);
 
     const { data: quote, error: qErr } = await supabase.from('quotes')
       .insert({ reference_no, company_id: company_id || null, company_name, quote_date, valid_until, currency: currency || 'TRY', status: status || 'pending', notes, total_excl_tax })
@@ -364,5 +365,41 @@ router.delete('/:id', async (req, res) => {
     res.json({ ok: true });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
+
+
+
+// ─── POST /:id/send-email ─────────────────────────────────────────────────────
+router.post('/:id/send-email', async (req, res) => {
+  try {
+    const { to, subject, body } = req.body || {};
+    if (!to || !subject || !body) return res.status(400).json({ error: 'to, subject ve body zorunlu.' });
+
+    const supabase = getSupabase(req);
+    const { data: qt } = await supabase.from('quotes').select('reference_no, pdf_url').eq('id', req.params.id).single();
+
+    const transporter = nodemailer.createTransport({
+      service: 'gmail',
+      auth: {
+        user: process.env.GMAIL_USER,
+        pass: process.env.GMAIL_APP_PASSWORD,
+      },
+    });
+
+    const mailOptions = {
+      from: `İnokas CRM <${process.env.GMAIL_USER}>`,
+      to,
+      subject,
+      text: body + (qt?.pdf_url ? `\n\nTeklif PDF: ${qt.pdf_url}` : ''),
+    };
+
+    await transporter.sendMail(mailOptions);
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('Mail gönderme hatası:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+
 
 module.exports = router;

@@ -605,25 +605,25 @@ async function listInvoicesWithPdf({ direction, date_start, date_end, company_na
 }
 
 // ─── Tool executor — PARALLEL execution ───────────────────────────────────────
-async function executeToolsInParallel(toolUseBlocks, supabase) {
+async function executeToolsInParallel(toolUseBlocks, supabase, tenantId) {
   const executions = toolUseBlocks.map(async block => {
     let result;
     try {
       switch (block.name) {
-        case 'get_invoice_summary':    result = await getInvoiceSummary(block.input, supabase);    break;
-        case 'get_top_companies':      result = await getTopCompanies(block.input, supabase);      break;
-        case 'get_top_products':       result = await getTopProducts(block.input, supabase);       break;
-        case 'get_unpaid_invoices':    result = await getUnpaidInvoices(block.input, supabase);    break;
-        case 'get_stock_status':       result = await getStockStatus(block.input, supabase);       break;
-        case 'get_purchase_orders':    result = await getPurchaseOrders(block.input, supabase);    break;
-        case 'get_dmo_orders':         result = await getDmoOrders(block.input, supabase);         break;
-        case 'get_profit_analysis':    result = await getProfitAnalysis(block.input, supabase);    break;
-        case 'get_payment_history':    result = await getPaymentHistory(block.input, supabase);    break;
-        case 'get_rate_history':       result = await getRateHistory(block.input, supabase);       break;
-        case 'list_invoices_with_pdf': result = await listInvoicesWithPdf(block.input, supabase);  break;
-        case 'get_quotes':           result = await getQuotes(block.input, supabase);          break;
-        case 'get_technical_issues': result = await getTechnicalIssues(block.input, supabase); break;
-        case 'get_price_history':    result = await getPriceHistory(block.input, supabase);    break;
+        case 'get_invoice_summary':    result = await getInvoiceSummary(block.input, supabase, tenantId);    break;
+        case 'get_top_companies':      result = await getTopCompanies(block.input, supabase, tenantId);      break;
+        case 'get_top_products':       result = await getTopProducts(block.input, supabase, tenantId);       break;
+        case 'get_unpaid_invoices':    result = await getUnpaidInvoices(block.input, supabase, tenantId);    break;
+        case 'get_stock_status':       result = await getStockStatus(block.input, supabase, tenantId);       break;
+        case 'get_purchase_orders':    result = await getPurchaseOrders(block.input, supabase, tenantId);    break;
+        case 'get_dmo_orders':         result = await getDmoOrders(block.input, supabase, tenantId);         break;
+        case 'get_profit_analysis':    result = await getProfitAnalysis(block.input, supabase, tenantId);    break;
+        case 'get_payment_history':    result = await getPaymentHistory(block.input, supabase, tenantId);    break;
+        case 'get_rate_history':       result = await getRateHistory(block.input, supabase);                 break; // shared
+        case 'list_invoices_with_pdf': result = await listInvoicesWithPdf(block.input, supabase, tenantId);  break;
+        case 'get_quotes':             result = await getQuotes(block.input, supabase, tenantId);            break;
+        case 'get_technical_issues':   result = await getTechnicalIssues(block.input, supabase, tenantId);   break;
+        case 'get_price_history':      result = await getPriceHistory(block.input, supabase, tenantId);      break;
         default: result = { error: `Bilinmeyen araç: ${block.name}` };
       }
     } catch (e) {
@@ -631,8 +631,6 @@ async function executeToolsInParallel(toolUseBlocks, supabase) {
     }
     return { type: 'tool_result', tool_use_id: block.id, content: JSON.stringify(result) };
   });
-
-  // Run ALL tools in parallel
   return Promise.all(executions);
 }
 
@@ -827,6 +825,8 @@ router.post('/', async (req, res) => {
   if (!supabase) return res.status(500).json({ error: 'Supabase bağlantısı yok' });
   if (!process.env.ANTHROPIC_API_KEY) return res.status(500).json({ error: 'ANTHROPIC_API_KEY eksik' });
 
+  const tenantId = req.tenantId;
+
   const { message, history = [] } = req.body || {};
   if (!message?.trim()) return res.status(400).json({ error: 'Mesaj boş olamaz' });
 
@@ -859,10 +859,9 @@ router.post('/', async (req, res) => {
       const toolUseBlocks = response.content.filter(b => b.type === 'tool_use');
 
       send('status', { text: `${toolUseBlocks.map(b => b.name).join(', ')} sorgulanıyor...` });
+      const toolResults = await executeToolsInParallel(toolUseBlocks, supabase, tenantId);
 
       // Execute all tools in parallel
-      const toolResults = await executeToolsInParallel(toolUseBlocks, supabase);
-
       messages.push({ role: 'assistant', content: response.content });
       messages.push({ role: 'user',      content: toolResults });
 

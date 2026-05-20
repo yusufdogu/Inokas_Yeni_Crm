@@ -8,7 +8,7 @@ const router  = express.Router();
 const DMO_PY_HOST = process.env.DMO_PY_HOST || '127.0.0.1';
 const DMO_PY_PORT = Number(process.env.DMO_PY_PORT || 5000);
 
-// ─── TCMB helpers ────────────────────────────────────────────────────────────
+// ─── TCMB helpers (shared — no tenant_id) ────────────────────────────────────
 async function fetchAndSaveTCMBRates(supabase) {
   try {
     const usdRegex = /CurrencyCode="USD"[\s\S]*?<ForexBuying>([\d.]+)<\/ForexBuying>/;
@@ -31,8 +31,7 @@ async function fetchAndSaveTCMBRates(supabase) {
       const eurMatch = body.match(eurRegex);
 
       if (usdMatch && eurMatch) {
-        usd_try   = parseFloat(usdMatch[1]);
-        eur_try   = parseFloat(eurMatch[1]);
+        usd_try = parseFloat(usdMatch[1]); eur_try = parseFloat(eurMatch[1]);
         foundDate = `${yyyy}-${mm}-${dd}`;
         console.log(`TCMB: ${foundDate} — USD ${usd_try} EUR ${eur_try}`);
         break;
@@ -40,10 +39,7 @@ async function fetchAndSaveTCMBRates(supabase) {
       console.log(`TCMB: ${yyyy}-${mm}-${dd} verisi yok, önceki güne bakılıyor...`);
     }
 
-    if (!usd_try || !eur_try || !foundDate) {
-      console.error('TCMB: Son 5 gün için kur bulunamadı');
-      return;
-    }
+    if (!usd_try || !eur_try || !foundDate) { console.error('TCMB: Son 5 gün için kur bulunamadı'); return; }
 
     const today = new Date().toISOString().slice(0, 10);
     const { data: existing } = await supabase.from('rate_history').select('id').gte('recorded_at', today + 'T00:00:00').lte('recorded_at', today + 'T23:59:59').maybeSingle();
@@ -66,44 +62,34 @@ async function fetchAndSaveDMORate(supabase) {
     if (!product) { console.error('DMO rate: 106776 ürünü bulunamadı'); return; }
 
     const res  = await fetch(`http://${DMO_PY_HOST}:${DMO_PY_PORT}/find-dmo-url`, {
-      method:  'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({ dmo_code: '106776', product_id: product.id })
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ dmo_code: '106776', product_id: product.id })
     });
     const data = await res.json();
     if (!data.price) { console.error('DMO rate: fiyat alınamadı', data); return; }
 
-    const dmo_eur_try   = (data.price / 1.08) / 355;
-    const today         = new Date().toISOString().slice(0, 10);
-    const dmo_rate_date = today;
+    const dmo_eur_try = (data.price / 1.08) / 355;
+    const today       = new Date().toISOString().slice(0, 10);
 
     const { data: existing } = await supabase.from('rate_history').select('id').gte('recorded_at', today + 'T00:00:00').lte('recorded_at', today + 'T23:59:59').maybeSingle();
 
-    if (existing) {
-      await supabase.from('rate_history').update({ dmo_eur_try, dmo_rate_date }).eq('id', existing.id);
-    } else {
-      await supabase.from('rate_history').insert({ dmo_eur_try, dmo_rate_date });
-    }
+    if (existing) await supabase.from('rate_history').update({ dmo_eur_try, dmo_rate_date: today }).eq('id', existing.id);
+    else          await supabase.from('rate_history').insert({ dmo_eur_try, dmo_rate_date: today });
+
     console.log(`DMO EUR/TRY güncellendi: ${dmo_eur_try}`);
   } catch (err) {
     console.error('DMO rate fetch hatası:', err.message);
   }
 }
 
-// Export helpers so index.js cron jobs can use them
 module.exports.fetchAndSaveTCMBRates = fetchAndSaveTCMBRates;
 module.exports.fetchAndSaveDMORate   = fetchAndSaveDMORate;
 
-// ─── Routes ──────────────────────────────────────────────────────────────────
-
-// POST /api/dmo/parse-pdf  — proxy to Python
+// POST /api/dmo/parse-pdf
 router.post('/parse-pdf', (req, res) => {
   const proxyReq = http.request({
-    hostname: DMO_PY_HOST,
-    port:     DMO_PY_PORT,
-    path:     '/parse-pdf',
-    method:   'POST',
-    headers:  { ...req.headers, host: `${DMO_PY_HOST}:${DMO_PY_PORT}` }
+    hostname: DMO_PY_HOST, port: DMO_PY_PORT, path: '/parse-pdf', method: 'POST',
+    headers: { ...req.headers, host: `${DMO_PY_HOST}:${DMO_PY_PORT}` }
   }, proxyRes => {
     res.status(proxyRes.statusCode || 502);
     Object.entries(proxyRes.headers || {}).forEach(([k, v]) => { if (v !== undefined) res.setHeader(k, v); });
@@ -116,18 +102,16 @@ router.post('/parse-pdf', (req, res) => {
   req.pipe(proxyReq);
 });
 
-// GET /api/dmo/rates
+// GET /api/dmo/rates — shared, no tenant filter
 router.get('/rates', async (req, res) => {
   try {
     const supabase = req.app.get('supabase');
-    const { data: dmoRow  } = await supabase.from('rate_history').select('dmo_eur_try, recorded_at').not('dmo_eur_try', 'is', null).order('recorded_at', { ascending: false }).limit(1).maybeSingle();
-    const { data: tcmbRow } = await supabase.from('rate_history').select('usd_try, eur_try, recorded_at').not('usd_try', 'is', null).not('eur_try', 'is', null).order('recorded_at', { ascending: false }).limit(1).maybeSingle();
+    const { data: dmoRow  } = await supabase.from('rate_history').select('dmo_eur_try, dmo_rate_date, recorded_at').not('dmo_eur_try', 'is', null).order('recorded_at', { ascending: false }).limit(1).maybeSingle();
+    const { data: tcmbRow } = await supabase.from('rate_history').select('usd_try, eur_try, rate_date, recorded_at').not('usd_try', 'is', null).not('eur_try', 'is', null).order('recorded_at', { ascending: false }).limit(1).maybeSingle();
     res.json({
-      usd_try:       tcmbRow?.usd_try      || null,
-      eur_try:       tcmbRow?.eur_try      || null,
-      dmo_eur_try:   dmoRow?.dmo_eur_try   || null,
-      rate_date:     tcmbRow?.rate_date    || null,
-      dmo_rate_date: dmoRow?.dmo_rate_date || null,
+      usd_try: tcmbRow?.usd_try || null, eur_try: tcmbRow?.eur_try || null,
+      dmo_eur_try: dmoRow?.dmo_eur_try || null,
+      rate_date: tcmbRow?.rate_date || null, dmo_rate_date: dmoRow?.dmo_rate_date || null,
     });
   } catch (err) {
     console.error('rates endpoint hatası:', err.message);
@@ -147,7 +131,7 @@ router.post('/fetch-dmo-rate-now', async (req, res) => {
   res.json({ ok: true });
 });
 
-// POST /api/dmo/find-dmo-url  — proxy to Python
+// POST /api/dmo/find-dmo-url
 router.post('/find-dmo-url', async (req, res) => {
   try {
     const r    = await fetch(`http://${DMO_PY_HOST}:${DMO_PY_PORT}/find-dmo-url`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(req.body) });
@@ -159,7 +143,7 @@ router.post('/find-dmo-url', async (req, res) => {
   }
 });
 
-// POST /api/dmo/scrape-dmo-prices  — proxy to Python
+// POST /api/dmo/scrape-dmo-prices
 router.post('/scrape-dmo-prices', async (req, res) => {
   try {
     const r    = await fetch(`http://${DMO_PY_HOST}:${DMO_PY_PORT}/scrape-dmo-prices`, { method: 'POST' });

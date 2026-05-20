@@ -80,19 +80,24 @@ router.get('/codes', async (req, res) => {
   }
 });
 
-// GET /api/products/category-map
 router.get('/category-map', async (req, res) => {
   try {
     const supabase = req.app.get('supabase');
-<<<<<<< Updated upstream
+
     const [{ data, error }, { data: invData }] = await Promise.all([
-      supabase.from('products').select('product_code, category, brand, model, is_internal').not('product_code', 'is', null),
-      supabase.from('invoice_items').select('internal_category').eq('is_internal', true).not('internal_category', 'is', null).neq('internal_category', ''),
+      supabase.from('products')
+        .select('product_code, category, brand, model, is_internal')
+        .eq('tenant_id', req.tenantId)
+        .not('product_code', 'is', null),
+      supabase.from('invoice_items')
+        .select('internal_category')
+        .eq('is_internal', true)
+        .not('internal_category', 'is', null)
+        .neq('internal_category', ''),
     ]);
-=======
-    const { data, error } = await supabase.from('products').select('product_code, category, brand, model').eq('tenant_id', req.tenantId).not('product_code', 'is', null);
->>>>>>> Stashed changes
+
     if (error) throw error;
+
     const rows = (data || []).map(r => ({
       product_code: String(r.product_code || '').trim(),
       category:     String(r.category     || '').trim(),
@@ -100,12 +105,14 @@ router.get('/category-map', async (req, res) => {
       model:        String(r.model        || '').trim(),
       is_internal:  !!r.is_internal,
     })).filter(r => r.product_code);
-    const categories = [...new Set(rows.filter(r => !r.is_internal).map(r => r.category).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'tr'));
+
+    const categories           = [...new Set(rows.filter(r => !r.is_internal).map(r => r.category).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'tr'));
     const internalFromProducts = rows.filter(r => r.is_internal).map(r => r.category).filter(Boolean);
     const internalFromInvoices = (invData || []).map(r => String(r.internal_category || '').trim()).filter(Boolean);
     const internal_categories  = [...new Set([...internalFromProducts, ...internalFromInvoices])].sort((a, b) => a.localeCompare(b, 'tr'));
-    const brands  = [...new Set(rows.map(r => r.brand).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'tr'));
-    const models  = [...new Set(rows.filter(r => !r.is_internal).map(r => r.model).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'tr'));
+    const brands               = [...new Set(rows.map(r => r.brand).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'tr'));
+    const models               = [...new Set(rows.filter(r => !r.is_internal).map(r => r.model).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'tr'));
+
     res.json({ items: rows, categories, internal_categories, brands, models });
   } catch (err) {
     console.error('GET /api/products/category-map hatası:', err.message);

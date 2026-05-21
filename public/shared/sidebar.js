@@ -36,6 +36,8 @@
   const isChat      = path === '/chat' || path.startsWith('/chat?');
   const isGider     = path.includes('ofis-ici');
 
+  
+
   // ─── Pending counts ───────────────────────────────────────────────────────
   let _pendingGelen = 0;
   let _pendingGiden = 0;

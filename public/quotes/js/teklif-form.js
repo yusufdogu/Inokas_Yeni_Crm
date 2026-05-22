@@ -2,6 +2,7 @@
 let _quoteId = null;
 let _rowCount = 0;
 let _groups = [];
+let _extraColumns = [];
 
 // ── Init ──────────────────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', async () => {
@@ -23,6 +24,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       document.getElementById('formRefNo').textContent = data.reference_no;
     }
     addRow();
+    renderTerms([]);
   }
 });
 
@@ -48,6 +50,10 @@ async function loadQuote(id) {
     document.getElementById('quoteDate').value = (qt.quote_date || '').slice(0, 10);
     document.getElementById('validUntil').value = (qt.valid_until || '').slice(0, 10);
     document.getElementById('quoteNotes').value = qt.notes || '';
+    renderTerms(qt.terms || []);
+    _extraColumns = qt.extra_columns || [];
+    renderExtraColumnHeaders();
+    document.getElementById('quoteType').value = qt.quote_type || '';
     document.getElementById('statusSelect').value = qt.status || 'pending';
 
     (qt.quote_items || []).forEach(it => addRow(it));
@@ -90,9 +96,22 @@ function addRow(item = null) {
     <td><button class="btn-row-del" onclick="removeRow('${rowId}')"><i class="ti ti-x"></i></button></td>
   `;
   tbody.appendChild(tr);
+  // Extra kolonları bu satıra ekle
+  if (_extraColumns.length) {
+    const lastTd = tr.querySelector('td:last-child');
+    _extraColumns.forEach((col, i) => {
+      const extraVals = item?.extra_columns || {};
+      const val = extraVals[col] || '';
+      const td = document.createElement('td');
+      td.className = 'extra-col-td';
+      td.innerHTML = `<input type="text" class="item-input extra-col-input" data-col="${i}" value="${val}" placeholder="${col}...">`;
+      tr.insertBefore(td, lastTd);
+    });
+  }
   reindexRows();
   recalcRow(rowId);
 }
+
 
 function removeRow(rowId) {
   document.getElementById(rowId)?.remove();
@@ -212,6 +231,7 @@ function collectItems() {
       quantity: parseFloat(document.getElementById(`qty_${id}`)?.value) || 1,
       unit_price: parseFloat(document.getElementById(`price_${id}`)?.value) || 0,
       total_price: parseFloat(document.getElementById(`total_${id}`)?.value) || 0,
+      extra_columns: getExtraColumnValues(tr),
     });
   });
   return items;
@@ -231,7 +251,10 @@ async function saveQuote() {
   if (!quote_date) { alert('Teklif tarihi gerekli.'); return; }
   if (!items.length) { alert('En az bir ürün kalemi gerekli.'); return; }
 
-  const payload = { company_name, job_name, quote_date, valid_until, notes, status, currency: 'TRY', items };
+  const quote_type = document.getElementById('quoteType').value || null;
+  const payload = {
+    company_name, job_name, quote_date, valid_until, notes, terms: getTerms(), quote_type, extra_columns: _extraColumns, status, currency: 'TRY', items
+  };
 
 
   try {
@@ -336,4 +359,112 @@ document.addEventListener('click', (e) => {
 
 function esc(s) {
   return String(s || '').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+
+
+
+function renderTerms(terms) {
+  const list = document.getElementById('termsList');
+  if (!list) return;
+  const rows = (terms && terms.length ? terms : ['1)Teklifimizdeki fiyatlara KDV dahil değildir.']);
+  list.innerHTML = rows.map((t, i) => `
+      <div class="terms-row" style="display:flex; gap:8px; margin-bottom:6px;">
+        <input type="text" class="form-input term-input" value="${t.replace(/"/g, '&quot;')}" placeholder="Husus yaz...">
+        <button type="button" onclick="removeTermRow(${i})" style="flex-shrink:0; background:none; border:1px solid #fca5a5; border-radius:6px;
+  padding:4px 8px; color:#ef4444; cursor:pointer; font-size:13px;">✕</button>
+      </div>
+    `).join('');
+}
+
+function addTermRow() {
+  const list = document.getElementById('termsList');
+  const idx = list.querySelectorAll('.terms-row').length;
+  const div = document.createElement('div');
+  div.className = 'terms-row';
+  div.style.cssText = 'display:flex; gap:8px; margin-bottom:6px;';
+  div.innerHTML = `
+      <input type="text" class="form-input term-input" placeholder="Husus yaz...">
+      <button type="button" onclick="removeTermRow(${idx})" style="flex-shrink:0; background:none; border:1px solid #fca5a5; border-radius:6px;
+  padding:4px 8px; color:#ef4444; cursor:pointer; font-size:13px;">✕</button>
+    `;
+  list.appendChild(div);
+}
+
+function removeTermRow(idx) {
+  const rows = document.getElementById('termsList').querySelectorAll('.terms-row');
+  if (rows[idx]) rows[idx].remove();
+  // re-index remove buttons
+  document.getElementById('termsList').querySelectorAll('.terms-row').forEach((row, i) => {
+    const btn = row.querySelector('button');
+    if (btn) btn.setAttribute('onclick', `removeTermRow(${i})`);
+  });
+}
+
+function getTerms() {
+  return [...document.getElementById('termsList').querySelectorAll('.term-input')]
+    .map(el => el.value.trim()).filter(Boolean);
+}
+
+
+
+
+
+
+
+function addExtraColumn() {
+  const name = prompt('Kolon adı girin:');
+  if (!name || !name.trim()) return;
+  _extraColumns.push(name.trim());
+  renderExtraColumnHeaders();
+  refreshAllRowExtraCells();
+}
+
+function removeExtraColumn(idx) {
+  _extraColumns.splice(idx, 1);
+  renderExtraColumnHeaders();
+  refreshAllRowExtraCells();
+}
+
+function renderExtraColumnHeaders() {
+  const thead = document.getElementById('itemsTheadRow');
+  if (!thead) return;
+  // Remove existing extra headers
+  thead.querySelectorAll('.extra-col-th').forEach(el => el.remove());
+  // Insert before last th (delete button column)
+  const lastTh = thead.querySelector('th:last-child');
+  _extraColumns.forEach((col, i) => {
+    const th = document.createElement('th');
+    th.className = 'extra-col-th';
+    th.style.cssText = 'min-width:120px;';
+    th.innerHTML = `${col} <span onclick="removeExtraColumn(${i})" style="cursor:pointer;color:#ef4444;font-size:10px;margin-left:4px;">✕</span>`;
+    thead.insertBefore(th, lastTh);
+  });
+}
+
+function refreshAllRowExtraCells() {
+  document.querySelectorAll('#itemsTbody tr').forEach(row => {
+    // Mevcut değerleri sakla
+    const savedVals = {};
+    row.querySelectorAll('.extra-col-input').forEach(input => {
+      savedVals[parseInt(input.dataset.col)] = input.value;
+    });
+    row.querySelectorAll('.extra-col-td').forEach(el => el.remove());
+    const lastTd = row.querySelector('td:last-child');
+    _extraColumns.forEach((col, i) => {
+      const td = document.createElement('td');
+      td.className = 'extra-col-td';
+      const val = savedVals[i] !== undefined ? savedVals[i] : '';
+      td.innerHTML = `<input type="text" class="item-input extra-col-input" data-col="${i}" value="${val}" placeholder="${col}...">`;
+      row.insertBefore(td, lastTd);
+    });
+  });
+}
+
+function getExtraColumnValues(row) {
+  const vals = {};
+  row.querySelectorAll('.extra-col-input').forEach(input => {
+    vals[_extraColumns[parseInt(input.dataset.col)]] = input.value.trim();
+  });
+  return vals;
 }

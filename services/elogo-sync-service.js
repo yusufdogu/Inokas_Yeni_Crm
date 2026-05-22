@@ -1,5 +1,4 @@
 // services/elogo-sync-service.js
-// Syncs invoices from eLogo SOAP API for all active eLogo tenants
 'use strict';
 
 require('dotenv').config();
@@ -30,7 +29,7 @@ async function loadTenantCredentials(tenantId, provider) {
     creds[key] = data;
   }
 
-  return creds; // { service_url, username, password }
+  return creds;
 }
 
 // ─── Load all active tenants with eLogo or İşbaşı integration ────────────────
@@ -38,12 +37,21 @@ async function loadTenantCredentials(tenantId, provider) {
 async function loadActiveElogoTenants() {
   const { data, error } = await supabase
     .from('tenant_integrations')
-    .select('tenant_id, provider, tenants(name, slug)')
+    .select('tenant_id, provider')
     .in('provider', ['elogo', 'isbasi'])
     .eq('is_active', true);
 
   if (error) throw new Error('eLogo tenant listesi alınamadı: ' + error.message);
-  return data || [];
+  if (!data?.length) return [];
+
+  const tenantIds = data.map(r => r.tenant_id);
+  const { data: tenants } = await supabase
+    .from('tenants')
+    .select('id, name, slug')
+    .in('id', tenantIds);
+
+  const tenantMap = Object.fromEntries((tenants || []).map(t => [t.id, t]));
+  return data.map(r => ({ ...r, tenants: tenantMap[r.tenant_id] || null }));
 }
 
 // ─── Storage ──────────────────────────────────────────────────────────────────
@@ -126,8 +134,83 @@ async function resolveProductId(item, tenantId) {
 
 async function isInitialSync(tenantId) {
   const { count } = await supabase
-    .from('invoices').select('id', { count: 'exact', head: true }).eq('tenant_id', tenantId);
+    .from('invoices').select('id', { count: 'exact', head: true })
+    .eq('tenant_id', tenantId)
+    .eq('source', 'elogo');
   return count === 0;
+}
+
+// ─── Date chunking — eLogo max 30 days per request ───────────────────────────
+
+function getDateChunks(beginDate, endDate, chunkDays = 29) {
+  const chunks  = [];
+  let current   = new Date(beginDate);
+  const end     = new Date(endDate);
+
+  while (current <= end) {
+    const chunkEnd = new Date(current);
+    chunkEnd.setDate(chunkEnd.getDate() + chunkDays);
+    if (chunkEnd > end) chunkEnd.setTime(end.getTime());
+
+    chunks.push({
+      beginDate: current.toISOString().slice(0, 10),
+      endDate:   chunkEnd.toISOString().slice(0, 10),
+    });
+
+    current = new Date(chunkEnd);
+    current.setDate(current.getDate() + 1);
+  }
+
+  return chunks;
+}
+
+// ─── Process a single invoice UUID ───────────────────────────────────────────
+
+async function processInvoice(creds, tenantId, uuid, direction) {
+  const dirLabel = direction === 'INCOMING' ? 'Gelen' : 'Giden';
+
+  const { data: exists } = await supabase
+    .from('invoices').select('id, xml_url').eq('efatura_uuid', uuid).maybeSingle();
+
+  if (exists) {
+    if (!exists.xml_url) {
+      const base64 = await elogoApi.getDocumentData(creds, tenantId, uuid);
+      if (base64) {
+        const xmlUrl = await uploadXmlToStorage(base64, uuid);
+        if (xmlUrl) await supabase.from('invoices').update({ xml_url: xmlUrl }).eq('id', exists.id);
+      }
+    } else {
+      console.log(`  ⏩ Atlanıyor (zaten var): ${uuid}`);
+    }
+    return 0;
+  }
+
+  const base64 = await elogoApi.getDocumentData(creds, tenantId, uuid);
+  if (!base64) { console.warn(`  ⚠️ İçerik alınamadı: ${uuid}`); return 0; }
+
+  const xmlUrl       = await uploadXmlToStorage(base64, uuid);
+  const ublDirection = direction === 'INCOMING' ? 'gelen' : 'giden';
+  const parsed       = parseUblFromBase64(base64, ublDirection);
+  if (!parsed) { console.warn(`  ⚠️ Parse başarısız: ${uuid}`); return 0; }
+
+  const { company: companyData, invoice: invoiceData, items } = parsed;
+
+  const company   = await upsertCompany(companyData, tenantId);
+  const dbInvoice = await upsertInvoice({
+    ...invoiceData,
+    company_id:      company.id,
+    approval_status: 'pending',
+    source:          'elogo',
+    xml_url:         xmlUrl,
+  }, tenantId);
+
+  const resolvedItems = await Promise.all(
+    items.map(async item => ({ ...item, product_id: await resolveProductId(item, tenantId) }))
+  );
+  await insertItems(resolvedItems, dbInvoice.id);
+
+  console.log(`  ✅ ${dirLabel}: ${uuid}`);
+  return 1;
 }
 
 // ─── Sync invoices for a direction ───────────────────────────────────────────
@@ -137,73 +220,43 @@ async function syncInvoices(creds, tenantId, { beginDate, endDate, opType }) {
   const dirLabel    = direction === 'INCOMING' ? 'Gelen' : 'Giden';
   let   totalSynced = 0;
 
-  console.log(`\n📥 [${dirLabel}] ${beginDate} → ${endDate}`);
+  const chunks = getDateChunks(beginDate, endDate);
+  console.log(`\n📥 [${dirLabel}] ${beginDate} → ${endDate} (${chunks.length} chunk)`);
 
-  // Get list of invoice UUIDs
-  const docList = await elogoApi.getDocumentList(creds, tenantId, {
-    beginDate, endDate, opType, docType: 'EINVOICE',
-  });
+  for (const chunk of chunks) {
+    console.log(`  📅 ${chunk.beginDate} → ${chunk.endDate}`);
 
-  console.log(`📋 ${docList.length} fatura bulundu`);
-
-  for (const doc of docList) {
-    const uuid = doc.documentUuid;
-    if (!uuid) { console.warn('⚠️ UUID boş, atlanıyor'); continue; }
-
+    let docList;
     try {
-      // Check if already in DB
-      const { data: exists } = await supabase
-        .from('invoices').select('id, xml_url').eq('efatura_uuid', uuid).maybeSingle();
-
-      if (exists) {
-        if (!exists.xml_url) {
-          // In DB but missing XML — upload it
-          const base64 = await elogoApi.getDocumentData(creds, tenantId, uuid);
-          if (base64) {
-            const xmlUrl = await uploadXmlToStorage(base64, uuid);
-            if (xmlUrl) await supabase.from('invoices').update({ xml_url: xmlUrl }).eq('id', exists.id);
-          }
-        } else {
-          console.log(`⏩ Atlanıyor (zaten var): ${uuid}`);
-        }
-        continue;
-      }
-
-      // Fetch UBL content
-      const base64 = await elogoApi.getDocumentData(creds, tenantId, uuid);
-      if (!base64) { console.warn(`⚠️ İçerik alınamadı: ${uuid}`); continue; }
-
-      // Upload XML to storage
-      const xmlUrl = await uploadXmlToStorage(base64, uuid);
-
-      // Parse UBL
-      const ublDirection = direction === 'INCOMING' ? 'gelen' : 'giden';
-      const parsed = parseUblFromBase64(base64, ublDirection);
-      if (!parsed) { console.warn(`⚠️ Parse başarısız: ${uuid}`); continue; }
-
-      const { company: companyData, invoice: invoiceData, items } = parsed;
-
-      // Save to DB
-      const company   = await upsertCompany(companyData, tenantId);
-      const dbInvoice = await upsertInvoice({
-        ...invoiceData,
-        company_id:      company.id,
-        approval_status: 'pending',
-        source:          'elogo',
-        xml_url:         xmlUrl,
-      }, tenantId);
-
-      const resolvedItems = await Promise.all(
-        items.map(async item => ({ ...item, product_id: await resolveProductId(item, tenantId) }))
-      );
-      await insertItems(resolvedItems, dbInvoice.id);
-
-      totalSynced++;
-      console.log(`✅ ${dirLabel}: ${uuid}`);
-      await sleep(300);
-
+      docList = await elogoApi.getDocumentList(creds, tenantId, {
+        beginDate: chunk.beginDate,
+        endDate:   chunk.endDate,
+        opType,
+        docType:   'EINVOICE',
+      });
     } catch (err) {
-      console.error(`❌ Hata [${uuid}]:`, err.message);
+      console.error(`  ❌ GetDocumentList hatası [${chunk.beginDate}→${chunk.endDate}]:`, err.message);
+      continue;
+    }
+
+    if (!docList?.length) {
+      console.log(`  📋 0 fatura`);
+      continue;
+    }
+
+    console.log(`  📋 ${docList.length} fatura`);
+
+    for (const doc of docList) {
+      const uuid = doc.documentUuid;
+      if (!uuid) { console.warn('  ⚠️ UUID boş, atlanıyor'); continue; }
+
+      try {
+        const synced = await processInvoice(creds, tenantId, uuid, direction);
+        totalSynced += synced;
+        await sleep(300);
+      } catch (err) {
+        console.error(`  ❌ Hata [${uuid}]:`, err.message);
+      }
     }
   }
 
@@ -230,7 +283,6 @@ async function recheckPendingInvoices(creds, tenantId) {
 
       const updates = { gib_status_code: status.code, gib_status_description: status.description };
 
-      // status=2 → success, status=-1 → failed
       if (status.status === 2 && status.code === 1300) {
         updates.approval_status = 'approved';
         console.log(`✅ ${inv.invoice_no}: Onaylandı`);
@@ -260,7 +312,7 @@ async function runElogoSync() {
   for (const row of tenants) {
     const tenantId   = row.tenant_id;
     const tenantName = row.tenants?.name || tenantId;
-    const provider   = row.provider; // 'elogo' or 'isbasi'
+    const provider   = row.provider;
 
     console.log(`\n🏢 eLogo Sync: ${tenantName} [${provider}]`);
 
@@ -280,14 +332,11 @@ async function runElogoSync() {
       if (initial) console.log(`🌱 İlk sync: ${beginDate} → ${endDate}`);
       else         console.log(`⚡ Artımlı sync: ${beginDate} → ${endDate}`);
 
-      // Sync gelen (OPTYPE=2)
       const gelenCount = await syncInvoices(creds, tenantId, { beginDate, endDate, opType: 2 });
-      // Sync giden (OPTYPE=1)
       const gidenCount = await syncInvoices(creds, tenantId, { beginDate, endDate, opType: 1 });
 
       console.log(`✨ ${tenantName}: ${gelenCount} gelen + ${gidenCount} giden fatura eklendi`);
 
-      // Always logout after sync to free server session
       await elogoApi.logout(creds, tenantId);
 
     } catch (err) {

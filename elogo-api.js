@@ -1,6 +1,5 @@
 // elogo-api.js
 // eLogo PostBox SOAP API client — raw XML over axios
-// Supports both eLogo and İşbaşı (same WSDL, same auth)
 'use strict';
 
 const axios   = require('axios');
@@ -10,18 +9,17 @@ const { XMLParser } = require('fast-xml-parser');
 const parser = new XMLParser({
   ignoreAttributes:    false,
   attributeNamePrefix: '@_',
-  removeNSPrefix:      true,   // strips namespace prefixes like s:, a:
+  removeNSPrefix:      true,
   isArray: (name) => ['string', 'Document', 'DocInfo'].includes(name),
 });
 
-// ─── Session cache — keyed by tenantId ───────────────────────────────────────
-const sessionCache = new Map();
-// { tenantId: { sessionID, expiresAt } }
+// ─── Session cache ────────────────────────────────────────────────────────────
+const sessionCache   = new Map();
 const SESSION_TTL_MS = 20 * 60 * 1000; // 20 minutes
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-function soapEnvelope(action, body) {
+function soapEnvelope(body) {
   return `<?xml version="1.0" encoding="utf-8"?>
 <soapenv:Envelope
   xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/"
@@ -36,8 +34,7 @@ function soapEnvelope(action, body) {
 }
 
 async function soapCall(serviceUrl, soapAction, xmlBody) {
-  const envelope = soapEnvelope(soapAction, xmlBody);
-  console.log('[SOAP XML]', envelope);
+  const envelope = soapEnvelope(xmlBody);
   try {
     const response = await axios.post(serviceUrl, envelope, {
       headers: {
@@ -48,13 +45,22 @@ async function soapCall(serviceUrl, soapAction, xmlBody) {
     });
     return parser.parse(response.data);
   } catch (err) {
+    console.error(`[SOAP ERROR] ${soapAction}:`, err.response?.data || err.message);
     throw err;
   }
 }
 
 function getBody(parsed) {
-  // Navigate through Envelope > Body regardless of namespace prefix stripping
   return parsed?.Envelope?.Body || parsed?.['s:Envelope']?.['s:Body'] || {};
+}
+
+function escapeXml(str) {
+  return String(str || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&apos;');
 }
 
 // ─── Login ────────────────────────────────────────────────────────────────────
@@ -68,7 +74,6 @@ async function login(creds, tenantId) {
     <tem:login>
       <efat:appStr>InokasKumanda</efat:appStr>
       <efat:passWord>${escapeXml(creds.password)}</efat:passWord>
-      <efat:source>ES</efat:source>
       <efat:userName>${escapeXml(creds.username)}</efat:userName>
       <efat:version>1.0</efat:version>
     </tem:login>
@@ -110,7 +115,6 @@ async function logout(creds, tenantId) {
 }
 
 // ─── GetDocumentList ──────────────────────────────────────────────────────────
-// Returns array of { documentUuid, documentId, docInfo[] }
 
 async function getDocumentList(creds, tenantId, { beginDate, endDate, opType, docType = 'EINVOICE' }) {
   const sessionID = await login(creds, tenantId);
@@ -121,8 +125,8 @@ async function getDocumentList(creds, tenantId, { beginDate, endDate, opType, do
       <arr:string>DOCUMENTTYPE=${docType}</arr:string>
       <arr:string>BEGINDATE=${beginDate}</arr:string>
       <arr:string>ENDDATE=${endDate}</arr:string>
-      <arr:string>OPTYPE=${opType}</arr:string>
-      <arr:string>DATEBY=0</arr:string>
+      <arr:string>OPTYPE=${parseInt(opType)}</arr:string>
+      <arr:string>DATEBY=1</arr:string>
     </tem:paramList>
   </tem:GetDocumentList>`;
 
@@ -132,7 +136,6 @@ async function getDocumentList(creds, tenantId, { beginDate, endDate, opType, do
     const resp   = body?.GetDocumentListResponse;
     const result = resp?.GetDocumentListResult;
 
-    // resultCode: 1 = success, -1 = error, -2 = session expired
     if (result?.resultCode === -2) {
       sessionCache.delete(tenantId);
       throw new Error('SESSION_EXPIRED');
@@ -147,7 +150,6 @@ async function getDocumentList(creds, tenantId, { beginDate, endDate, opType, do
 
   } catch (err) {
     if (err.message === 'SESSION_EXPIRED') {
-      // Re-login and retry once
       sessionCache.delete(tenantId);
       return getDocumentList(creds, tenantId, { beginDate, endDate, opType, docType });
     }
@@ -156,19 +158,15 @@ async function getDocumentList(creds, tenantId, { beginDate, endDate, opType, do
 }
 
 // ─── GetDocumentData ──────────────────────────────────────────────────────────
-// Returns base64 zip content (same format as Logo REST UBL)
 
 async function getDocumentData(creds, tenantId, uuid, docType = 'EINVOICE') {
   const sessionID = await login(creds, tenantId);
-
-  // docType enum: EINVOICE=1, EARCHIVE=2, APPLICATIONRESPONSE=3
-  const docTypeEnum = { EINVOICE: 'EINVOICE', EARCHIVE: 'EARCHIVE' };
 
   const xml = `<tem:GetDocumentData>
     <tem:sessionID>${sessionID}</tem:sessionID>
     <tem:uuid>${uuid}</tem:uuid>
     <tem:paramList>
-      <arr:string>DOCUMENTTYPE=${docTypeEnum[docType] || docType}</arr:string>
+      <arr:string>DOCUMENTTYPE=${docType}</arr:string>
       <arr:string>DATAFORMAT=UBL</arr:string>
     </tem:paramList>
   </tem:GetDocumentData>`;
@@ -188,7 +186,6 @@ async function getDocumentData(creds, tenantId, uuid, docType = 'EINVOICE') {
       throw new Error(`eLogo GetDocumentData hatası: ${result?.resultMsg}`);
     }
 
-    // binaryData.Value contains base64 zip
     const content = resp?.document?.binaryData?.Value;
     if (!content) { console.warn(`⚠️ eLogo: UUID ${uuid} için içerik boş`); return null; }
     return content;
@@ -250,7 +247,6 @@ async function getDocumentStatus(creds, tenantId, uuid, docType = 'EINVOICE') {
 // ─── Test connection ──────────────────────────────────────────────────────────
 
 async function testConnection(creds) {
-  // Try login and immediately logout
   const tempTenantId = `test_${Date.now()}`;
   try {
     const sessionID = await login(creds, tempTenantId);
@@ -276,17 +272,6 @@ function getLast48Hours() {
 
 function getToday() {
   return new Date().toISOString().slice(0, 10);
-}
-
-// ─── Utility ──────────────────────────────────────────────────────────────────
-
-function escapeXml(str) {
-  return String(str || '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&apos;');
 }
 
 function clearSessionCache(tenantId) {

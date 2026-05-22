@@ -130,7 +130,7 @@ cron.schedule('*/5 * * * *', async () => {
 const { runElogoSync, runElogoDailyRecheck } = require('./services/elogo-sync-service');
 
 // In your existing 10-minute cron:
-cron.schedule('*/5 * * * *', async () => {
+cron.schedule('*/1 * * * *', async () => {
   await runElogoSync();   // eLogo SOAP
 });
 

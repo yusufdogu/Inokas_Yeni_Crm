@@ -76,36 +76,6 @@ async function ensureStocksSummaryLoaded() {
   _stocksSummaryFetchedAt = Date.now();
 }
 
-// ─── Toplu yükleme VKN ────────────────────────────────────────────────────────
-
-<<<<<<< Updated upstream
-async function ensureBulkInokasVkn() {
-  if (bulkInokasVkn) return bulkInokasVkn;
-  // Tekli kayıtla aynı kaynak: sunucu .env → ana sayfaya enjekte (GET /); ayrı API şart değil
-  const fromPage = typeof window !== 'undefined' ? window.__INOKAS_VKN__ : '';
-  const direct = String(fromPage || '').trim();
-  if (direct) {
-    bulkInokasVkn = direct;
-    return bulkInokasVkn;
-  }
-  let r;
-  try {
-    r = await fetch('/api/inokas-vkn');
-  } catch (e) {
-    throw new Error('İnokas VKN yok. Sayfayı `node index.js` ile sunulan adresten açın (ör. http://localhost:3000) ve .env içinde INOKAS_VKN olduğundan emin olun; sunucuyu yeniden başlatın.');
-  }
-  if (!r.ok) {
-    const j = await r.json().catch(() => ({}));
-    throw new Error(
-      j.error ||
-      'İnokas VKN alınamadı. Sunucuda INOKAS_VKN tanımlı mı kontrol edin (.env proje kökünde, sunucuyu yeniden başlatın).'
-    );
-  }
-  const j = await r.json();
-  bulkInokasVkn = String(j.vkn || '').trim();
-  if (!bulkInokasVkn) throw new Error('İnokas VKN boş.');
-  return bulkInokasVkn;
-=======
 async function ensureBulkTenantVkn() {
     if (bulkTenantVkn) return bulkTenantVkn;
 
@@ -126,7 +96,6 @@ async function ensureBulkTenantVkn() {
     bulkTenantVkn = String(j.vkn || '').trim();
     if (!bulkTenantVkn) throw new Error('Firma VKN bilgisi girilmemiş. Lütfen ayarlardan VKN ekleyin.');
     return bulkTenantVkn;
->>>>>>> Stashed changes
 }
 // ─── Ana veri yükleme ─────────────────────────────────────────────────────────
 

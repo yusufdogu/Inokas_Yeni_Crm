@@ -54,12 +54,12 @@ async function testGelen() {
         console.log(`   accountingStatus         : ${JSON.stringify(inv.accountingStatus)}`);
         console.log(`   purchaseInvoiceId        : ${inv.purchaseInvoiceId || '(none)'}`);
 
-        const vatRates = [0,1,4,5,6,8,9,10,13,14,15,16,18,19,20];
+        const vatRates = [0, 1, 4, 5, 6, 8, 9, 10, 13, 14, 15, 16, 18, 19, 20];
         console.log('\n   [VAT Breakdown]');
         let hasVat = false;
         vatRates.forEach(r => {
             const total = inv[`vat${r}VatTotal`];
-            const base  = inv[`vat${r}VatMatrah`];
+            const base = inv[`vat${r}VatMatrah`];
             if (total || base) {
                 console.log(`   vat${r}: matrah=${base}  total=${total}  name=${inv[`vat${r}Name`] || '(none)'}`);
                 hasVat = true;
@@ -121,13 +121,10 @@ async function testGelen() {
                 console.log(`     product_code      : ${item.product_code || '(unresolved)'}`);
                 console.log(`     brand_name        : ${item.brand_name || '(none)'}`);
                 console.log(`     manufacturer_code : ${item.manufacturer_code || '(none)'}`);
-                console.log(`     commodity_code    : ${item.commodity_code || '(none)'}`);
-                console.log(`     customs_tariff    : ${item.customs_tariff_code || '(none)'}`);
                 console.log(`     quantity          : ${item.quantity}`);
                 console.log(`     unit_code         : ${item.unit_code || '(none)'}`);
                 console.log(`     unit_price_cur    : ${item.unit_price_cur}`);
                 console.log(`     tax_rate          : ${item.tax_rate}%`);
-                console.log(`     tax_amount_cur    : ${item.tax_amount_cur || '(none)'}`);
                 console.log(`     total_price_cur   : ${item.total_price_cur}`);
                 console.log(`     currency          : ${item.currency}`);
                 console.log(`     line_note         : ${item.line_note || '(none)'}`);
@@ -281,13 +278,10 @@ async function testGiden() {
                 console.log(`     product_code      : ${item.product_code || '(unresolved)'}`);
                 console.log(`     brand_name        : ${item.brand_name || '(none)'}`);
                 console.log(`     manufacturer_code : ${item.manufacturer_code || '(none)'}`);
-                console.log(`     commodity_code    : ${item.commodity_code || '(none)'}`);
-                console.log(`     customs_tariff    : ${item.customs_tariff_code || '(none)'}`);
                 console.log(`     quantity          : ${item.quantity}`);
                 console.log(`     unit_code         : ${item.unit_code || '(none)'}`);
                 console.log(`     unit_price_cur    : ${item.unit_price_cur}`);
                 console.log(`     tax_rate          : ${item.tax_rate}%`);
-                console.log(`     tax_amount_cur    : ${item.tax_amount_cur || '(none)'}`);
                 console.log(`     total_price_cur   : ${item.total_price_cur}`);
                 console.log(`     currency          : ${item.currency}`);
                 console.log(`     line_note         : ${item.line_note || '(none)'}`);

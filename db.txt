@@ -307,6 +307,7 @@ CREATE TABLE public.quotes (
   created_at timestamp with time zone DEFAULT now(),
   pdf_url text,
   tenant_id uuid,
+  job_name text,
   CONSTRAINT quotes_pkey PRIMARY KEY (id),
   CONSTRAINT quotes_company_id_fkey FOREIGN KEY (company_id) REFERENCES public.companies(id),
   CONSTRAINT quotes_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.tenants(id)

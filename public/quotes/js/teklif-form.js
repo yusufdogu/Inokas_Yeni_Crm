@@ -1,7 +1,7 @@
 // quotes/js/teklif-form.js
-let _quoteId    = null;
-let _rowCount   = 0;
-let _groups     = [];
+let _quoteId = null;
+let _rowCount = 0;
+let _groups = [];
 
 // ── Init ──────────────────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', async () => {
@@ -42,12 +42,13 @@ async function loadQuote(id) {
     if (!res.ok) throw new Error('HTTP ' + res.status);
     const qt = await res.json();
 
-    document.getElementById('formRefNo').textContent    = qt.reference_no || '';
-    document.getElementById('companyName').value        = qt.company_name || '';
-    document.getElementById('quoteDate').value          = (qt.quote_date || '').slice(0, 10);
-    document.getElementById('validUntil').value         = (qt.valid_until || '').slice(0, 10);
-    document.getElementById('quoteNotes').value         = qt.notes || '';
-    document.getElementById('statusSelect').value       = qt.status || 'pending';
+    document.getElementById('formRefNo').textContent = qt.reference_no || '';
+    document.getElementById('companyName').value = qt.company_name || '';
+    document.getElementById('jobName').value = qt.job_name || '';
+    document.getElementById('quoteDate').value = (qt.quote_date || '').slice(0, 10);
+    document.getElementById('validUntil').value = (qt.valid_until || '').slice(0, 10);
+    document.getElementById('quoteNotes').value = qt.notes || '';
+    document.getElementById('statusSelect').value = qt.status || 'pending';
 
     (qt.quote_items || []).forEach(it => addRow(it));
   } catch (e) {
@@ -108,7 +109,7 @@ function reindexRows() {
 }
 
 function recalcRow(rowId) {
-  const qty   = parseFloat(document.getElementById(`qty_${rowId}`)?.value) || 0;
+  const qty = parseFloat(document.getElementById(`qty_${rowId}`)?.value) || 0;
   const price = parseFloat(document.getElementById(`price_${rowId}`)?.value) || 0;
   const total = qty * price;
   const totalEl = document.getElementById(`total_${rowId}`);
@@ -204,13 +205,13 @@ function collectItems() {
   rows.forEach((tr, i) => {
     const id = tr.id;
     items.push({
-      sort_order:   i + 1,
+      sort_order: i + 1,
       product_code: document.getElementById(`code_${id}`)?.value.trim() || null,
       product_name: document.getElementById(`name_${id}`)?.value.trim() || '',
-      unit:         document.getElementById(`unit_${id}`)?.value || 'ADET',
-      quantity:     parseFloat(document.getElementById(`qty_${id}`)?.value) || 1,
-      unit_price:   parseFloat(document.getElementById(`price_${id}`)?.value) || 0,
-      total_price:  parseFloat(document.getElementById(`total_${id}`)?.value) || 0,
+      unit: document.getElementById(`unit_${id}`)?.value || 'ADET',
+      quantity: parseFloat(document.getElementById(`qty_${id}`)?.value) || 1,
+      unit_price: parseFloat(document.getElementById(`price_${id}`)?.value) || 0,
+      total_price: parseFloat(document.getElementById(`total_${id}`)?.value) || 0,
     });
   });
   return items;
@@ -219,22 +220,24 @@ function collectItems() {
 // ── Save ──────────────────────────────────────────────────────────────────────
 async function saveQuote() {
   const company_name = document.getElementById('companyName').value.trim();
-  const quote_date   = document.getElementById('quoteDate').value;
-  const valid_until  = document.getElementById('validUntil').value || null;
-  const notes        = document.getElementById('quoteNotes').value.trim() || null;
-  const status       = document.getElementById('statusSelect').value;
-  const items        = collectItems();
+  const quote_date = document.getElementById('quoteDate').value;
+  const valid_until = document.getElementById('validUntil').value || null;
+  const job_name = document.getElementById('jobName').value.trim() || null;
+  const notes = document.getElementById('quoteNotes').value.trim() || null;
+  const status = document.getElementById('statusSelect').value;
+  const items = collectItems();
 
   if (!company_name) { alert('Şirket adı gerekli.'); return; }
-  if (!quote_date)   { alert('Teklif tarihi gerekli.'); return; }
+  if (!quote_date) { alert('Teklif tarihi gerekli.'); return; }
   if (!items.length) { alert('En az bir ürün kalemi gerekli.'); return; }
 
-  const payload = { company_name, quote_date, valid_until, notes, status, currency: 'TRY', items };
+  const payload = { company_name, job_name, quote_date, valid_until, notes, status, currency: 'TRY', items };
+
 
   try {
-    const url    = _quoteId ? `/api/quotes/${encodeURIComponent(_quoteId)}` : '/api/quotes';
+    const url = _quoteId ? `/api/quotes/${encodeURIComponent(_quoteId)}` : '/api/quotes';
     const method = _quoteId ? 'PUT' : 'POST';
-    const res    = await fetch(url, {
+    const res = await fetch(url, {
       method,
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
@@ -266,43 +269,70 @@ async function lookupProductCode(rowId, code) {
     if (!product?.product_name) return;
     const nameEl = document.getElementById(`name_${rowId}`);
     if (nameEl && !nameEl.value) nameEl.value = product.product_name;
-  } catch {}
+  } catch { }
 }
 
-// ── VKN Lookup ────────────────────────────────────────────────────────────────
-let _vknTimer = null;
+let _companySearchTimer = null;
+let _selectedCompanyVkn = '';
 
-function onVknInput() {
-  const vkn = document.getElementById('companyVkn')?.value.trim() || '';
-  const statusEl = document.getElementById('vknStatus');
-  clearTimeout(_vknTimer);
+function onCompanySearch() {
+  const q = document.getElementById('companyName')?.value.trim() || '';
+  const dropdown = document.getElementById('companyDropdown');
+  clearTimeout(_companySearchTimer);
+  _selectedCompanyVkn = '';
 
-  if (vkn.length < 10) {
-    if (statusEl) statusEl.textContent = '';
+  if (q.length < 1) {
+    dropdown.style.display = 'none';
+    dropdown.innerHTML = '';
     return;
   }
 
-  if (statusEl) statusEl.textContent = 'Aranıyor...';
-  _vknTimer = setTimeout(() => lookupVkn(vkn), 400);
+  _companySearchTimer = setTimeout(() => searchCompanies(q), 300);
 }
 
-async function lookupVkn(vkn) {
-  const statusEl = document.getElementById('vknStatus');
+async function searchCompanies(q) {
+  const dropdown = document.getElementById('companyDropdown');
   try {
-    const res = await fetch(`/api/companies/by-vkn?vkn=${encodeURIComponent(vkn)}`);
-    if (!res.ok) throw new Error();
-    const data = await res.json();
-    const company = Array.isArray(data) ? data[0] : data;
-    if (company?.name) {
-      document.getElementById('companyName').value = company.name;
-      if (statusEl) statusEl.textContent = '✓ Şirket bulundu';
-    } else {
-      if (statusEl) statusEl.textContent = 'Şirket bulunamadı';
+    const res = await fetch(`/api/companies/search?q=${encodeURIComponent(q)}`);
+    if (!res.ok) return;
+    const list = await res.json();
+
+    if (!list.length) {
+      dropdown.style.display = 'none';
+      return;
     }
-  } catch {
-    if (statusEl) statusEl.textContent = '';
-  }
+
+    dropdown.innerHTML = list.map((c, i) =>
+      `<div class="company-dropdown-item" data-idx="${i}">
+          ${c.name}<span>${c.vkn_tckn || ''}</span>
+        </div>`
+    ).join('');
+
+    dropdown._data = list;
+    dropdown.querySelectorAll('.company-dropdown-item').forEach((el, i) => {
+      el.addEventListener('click', () => {
+        const c = dropdown._data[i];
+        selectCompany(c.id, c.name, c.vkn_tckn || '');
+      });
+    });
+    dropdown.style.display = 'block';
+  } catch { }
 }
+
+function selectCompany(id, name, vkn) {
+  document.getElementById('companyName').value = name;
+  _selectedCompanyVkn = vkn;
+  const dropdown = document.getElementById('companyDropdown');
+  dropdown.style.display = 'none';
+  dropdown.innerHTML = '';
+}
+
+document.addEventListener('click', (e) => {
+  if (!e.target.closest('#companyName') && !e.target.closest('#companyDropdown')) {
+    document.getElementById('companyDropdown').style.display = 'none';
+  }
+});
+
 
 function esc(s) {
   return String(s || '').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');

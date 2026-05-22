@@ -2,14 +2,14 @@
 'use strict';
 
 const express = require('express');
-const router  = express.Router();
+const router = express.Router();
 
 // GET /api/companies/by-vkn?vkn=...
 router.get('/by-vkn', async (req, res) => {
   try {
     const supabase = req.app.get('supabase');
     const tenantId = req.tenantId;
-    const vkn      = String(req.query.vkn || '').trim();
+    const vkn = String(req.query.vkn || '').trim();
     if (!vkn) return res.status(400).json({ error: 'VKN zorunlu' });
 
     const { data, error } = await supabase
@@ -25,5 +25,38 @@ router.get('/by-vkn', async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
+
+
+// GET /api/companies/search?q=...
+router.get('/search', async (req, res) => {
+  try {
+    const supabase = req.app.get('supabase');
+    const tenantId = req.tenantId;
+    const q = String(req.query.q || '').trim();
+    if (!q) return res.json([]);
+
+    const { data, error } = await supabase
+      .from('companies')
+      .select('id, name, vkn_tckn')
+      .eq('tenant_id', tenantId)
+      .ilike('name', `${q}%`)
+      .order('name', { ascending: true })
+      .limit(10);
+
+    if (error) throw error;
+    res.json(data || []);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+
+
+
+
+
+
+
+
 
 module.exports = router;

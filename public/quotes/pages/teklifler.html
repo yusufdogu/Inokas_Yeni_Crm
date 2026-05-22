@@ -1,99 +1,105 @@
 <!DOCTYPE html>
 <html lang="tr">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Teklifler — İnokas CRM</title>
   <script>if (!sessionStorage.getItem('inokas_token')) window.location.href = '/auth/login.html';</script>
-  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap"
+    rel="stylesheet">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.x/dist/tabler-icons.min.css">
   <link rel="stylesheet" href="/shared/sidebar.css">
   <link rel="stylesheet" href="/quotes/css/quotes.css?v=1">
 </head>
+
 <body>
-<div class="app-shell">
-  <div id="sidebar-container"></div>
+  <div class="app-shell">
+    <div id="sidebar-container"></div>
 
-  <div class="page-area">
+    <div class="page-area">
 
-    <!-- Header -->
-    <div class="page-header">
-      <button class="sb-toggle-btn" onclick="toggleSidebar()"><i class="ti ti-menu-2"></i></button>
-      <div>
-        <p class="page-header-title">Teklifler</p>
-        <p class="page-header-sub" id="quoteCount">Yükleniyor...</p>
+      <!-- Header -->
+      <div class="page-header">
+        <button class="sb-toggle-btn" onclick="toggleSidebar()"><i class="ti ti-menu-2"></i></button>
+        <div>
+          <p class="page-header-title">Teklifler</p>
+          <p class="page-header-sub" id="quoteCount">Yükleniyor...</p>
+        </div>
+        <div style="margin-left:auto;">
+          <button class="btn-primary" onclick="window.location.href='/quotes/pages/teklif-form.html'">
+            <i class="ti ti-plus"></i> Yeni Teklif
+          </button>
+        </div>
       </div>
-      <div style="margin-left:auto;">
-        <button class="btn-primary" onclick="window.location.href='/quotes/pages/teklif-form.html'">
-          <i class="ti ti-plus"></i> Yeni Teklif
-        </button>
-      </div>
-    </div>
 
-    <!-- Filter Bar -->
-    <div class="filter-bar">
-      <input type="text" class="filter-input" id="searchInput" placeholder="Şirket adı veya ref no ara..." oninput="applyFilters()">
-      <select class="filter-select" id="statusFilter" onchange="applyFilters()">
-        <option value="">Tüm Durumlar</option>
-        <option value="pending">Beklemede</option>
-        <option value="accepted">Kabul</option>
-        <option value="rejected">Red</option>
-        <option value="draft">Taslak</option>
-      </select>
-    </div>
-
-    <!-- Table -->
-    <div class="table-wrap">
-      <table class="data-table">
-        <thead>
-          <tr>
-            <th>Ref No</th>
-            <th>Şirket</th>
-            <th>Tarih</th>
-            <th>Geçerlilik</th>
-            <th style="text-align:right;">Toplam (KDV Hariç)</th>
-            <th>Durum</th>
-            <th>İşlemler</th>
-          </tr>
-        </thead>
-        <tbody id="quotesTbody"></tbody>
-      </table>
-      <div id="quotesEmpty" class="empty-state" style="display:none;">Teklif bulunamadı.</div>
-    </div>
-
-  </div>
-</div>
-
-<!-- Mail Modal -->
-<div class="modal-overlay hidden" id="mailModal">
-  <div class="modal-box">
-    <div class="modal-header">
-      <h3>Mail Gönder</h3>
-      <button class="modal-close" onclick="closeMailModal()"><i class="ti ti-x"></i></button>
-    </div>
-    <div class="modal-body">
-      <div class="form-group">
-        <label class="form-label">E-Posta</label>
-        <input type="email" class="form-input" id="mailTo" placeholder="ornek@firma.com">
+      <!-- Filter Bar -->
+      <div class="filter-bar">
+        <input type="text" class="filter-input" id="searchInput" placeholder="Şirket adı veya ref no ara..."
+          oninput="applyFilters()">
+        <select class="filter-select" id="statusFilter" onchange="applyFilters()">
+          <option value="">Tüm Durumlar</option>
+          <option value="pending">Beklemede</option>
+          <option value="accepted">Kabul</option>
+          <option value="rejected">Red</option>
+          <option value="draft">Taslak</option>
+        </select>
       </div>
-      <div class="form-group">
-        <label class="form-label">Konu</label>
-        <input type="text" class="form-input" id="mailSubject">
+
+      <!-- Table -->
+      <div class="table-wrap">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Ref No</th>
+              <th>Şirket</th>
+              <th>İş Adı</th>
+              <th>Tarih</th>
+              <th>Geçerlilik</th>
+              <th style="text-align:right;">Toplam (KDV Hariç)</th>
+              <th>Durum</th>
+              <th>İşlemler</th>
+            </tr>
+          </thead>
+          <tbody id="quotesTbody"></tbody>
+        </table>
+        <div id="quotesEmpty" class="empty-state" style="display:none;">Teklif bulunamadı.</div>
       </div>
-      <div class="form-group" style="flex:1; display:flex; flex-direction:column;">
-        <label class="form-label">Mesaj</label>
-        <textarea class="form-input" id="mailBody" style="flex:1; resize:none;"></textarea>
-      </div>
-    </div>
-    <div class="modal-footer">
-      <button class="btn-secondary" onclick="closeMailModal()">İptal</button>
-      <button class="btn-primary" onclick="sendMail()"><i class="ti ti-send"></i> Gönder</button>
+
     </div>
   </div>
-</div>
 
-<script src="/shared/auth-interceptor.js"></script>  <!-- no defer -->
-<script src="/shared/sidebar.js" defer></script>      <!-- defer is fine -->
-<script src="/quotes/js/teklifler.js?v=1"></script>
+  <!-- Mail Modal -->
+  <div class="modal-overlay hidden" id="mailModal">
+    <div class="modal-box">
+      <div class="modal-header">
+        <h3>Mail Gönder</h3>
+        <button class="modal-close" onclick="closeMailModal()"><i class="ti ti-x"></i></button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label class="form-label">E-Posta</label>
+          <input type="email" class="form-input" id="mailTo" placeholder="ornek@firma.com">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Konu</label>
+          <input type="text" class="form-input" id="mailSubject">
+        </div>
+        <div class="form-group" style="flex:1; display:flex; flex-direction:column;">
+          <label class="form-label">Mesaj</label>
+          <textarea class="form-input" id="mailBody" style="flex:1; resize:none;"></textarea>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-secondary" onclick="closeMailModal()">İptal</button>
+        <button class="btn-primary" onclick="sendMail()"><i class="ti ti-send"></i> Gönder</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="/shared/auth-interceptor.js"></script> <!-- no defer -->
+  <script src="/shared/sidebar.js" defer></script> <!-- defer is fine -->
+  <script src="/quotes/js/teklifler.js?v=1"></script>
 </body>
+
 </html>

@@ -1,116 +1,120 @@
 <!DOCTYPE html>
 <html lang="tr">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Teklif Formu — İnokas CRM</title>
   <script>if (!sessionStorage.getItem('inokas_token')) window.location.href = '/auth/login.html';</script>
-  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap"
+    rel="stylesheet">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.x/dist/tabler-icons.min.css">
   <link rel="stylesheet" href="/shared/sidebar.css">
   <link rel="stylesheet" href="/quotes/css/quotes.css?v=1">
-  <link rel="stylesheet" href="/quotes/css/teklif-form.css?v=1">
+  <link rel="stylesheet" href="/quotes/css/teklif-form.css?v=20260522-horizontal">
 </head>
+
 <body>
-<div class="app-shell">
-  <div id="sidebar-container"></div>
+  <div class="app-shell">
+    <div id="sidebar-container"></div>
 
-  <div class="page-area">
+    <div class="page-area">
 
-    <!-- Header -->
-    <div class="page-header">
-      <button class="sb-toggle-btn" onclick="toggleSidebar()"><i class="ti ti-menu-2"></i></button>
-      <div style="display:flex; align-items:center; gap:10px;">
-        <div>
-          <p class="page-header-title" id="formTitle">Yeni Teklif</p>
-          <p class="page-header-sub" id="formRefNo"></p>
-        </div>
-      </div>
-      <div style="margin-left:auto; display:flex; gap:8px;">
-        <select class="form-input" id="statusSelect" style="font-size:13px; padding:6px 10px;">
-          <option value="pending">Beklemede</option>
-          <option value="accepted">Kabul</option>
-          <option value="rejected">Red</option>
-          <option value="draft">Taslak</option>
-        </select>
-        <button class="btn-primary" onclick="saveQuote()"><i class="ti ti-device-floppy"></i> Kaydet</button>
-      </div>
-    </div>
-
-    <div class="form-area">
-
-      <!-- Sol: Genel Bilgiler -->
-      <div class="form-card">
-        <div class="form-card-title">Genel Bilgiler</div>
-
-        <div class="form-group">
-          <label class="form-label">VKN / TC</label>
-          <input type="text" class="form-input" id="companyVkn" placeholder="VKN gir, şirket otomatik dolsun..." oninput="onVknInput()">
-          <span id="vknStatus" style="font-size:11px; color:var(--text-sub); min-height:16px;"></span>
-        </div>
-
-        <div class="form-group">
-          <label class="form-label">Şirket Adı</label>
-          <input type="text" class="form-input" id="companyName" placeholder="Şirket adı...">
-        </div>
-
-        <div class="form-row">
-          <div class="form-group">
-            <label class="form-label">Teklif Tarihi</label>
-            <input type="date" class="form-input" id="quoteDate">
-          </div>
-          <div class="form-group">
-            <label class="form-label">Geçerlilik Tarihi</label>
-            <input type="date" class="form-input" id="validUntil">
+      <!-- Header -->
+      <div class="page-header">
+        <button class="sb-toggle-btn" onclick="toggleSidebar()"><i class="ti ti-menu-2"></i></button>
+        <div style="display:flex; align-items:center; gap:10px;">
+          <div>
+            <p class="page-header-title" id="formTitle">Yeni Teklif</p>
+            <p class="page-header-sub" id="formRefNo"></p>
           </div>
         </div>
-
-        <div class="form-group">
-          <label class="form-label">Not</label>
-          <textarea class="form-input" id="quoteNotes" placeholder="Opsiyonel not..."></textarea>
+        <div style="margin-left:auto; display:flex; gap:8px;">
+          <select class="form-input" id="statusSelect" style="font-size:13px; padding:6px 10px;">
+            <option value="pending">Beklemede</option>
+            <option value="accepted">Kabul</option>
+            <option value="rejected">Red</option>
+            <option value="draft">Taslak</option>
+          </select>
+          <button class="btn-primary" onclick="saveQuote()"><i class="ti ti-device-floppy"></i> Kaydet</button>
         </div>
       </div>
 
-      <!-- Sağ: Ürün Kalemleri -->
-      <div class="form-card form-card--items">
-        <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:16px;">
-          <div class="form-card-title" style="margin-bottom:0;">Ürün Kalemleri</div>
-          <button class="btn-primary" onclick="addRow()" style="padding:6px 12px; font-size:12px;">
-            <i class="ti ti-plus"></i> Satır Ekle
-          </button>
+      <div class="form-area">
+
+        <!-- Üst: Genel Bilgiler (yatay) -->
+        <div class="form-card">
+          <div class="form-card-title">Genel Bilgiler</div>
+
+          <div class="genel-bilgiler-row">
+            <div class="form-group form-group--wide" style="position:relative;">
+              <label class="form-label">Şirket Adı</label>
+              <input type="text" class="form-input" id="companyName" placeholder="Şirket ara..." autocomplete="off"
+                oninput="onCompanySearch()">
+              <div id="companyDropdown" class="company-dropdown" style="display:none;"></div>
+            </div>
+
+            <div class="form-group form-group--wide">
+              <label class="form-label">İşin Adı</label>
+              <input type="text" class="form-input" id="jobName" placeholder="İşin adı...">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Teklif Tarihi</label>
+              <input type="date" class="form-input" id="quoteDate">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Geçerlilik Tarihi</label>
+              <input type="date" class="form-input" id="validUntil">
+            </div>
+          </div>
+
+          <div class="form-group form-group--notes">
+            <label class="form-label">Not</label>
+            <textarea class="form-input" id="quoteNotes" placeholder="Opsiyonel not..."></textarea>
+          </div>
         </div>
 
-        <div class="items-table-wrap">
-          <table class="items-table">
-            <thead>
-              <tr>
-                <th style="width:36px;">#</th>
-                <th style="width:130px;">Ürün Kodu</th>
-                <th>Ürün Adı</th>
-                <th style="width:160px;">Birim</th>
-                <th style="width:80px;">Miktar</th>
-                <th style="width:120px;">B. Fiyat</th>
-                <th style="width:120px;">Toplam</th>
-                <th style="width:36px;"></th>
-              </tr>
-            </thead>
-            <tbody id="itemsTbody"></tbody>
-          </table>
+        <!-- Sağ: Ürün Kalemleri -->
+        <div class="form-card form-card--items">
+          <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:16px;">
+            <div class="form-card-title" style="margin-bottom:0;">Ürün Kalemleri</div>
+            <button class="btn-primary" onclick="addRow()" style="padding:6px 12px; font-size:12px;">
+              <i class="ti ti-plus"></i> Satır Ekle
+            </button>
+          </div>
+
+          <div class="items-table-wrap">
+            <table class="items-table">
+              <thead>
+                <tr>
+                  <th style="width:36px;">#</th>
+                  <th style="width:130px;">Ürün Kodu</th>
+                  <th>Ürün Adı</th>
+                  <th style="width:160px;">Birim</th>
+                  <th style="width:80px;">Miktar</th>
+                  <th style="width:120px;">B. Fiyat</th>
+                  <th style="width:120px;">Toplam</th>
+                  <th style="width:36px;"></th>
+                </tr>
+              </thead>
+              <tbody id="itemsTbody"></tbody>
+            </table>
+          </div>
+
+          <!-- Toplam -->
+          <div class="items-total">
+            <span>Toplam (KDV Hariç)</span>
+            <strong id="totalDisplay">₺0,00</strong>
+          </div>
         </div>
 
-        <!-- Toplam -->
-        <div class="items-total">
-          <span>Toplam (KDV Hariç)</span>
-          <strong id="totalDisplay">₺0,00</strong>
-        </div>
       </div>
-
     </div>
   </div>
-</div>
 
-<script src="/shared/auth-interceptor.js"></script>  <!-- no defer -->
-<script src="/shared/sidebar.js" defer></script>      <!-- defer is fine -->
-<script src="/quotes/js/teklif-form.js?v=1"></script>
+  <script src="/shared/auth-interceptor.js"></script> <!-- no defer -->
+  <script src="/shared/sidebar.js" defer></script> <!-- defer is fine -->
+  <script src="/quotes/js/teklif-form.js?v=1"></script>
 </body>
+
 </html>

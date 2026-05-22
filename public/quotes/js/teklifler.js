@@ -74,6 +74,7 @@ function renderTable(list) {
     return `<tr>
       <td><strong>${esc(qt.reference_no)}</strong></td>
       <td>${company}</td>
+      <td>${esc(qt.job_name || '—')}</td>
       <td>${fmtDate(qt.quote_date)}</td>
       <td>${fmtDate(qt.valid_until)}</td>
       <td style="text-align:right;">${fmtMoney(qt.total_excl_tax)}</td>

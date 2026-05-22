@@ -668,6 +668,17 @@ async function renderUrunlerView(id, body, inv) {
         </div>`;
     }).join('');
 
+    // When coming from a bekleyen page, go straight into batch category mode for all items
+    const _fromParam = (typeof location !== 'undefined')
+        ? (new URLSearchParams(location.search).get('from') || '')
+        : '';
+    const _isBekleyen = _fromParam === 'bekleyen-gelen';
+
+    if (_isBekleyen && items.length > 0) {
+        setTimeout(() => enterBatchCategoryMode(id, true), 10);
+        return;
+    }
+
     setTimeout(() => {
         body.innerHTML = `${warnHtml}
             <div style="display:flex;flex-direction:column;gap:6px;padding:12px;">
@@ -1073,3 +1084,158 @@ async function renderXmlToPdfIframe(xmlString, iframe) {
     iframeDoc.close();
 }
 
+// ─── Toplu Kategori Atama ─────────────────────────────────────────────────────
+
+const _batchCatState = {};  // invoiceId → { itemId: category }
+
+function enterBatchCategoryMode(id, allItems) {
+    const { inv, body } = _findInvAndBody(id);
+    if (!inv || !body) return;
+
+    const internalItems = allItems
+        ? (inv.invoice_items || [])
+        : (inv.invoice_items || []).filter(it => !!it.is_internal);
+    if (!internalItems.length) return;
+
+    // Seed pending state from current values
+    _batchCatState[id] = {};
+    internalItems.forEach(it => { _batchCatState[id][it.id] = it.internal_category || ''; });
+
+    function buildRows() {
+        return internalItems.map(it => {
+            const cat  = _batchCatState[id][it.id] || '';
+            const name = String(it.product_name || '').replace(/</g, '&lt;');
+            const code = String(it.product_code || it.sku || '').trim();
+            return `<label class="bcat-row" style="display:flex;align-items:center;gap:10px;padding:9px 12px;background:#fff;border:1px solid #e2e8f0;border-radius:10px;cursor:pointer;user-select:none;" onclick="event.preventDefault();this.querySelector('.bcat-chk').click();">
+                <input type="checkbox" class="bcat-chk" data-itemid="${it.id}"
+                    style="width:16px;height:16px;accent-color:#7c3aed;flex-shrink:0;cursor:pointer;" onclick="event.stopPropagation();">
+                <div style="flex:1;min-width:0;">
+                    <div style="font-size:13px;font-weight:700;color:#0f172a;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${name || '—'}</div>
+                    ${code ? `<div style="font-size:11px;font-weight:700;color:#2563eb;font-family:'Geist Mono',monospace;margin-top:2px;">${code}</div>` : ''}
+                </div>
+                <span class="bcat-cur" data-itemid="${it.id}"
+                    style="font-size:12px;font-weight:600;padding:3px 10px;border-radius:6px;white-space:nowrap;flex-shrink:0;${cat ? 'background:#eff6ff;color:#2563eb;' : 'background:#f1f5f9;color:#94a3b8;'}">
+                    ${cat ? cat.replace(/</g, '&lt;') : 'Kategori yok'}
+                </span>
+            </label>`;
+        }).join('');
+    }
+
+    const catOptions = (_internalCategoryOptions || []);
+    const optHtml = catOptions.map(o => `<option value="${o.replace(/"/g, '&quot;')}">${o}</option>`).join('');
+
+    body.innerHTML = `
+        <div style="padding:12px;display:flex;flex-direction:column;gap:10px;">
+            <div style="background:#f5f3ff;border:1px solid #ddd6fe;border-radius:10px;padding:10px 14px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+                <span style="font-size:12px;font-weight:700;color:#7c3aed;white-space:nowrap;">Seçilenlere uygula:</span>
+                <select id="batchCatSelect_${id}" style="flex:1;min-width:140px;height:32px;padding:0 8px;border:1px solid #c4b5fd;border-radius:8px;background:#fff;color:#1e293b;font-size:12px;font-weight:600;font-family:inherit;outline:none;cursor:pointer;">
+                    <option value="">— Kategori seçin —</option>
+                    ${optHtml}
+                </select>
+                <button onclick="applyBatchCategory('${id}')"
+                    style="height:32px;padding:0 14px;background:#7c3aed;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;white-space:nowrap;">
+                    Seçilenlere Uygula
+                </button>
+                <button onclick="selectAllBatchItems('${id}')"
+                    style="height:32px;padding:0 12px;background:#f5f3ff;color:#7c3aed;border:1px solid #c4b5fd;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;white-space:nowrap;">
+                    Tümünü Seç
+                </button>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:6px;" id="bcatList_${id}">
+                ${buildRows()}
+            </div>
+        </div>
+        <div class="det-actions" style="padding:0 12px 12px;justify-content:space-between;">
+            <div style="display:flex;gap:6px;">
+                <button class="fatura-action-btn" onclick="switchFatDetailTab('${id}','urunler')">İptal</button>
+                <button class="fatura-action-btn" onclick="enterUrunlerEdit('${id}')">✏️ Düzenle</button>
+            </div>
+            <button class="fatura-action-btn fatura-action-btn--primary" onclick="saveBatchCategoryAssignments('${id}')">💾 Kaydet</button>
+        </div>`;
+}
+
+function applyBatchCategory(id) {
+    const sel = document.getElementById(`batchCatSelect_${id}`);
+    const cat = sel?.value || '';
+    if (!cat) { alert('Lütfen önce bir kategori seçin.'); return; }
+
+    const list = document.getElementById(`bcatList_${id}`);
+    if (!list) return;
+
+    let count = 0;
+    list.querySelectorAll('.bcat-chk:checked').forEach(chk => {
+        const itemId = chk.dataset.itemid;
+        _batchCatState[id][itemId] = cat;
+        const badge = list.querySelector(`.bcat-cur[data-itemid="${itemId}"]`);
+        if (badge) {
+            badge.textContent = cat;
+            badge.style.background = '#eff6ff';
+            badge.style.color = '#2563eb';
+        }
+        chk.checked = false;
+        count++;
+    });
+
+    if (!count) alert('Lütfen önce satırları işaretleyin.');
+}
+
+function selectAllBatchItems(id) {
+    const list = document.getElementById(`bcatList_${id}`);
+    if (!list) return;
+    const allChecked = [...list.querySelectorAll('.bcat-chk')].every(c => c.checked);
+    list.querySelectorAll('.bcat-chk').forEach(c => { c.checked = !allChecked; });
+}
+
+async function saveBatchCategoryAssignments(id) {
+    const state = _batchCatState[id];
+    if (!state) return;
+
+    // Auto-apply any currently checked+selected items before saving
+    const sel = document.getElementById(`batchCatSelect_${id}`);
+    const pendingCat = sel?.value || '';
+    if (pendingCat) {
+        const list = document.getElementById(`bcatList_${id}`);
+        list?.querySelectorAll('.bcat-chk:checked').forEach(chk => {
+            const itemId = chk.dataset.itemid;
+            state[itemId] = pendingCat;
+            const badge = list.querySelector(`.bcat-cur[data-itemid="${itemId}"]`);
+            if (badge) { badge.textContent = pendingCat; badge.style.background = '#eff6ff'; badge.style.color = '#2563eb'; }
+        });
+    }
+
+    const assignments = Object.entries(state)
+        .filter(([, cat]) => cat)
+        .map(([item_id, internal_category]) => ({ item_id, internal_category }));
+
+    if (!assignments.length) { alert('Kaydedilecek kategori atama bulunamadı.'); return; }
+
+    const btn = document.querySelector(`[onclick="saveBatchCategoryAssignments('${id}')"]`);
+    if (btn) { btn.disabled = true; btn.textContent = 'Kaydediliyor...'; }
+
+    try {
+        const res = await fetch(`/api/invoices/${id}/items/batch-category`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ assignments })
+        });
+        const result = await res.json();
+        if (!res.ok || result.ok === false) throw new Error((result.errors?.[0]?.error) || 'Kaydetme hatası');
+
+        // Update in-memory cache
+        const { inv } = _findInvAndBody(id);
+        if (inv?.invoice_items) {
+            inv.invoice_items.forEach(it => {
+                if (state[it.id] !== undefined) {
+                    it.internal_category = state[it.id] || null;
+                    it.is_internal = !!state[it.id];
+                }
+            });
+        }
+
+        delete _batchCatState[id];
+        switchFatDetailTab(id, 'urunler');
+    } catch (e) {
+        alert('Hata: ' + e.message);
+        if (btn) { btn.disabled = false; btn.textContent = '💾 Kaydet'; }
+    }
+}

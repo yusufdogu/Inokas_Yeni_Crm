@@ -100,7 +100,11 @@ function renderTabs(id) {
     document.getElementById('detayTabBar').style.display   = 'flex';
     document.getElementById('fatDetailTabBody').style.display = 'block';
 
-    switchDetayTab('bilgiler');
+    // Default to ürünler tab when coming from bekleyen pages so batch category is immediately visible
+    const params = new URLSearchParams(location.search);
+    const from   = params.get('from') || '';
+    const startTab = (from === 'bekleyen-gelen' || from === 'bekleyen-giden') ? 'urunler' : 'bilgiler';
+    switchDetayTab(startTab);
 }
 
 function switchDetayTab(tab) {
@@ -148,11 +152,32 @@ if (typeof approveDetailInvoice === 'undefined') {
         try {
             const res = await fetch(`/api/invoices/${id}/approve`, { method: 'PUT' });
             if (!res.ok) throw new Error('Onay başarısız');
-            const isIncoming = String(_detayInv?.direction || '').toUpperCase() === 'INCOMING';
+
+            // Re-fetch to get up-to-date is_internal values (batch category may have changed them)
+            const freshRes = await fetch(`/api/invoices/${encodeURIComponent(id)}`);
+            const freshInv = freshRes.ok ? await freshRes.json() : _detayInv;
+
+            const items = freshInv?.invoice_items || [];
+            const totalItems = items.length;
+            const internalCount = items.filter(it => it.is_internal).length;
+            const isIncoming = String(freshInv?.direction || _detayInv?.direction || '').toUpperCase() === 'INCOMING';
+
             alert('Fatura başarıyla aktarıldı.');
-            window.location.href = isIncoming
-                ? '/faturalar/pages/gelen-faturalar.html'
-                : '/faturalar/pages/giden-faturalar.html';
+
+            if (totalItems > 0 && internalCount === totalItems) {
+                // Hepsi internal → ofis içi
+                window.location.href = '/faturalar/pages/ofis-ici.html';
+            } else if (internalCount > 0) {
+                // Karışık → direction'a göre git
+                window.location.href = isIncoming
+                    ? '/faturalar/pages/gelen-faturalar.html'
+                    : '/faturalar/pages/giden-faturalar.html';
+            } else {
+                // Hiç internal yok → direction'a göre git
+                window.location.href = isIncoming
+                    ? '/faturalar/pages/gelen-faturalar.html'
+                    : '/faturalar/pages/giden-faturalar.html';
+            }
         } catch (err) {
             alert(`Hata: ${err.message}`);
             if (btn) { btn.disabled = false; btn.textContent = 'Aktar'; }

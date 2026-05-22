@@ -207,7 +207,7 @@ router.get('/', async (req, res) => {
   try {
     const supabase = getSupabase(req);
     const { q, status } = req.query;
-    let query = supabase.from('quotes').select('*').order('created_at', { ascending: false });
+    let query = supabase.from('quotes').select('*').eq('tenant_id', req.tenantId).order('created_at', { ascending: false });
     if (status) query = query.eq('status', status);
     const { data, error } = await query;
     if (error) throw error;
@@ -282,7 +282,10 @@ router.post('/', async (req, res) => {
     const total_excl_tax = (items || []).reduce((s, it) => s + (parseFloat(it.total_price) || 0), 0);
 
     const { data: quote, error: qErr } = await supabase.from('quotes')
-      .insert({ reference_no, company_id: company_id || null, company_name, quote_date, valid_until, currency: currency || 'TRY', status: status || 'pending', notes, total_excl_tax })
+      .insert({
+        reference_no, company_id: company_id || null, company_name, quote_date, valid_until, currency: currency || 'TRY', status: status || 'pending',
+        notes, total_excl_tax, tenant_id: req.tenantId
+      })
       .select().single();
     if (qErr) throw qErr;
 
@@ -389,7 +392,7 @@ router.post('/:id/send-email', async (req, res) => {
       from: `İnokas CRM <${process.env.GMAIL_USER}>`,
       to,
       subject,
-      text: body + (qt?.pdf_url ? `\n\nTeklif PDF: ${qt.pdf_url}` : ''),
+      text: body, html: `<p>${body.replace(/\n/g, '<br>')}</p>` + (qt?.pdf_url ? `<p>Teklif PDF: <a href="${qt.pdf_url}">Görüntülemek için tıklayın</a></p>` : ''),
     };
 
     await transporter.sendMail(mailOptions);

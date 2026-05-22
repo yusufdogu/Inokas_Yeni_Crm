@@ -165,12 +165,11 @@ function renderOfisIciList() {
             '<td class="fat-tbl-date">' + date + '</td>' +
             '<td class="fat-tbl-amount">' + fmtMoney(internalTotal) + ' <span style="color:#64748b;font-size:11px;">' + cur + '</span></td>' +
             '<td>' + (catBadges || '<span style="color:#475569;font-size:12px;">—</span>') + '</td>' +
-            '<td style="color:#64748b;font-size:12px;">' + internalQty + ' adet</td>' +
             '</tr>';
     }).join('');
 
     content.innerHTML = '<div class="fat-list-view"><div class="fat-tbl-wrap"><table class="fat-tbl"><thead><tr>' +
-        '<th>FATURA NO</th><th>FİRMA</th><th>TARİH</th><th style="text-align:right;">TOPLAM</th><th>KATEGORİLER</th><th>OFİS İÇİ</th>' +
+        '<th>FATURA NO</th><th>FİRMA</th><th>TARİH</th><th style="text-align:right;">TOPLAM</th><th>KATEGORİLER</th>' +
         '</tr></thead><tbody>' + rows + '</tbody></table></div></div>';
 }
 
@@ -187,11 +186,6 @@ function renderOfisKpi(totals) {
     const totalFatura = totals.count    || 0;
     const catMap     = totals.cat_map   || {};
 
-    const topCats = Object.entries(catMap).sort((a, b) => b[1] - a[1]).slice(0, 3);
-    const catHtml = topCats.map(([cat, cnt]) =>
-        '<div class="fat-kpi" ' + slimStyle + '><p class="fat-kpi-label">' + cat.toUpperCase() + '</p><p class="fat-kpi-value" style="font-size:15px;">' + cnt + ' adet</p></div>'
-    ).join('');
-
     const usdHtml = usdTotal > 0
         ? '<div class="fat-kpi" ' + spendStyle + '><p class="fat-kpi-label">HARCAMA (USD)</p><p class="fat-kpi-value" style="font-size:15px;color:#2563eb;">$' + fmtMoney(usdTotal) + '</p></div>'
         : '';
@@ -199,7 +193,7 @@ function renderOfisKpi(totals) {
     bar.innerHTML =
         '<div class="fat-kpi" ' + slimStyle + '><p class="fat-kpi-label">TOPLAM FATURA</p><p class="fat-kpi-value" style="font-size:15px;">' + totalFatura + '</p></div>' +
         '<div class="fat-kpi" ' + spendStyle + '><p class="fat-kpi-label">HARCAMA (TL)</p><p class="fat-kpi-value" style="font-size:15px;">₺' + fmtMoney(tryTotal) + '</p></div>' +
-        usdHtml + catHtml;
+        usdHtml;
 }
 
 function renderOfisKpiFromCache(list) {
@@ -219,17 +213,13 @@ function renderOfisKpiFromCache(list) {
             catMap[cat] = (catMap[cat] || 0) + (parseFloat(it.quantity) || 1);
         });
     });
-    const topCats = Object.entries(catMap).sort((a, b) => b[1] - a[1]).slice(0, 3);
-    const catHtml = topCats.map(([cat, cnt]) =>
-        '<div class="fat-kpi" ' + slimStyle + '><p class="fat-kpi-label">' + cat.toUpperCase() + '</p><p class="fat-kpi-value" style="font-size:15px;">' + cnt + ' adet</p></div>'
-    ).join('');
     const usdHtml = usdTotal > 0
         ? '<div class="fat-kpi" ' + spendStyle + '><p class="fat-kpi-label">HARCAMA (USD)</p><p class="fat-kpi-value" style="font-size:15px;color:#2563eb;">$' + fmtMoney(usdTotal) + '</p></div>'
         : '';
     bar.innerHTML =
         '<div class="fat-kpi" ' + slimStyle + '><p class="fat-kpi-label">TOPLAM FATURA</p><p class="fat-kpi-value" style="font-size:15px;">' + (list?.length || 0) + '</p></div>' +
         '<div class="fat-kpi" ' + spendStyle + '><p class="fat-kpi-label">HARCAMA (TL)</p><p class="fat-kpi-value" style="font-size:15px;">₺' + fmtMoney(tryTotal) + '</p></div>' +
-        usdHtml + catHtml;
+        usdHtml;
 }
 
 function renderOfisPagination() {

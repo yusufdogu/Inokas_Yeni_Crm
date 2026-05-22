@@ -36,7 +36,9 @@ CREATE TABLE public.companies (
   postal_code text,
   trade_registry_no text,
   mersis_no text,
-  CONSTRAINT companies_pkey PRIMARY KEY (id)
+  tenant_id uuid,
+  CONSTRAINT companies_pkey PRIMARY KEY (id),
+  CONSTRAINT companies_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.tenants(id)
 );
 CREATE TABLE public.dmo_order_items (
   id uuid NOT NULL DEFAULT uuid_generate_v4(),
@@ -51,9 +53,11 @@ CREATE TABLE public.dmo_order_items (
   maliyet_usd numeric DEFAULT 0,
   maliyet_tl numeric DEFAULT 0,
   indirim_pct numeric DEFAULT 0,
+  tenant_id uuid,
   CONSTRAINT dmo_order_items_pkey PRIMARY KEY (id),
   CONSTRAINT fk_dmo_order_items_order FOREIGN KEY (order_id) REFERENCES public.dmo_orders(id),
-  CONSTRAINT fk_dmo_order_items_product FOREIGN KEY (product_id) REFERENCES public.products(id)
+  CONSTRAINT fk_dmo_order_items_product FOREIGN KEY (product_id) REFERENCES public.products(id),
+  CONSTRAINT dmo_order_items_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.tenants(id)
 );
 CREATE TABLE public.dmo_orders (
   id uuid NOT NULL DEFAULT uuid_generate_v4(),
@@ -84,7 +88,9 @@ CREATE TABLE public.dmo_orders (
   real_dmo_basket numeric,
   tutar_indirimi numeric,
   tutar_indirimi_pct numeric,
-  CONSTRAINT dmo_orders_pkey PRIMARY KEY (id)
+  tenant_id uuid,
+  CONSTRAINT dmo_orders_pkey PRIMARY KEY (id),
+  CONSTRAINT dmo_orders_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.tenants(id)
 );
 CREATE TABLE public.invoice_items (
   id uuid NOT NULL DEFAULT uuid_generate_v4(),
@@ -113,10 +119,12 @@ CREATE TABLE public.invoice_items (
   customs_tariff_code text,
   commodity_code text,
   tax_amount_cur numeric,
+  tenant_id uuid,
   CONSTRAINT invoice_items_pkey PRIMARY KEY (id),
   CONSTRAINT invoice_items_invoice_id_fkey FOREIGN KEY (invoice_id) REFERENCES public.invoices(id),
   CONSTRAINT invoice_items_product_id_fkey FOREIGN KEY (product_id) REFERENCES public.products(id),
-  CONSTRAINT invoice_items_purchase_order_item_id_fkey FOREIGN KEY (purchase_order_item_id) REFERENCES public.purchase_order_items(id)
+  CONSTRAINT invoice_items_purchase_order_item_id_fkey FOREIGN KEY (purchase_order_item_id) REFERENCES public.purchase_order_items(id),
+  CONSTRAINT invoice_items_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.tenants(id)
 );
 CREATE TABLE public.invoices (
   id uuid NOT NULL DEFAULT uuid_generate_v4(),
@@ -142,7 +150,6 @@ CREATE TABLE public.invoices (
   total_tax_exclusive_cur numeric,
   total_tax_inclusive_cur numeric,
   payable_amount_cur numeric,
-  payment_due_date date,
   paid_amount_cur numeric DEFAULT 0,
   approval_status text NOT NULL DEFAULT 'approved'::text CHECK (approval_status = ANY (ARRAY['pending'::text, 'approved'::text, 'rejected'::text])),
   source text NOT NULL DEFAULT 'manual'::text CHECK (source = ANY (ARRAY['api'::text, 'manual'::text])),
@@ -150,8 +157,11 @@ CREATE TABLE public.invoices (
   gib_status_code integer,
   gib_status_description text,
   pdf_url text,
+  tenant_id uuid,
+  company_name text,
   CONSTRAINT invoices_pkey PRIMARY KEY (id),
-  CONSTRAINT invoices_company_id_fkey FOREIGN KEY (company_id) REFERENCES public.companies(id)
+  CONSTRAINT invoices_company_id_fkey FOREIGN KEY (company_id) REFERENCES public.companies(id),
+  CONSTRAINT invoices_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.tenants(id)
 );
 CREATE TABLE public.payments (
   id uuid NOT NULL DEFAULT uuid_generate_v4(),
@@ -161,8 +171,10 @@ CREATE TABLE public.payments (
   payment_date date NOT NULL,
   notes text,
   created_at timestamp with time zone DEFAULT now(),
+  tenant_id uuid,
   CONSTRAINT payments_pkey PRIMARY KEY (id),
-  CONSTRAINT payments_invoice_id_fkey FOREIGN KEY (invoice_id) REFERENCES public.invoices(id)
+  CONSTRAINT payments_invoice_id_fkey FOREIGN KEY (invoice_id) REFERENCES public.invoices(id),
+  CONSTRAINT payments_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.tenants(id)
 );
 CREATE TABLE public.product_attribute_values (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
@@ -170,8 +182,8 @@ CREATE TABLE public.product_attribute_values (
   attribute_id uuid,
   value text,
   CONSTRAINT product_attribute_values_pkey PRIMARY KEY (id),
-  CONSTRAINT product_attribute_values_product_id_fkey FOREIGN KEY (product_id) REFERENCES public.products(id),
-  CONSTRAINT product_attribute_values_attribute_id_fkey FOREIGN KEY (attribute_id) REFERENCES public.category_attributes(id)
+  CONSTRAINT product_attribute_values_attribute_id_fkey FOREIGN KEY (attribute_id) REFERENCES public.category_attributes(id),
+  CONSTRAINT product_attribute_values_product_id_fkey FOREIGN KEY (product_id) REFERENCES public.products(id)
 );
 CREATE TABLE public.product_group_items (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
@@ -232,7 +244,10 @@ CREATE TABLE public.products (
   gift_quantity numeric,
   needs_review boolean NOT NULL DEFAULT false,
   source text NOT NULL DEFAULT 'manual'::text,
-  CONSTRAINT products_pkey PRIMARY KEY (id)
+  is_internal boolean NOT NULL DEFAULT false,
+  tenant_id uuid,
+  CONSTRAINT products_pkey PRIMARY KEY (id),
+  CONSTRAINT products_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.tenants(id)
 );
 CREATE TABLE public.purchase_order_items (
   id uuid NOT NULL DEFAULT uuid_generate_v4(),
@@ -244,9 +259,11 @@ CREATE TABLE public.purchase_order_items (
   unit_price_cur numeric CHECK (unit_price_cur IS NULL OR unit_price_cur >= 0::numeric),
   currency text,
   line_total_cur numeric CHECK (line_total_cur IS NULL OR line_total_cur >= 0::numeric),
+  tenant_id uuid,
   CONSTRAINT purchase_order_items_pkey PRIMARY KEY (id),
   CONSTRAINT fk_poi_order FOREIGN KEY (purchase_order_id) REFERENCES public.purchase_orders(id),
-  CONSTRAINT fk_poi_product FOREIGN KEY (product_id) REFERENCES public.products(id)
+  CONSTRAINT fk_poi_product FOREIGN KEY (product_id) REFERENCES public.products(id),
+  CONSTRAINT purchase_order_items_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.tenants(id)
 );
 CREATE TABLE public.purchase_orders (
   id uuid NOT NULL DEFAULT uuid_generate_v4(),
@@ -256,8 +273,10 @@ CREATE TABLE public.purchase_orders (
   status text NOT NULL DEFAULT 'Bekliyor'::text,
   notes text,
   created_at timestamp with time zone DEFAULT now(),
+  tenant_id uuid,
   CONSTRAINT purchase_orders_pkey PRIMARY KEY (id),
-  CONSTRAINT fk_po_company FOREIGN KEY (company_id) REFERENCES public.companies(id)
+  CONSTRAINT fk_po_company FOREIGN KEY (company_id) REFERENCES public.companies(id),
+  CONSTRAINT purchase_orders_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.tenants(id)
 );
 CREATE TABLE public.quote_items (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
@@ -269,8 +288,10 @@ CREATE TABLE public.quote_items (
   quantity numeric NOT NULL DEFAULT 1,
   unit_price numeric NOT NULL DEFAULT 0,
   total_price numeric NOT NULL DEFAULT 0,
+  tenant_id uuid,
   CONSTRAINT quote_items_pkey PRIMARY KEY (id),
-  CONSTRAINT quote_items_quote_id_fkey FOREIGN KEY (quote_id) REFERENCES public.quotes(id)
+  CONSTRAINT quote_items_quote_id_fkey FOREIGN KEY (quote_id) REFERENCES public.quotes(id),
+  CONSTRAINT quote_items_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.tenants(id)
 );
 CREATE TABLE public.quotes (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
@@ -285,8 +306,10 @@ CREATE TABLE public.quotes (
   notes text,
   created_at timestamp with time zone DEFAULT now(),
   pdf_url text,
+  tenant_id uuid,
   CONSTRAINT quotes_pkey PRIMARY KEY (id),
-  CONSTRAINT quotes_company_id_fkey FOREIGN KEY (company_id) REFERENCES public.companies(id)
+  CONSTRAINT quotes_company_id_fkey FOREIGN KEY (company_id) REFERENCES public.companies(id),
+  CONSTRAINT quotes_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.tenants(id)
 );
 CREATE TABLE public.rate_history (
   id uuid NOT NULL DEFAULT uuid_generate_v4(),
@@ -296,7 +319,20 @@ CREATE TABLE public.rate_history (
   recorded_at timestamp without time zone DEFAULT now(),
   rate_date date,
   dmo_rate_date date,
-  CONSTRAINT rate_history_pkey PRIMARY KEY (id)
+  tenant_id uuid,
+  CONSTRAINT rate_history_pkey PRIMARY KEY (id),
+  CONSTRAINT rate_history_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.tenants(id)
+);
+CREATE TABLE public.sessions (
+  token text NOT NULL,
+  user_id uuid NOT NULL,
+  tenant_id uuid NOT NULL,
+  role text NOT NULL,
+  created_at timestamp with time zone DEFAULT now(),
+  expires_at timestamp with time zone DEFAULT (now() + '7 days'::interval),
+  CONSTRAINT sessions_pkey PRIMARY KEY (token),
+  CONSTRAINT sessions_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id),
+  CONSTRAINT sessions_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.tenants(id)
 );
 CREATE TABLE public.technical_issues (
   id uuid NOT NULL DEFAULT uuid_generate_v4(),
@@ -311,5 +347,38 @@ CREATE TABLE public.technical_issues (
   whatsapp_thread jsonb DEFAULT '[]'::jsonb,
   resolved_at timestamp with time zone,
   notes text,
-  CONSTRAINT technical_issues_pkey PRIMARY KEY (id)
+  tenant_id uuid,
+  CONSTRAINT technical_issues_pkey PRIMARY KEY (id),
+  CONSTRAINT technical_issues_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.tenants(id)
+);
+CREATE TABLE public.tenant_integrations (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  tenant_id uuid NOT NULL,
+  provider text NOT NULL DEFAULT 'logo'::text,
+  is_active boolean NOT NULL DEFAULT true,
+  created_at timestamp with time zone DEFAULT now(),
+  updated_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT tenant_integrations_pkey PRIMARY KEY (id),
+  CONSTRAINT tenant_integrations_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.tenants(id)
+);
+CREATE TABLE public.tenants (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  name text NOT NULL,
+  slug text NOT NULL UNIQUE,
+  is_active boolean NOT NULL DEFAULT true,
+  created_at timestamp with time zone DEFAULT now(),
+  onboarding_complete boolean NOT NULL DEFAULT false,
+  vkn text,
+  CONSTRAINT tenants_pkey PRIMARY KEY (id)
+);
+CREATE TABLE public.users (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  tenant_id uuid NOT NULL,
+  email text NOT NULL UNIQUE,
+  password_hash text NOT NULL,
+  role text NOT NULL DEFAULT 'admin'::text CHECK (role = ANY (ARRAY['admin'::text, 'user'::text])),
+  is_active boolean NOT NULL DEFAULT true,
+  created_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT users_pkey PRIMARY KEY (id),
+  CONSTRAINT users_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.tenants(id)
 );

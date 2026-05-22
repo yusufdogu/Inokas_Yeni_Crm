@@ -193,7 +193,7 @@ async function handleBulkFilePick(ev) {
     const files = Array.from(ev.target.files || []);
     if (!files.length) return;
 
-    try { await ensureBulkInokasVkn(); }
+    try { await ensureBulkTenantVkn(); }
     catch (e) { alert(e.message); return; }
 
     try { await ensureProductCodeLookupSetLoaded(false); }
@@ -215,8 +215,8 @@ async function handleBulkFilePick(ev) {
         } catch (e) { bulkFailed.push({ fileName: file.name, reason: 'XML çözülemedi' }); continue; }
 
         const { supplier, customer } = getSupplierCustomerVknsFromDoc(xmlDoc);
-        const dir = classifyInvoiceDirection(supplier, customer, bulkInokasVkn);
-        if (dir === 'NEITHER') { bulkFailed.push({ fileName: file.name, reason: 'İnokas satıcı/alıcı değil' }); continue; }
+        const dir = classifyInvoiceDirection(supplier, customer, bulkTenantVkn);
+        if (dir === 'NEITHER') { bulkFailed.push({ fileName: file.name, reason: 'Firma bu faturada taraf değil' }); continue; }
         if (dir === 'BOTH')    { bulkFailed.push({ fileName: file.name, reason: 'VKN çakışması' }); continue; }
 
         let pack = null;

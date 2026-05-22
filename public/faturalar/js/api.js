@@ -78,6 +78,7 @@ async function ensureStocksSummaryLoaded() {
 
 // ─── Toplu yükleme VKN ────────────────────────────────────────────────────────
 
+<<<<<<< Updated upstream
 async function ensureBulkInokasVkn() {
   if (bulkInokasVkn) return bulkInokasVkn;
   // Tekli kayıtla aynı kaynak: sunucu .env → ana sayfaya enjekte (GET /); ayrı API şart değil
@@ -104,8 +105,29 @@ async function ensureBulkInokasVkn() {
   bulkInokasVkn = String(j.vkn || '').trim();
   if (!bulkInokasVkn) throw new Error('İnokas VKN boş.');
   return bulkInokasVkn;
-}
+=======
+async function ensureBulkTenantVkn() {
+    if (bulkTenantVkn) return bulkTenantVkn;
 
+    const token = sessionStorage.getItem('inokas_token');
+    let r;
+    try {
+        r = await fetch('/api/tenant-vkn', {
+          headers: { 'x-auth-token': sessionStorage.getItem('inokas_token') }
+        });
+    } catch (e) {
+        throw new Error('Tenant VKN alınamadı. Sunucu bağlantısını kontrol edin.');
+    }
+    if (!r.ok) {
+        const j = await r.json().catch(() => ({}));
+        throw new Error(j.error || 'Tenant VKN alınamadı.');
+    }
+    const j = await r.json();
+    bulkTenantVkn = String(j.vkn || '').trim();
+    if (!bulkTenantVkn) throw new Error('Firma VKN bilgisi girilmemiş. Lütfen ayarlardan VKN ekleyin.');
+    return bulkTenantVkn;
+>>>>>>> Stashed changes
+}
 // ─── Ana veri yükleme ─────────────────────────────────────────────────────────
 
 // ─── Pagination state ─────────────────────────────────────────────────────

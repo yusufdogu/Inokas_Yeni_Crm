@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>İnokas CRM — Kayıt Ol</title>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/auth/auth.css">
+</head>
+<body>
+<div class="auth-split">
+
+  <!-- Left -->
+  <div class="auth-left">
+    <div class="auth-left-inner">
+
+      <div class="brand">
+        <div class="brand-dot"></div>
+        <div class="brand-text">KUMANDA</div>
+      </div>
+
+      <div class="auth-title">Hesap oluşturun</div>
+      <div class="auth-sub">Şirketinizi platforma kaydedin</div>
+
+      <div id="alertBox" class="alert alert-error"></div>
+
+      <div class="form-group">
+        <label>Şirket Adı</label>
+        <input type="text" id="companyName" placeholder="İnokas Bilişim Ltd. Şti." autocomplete="organization">
+      </div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label>Ad</label>
+          <input type="text" id="firstName" placeholder="Erdem" autocomplete="given-name">
+        </div>
+        <div class="form-group">
+          <label>Soyad</label>
+          <input type="text" id="lastName" placeholder="Gökalp" autocomplete="family-name">
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label>E-posta</label>
+        <input type="email" id="email" placeholder="ornek@sirket.com" autocomplete="email">
+      </div>
+
+      <div class="form-group">
+        <label>Şifre</label>
+        <input type="password" id="password" placeholder="••••••••" autocomplete="new-password">
+        <div class="input-hint">En az 8 karakter</div>
+      </div>
+
+      <div class="form-group">
+        <label>Şifre Tekrar</label>
+        <input type="password" id="passwordConfirm" placeholder="••••••••" autocomplete="new-password">
+      </div>
+
+      <button class="btn-primary" id="signupBtn" onclick="handleSignup()" style="margin-top:8px;">
+        Kayıt Ol →
+      </button>
+
+      <div class="auth-link">
+        Zaten hesabınız var mı? <a href="/auth/login.html">Giriş yapın</a>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Right -->
+  <div class="auth-right">
+    <img src="/assests/kumanda2.gif" alt="Kumanda">
+    <div class="auth-right-quote">
+      <div class="quote-text">Veriye dayalı kararlar,<br>başarıya giden yol.</div>
+      <div class="quote-author">İnokas CRM — Kumanda</div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+  if (sessionStorage.getItem('inokas_token')) window.location.href = '/';
+  document.addEventListener('keydown', e => { if (e.key === 'Enter') handleSignup(); });
+
+  async function handleSignup() {
+    const companyName     = document.getElementById('companyName').value.trim();
+    const firstName       = document.getElementById('firstName').value.trim();
+    const lastName        = document.getElementById('lastName').value.trim();
+    const email           = document.getElementById('email').value.trim().toLowerCase();
+    const password        = document.getElementById('password').value;
+    const passwordConfirm = document.getElementById('passwordConfirm').value;
+    const btn             = document.getElementById('signupBtn');
+
+    hideError();
+
+    if (!companyName)                    return showError('Şirket adı zorunlu.');
+    if (!firstName || !lastName)         return showError('Ad ve soyad zorunlu.');
+    if (!email || !email.includes('@'))  return showError('Geçerli bir e-posta girin.');
+    if (!password)                       return showError('Şifre zorunlu.');
+    if (password.length < 8)            return showError('Şifre en az 8 karakter olmalı.');
+    if (password !== passwordConfirm)   return showError('Şifreler eşleşmiyor.');
+
+    btn.textContent = 'Kaydediliyor...';
+    btn.classList.add('loading');
+
+    try {
+      const res = await fetch('/api/auth/signup', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ company_name: companyName, first_name: firstName, last_name: lastName, email, password })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error || 'Kayıt başarısız.');
+
+      sessionStorage.setItem('inokas_token', data.token);
+      sessionStorage.setItem('onboarding_complete', 'false');
+      btn.textContent = '✓ Hesap oluşturuldu';
+      setTimeout(() => window.location.replace('/auth/onboarding.html'), 800);
+
+    } catch (err) {
+      showError(err.message);
+      btn.textContent = 'Kayıt Ol →';
+      btn.classList.remove('loading');
+    }
+  }
+
+  function showError(msg) {
+    const el = document.getElementById('alertBox');
+    el.textContent = msg;
+    el.classList.add('show');
+  }
+
+  function hideError() {
+    document.getElementById('alertBox').classList.remove('show');
+  }
+</script>
+</body>
+</html>

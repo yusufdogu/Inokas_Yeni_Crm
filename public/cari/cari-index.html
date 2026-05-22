@@ -6,7 +6,7 @@
   <title>Cari Analiz — İnokas CRM</title>
 
   <script>
-    if (!sessionStorage.getItem('inokas_token')) window.location.href = '/login.html';
+    if (!sessionStorage.getItem('inokas_token')) window.location.href = '/auth/login.html';
   </script>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.x/dist/tabler-icons.min.css">
@@ -91,7 +91,8 @@
 <div id="toast-container"></div>
 <script src="/cari/js/cari-core.js"></script>
 <script src="/cari/js/cari-dashboard.js?v=20260511-v2"></script>
-<script src="/shared/sidebar.js"></script>
+<script src="/shared/auth-interceptor.js"></script>  <!-- no defer -->
+<script src="/shared/sidebar.js" defer></script>      <!-- defer is fine -->
 
 </body>
 </html>

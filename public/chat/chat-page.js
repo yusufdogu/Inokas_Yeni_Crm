@@ -11,12 +11,25 @@ let _charts       = {};  // Chart.js instances
 
 // ─── Init ──────────────────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
+  // Show integration warning if onboarding not complete
+  const onboardingComplete = sessionStorage.getItem('onboarding_complete');
+  const warningDismissed   = sessionStorage.getItem('integration_warning_dismissed');
+  if (onboardingComplete === 'false' && !warningDismissed) {
+    const el = document.getElementById('integrationWarning');
+    if (el) el.style.display = 'flex';
+  }
   showWelcome();
   loadDashboard();
   bindEvents();
   initResizableSplit();
   restoreHistory();
 });
+
+function dismissWarning() {
+    sessionStorage.setItem('integration_warning_dismissed', 'true');
+    const el = document.getElementById('integrationWarning');
+    if (el) el.style.display = 'none';
+  }
 
 function bindEvents() {
   document.getElementById('chatSendBtn')?.addEventListener('click', sendMessage);

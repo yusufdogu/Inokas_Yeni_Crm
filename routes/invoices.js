@@ -656,7 +656,7 @@ router.delete('/:id', async (req, res) => {
 });
 
 // POST /api/save-invoice
-router.post('/save', async (req, res) => {
+router.post('/', async (req, res) => {
   try {
     const supabase = req.app.get('supabase');
     const tenantId = req.tenantId;
@@ -839,13 +839,6 @@ router.delete('/internal-categories/:name', async (req, res) => {
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
-});
-
-// GET /api/inokas-vkn
-router.get('/inokas-vkn', async (req, res) => {
-  const vkn = (process.env.INOKAS_VKN || '').trim();
-  if (!vkn) return res.status(503).json({ error: 'INOKAS_VKN tanımlı değil.' });
-  res.json({ vkn });
 });
 
 // GET /api/invoices/:id/pdf-url

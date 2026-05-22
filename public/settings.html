@@ -1,0 +1,682 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ayarlar — İnokas CRM</title>
+  <script>
+    if (!sessionStorage.getItem('inokas_token')) window.location.href = '/auth/login.html';
+  </script>
+  <link href="https://fonts.googleapis.com/css2?family=Geist+Mono:wght@400;600&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.x/dist/tabler-icons.min.css">
+  <link rel="stylesheet" href="/shared/sidebar.css">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      background: #0f1117;
+      color: #e2e8f0;
+      min-height: 100vh;
+    }
+
+    .page-area { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+
+    /* ── Header ── */
+    .settings-header {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      padding: 18px 24px;
+      border-bottom: 1px solid rgba(255,255,255,0.07);
+      background: #0f1117;
+      flex-shrink: 0;
+    }
+    .settings-header .page-title { font-size: 17px; font-weight: 700; color: #f1f5f9; }
+    .settings-header .page-sub   { font-size: 12px; color: #64748b; margin-top: 2px; }
+
+    /* ── Layout ── */
+    .settings-body {
+      flex: 1;
+      overflow-y: auto;
+      padding: 24px;
+      display: flex;
+      gap: 24px;
+      align-items: flex-start;
+    }
+
+    /* ── Tab nav ── */
+    .settings-tabs {
+      width: 200px;
+      flex-shrink: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      position: sticky;
+      top: 0;
+    }
+    .tab-btn {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 14px;
+      border-radius: 8px;
+      border: none;
+      background: transparent;
+      color: #64748b;
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      width: 100%;
+      text-align: left;
+      transition: all 0.15s;
+      font-family: inherit;
+    }
+    .tab-btn:hover { background: rgba(255,255,255,0.05); color: #94a3b8; }
+    .tab-btn.active { background: rgba(59,130,246,0.15); color: #93c5fd; }
+    .tab-btn i { font-size: 16px; }
+
+    /* ── Panel ── */
+    .settings-panel { flex: 1; min-width: 0; }
+    .tab-panel { display: none; }
+    .tab-panel.active { display: block; }
+
+    /* ── Card ── */
+    .settings-card {
+      background: #161b27;
+      border: 1px solid rgba(255,255,255,0.07);
+      border-radius: 12px;
+      padding: 24px;
+      margin-bottom: 16px;
+    }
+    .card-title {
+      font-size: 14px;
+      font-weight: 700;
+      color: #f1f5f9;
+      margin-bottom: 4px;
+    }
+    .card-desc {
+      font-size: 12px;
+      color: #64748b;
+      margin-bottom: 20px;
+    }
+
+    /* ── Form ── */
+    .form-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+    }
+    .form-row.full { grid-template-columns: 1fr; }
+    .form-group { display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px; }
+    .form-group label { font-size: 12px; font-weight: 600; color: #94a3b8; letter-spacing: 0.03em; }
+    .form-group input, .form-group select {
+      background: #0f1117;
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 8px;
+      padding: 10px 12px;
+      color: #e2e8f0;
+      font-size: 13px;
+      font-family: inherit;
+      outline: none;
+      transition: border-color 0.15s;
+      width: 100%;
+    }
+    .form-group input:focus, .form-group select:focus {
+      border-color: #3b82f6;
+    }
+    .form-group input::placeholder { color: #475569; }
+    .form-hint { font-size: 11px; color: #475569; margin-top: 2px; }
+
+    /* ── Buttons ── */
+    .btn-save {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 20px;
+      background: #3b82f6;
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      font-family: inherit;
+      transition: background 0.15s;
+    }
+    .btn-save:hover { background: #2563eb; }
+    .btn-save:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    .btn-danger {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 20px;
+      background: rgba(239,68,68,0.1);
+      color: #f87171;
+      border: 1px solid rgba(239,68,68,0.2);
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      font-family: inherit;
+      transition: all 0.15s;
+    }
+    .btn-danger:hover { background: rgba(239,68,68,0.2); }
+
+    .btn-secondary {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 16px;
+      background: rgba(255,255,255,0.05);
+      color: #94a3b8;
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      font-family: inherit;
+      transition: all 0.15s;
+    }
+    .btn-secondary:hover { background: rgba(255,255,255,0.08); color: #e2e8f0; }
+
+    .btn-row { display: flex; align-items: center; gap: 10px; margin-top: 20px; }
+
+    /* ── Alert ── */
+    .alert {
+      display: none;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 14px;
+      border-radius: 8px;
+      font-size: 13px;
+      margin-top: 14px;
+    }
+    .alert.show { display: flex; }
+    .alert-success { background: rgba(34,197,94,0.1); color: #4ade80; border: 1px solid rgba(34,197,94,0.2); }
+    .alert-error   { background: rgba(239,68,68,0.1);  color: #f87171; border: 1px solid rgba(239,68,68,0.2); }
+
+    /* ── Integration cards ── */
+    .integration-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 14px 0;
+      border-bottom: 1px solid rgba(255,255,255,0.05);
+    }
+    .integration-item:last-child { border-bottom: none; }
+    .int-info { display: flex; align-items: center; gap: 12px; }
+    .int-icon {
+      width: 36px; height: 36px;
+      border-radius: 8px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 16px;
+    }
+    .int-name { font-size: 13px; font-weight: 600; color: #e2e8f0; }
+    .int-desc { font-size: 11px; color: #64748b; margin-top: 2px; }
+    .int-badge {
+      font-size: 11px;
+      font-weight: 600;
+      padding: 3px 8px;
+      border-radius: 20px;
+    }
+    .int-badge.active   { background: rgba(34,197,94,0.15); color: #4ade80; }
+    .int-badge.inactive { background: rgba(100,116,139,0.15); color: #64748b; }
+    .int-actions { display: flex; align-items: center; gap: 8px; }
+
+    /* ── Integration edit form ── */
+    .int-edit-form {
+      display: none;
+      margin-top: 14px;
+      padding: 16px;
+      background: rgba(0,0,0,0.2);
+      border-radius: 8px;
+      border: 1px solid rgba(255,255,255,0.06);
+    }
+    .int-edit-form.open { display: block; }
+
+    /* ── User list ── */
+    .user-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 0;
+      border-bottom: 1px solid rgba(255,255,255,0.05);
+    }
+    .user-item:last-child { border-bottom: none; }
+    .user-avatar {
+      width: 32px; height: 32px;
+      border-radius: 50%;
+      background: #1e3a5f;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 13px; font-weight: 700; color: #93c5fd;
+      flex-shrink: 0;
+    }
+    .user-info { margin-left: 12px; flex: 1; }
+    .user-email { font-size: 13px; color: #e2e8f0; font-weight: 500; }
+    .user-role  { font-size: 11px; color: #64748b; margin-top: 2px; }
+    .role-badge {
+      font-size: 11px; font-weight: 600;
+      padding: 3px 8px; border-radius: 20px;
+    }
+    .role-badge.admin { background: rgba(59,130,246,0.15); color: #93c5fd; }
+    .role-badge.user  { background: rgba(100,116,139,0.15); color: #94a3b8; }
+
+    /* ── Divider ── */
+    .section-divider {
+      height: 1px;
+      background: rgba(255,255,255,0.06);
+      margin: 20px 0;
+    }
+
+    /* ── Loading skeleton ── */
+    .skeleton {
+      background: linear-gradient(90deg, rgba(255,255,255,0.05) 25%, rgba(255,255,255,0.08) 50%, rgba(255,255,255,0.05) 75%);
+      background-size: 200% 100%;
+      animation: shimmer 1.5s infinite;
+      border-radius: 6px;
+      height: 16px;
+    }
+    @keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+  </style>
+</head>
+<body>
+<div class="app-shell">
+  <div id="sidebar-container"></div>
+  <div class="page-area">
+
+    <!-- Header -->
+    <div class="settings-header">
+      <button class="sb-toggle-btn" onclick="toggleSidebar()"><i class="ti ti-menu-2"></i></button>
+      <div>
+        <p class="page-title">Ayarlar</p>
+        <p class="page-sub">Firma, entegrasyon ve kullanıcı yönetimi</p>
+      </div>
+    </div>
+
+    <div class="settings-body">
+
+      <!-- Tab nav -->
+      <div class="settings-tabs">
+        <button class="tab-btn active" onclick="switchTab('firma')" id="tab-firma">
+          <i class="ti ti-building"></i> Firma Bilgileri
+        </button>
+        <button class="tab-btn" onclick="switchTab('entegrasyon')" id="tab-entegrasyon">
+          <i class="ti ti-plug"></i> Entegrasyon
+        </button>
+        <button class="tab-btn" onclick="switchTab('kullanicilar')" id="tab-kullanicilar">
+          <i class="ti ti-users"></i> Kullanıcılar
+        </button>
+        <button class="tab-btn" onclick="switchTab('sifre')" id="tab-sifre">
+          <i class="ti ti-lock"></i> Şifre Değiştir
+        </button>
+      </div>
+
+      <!-- Panels -->
+      <div class="settings-panel">
+
+        <!-- ── Firma Bilgileri ── -->
+        <div class="tab-panel active" id="panel-firma">
+          <div class="settings-card">
+            <div class="card-title">Firma Bilgileri</div>
+            <div class="card-desc">Firma adı, VKN ve iletişim bilgilerini güncelleyin.</div>
+
+            <div class="form-row">
+              <div class="form-group">
+                <label>Firma Adı</label>
+                <input type="text" id="firma-name" placeholder="Şirket Adı A.Ş.">
+              </div>
+              <div class="form-group">
+                <label>VKN / TCKN</label>
+                <input type="text" id="firma-vkn" placeholder="1234567890" maxlength="11">
+                <span class="form-hint">Fatura yüklemede gelen/giden ayrımı için kullanılır</span>
+              </div>
+            </div>
+
+            <div id="firma-alert" class="alert"></div>
+            <div class="btn-row">
+              <button class="btn-save" onclick="saveFirma()">
+                <i class="ti ti-check"></i> Kaydet
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- ── Entegrasyon ── -->
+        <div class="tab-panel" id="panel-entegrasyon">
+          <div class="settings-card">
+            <div class="card-title">E-Fatura Entegrasyonu</div>
+            <div class="card-desc">Aktif entegrasyonlarınızı görüntüleyin ve güncelleyin.</div>
+
+            <div id="integration-list">
+              <div class="skeleton" style="height:56px; margin-bottom:8px;"></div>
+              <div class="skeleton" style="height:56px;"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ── Kullanıcılar ── -->
+        <div class="tab-panel" id="panel-kullanicilar">
+          <div class="settings-card">
+            <div class="card-title">Kullanıcılar</div>
+            <div class="card-desc">Firmadaki kullanıcıları görüntüleyin.</div>
+            <div id="user-list">
+              <div class="skeleton" style="height:44px; margin-bottom:8px;"></div>
+              <div class="skeleton" style="height:44px;"></div>
+            </div>
+          </div>
+
+          <div class="settings-card">
+            <div class="card-title">Yeni Kullanıcı Davet Et</div>
+            <div class="card-desc">Yeni bir kullanıcı için hesap oluşturun.</div>
+            <div class="form-row">
+              <div class="form-group">
+                <label>E-posta</label>
+                <input type="email" id="invite-email" placeholder="kullanici@firma.com">
+              </div>
+              <div class="form-group">
+                <label>Şifre</label>
+                <input type="password" id="invite-password" placeholder="Geçici şifre">
+              </div>
+            </div>
+            <div class="form-group" style="max-width:200px;">
+              <label>Rol</label>
+              <select id="invite-role">
+                <option value="user">Kullanıcı</option>
+                <option value="admin">Admin</option>
+              </select>
+            </div>
+            <div id="invite-alert" class="alert"></div>
+            <div class="btn-row">
+              <button class="btn-save" onclick="inviteUser()">
+                <i class="ti ti-user-plus"></i> Kullanıcı Ekle
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- ── Şifre ── -->
+        <div class="tab-panel" id="panel-sifre">
+          <div class="settings-card">
+            <div class="card-title">Şifre Değiştir</div>
+            <div class="card-desc">Hesabınızın şifresini güncelleyin.</div>
+            <div class="form-row full">
+              <div class="form-group">
+                <label>Mevcut Şifre</label>
+                <input type="password" id="pw-current" placeholder="••••••••">
+              </div>
+              <div class="form-group">
+                <label>Yeni Şifre</label>
+                <input type="password" id="pw-new" placeholder="••••••••">
+              </div>
+              <div class="form-group">
+                <label>Yeni Şifre (Tekrar)</label>
+                <input type="password" id="pw-confirm" placeholder="••••••••">
+              </div>
+            </div>
+            <div id="pw-alert" class="alert"></div>
+            <div class="btn-row">
+              <button class="btn-save" onclick="changePassword()">
+                <i class="ti ti-lock-check"></i> Şifreyi Güncelle
+              </button>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="/shared/auth-interceptor.js"></script>  <!-- no defer -->
+<script src="/shared/sidebar.js" defer></script>      <!-- defer is fine -->
+<script>
+// ─── Tab switching ────────────────────────────────────────────────────────────
+function switchTab(name) {
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  document.getElementById('tab-' + name).classList.add('active');
+  document.getElementById('panel-' + name).classList.add('active');
+}
+
+// ─── Alert helpers ────────────────────────────────────────────────────────────
+function showAlert(id, msg, type = 'error') {
+  const el = document.getElementById(id);
+  el.className = `alert alert-${type} show`;
+  el.innerHTML = `<i class="ti ti-${type === 'error' ? 'alert-circle' : 'circle-check'}"></i> ${msg}`;
+}
+function hideAlert(id) {
+  document.getElementById(id).className = 'alert';
+}
+
+// ─── Load firma info ──────────────────────────────────────────────────────────
+async function loadFirma() {
+  try {
+    const res  = await fetch('/api/settings/firma');
+    const data = await res.json();
+    if (data.name) document.getElementById('firma-name').value = data.name;
+    if (data.vkn)  document.getElementById('firma-vkn').value  = data.vkn;
+  } catch (e) {
+    console.warn('Firma bilgisi alınamadı:', e.message);
+  }
+}
+
+async function saveFirma() {
+  hideAlert('firma-alert');
+  const name = document.getElementById('firma-name').value.trim();
+  const vkn  = document.getElementById('firma-vkn').value.trim();
+  if (!name) return showAlert('firma-alert', 'Firma adı zorunlu.');
+
+  try {
+    const res  = await fetch('/api/settings/firma', {
+      method:  'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ name, vkn }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Kayıt başarısız.');
+    showAlert('firma-alert', 'Firma bilgileri güncellendi.', 'success');
+  } catch (e) {
+    showAlert('firma-alert', e.message);
+  }
+}
+
+// ─── Load integrations ────────────────────────────────────────────────────────
+const PROVIDER_META = {
+  logo:   { icon: '🔵', label: 'Logo (İşbaşı)', desc: 'Logo REST API',      fields: ['base_url','api_key','username','password'] },
+  elogo:  { icon: '🟣', label: 'eLogo',          desc: 'eLogo PostBox SOAP', fields: ['service_url','username','password'] },
+  isbasi: { icon: '🟠', label: 'İşbaşı',          desc: 'İşbaşı SOAP API',   fields: ['service_url','username','password'] },
+};
+
+const FIELD_LABELS = {
+  base_url:    'API Base URL',
+  api_key:     'API Key',
+  service_url: 'Servis URL',
+  username:    'Kullanıcı Adı',
+  password:    'Şifre',
+};
+
+async function loadIntegrations() {
+  try {
+    const res  = await fetch('/api/settings/integrations');
+    const data = await res.json();
+    renderIntegrations(data.integrations || []);
+  } catch (e) {
+    document.getElementById('integration-list').innerHTML =
+      '<p style="color:#64748b;font-size:13px;">Entegrasyonlar yüklenemedi.</p>';
+  }
+}
+
+function renderIntegrations(integrations) {
+  const el = document.getElementById('integration-list');
+  if (!integrations.length) {
+    el.innerHTML = '<p style="color:#64748b;font-size:13px;">Henüz entegrasyon yok. <a href="/auth/onboarding.html" style="color:#93c5fd;">Ekle →</a></p>';
+    return;
+  }
+
+  el.innerHTML = integrations.map(int => {
+    const meta = PROVIDER_META[int.provider] || { icon: '⚙️', label: int.provider, desc: '', fields: ['username','password'] };
+    return `
+    <div class="integration-item" id="int-item-${int.provider}">
+      <div class="int-info">
+        <div class="int-icon" style="background:rgba(255,255,255,0.05);">${meta.icon}</div>
+        <div>
+          <div class="int-name">${meta.label}</div>
+          <div class="int-desc">${meta.desc}</div>
+        </div>
+      </div>
+      <div class="int-actions">
+        <span class="int-badge ${int.is_active ? 'active' : 'inactive'}">${int.is_active ? 'Aktif' : 'Pasif'}</span>
+        <button class="btn-secondary" style="padding:6px 12px;font-size:12px;" onclick="toggleIntEdit('${int.provider}')">
+          <i class="ti ti-pencil"></i> Düzenle
+        </button>
+        <button class="btn-danger" style="padding:6px 12px;font-size:12px;" onclick="toggleIntActive('${int.provider}', ${int.is_active})">
+          ${int.is_active ? '<i class="ti ti-plug-x"></i> Devre Dışı' : '<i class="ti ti-plug"></i> Aktif Et'}
+        </button>
+      </div>
+    </div>
+    <div class="int-edit-form" id="int-edit-${int.provider}">
+      ${meta.fields.map(f => `
+        <div class="form-group">
+          <label>${FIELD_LABELS[f] || f}</label>
+          <input type="${f === 'password' ? 'password' : 'text'}"
+                 id="int-${int.provider}-${f}"
+                 placeholder="${f === 'password' ? '••••••••' : ''}">
+        </div>
+      `).join('')}
+      <div id="int-alert-${int.provider}" class="alert"></div>
+      <div class="btn-row">
+        <button class="btn-save" onclick="saveIntegration('${int.provider}', ${JSON.stringify(meta.fields)})">
+          <i class="ti ti-check"></i> Kaydet
+        </button>
+        <button class="btn-secondary" onclick="toggleIntEdit('${int.provider}')">İptal</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function toggleIntEdit(provider) {
+  const form = document.getElementById('int-edit-' + provider);
+  form.classList.toggle('open');
+}
+
+async function toggleIntActive(provider, currentlyActive) {
+  try {
+    const res = await fetch(`/api/settings/integrations/${provider}/toggle`, { method: 'POST' });
+    if (!res.ok) throw new Error('İşlem başarısız.');
+    loadIntegrations();
+  } catch (e) {
+    alert(e.message);
+  }
+}
+
+async function saveIntegration(provider, fields) {
+  hideAlert('int-alert-' + provider);
+  const payload = { provider };
+  for (const f of fields) {
+    const val = document.getElementById(`int-${provider}-${f}`)?.value?.trim();
+    if (val) payload[f] = val;
+  }
+
+  try {
+    const res  = await fetch('/api/settings/integrations/' + provider, {
+      method:  'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify(payload),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Kayıt başarısız.');
+    showAlert('int-alert-' + provider, 'Entegrasyon güncellendi.', 'success');
+    setTimeout(() => toggleIntEdit(provider), 1200);
+  } catch (e) {
+    showAlert('int-alert-' + provider, e.message);
+  }
+}
+
+// ─── Load users ───────────────────────────────────────────────────────────────
+async function loadUsers() {
+  try {
+    const res  = await fetch('/api/settings/users');
+    const data = await res.json();
+    const el   = document.getElementById('user-list');
+    const users = data.users || [];
+    if (!users.length) { el.innerHTML = '<p style="color:#64748b;font-size:13px;">Kullanıcı bulunamadı.</p>'; return; }
+    el.innerHTML = users.map(u => `
+      <div class="user-item">
+        <div style="display:flex;align-items:center;">
+          <div class="user-avatar">${(u.email || '?')[0].toUpperCase()}</div>
+          <div class="user-info">
+            <div class="user-email">${u.email}</div>
+            <div class="user-role">${u.role === 'admin' ? 'Yönetici' : 'Kullanıcı'}</div>
+          </div>
+        </div>
+        <span class="role-badge ${u.role}">${u.role === 'admin' ? 'Admin' : 'Kullanıcı'}</span>
+      </div>
+    `).join('');
+  } catch (e) {
+    document.getElementById('user-list').innerHTML =
+      '<p style="color:#64748b;font-size:13px;">Kullanıcılar yüklenemedi.</p>';
+  }
+}
+
+async function inviteUser() {
+  hideAlert('invite-alert');
+  const email    = document.getElementById('invite-email').value.trim();
+  const password = document.getElementById('invite-password').value;
+  const role     = document.getElementById('invite-role').value;
+  if (!email || !password) return showAlert('invite-alert', 'E-posta ve şifre zorunlu.');
+
+  try {
+    const res  = await fetch('/api/settings/users', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ email, password, role }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Kullanıcı oluşturulamadı.');
+    showAlert('invite-alert', `${email} başarıyla eklendi.`, 'success');
+    document.getElementById('invite-email').value    = '';
+    document.getElementById('invite-password').value = '';
+    loadUsers();
+  } catch (e) {
+    showAlert('invite-alert', e.message);
+  }
+}
+
+// ─── Change password ──────────────────────────────────────────────────────────
+async function changePassword() {
+  hideAlert('pw-alert');
+  const current = document.getElementById('pw-current').value;
+  const newPw   = document.getElementById('pw-new').value;
+  const confirm = document.getElementById('pw-confirm').value;
+  if (!current || !newPw) return showAlert('pw-alert', 'Tüm alanlar zorunlu.');
+  if (newPw !== confirm)  return showAlert('pw-alert', 'Yeni şifreler eşleşmiyor.');
+  if (newPw.length < 6)   return showAlert('pw-alert', 'Şifre en az 6 karakter olmalı.');
+
+  try {
+    const res  = await fetch('/api/settings/password', {
+      method:  'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ current_password: current, new_password: newPw }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Şifre güncellenemedi.');
+    showAlert('pw-alert', 'Şifre başarıyla güncellendi.', 'success');
+    document.getElementById('pw-current').value = '';
+    document.getElementById('pw-new').value     = '';
+    document.getElementById('pw-confirm').value = '';
+  } catch (e) {
+    showAlert('pw-alert', e.message);
+  }
+}
+
+// ─── Boot ─────────────────────────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', () => {
+  loadFirma();
+  loadIntegrations();
+  loadUsers();
+});
+</script>
+</body>
+</html>

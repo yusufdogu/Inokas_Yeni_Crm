@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>İnokas CRM — Entegrasyon Kurulumu</title>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.x/dist/tabler-icons.min.css">
+  <link rel="stylesheet" href="/auth/auth.css">
+</head>
+<body>
+<div class="auth-center">
+  <div class="auth-center-inner">
+
+    <!-- Brand -->
+    <div class="brand">
+      <div class="brand-dot"></div>
+      <div class="brand-text">KUMANDA</div>
+    </div>
+
+    <!-- Steps -->
+    <div class="steps">
+      <div class="step done">
+        <div class="step-num"><i class="ti ti-check" style="font-size:12px;"></i></div>
+        <span class="step-label">Hesap</span>
+      </div>
+      <div class="step-line done"></div>
+      <div class="step active">
+        <div class="step-num">2</div>
+        <span class="step-label">Entegrasyon</span>
+      </div>
+      <div class="step-line"></div>
+      <div class="step idle">
+        <div class="step-num">3</div>
+        <span class="step-label">Hazır</span>
+      </div>
+    </div>
+
+    <!-- Card -->
+    <div class="auth-card">
+      <div class="auth-card-title">E-Fatura Entegrasyonu</div>
+      <div class="auth-card-sub">
+        Faturalarınızı otomatik senkronize etmek için e-fatura servis sağlayıcınızı seçin ve API bilgilerinizi girin.
+      </div>
+
+      <!-- Provider selector -->
+      <div class="section-label">Servis Sağlayıcı</div>
+      <div class="provider-grid">
+        <div class="provider-card selected" id="providerLogo" onclick="selectProvider('logo')">
+          <div class="provider-icon">🔵</div>
+          <div>
+            <div class="provider-name">Logo (İşbaşı)</div>
+            <div class="provider-desc">Logo REST API</div>
+          </div>
+        </div>
+        <div class="provider-card" id="providerElogo" onclick="selectProvider('elogo')">
+          <div class="provider-icon">🟣</div>
+          <div>
+            <div class="provider-name">eLogo</div>
+            <div class="provider-desc">eLogo PostBox SOAP</div>
+          </div>
+        </div>
+        <div class="provider-card" id="providerIsbasi" onclick="selectProvider('isbasi')">
+          <div class="provider-icon">🟠</div>
+          <div>
+            <div class="provider-name">İşbaşı</div>
+            <div class="provider-desc">İşbaşı SOAP API</div>
+          </div>
+        </div>
+        <div class="provider-card disabled">
+          <div class="provider-icon">🟡</div>
+          <div>
+            <div class="provider-name">Uyumsoft <span class="coming-soon">Yakında</span></div>
+            <div class="provider-desc">Uyumsoft e-Fatura</div>
+          </div>
+        </div>
+      </div>
+
+      <hr class="divider">
+
+      <!-- API fields — changes based on provider -->
+      <div id="providerFields">
+        <div class="section-label" id="fieldsLabel">Logo API Bilgileri</div>
+
+        <div id="alertBox" class="alert alert-error"></div>
+
+        <!-- Logo REST fields -->
+        <div id="logoRestFields">
+          <div class="form-group">
+            <label>API Base URL</label>
+            <input type="url" id="baseUrl" placeholder="https://efatura.logo.com.tr">
+            <div class="input-hint">Logo servis sağlayıcınızdan aldığınız API adresi</div>
+          </div>
+          <div class="form-group">
+            <label>API Key</label>
+            <input type="text" id="apiKey" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx">
+          </div>
+        </div>
+
+        <!-- eLogo / İşbaşı SOAP fields -->
+        <div id="elogoFields" style="display:none;">
+          <div class="form-group">
+            <label>Servis URL</label>
+            <input type="url" id="serviceUrl" placeholder="https://pb.elogo.com.tr/PostBoxService.svc">
+            <div class="input-hint">eLogo PostBox servis adresi</div>
+          </div>
+        </div>
+
+        <!-- Common fields -->
+        <div class="form-group">
+          <label>Kullanıcı Adı</label>
+          <input type="text" id="username" placeholder="kullanici@sirket.com" autocomplete="off">
+        </div>
+
+        <div class="form-group">
+          <label>Şifre</label>
+          <input type="password" id="logoPassword" placeholder="••••••••" autocomplete="new-password">
+        </div>
+
+        <!-- Test result -->
+        <div class="test-result" id="testResult">
+          <i class="ti ti-circle-check"></i>
+          <span id="testResultText"></span>
+        </div>
+
+        <!-- Buttons -->
+        <div class="btn-row">
+          <button class="btn-secondary" onclick="goBack()">
+            <i class="ti ti-arrow-left" style="font-size:13px;"></i>
+            Geri
+          </button>
+          <button class="btn-secondary" onclick="skipOnboarding()">
+            Şimdi Atla
+          </button>
+          <button class="btn-primary flex-1" id="testBtn" onclick="testConnection()">
+            <i class="ti ti-plug"></i>
+            Bağlantıyı Test Et
+          </button>
+          <button class="btn-primary flex-1" id="saveBtn" onclick="saveIntegration()" style="display:none;">
+            <i class="ti ti-check"></i>
+            Kaydet ve Başlat
+          </button>
+        </div>
+
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+  if (!sessionStorage.getItem('inokas_token')) window.location.href = '/auth/login.html';
+
+  let _selectedProvider = 'logo';
+  let _connectionTested = false;
+
+  const PROVIDER_LABELS = {
+    logo:   'Logo (İşbaşı) API Bilgileri',
+    elogo:  'eLogo PostBox Bilgileri',
+    isbasi: 'İşbaşı PostBox Bilgileri',
+  };
+
+  function selectProvider(provider) {
+    _selectedProvider  = provider;
+    _connectionTested  = false;
+
+    document.querySelectorAll('.provider-card:not(.disabled)').forEach(el => el.classList.remove('selected'));
+    document.getElementById('provider' + provider.charAt(0).toUpperCase() + provider.slice(1))?.classList.add('selected');
+
+    document.getElementById('fieldsLabel').textContent = PROVIDER_LABELS[provider] || 'API Bilgileri';
+
+    const isLogo     = provider === 'logo';
+    const isElogoish = provider === 'elogo' || provider === 'isbasi';
+    document.getElementById('logoRestFields').style.display = isLogo ? '' : 'none';
+    document.getElementById('elogoFields').style.display    = isElogoish ? '' : 'none';
+
+    if (isElogoish) {
+      const urlInput = document.getElementById('serviceUrl');
+      if (!urlInput.value) urlInput.value = 'https://pb.elogo.com.tr/PostBoxService.svc';
+    }
+
+    document.getElementById('testResult').className = 'test-result';
+    document.getElementById('saveBtn').style.display = 'none';
+    document.getElementById('testBtn').style.display = 'flex';
+    hideAlert();
+  }
+
+  function buildPayload() {
+    const username = document.getElementById('username').value.trim();
+    const password = document.getElementById('logoPassword').value;
+    if (_selectedProvider === 'logo') {
+      return { provider: 'logo', base_url: document.getElementById('baseUrl').value.trim(), api_key: document.getElementById('apiKey').value.trim(), username, password };
+    }
+    return { provider: _selectedProvider, service_url: document.getElementById('serviceUrl').value.trim(), username, password };
+  }
+
+  function validatePayload(payload) {
+    if (_selectedProvider === 'logo') {
+      if (!payload.base_url) return 'API Base URL zorunlu.';
+      if (!payload.api_key)  return 'API Key zorunlu.';
+    } else {
+      if (!payload.service_url) return 'Servis URL zorunlu.';
+    }
+    if (!payload.username) return 'Kullanıcı adı zorunlu.';
+    if (!payload.password) return 'Şifre zorunlu.';
+    return null;
+  }
+
+  function showAlert(msg, type = 'error') {
+    const el = document.getElementById('alertBox');
+    el.className = `alert alert-${type} show`;
+    el.innerHTML = `<i class="ti ti-${type === 'error' ? 'alert-circle' : 'circle-check'}"></i> ${msg}`;
+  }
+
+  function hideAlert() { document.getElementById('alertBox').classList.remove('show'); }
+  function goBack()    { window.location.href = '/chat'; }
+
+  function skipOnboarding() {
+    if (!confirm('Entegrasyonu şimdi atlamak istediğinizden emin misiniz?')) return;
+    window.location.replace('/chat');
+  }
+
+  async function testConnection() {
+    const payload = buildPayload();
+    const err = validatePayload(payload);
+    if (err) return showAlert(err);
+    hideAlert();
+
+    const btn = document.getElementById('testBtn');
+    btn.innerHTML = '<i class="ti ti-loader"></i> Test ediliyor...';
+    btn.classList.add('loading');
+
+    try {
+      const res  = await fetch('/api/integrations/test', { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-auth-token': sessionStorage.getItem('inokas_token') }, body: JSON.stringify(payload) });
+      const data = await res.json();
+      const resultEl = document.getElementById('testResult');
+      const resultTextEl = document.getElementById('testResultText');
+      if (res.ok && data.success) {
+        resultEl.className = 'test-result ok';
+        resultTextEl.textContent = 'Bağlantı başarılı!';
+        resultEl.querySelector('i').className = 'ti ti-circle-check';
+        _connectionTested = true;
+        document.getElementById('saveBtn').style.display = 'flex';
+        document.getElementById('testBtn').style.display = 'none';
+      } else {
+        resultEl.className = 'test-result err';
+        resultTextEl.textContent = data.error || 'Bağlantı başarısız.';
+        resultEl.querySelector('i').className = 'ti ti-alert-circle';
+      }
+    } catch (err) {
+      showAlert('Sunucu hatası: ' + err.message);
+    } finally {
+      const b = document.getElementById('testBtn');
+      b.innerHTML = '<i class="ti ti-plug"></i> Bağlantıyı Test Et';
+      b.classList.remove('loading');
+    }
+  }
+
+  async function saveIntegration() {
+    const payload = buildPayload();
+    const btn     = document.getElementById('saveBtn');
+    btn.innerHTML = '<i class="ti ti-loader"></i> Kaydediliyor...';
+    btn.classList.add('loading');
+    try {
+      const res  = await fetch('/api/integrations', { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-auth-token': sessionStorage.getItem('inokas_token') }, body: JSON.stringify(payload) });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Kayıt başarısız.');
+      sessionStorage.setItem('onboarding_complete', 'true');
+      btn.innerHTML = '✓ Kaydedildi! Yönlendiriliyor...';
+      setTimeout(() => window.location.replace('/chat'), 1200);
+    } catch (err) {
+      showAlert(err.message);
+      btn.innerHTML = '<i class="ti ti-check"></i> Kaydet ve Başlat';
+      btn.classList.remove('loading');
+    }
+  }
+</script>
+</body>
+</html>

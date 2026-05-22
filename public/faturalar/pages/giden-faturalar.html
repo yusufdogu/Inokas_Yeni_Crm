@@ -6,7 +6,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Giden Faturalar — İnokas CRM</title>
   <script>
-    if (!sessionStorage.getItem('inokas_token')) window.location.href = '/login.html';
+    if (!sessionStorage.getItem('inokas_token')) window.location.href = '/auth/login.html';
   </script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <link href="https://fonts.googleapis.com/css2?family=Geist+Mono:wght@400;600&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -14,7 +14,8 @@
   <link rel="stylesheet" href="/shared/sidebar.css">
   <link rel="stylesheet" href="/shared/shared-filters.css?v=2">
   <link rel="stylesheet" href="/faturalar/css/gelen-giden.css?v=1">
-  <script src="/shared/sidebar.js"></script>
+  <script src="/shared/auth-interceptor.js"></script>  <!-- no defer -->
+  <script src="/shared/sidebar.js" defer></script>      <!-- defer is fine -->
 </head>
 
 <body>

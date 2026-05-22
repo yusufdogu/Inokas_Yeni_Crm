@@ -38,7 +38,8 @@ app.use('/api/auth',                require('./routes/auth'));
 app.use('/api/invoices',            require('./routes/invoices'));
 app.use('/api/save-invoice',        require('./routes/invoices'));
 app.use('/api/invoice-items',       require('./routes/invoices'));
-app.use('/api/inokas-vkn',          require('./routes/invoices'));
+app.use('/api/settings', require('./routes/settings'));
+app.use('/api/tenant-vkn', require('./routes/settings'));
 app.use('/api/products',            require('./routes/products'));
 app.use('/api/category-templates',  require('./routes/products'));
 app.use('/api/category-attributes', require('./routes/products'));
@@ -56,6 +57,8 @@ app.use('/api/product-groups',      require('./routes/quotes'));
 app.use('/api/chat',                require('./routes/chat'));
 app.use('/api/transcribe',          require('./routes/transcribe'));
 app.use('/api/whatsapp', require('./routes/whatsapp'));
+app.use('/api/integrations', require('./routes/integrations'));
+
 
 
 // Invoice sync trigger routes (depend on sync-service)
@@ -69,11 +72,16 @@ app.post('/api/invoices/recheck-now', (req, res) => {
   catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+
+
 // ─── Page Routes ──────────────────────────────────────────────────────────────
 app.get('/', (req, res) => {
   res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
   res.sendFile(path.join(__dirname, 'public', 'chat.html'));
 });
+
+app.get('/signup',     (req, res) => res.sendFile(path.join(__dirname, 'public', 'auth', 'signup.html')));
+app.get('/onboarding', (req, res) => res.sendFile(path.join(__dirname, 'public', 'auth', 'onboarding.html')));
 
 app.get('/chat', (req, res) => {
   res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
@@ -82,7 +90,7 @@ app.get('/chat', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'chat.html'));
 });
 
-app.get('/login', (req, res) => res.redirect('/login.html'));
+app.get('/login', (req, res) => res.redirect('/auth/login.html'));
 
 
 // ─── Static Files ─────────────────────────────────────────────────────────────
@@ -117,6 +125,20 @@ cron.schedule('*/5 * * * *', async () => {
   console.log('Cron: Invoice sync starting...');
   try { await runSync(); }
   catch (err) { console.error('Cron: Invoice sync failed:', err.message); }
+});
+
+const { runElogoSync, runElogoDailyRecheck } = require('./services/elogo-sync-service');
+
+// In your existing 10-minute cron:
+cron.schedule('*/10 * * * *', async () => {
+  await runSync();        // Logo REST
+  await runElogoSync();   // eLogo SOAP
+});
+
+// In your existing daily cron:
+cron.schedule('0 6 * * *', async () => {
+  await runDailyRecheck();
+  await runElogoDailyRecheck();
 });
 
 // 06:00 Turkey (03:00 UTC) — daily invoice re-check

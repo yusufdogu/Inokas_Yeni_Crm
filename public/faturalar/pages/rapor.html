@@ -6,7 +6,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Rapor — İnokas CRM</title>
   <script>
-    if (!sessionStorage.getItem('inokas_token')) window.location.href = '/login.html';
+    if (!sessionStorage.getItem('inokas_token')) window.location.href = '/auth/login.html';
   </script>
   <link
     href="https://fonts.googleapis.com/css2?family=Geist+Mono:wght@400;600&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap"
@@ -15,8 +15,8 @@
   <link rel="stylesheet" href="../../shared/faturalar.css?v=20260511-ekle-card">
   <link rel="stylesheet" href="../../shared/sidebar.css?v=3">
   <link rel="stylesheet" href="../css/rapor.css?v=1">
-  <script src="/shared/sidebar.js"></script>
-  <script src="../../sidebar.js?v=3" defer></script>
+  <script src="/shared/auth-interceptor.js"></script>  <!-- no defer -->
+  <script src="/shared/sidebar.js" defer></script>      <!-- defer is fine -->
 </head>
 
 <body>

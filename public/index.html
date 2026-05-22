@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <script>
     if (!sessionStorage.getItem('inokas_token')) {
-      window.location.replace('/login.html');
+      window.location.replace('/auth/login.html');
     } else {
       window.location.replace('/faturalar/pages/gelen-faturalar.html');
     }

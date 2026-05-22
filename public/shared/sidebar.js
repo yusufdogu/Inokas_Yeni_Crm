@@ -1,18 +1,3 @@
-(function() {
-  const _originalFetch = window.fetch.bind(window);
-  window.fetch = function(url, options) {
-    const token = sessionStorage.getItem('inokas_token');
-    if (token && typeof url === 'string' && url.startsWith('/api/')) {
-      options = options || {};
-      options.headers = Object.assign({}, options.headers, {
-        'x-auth-token': token,
-      });
-    }
-    return _originalFetch(url, options);
-  };
-})();
-
-
 (function () {
   'use strict';
 
@@ -36,7 +21,7 @@
   const isChat      = path === '/chat' || path.startsWith('/chat?');
   const isGider     = path.includes('ofis-ici');
 
-  
+
 
   // ─── Pending counts ───────────────────────────────────────────────────────
   let _pendingGelen = 0;
@@ -249,7 +234,12 @@
     <div class="sb-divider"></div>
 
   </nav>
-
+    
+  <a href="/settings.html" class="sb-item${path.includes('settings') ? ' active' : ''}">
+    <i class="ti ti-settings"></i>
+    <span class="sb-label">Ayarlar</span>
+  </a>
+  <div class="sb-divider"></div>
   <div class="sb-footer">
     <button class="sb-item" id="sb-logout-btn">
       <i class="ti ti-logout"></i>
@@ -300,7 +290,7 @@
 
     document.getElementById('sb-logout-btn')?.addEventListener('click', () => {
       sessionStorage.removeItem('inokas_token');
-      window.location.replace('/login.html');
+      window.location.replace('/auth/login.html');
     });
 
     // Hover to expand/collapse

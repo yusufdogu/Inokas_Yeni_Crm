@@ -312,8 +312,6 @@ function buildInvoicePayloadFromXml(xml, viewKey) {
             direction: viewKey === 'gelen' ? 'INCOMING' : 'OUTGOING',
             invoice_date: f_date,
             due_date: f_due_date || null,
-            payment_due_date: f_due_date || null,
-            payment_instruction_note: paymentInstructionNote,
             invoice_type: formInvoiceType,
             currency: invCurrencyUi,
             base_currency: baseIso,

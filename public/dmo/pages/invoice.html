@@ -6,7 +6,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Sipariş Detayı — İnokas CRM</title>
   <script>
-    if (!sessionStorage.getItem('inokas_token')) window.location.href = '/login.html';
+    if (!sessionStorage.getItem('inokas_token')) window.location.href = '/auth/login.html';
   </script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="/shared/supabase-client.js"></script>
@@ -267,7 +267,8 @@
 </div>
 
 <div id="toast-container"></div>
-<script src="/shared/sidebar.js"></script>
+<script src="/shared/auth-interceptor.js"></script>  <!-- no defer -->
+<script src="/shared/sidebar.js" defer></script>      <!-- defer is fine -->
 
 <script>
   document.addEventListener("DOMContentLoaded", async () => {

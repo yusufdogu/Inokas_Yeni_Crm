@@ -93,7 +93,7 @@ let lastActiveDetailTab = 1;
 let currentPendingOrders = [];
 
 // ─── Toplu yükleme state'i ────────────────────────────────────────────────────
-let bulkInokasVkn    = null;
+let bulkTenantVkn = null;
 let bulkIncoming     = [];
 let bulkOutgoing     = [];
 let bulkFailed       = [];

@@ -5,14 +5,14 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Fatura Yükle — İnokas CRM</title>
   <script>
-    if (!sessionStorage.getItem('inokas_token')) window.location.href = '/login.html';
+    if (!sessionStorage.getItem('inokas_token')) window.location.href = '/auth/login.html';
   </script>
   <link href="https://fonts.googleapis.com/css2?family=Geist+Mono:wght@400;600&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.x/dist/tabler-icons.min.css">
   <link rel="stylesheet" href="/shared/sidebar.css">
   <link rel="stylesheet" href="/faturalar/css/bekleyen.css?v=2">
-  <script src="/shared/sidebar.js" defer></script>
-</head>
+  <script src="/shared/auth-interceptor.js"></script>  <!-- no defer -->
+  <script src="/shared/sidebar.js" defer></script>      <!-- defer is fine --></head>
 <body>
 <div class="app-shell">
   <div id="sidebar-container"></div>

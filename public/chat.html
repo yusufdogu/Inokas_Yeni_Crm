@@ -6,7 +6,7 @@
   <title>AI Asistan — İnokas CRM</title>
   <script>
     if (!sessionStorage.getItem('inokas_token')) {
-      window.location.replace('/login.html');
+      window.location.replace('/auth/login.html');
     }
   </script>
   <link href="https://fonts.googleapis.com/css2?family=Geist+Mono:wght@400;600&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -14,12 +14,20 @@
   <link rel="stylesheet" href="/shared/sidebar.css">
   <link rel="stylesheet" href="/chat/chat-page.css">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
-  <script src="/shared/sidebar.js"></script>
+  <script src="/shared/auth-interceptor.js"></script>  <!-- no defer -->
+  <script src="/shared/sidebar.js" defer></script>      <!-- defer is fine -->
 </head>
 <body>
 <div class="app-shell">
   <div id="sidebar-container"></div>
-
+  <!-- Add before chat page div -->
+  <!-- Integration warning banner -->
+  <div id="integrationWarning" style="display:none; background:#1c1917; border-bottom:2px solid #f59e0b; padding:10px 20px; align-items:center; gap:10px; font-size:13px; color:#fcd34d; flex-shrink:0;">
+    <i class="ti ti-alert-triangle" style="font-size:16px; flex-shrink:0;"></i>
+    <span>E-fatura entegrasyonunuz kurulmamış — faturalar otomatik senkronize edilmiyor.</span>
+    <a href="/auth/onboarding.html" style="color:#fbbf24; font-weight:700; margin-left:8px; text-decoration:none; white-space:nowrap;">Kuruluma Git →</a>
+    <button onclick="dismissWarning()" style="margin-left:auto; background:none; border:none; color:#92400e; cursor:pointer; font-size:18px; line-height:1; padding:0 4px;" title="Kapat">✕</button>
+  </div>
   <div class="chat-page">
 
     <!-- LEFT: Chat panel -->

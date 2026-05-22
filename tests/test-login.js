@@ -1,6 +1,6 @@
 // test-sync-dry-run.js
 require('dotenv').config();
-const logoApi = require('../services/logo-api');
+const logoApi = require('../logo-api');
 const { parseUblFromBase64, setProductCodeLookup } = require('../services/ubl-parser');
 const { createClient } = require('@supabase/supabase-js');
 

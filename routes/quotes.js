@@ -68,7 +68,7 @@ function buildPdfHtml(qt, logo) {
       </div>
       <div style="text-align:right;margin-top:24px;font-size:10.5pt;">${formatDate(qt.quote_date)}</div>
       <div style="margin-top:28px;">
-        <p><strong>KONU : Yaklaşık Maliyet Fiyat Teklifi</strong></p>
+        <p><strong>KONU : ${qt.quote_type || 'Fiyat Teklifi'}</strong></p>
         <p><strong>Ref No: ${qt.reference_no || ''}</strong></p>
       </div>
       <div style="margin-top:32px;"><p>Sayın ilgili;</p></div>
@@ -78,10 +78,10 @@ function buildPdfHtml(qt, logo) {
         <p>Teklifimiz ile ilgili her türlü soru ve görüşlerinizi lütfen bizimle paylaşınız.</p>
       </div>
       <div style="margin-top:28px;"><p>Saygılarımızla…</p></div>
-      ${qt.notes ? `<div style="margin-top:20px;"><p>${qt.notes.replace(/\n/g, '<br>')}</p></div>` : ''}
       <div style="margin-top:60px;">
         <p><strong>TEKLİFE İLİŞKİN GENEL HUSUSLAR;</strong></p>
-        <p>1)Teklifimizdeki fiyatlara KDV dahil değildir.</p>
+          ${(qt.terms && qt.terms.length ? qt.terms : ['1)Teklifimizdeki fiyatlara KDV dahil değildir.'])
+      .map(t => `<p>${t}</p>`).join('')}
       </div>
     </div>
     ${FOOTER}
@@ -90,16 +90,18 @@ function buildPdfHtml(qt, logo) {
   const TH = `background:#c00000;color:#fff;font-weight:bold;padding:7px 6px;text-align:center;border:1px solid #999;font-size:9pt;`;
   const td = (align = 'center') => `padding:6px 5px;border:1px solid #bbb;text-align:${align};font-size:9pt;font-weight:bold;`;
 
+  const extraCols = qt.extra_columns || [];
   const rows = items.map((it, i) => `
-    <tr>
-      <td style="${td()}">${i + 1}</td>
-      <td style="${td()}">${it.product_code || ''}</td>
-      <td style="${td('left')}">${it.product_name || ''}</td>
-      <td style="${td()}">${it.unit || 'ADET'}</td>
-      <td style="${td()}">${it.quantity}</td>
-      <td style="${td('right')}">${formatMoney(it.unit_price)}</td>
-      <td style="${td('right')}">${formatMoney(it.total_price)}</td>
-    </tr>`).join('');
+      <tr>  
+        <td style="${td()}">${i + 1}</td>
+        <td style="${td()}">${it.product_code || ''}</td>
+        <td style="${td('left')}">${it.product_name || ''}</td>
+        <td style="${td()}">${it.unit || 'ADET'}</td>
+        <td style="${td()}">${it.quantity}</td>
+        <td style="${td('right')}">${formatMoney(it.unit_price)}</td>
+        <td style="${td('right')}">${formatMoney(it.total_price)}</td>
+        ${extraCols.map(col => `<td style="${td()}">${(it.extra_columns || {})[col] || ''}</td>`).join('')}
+      </tr>`).join('');
 
   const total = items.reduce((s, it) => s + (parseFloat(it.total_price) || 0), 0);
 
@@ -107,7 +109,7 @@ function buildPdfHtml(qt, logo) {
   <div style="position:relative;width:210mm;min-height:297mm;font-family:'Times New Roman',serif;color:#000;">
     ${HEADER}
     <div style="padding:20px 36px 0;">
-      <p style="text-align:center;font-weight:bold;font-size:13pt;margin-bottom:20px;">Yaklaşık Maliyet Fiyat Teklifi</p>
+      <p style="text-align:center;font-weight:bold;font-size:13pt;margin-bottom:20px;">${qt.quote_type || 'Fiyat Teklifi'}</p>
       <table style="width:100%;border-collapse:collapse;">
         <thead>
           <tr>
@@ -118,6 +120,7 @@ function buildPdfHtml(qt, logo) {
             <th style="${TH}width:7%;">MİKTAR</th>
             <th style="${TH}width:12%;">B.FİYAT</th>
             <th style="${TH}width:13%;">TOPLAM FİYAT</th>
+            ${extraCols.map(col => `<th style="${TH}">${col}</th>`).join('')}
           </tr>
         </thead>
         <tbody>
@@ -179,7 +182,7 @@ async function generateAndStorePdf(supabase, quoteId) {
   if (upErr) throw upErr;
 
   const { data: urlData } = supabase.storage.from(BUCKET).getPublicUrl(fileName);
-  const pdfUrl = urlData.publicUrl;
+  const pdfUrl = `${urlData.publicUrl}?v=${Date.now()}`;
 
   await supabase.from('quotes').update({ pdf_url: pdfUrl }).eq('id', quoteId);
   return pdfUrl;
@@ -277,14 +280,14 @@ router.get('/:id', async (req, res) => {
 router.post('/', async (req, res) => {
   try {
     const supabase = getSupabase(req);
-    const { company_id, company_name, job_name, quote_date, valid_until, currency, status, notes, items } = req.body;
+    const { company_id, company_name, job_name, quote_date, valid_until, currency, status, notes, terms, quote_type, extra_columns, items } = req.body;
     const reference_no = await getNextRefNo(supabase);
     const total_excl_tax = (items || []).reduce((s, it) => s + (parseFloat(it.total_price) || 0), 0);
 
     const { data: quote, error: qErr } = await supabase.from('quotes')
       .insert({
         reference_no, company_id: company_id || null, company_name, job_name: job_name || null, quote_date, valid_until, currency: currency || 'TRY', status: status || 'pending',
-        notes, total_excl_tax, tenant_id: req.tenantId
+        notes, terms: terms || [], quote_type: quote_type || null, extra_columns: extra_columns || [], total_excl_tax, tenant_id: req.tenantId
       })
       .select().single();
     if (qErr) throw qErr;
@@ -295,6 +298,7 @@ router.post('/', async (req, res) => {
         product_code: it.product_code || null, product_name: it.product_name,
         unit: it.unit || 'ADET', quantity: parseFloat(it.quantity) || 1,
         unit_price: parseFloat(it.unit_price) || 0, total_price: parseFloat(it.total_price) || 0,
+        extra_columns: it.extra_columns || {},
       }));
       const { error: iErr } = await supabase.from('quote_items').insert(rows);
       if (iErr) throw iErr;
@@ -311,12 +315,12 @@ router.post('/', async (req, res) => {
 router.put('/:id', async (req, res) => {
   try {
     const supabase = getSupabase(req);
-    const { company_id, company_name, job_name, quote_date, valid_until, currency, status, notes, items } = req.body;
+    const { company_id, company_name, job_name, quote_date, valid_until, currency, status, notes, terms, quote_type, extra_columns, items } = req.body;
     const id = req.params.id;
     const total_excl_tax = (items || []).reduce((s, it) => s + (parseFloat(it.total_price) || 0), 0);
 
     const { error: qErr } = await supabase.from('quotes')
-      .update({ company_id: company_id || null, company_name, job_name: job_name || null, quote_date, valid_until, currency, status, notes, total_excl_tax, pdf_url: null })
+      .update({ company_id: company_id || null, company_name, job_name: job_name || null, quote_date, valid_until, currency, status, notes, terms: terms || [], extra_columns: extra_columns || [], total_excl_tax, pdf_url: null })
       .eq('id', id);
     if (qErr) throw qErr;
 
@@ -328,6 +332,7 @@ router.put('/:id', async (req, res) => {
           product_code: it.product_code || null, product_name: it.product_name,
           unit: it.unit || 'ADET', quantity: parseFloat(it.quantity) || 1,
           unit_price: parseFloat(it.unit_price) || 0, total_price: parseFloat(it.total_price) || 0,
+          extra_columns: it.extra_columns || {},
         }));
         const { error: iErr } = await supabase.from('quote_items').insert(rows);
         if (iErr) throw iErr;

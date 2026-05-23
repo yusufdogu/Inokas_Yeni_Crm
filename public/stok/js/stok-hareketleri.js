@@ -4,6 +4,7 @@ const MOVEMENT_CACHE_KEY = 'inokas_movements_v1';
 
 let allMovements      = [];
 let filteredMovements = [];
+let allProducts       = [];
 let _analizOpen       = false;
 let _priceMin         = 0;
 let _priceMax         = 100000;
@@ -18,7 +19,7 @@ let _modelFilter;
 
 // ─── INIT ─────────────────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', async () => {
-  await loadMovements();
+  await Promise.all([loadMovements(), loadProducts()]);
   initFilters();
 
   document.getElementById('filterDateStart')?.addEventListener('change', applyFilters);
@@ -27,6 +28,14 @@ document.addEventListener('DOMContentLoaded', async () => {
 });
 
 // ─── DATA ─────────────────────────────────────────────────────────────────────
+async function loadProducts() {
+  try {
+    const res = await fetch('/api/products');
+    if (!res.ok) return;
+    allProducts = await res.json();
+  } catch { }
+}
+
 async function loadMovements() {
   const cached = readCache(MOVEMENT_CACHE_KEY);
   if (cached) {
@@ -73,7 +82,7 @@ function initFilters() {
     wrapId:     'brandTagsWrap',
     inputId:    'brandTagInput',
     dropdownId: 'brandDropdown',
-    getOptions: () => [...new Set(allMovements.map(m => String(m.brand || '').trim()).filter(Boolean))].sort((a,b) => a.localeCompare(b,'tr')),
+    getOptions: () => [...new Set(allProducts.map(p => String(p.brand || '').trim()).filter(Boolean))].sort((a,b) => a.localeCompare(b,'tr')),
     onChange:   () => { updateAdvancedBadge(); applyFilters(); },
   });
 

@@ -63,23 +63,8 @@
           <option value="OUTGOING">▼ Çıkış</option>
         </select>
 
-        <!-- Price range -->
-        <div class="filter-range-wrap">
-          <div class="filter-range-label-row">
-            <span>Birim Fiyat</span>
-            <span class="range-value" id="priceRangeLabel">0 — ∞</span>
-          </div>
-          <div class="filter-range-inputs">
-            <input type="range" id="priceMin" min="0" max="100000" step="500" value="0" oninput="updatePriceRange()">
-            <input type="range" id="priceMax" min="0" max="100000" step="500" value="100000" oninput="updatePriceRange()">
-          </div>
-        </div>
-
         <!-- Buttons -->
         <div style="display:flex; gap:6px; align-items:center; flex-shrink:0;">
-          <button class="filter-btn-apply" onclick="applyFilters()">
-            <i class="ti ti-filter" style="font-size:13px;"></i>Uygula
-          </button>
           <button class="filter-btn-clear" onclick="clearAllFilters()" title="Temizle">
             <i class="ti ti-trash" style="font-size:14px;"></i>
           </button>
@@ -184,8 +169,8 @@
 <div id="toast-container"></div>
 
 <script src="/shared/auth-interceptor.js"></script>  <!-- no defer -->
-<script src="/shared/sidebar.js" defer></script>      <!-- defer is fine --><script src="/stok/js/utils.js"></script>
+<script src="/shared/sidebar.js" defer></script>      <!-- defer is fine --><script src="/stok/js/utils.js?v=20260523-dropdown-limit"></script>
 <script src="/stok/js/analytics.js"></script>
-<script src="/stok/js/stok-hareketleri.js"></script>
+<script src="/stok/js/stok-hareketleri.js?v=20260523-brand-fix"></script>
 </body>
 </html>

@@ -141,7 +141,7 @@ function initFilters() {
     wrapId: 'brandTagsWrap',
     inputId: 'brandTagInput',
     dropdownId: 'brandDropdown',
-    getOptions: () => [...new Set(allProducts.map(p => String(p.brand || '').trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'tr')),
+    getOptions: () => brandOptions,
     onChange: () => applyFilters(),
   });
 
@@ -631,14 +631,16 @@ function renderDynamicAttrFilters() {
       </div>`;
     }
     if (a.attr_type === 'text' || a.attr_type === 'number') {
-      return `<div class="filter-tags-wrap" style="min-width:120px; flex:unset;">
-        <input type="${a.attr_type === 'number' ? 'number' : 'text'}" class="filter-tags-input" data-attr-id="${a.id}" placeholder="${esc(a.attr_name)}..." oninput="onAttrFilterChange()">
+      return `<div class="filter-tags-wrap" id="dattr-wrap-${a.id}" style="min-width:120px; flex:unset;"
+onclick="document.getElementById('dattr-input-${a.id}').focus()">
+        <input type="text" id="dattr-input-${a.id}" class="filter-tags-input" placeholder="${esc(a.attr_name)}...">
+        <div id="dattr-dropdown-${a.id}" class="filter-dropdown"></div>
       </div>`;
     }
     return '';
   }).join('');
 
-  // select tiplerini tag filter olarak başlat
+  // select tiplerini tag filter olarak başlat (sabit değerler)
   attrs.filter(a => a.attr_type === 'select' && a.attr_values?.length).forEach(a => {
     _attrTagFilters[a.id] = createTagFilter({
       wrapId: `dattr-wrap-${a.id}`,
@@ -649,6 +651,20 @@ function renderDynamicAttrFilters() {
     });
   });
 
+  // text/number tiplerini de tag filter olarak başlat (dinamik değerler)
+  attrs.filter(a => a.attr_type === 'text' || a.attr_type === 'number').forEach(a => {
+    _attrTagFilters[a.id] = createTagFilter({
+      wrapId: `dattr-wrap-${a.id}`,
+      inputId: `dattr-input-${a.id}`,
+      dropdownId: `dattr-dropdown-${a.id}`,
+      getOptions: () => [...new Set(
+        Object.values(_attrValues)
+          .map(pAttrs => pAttrs[a.id])
+          .filter(Boolean)
+      )].sort((x, y) => x.localeCompare(y, 'tr')),
+      onChange: () => onAttrFilterChange(),
+    });
+  });
   if (missingWrap) missingWrap.style.display = '';
 
   if (!_advancedOpen) {

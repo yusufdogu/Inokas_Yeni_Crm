@@ -89,7 +89,7 @@ function createTagFilter({ wrapId, inputId, dropdownId, placeholder, getOptions,
       return ul;
     })();
     list.innerHTML = '';
-    opts.slice(0, 40).forEach(o => {
+    opts.slice(0, 200).forEach(o => {
       const li = document.createElement('li');
       li.className = 'filter-dropdown-item';
       li.textContent = o;

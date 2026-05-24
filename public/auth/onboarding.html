@@ -1,279 +1,502 @@
 <!DOCTYPE html>
 <html lang="tr">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>İnokas CRM — Entegrasyon Kurulumu</title>
-  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.x/dist/tabler-icons.min.css">
-  <link rel="stylesheet" href="/auth/auth.css">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Kumanda — Entegrasyon Kurulumu</title>
+<link href="https://fonts.googleapis.com/css2?family=Geist+Mono:wght@400;500;600&family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.x/dist/tabler-icons.min.css">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg-base:#060912;--bg-surface:#0a0e1a;--bg-card:#0f1424;--bg-elevated:#161d35;
+  --accent:#4f46e5;--accent-hover:#4338ca;--accent-light:#a5b4fc;
+  --text-primary:#f1f5f9;--text-secondary:#94a3b8;--text-tertiary:#475569;
+  --border-subtle:rgba(255,255,255,0.05);--border-default:rgba(255,255,255,0.09);
+  --border-accent:rgba(99,102,241,0.5);
+  --success-text:#34d399;--danger-text:#f87171;--warning-text:#fbbf24;
+  --font-ui:'Plus Jakarta Sans',sans-serif;--font-data:'Geist Mono',monospace;
+  --radius-md:8px;--radius-lg:12px;--radius-xl:16px;
+  --dur-base:220ms;--ease-spring:cubic-bezier(0.34,1.2,0.64,1);
+}
+html,body{height:100%;font-family:var(--font-ui);background:var(--bg-base);color:var(--text-primary)}
+body{overflow-x:hidden}
+
+#top-bar{position:fixed;top:0;left:0;height:3px;width:0;background:linear-gradient(90deg,#4f46e5,#818cf8);z-index:200;border-radius:0 2px 2px 0;transition:width 1.5s cubic-bezier(0.1,0,0.3,1)}
+
+.shell{display:flex;min-height:100vh}
+
+/* ── LEFT ── */
+.left{width:560px;flex-shrink:0;display:flex;flex-direction:column;padding:28px 56px 48px;background:var(--bg-base);border-right:0.5px solid var(--border-subtle);overflow-y:auto}
+.left-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:36px}
+.logo{display:flex;align-items:center;gap:10px;text-decoration:none}
+.logo-mark{width:30px;height:30px;background:var(--accent);border-radius:7px;display:flex;align-items:center;justify-content:center}
+.logo-mark i{font-size:15px;color:#fff}
+.logo-text{font-size:14px;font-weight:800;color:var(--text-primary);letter-spacing:.02em}
+.skip-btn{font-size:12px;color:var(--text-tertiary);background:none;border:none;cursor:pointer;font-family:var(--font-ui);transition:color var(--dur-base) ease;display:flex;align-items:center;gap:4px}
+.skip-btn:hover{color:var(--text-secondary)}
+
+/* ── STEPS ── */
+.steps{display:flex;align-items:center;gap:0;margin-bottom:36px}
+.step{display:flex;align-items:center;gap:8px}
+.step-circle{width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;transition:all var(--dur-base) ease;flex-shrink:0}
+.step-circle.done{background:var(--accent);color:#fff}
+.step-circle.active{background:var(--accent);color:#fff;box-shadow:0 0 0 3px rgba(99,102,241,0.2)}
+.step-circle.pending{background:var(--bg-elevated);color:var(--text-tertiary);border:0.5px solid var(--border-default)}
+.step-label{font-size:11px;font-weight:600;color:var(--text-tertiary)}
+.step-label.active{color:var(--text-primary)}
+.step-line{flex:1;height:0.5px;background:var(--border-subtle);margin:0 12px;min-width:24px}
+.step-line.done{background:var(--accent);opacity:.4}
+
+/* ── HEADING ── */
+.form-eyebrow{font-size:11px;font-weight:700;letter-spacing:.08em;color:var(--accent-light);text-transform:uppercase;margin-bottom:10px}
+.form-title{font-size:26px;font-weight:900;letter-spacing:-.02em;line-height:1.15;margin-bottom:6px}
+.form-sub{font-size:13px;color:var(--text-secondary);margin-bottom:28px;line-height:1.6}
+
+/* ── PROVIDER GRID ── */
+.section-label{font-size:10px;font-weight:700;letter-spacing:.08em;color:var(--text-tertiary);text-transform:uppercase;margin-bottom:10px}
+.provider-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:24px}
+.provider-card{display:flex;align-items:center;gap:12px;padding:14px 16px;border-radius:var(--radius-lg);border:0.5px solid var(--border-default);background:var(--bg-card);cursor:pointer;transition:all var(--dur-base) ease;position:relative}
+.provider-card:hover{border-color:rgba(99,102,241,0.3);background:var(--bg-elevated)}
+.provider-card.selected{border:1.5px solid var(--border-accent);background:var(--bg-elevated)}
+.provider-card.disabled{opacity:.4;cursor:not-allowed;pointer-events:none}
+.provider-icon-wrap{width:36px;height:36px;border-radius:8px;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:18px}
+.provider-name{font-size:13px;font-weight:700;color:var(--text-primary)}
+.provider-desc{font-size:11px;color:var(--text-tertiary);margin-top:1px}
+.coming-soon{font-size:9px;font-weight:700;color:var(--warning-text);background:rgba(245,158,11,0.1);border:0.5px solid rgba(245,158,11,0.2);border-radius:10px;padding:1px 6px;margin-left:4px;vertical-align:middle}
+.selected-check{position:absolute;top:10px;right:10px;width:18px;height:18px;border-radius:50%;background:var(--accent);display:none;align-items:center;justify-content:center}
+.selected-check i{font-size:10px;color:#fff}
+.provider-card.selected .selected-check{display:flex}
+
+/* ── DIVIDER ── */
+.divider{height:0.5px;background:var(--border-subtle);margin:20px 0}
+
+/* ── FIELDS ── */
+.field{display:flex;flex-direction:column;gap:5px;margin-bottom:14px}
+.field label{font-size:11px;font-weight:700;color:var(--text-tertiary);letter-spacing:.05em;text-transform:uppercase}
+.field-wrap{position:relative}
+.field-wrap i.fi{position:absolute;left:13px;top:50%;transform:translateY(-50%);font-size:15px;color:var(--text-tertiary);transition:color var(--dur-base) ease;pointer-events:none}
+.field-wrap input{width:100%;background:var(--bg-card);border:0.5px solid var(--border-default);border-radius:var(--radius-md);padding:11px 14px 11px 38px;font-size:13px;font-family:var(--font-ui);color:var(--text-primary);outline:none;transition:border-color var(--dur-base) ease,box-shadow var(--dur-base) ease,background var(--dur-base) ease}
+.field-wrap input::placeholder{color:#334155}
+.field-wrap input:hover{border-color:rgba(255,255,255,0.16)}
+.field-wrap input:focus{border-color:var(--border-accent);box-shadow:0 0 0 3px rgba(99,102,241,0.12);background:var(--bg-elevated)}
+.field-wrap:focus-within i.fi{color:var(--accent-light)}
+.field-wrap input.error{border-color:rgba(239,68,68,0.5);box-shadow:0 0 0 3px rgba(239,68,68,0.08)}
+.field-hint{font-size:11px;color:var(--text-tertiary);margin-top:3px}
+.pw-toggle{position:absolute;right:12px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:var(--text-tertiary);font-size:15px;padding:2px;transition:color var(--dur-base) ease}
+.pw-toggle:hover{color:var(--text-secondary)}
+
+/* ── ALERT ── */
+.alert{display:none;align-items:center;gap:8px;padding:10px 14px;border-radius:var(--radius-md);font-size:12px;margin-bottom:14px;border:0.5px solid rgba(239,68,68,0.25);background:rgba(239,68,68,0.08);color:var(--danger-text)}
+.alert.show{display:flex}
+.alert.success{border-color:rgba(16,185,129,0.25);background:rgba(16,185,129,0.08);color:var(--success-text)}
+.alert i{font-size:15px;flex-shrink:0}
+
+/* ── TEST RESULT ── */
+.test-result{display:none;align-items:center;gap:10px;padding:12px 14px;border-radius:var(--radius-md);font-size:12px;margin-bottom:14px;border:0.5px solid var(--border-default)}
+.test-result.ok{display:flex;background:rgba(16,185,129,0.08);border-color:rgba(16,185,129,0.25);color:var(--success-text)}
+.test-result.err{display:flex;background:rgba(239,68,68,0.08);border-color:rgba(239,68,68,0.25);color:var(--danger-text)}
+.test-result i{font-size:16px;flex-shrink:0}
+
+/* ── BUTTONS ── */
+.btn-row{display:flex;gap:8px;align-items:center;margin-top:4px}
+.btn-primary{display:inline-flex;align-items:center;justify-content:center;gap:7px;padding:11px 20px;border-radius:var(--radius-md);background:var(--accent);color:#fff;font-size:13px;font-weight:700;font-family:var(--font-ui);border:none;cursor:pointer;transition:background var(--dur-base) ease,transform 180ms var(--ease-spring),box-shadow var(--dur-base) ease}
+.btn-primary:hover{background:var(--accent-hover);transform:translateY(-1px);box-shadow:0 6px 20px rgba(79,70,229,0.35)}
+.btn-primary:active{transform:scale(0.97);transition:all 80ms ease}
+.btn-primary.loading{opacity:.8;cursor:wait;transform:none;box-shadow:none}
+.btn-primary.success{background:#059669}
+.btn-primary.flex-1{flex:1}
+.btn-secondary{display:inline-flex;align-items:center;gap:6px;padding:11px 16px;border-radius:var(--radius-md);background:transparent;color:var(--text-secondary);font-size:13px;font-weight:600;font-family:var(--font-ui);border:0.5px solid var(--border-default);cursor:pointer;transition:all var(--dur-base) ease}
+.btn-secondary:hover{color:var(--text-primary);border-color:rgba(255,255,255,0.18);background:rgba(255,255,255,0.03)}
+
+@keyframes spin{to{transform:rotate(360deg)}}
+.spinner{width:14px;height:14px;border:2px solid rgba(255,255,255,0.2);border-top-color:#fff;border-radius:50%;animation:spin .7s linear infinite;flex-shrink:0}
+
+/* ── RIGHT ── */
+.right{flex:1;background:var(--bg-surface);position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;overflow:hidden;gap:28px}
+.right-grid{position:absolute;inset:0;background-image:linear-gradient(rgba(99,102,241,0.04) 1px,transparent 1px),linear-gradient(90deg,rgba(99,102,241,0.04) 1px,transparent 1px);background-size:48px 48px;mask-image:radial-gradient(ellipse at center,black 20%,transparent 75%)}
+.right-glow{position:absolute;top:40%;left:50%;transform:translate(-50%,-50%);width:500px;height:400px;background:radial-gradient(ellipse,rgba(79,70,229,0.1) 0%,transparent 70%);pointer-events:none}
+
+/* ── INTEGRATION VISUAL ── */
+.int-visual{position:relative;z-index:1;display:flex;flex-direction:column;align-items:center;gap:0}
+.int-platform{background:var(--bg-card);border:0.5px solid var(--border-default);border-radius:var(--radius-xl);padding:20px 28px;display:flex;align-items:center;gap:14px;min-width:240px}
+.int-logo-mark{width:40px;height:40px;background:var(--accent);border-radius:10px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.int-logo-mark i{font-size:20px;color:#fff}
+.int-platform-name{font-size:14px;font-weight:800;color:var(--text-primary)}
+.int-platform-sub{font-size:11px;color:var(--text-tertiary);margin-top:2px}
+.int-connector{display:flex;flex-direction:column;align-items:center;gap:6px;padding:16px 0}
+.int-line{width:1.5px;height:30px;background:linear-gradient(to bottom,var(--accent),rgba(99,102,241,0.2))}
+.int-dot{width:8px;height:8px;border-radius:50%;background:var(--accent)}
+.int-providers{display:flex;flex-direction:column;gap:8px;width:240px}
+.int-provider{background:var(--bg-card);border:0.5px solid var(--border-default);border-radius:var(--radius-lg);padding:12px 16px;display:flex;align-items:center;gap:12px;transition:border-color var(--dur-base) ease}
+.int-provider.highlighted{border-color:var(--border-accent);background:var(--bg-elevated)}
+.int-provider-icon{width:30px;height:30px;border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0}
+.int-provider-name{font-size:12px;font-weight:700;color:var(--text-primary)}
+.int-provider-status{font-size:10px;margin-top:1px}
+.int-provider-status.connected{color:var(--success-text)}
+.int-provider-status.pending{color:var(--text-tertiary)}
+
+/* ── RIGHT INFO ── */
+.right-info{position:relative;z-index:1;text-align:center;max-width:280px}
+.ri-title{font-size:16px;font-weight:800;color:var(--text-primary);line-height:1.4;margin-bottom:6px;letter-spacing:-.01em}
+.ri-sub{font-size:12px;color:var(--text-tertiary);line-height:1.6}
+
+/* ── ANIMATIONS ── */
+@keyframes fade-up{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:translateY(0)}}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.5}}
+.anim{opacity:0;animation:fade-up .5s ease forwards}
+.d1{animation-delay:.05s}.d2{animation-delay:.12s}.d3{animation-delay:.2s}
+.d4{animation-delay:.28s}.d5{animation-delay:.36s}.d6{animation-delay:.44s}
+.d7{animation-delay:.52s}.d8{animation-delay:.6s}
+</style>
 </head>
 <body>
-<div class="auth-center">
-  <div class="auth-center-inner">
 
-    <!-- Brand -->
-    <div class="brand">
-      <div class="brand-dot"></div>
-      <div class="brand-text">KUMANDA</div>
+<div id="top-bar"></div>
+
+<div class="shell">
+
+  <!-- LEFT -->
+  <div class="left">
+    <div class="left-top">
+      <a href="/chat" class="logo">
+        <div class="logo-mark"><i class="ti ti-bolt"></i></div>
+        <span class="logo-text">KUMANDA</span>
+      </a>
+      <button class="skip-btn" onclick="skipOnboarding()"><i class="ti ti-forward" style="font-size:13px"></i> Şimdi atla</button>
     </div>
 
-    <!-- Steps -->
-    <div class="steps">
-      <div class="step done">
-        <div class="step-num"><i class="ti ti-check" style="font-size:12px;"></i></div>
+    <!-- STEPS -->
+    <div class="steps anim d1">
+      <div class="step">
+        <div class="step-circle done"><i class="ti ti-check" style="font-size:11px"></i></div>
         <span class="step-label">Hesap</span>
       </div>
       <div class="step-line done"></div>
-      <div class="step active">
-        <div class="step-num">2</div>
-        <span class="step-label">Entegrasyon</span>
+      <div class="step">
+        <div class="step-circle active">2</div>
+        <span class="step-label active">Entegrasyon</span>
       </div>
       <div class="step-line"></div>
-      <div class="step idle">
-        <div class="step-num">3</div>
+      <div class="step">
+        <div class="step-circle pending"><i class="ti ti-check" style="font-size:11px"></i></div>
         <span class="step-label">Hazır</span>
       </div>
     </div>
 
-    <!-- Card -->
-    <div class="auth-card">
-      <div class="auth-card-title">E-Fatura Entegrasyonu</div>
-      <div class="auth-card-sub">
-        Faturalarınızı otomatik senkronize etmek için e-fatura servis sağlayıcınızı seçin ve API bilgilerinizi girin.
+    <div class="form-eyebrow anim d2">Adım 2 / 3</div>
+    <h2 class="form-title anim d3">E-Fatura<br>entegrasyonu</h2>
+    <p class="form-sub anim d4">Servis sağlayıcınızı seçin ve bilgilerinizi girin. Faturalarınız otomatik senkronize edilmeye başlar.</p>
+
+    <!-- PROVIDER GRID -->
+    <div class="section-label anim d4">Servis Sağlayıcı</div>
+    <div class="provider-grid anim d5">
+      <div class="provider-card selected" id="providerLogo" onclick="selectProvider('logo')">
+        <div class="provider-icon-wrap" style="background:rgba(99,102,241,0.1)"><i class="ti ti-cloud" style="font-size:18px;color:#a5b4fc"></i></div>
+        <div><div class="provider-name">Logo (İşbaşı)</div><div class="provider-desc">REST API</div></div>
+        <div class="selected-check"><i class="ti ti-check"></i></div>
       </div>
-
-      <!-- Provider selector -->
-      <div class="section-label">Servis Sağlayıcı</div>
-      <div class="provider-grid">
-        <div class="provider-card selected" id="providerLogo" onclick="selectProvider('logo')">
-          <div class="provider-icon">🔵</div>
-          <div>
-            <div class="provider-name">Logo (İşbaşı)</div>
-            <div class="provider-desc">Logo REST API</div>
-          </div>
-        </div>
-        <div class="provider-card" id="providerElogo" onclick="selectProvider('elogo')">
-          <div class="provider-icon">🟣</div>
-          <div>
-            <div class="provider-name">eLogo</div>
-            <div class="provider-desc">eLogo PostBox SOAP</div>
-          </div>
-        </div>
-        <div class="provider-card" id="providerIsbasi" onclick="selectProvider('isbasi')">
-          <div class="provider-icon">🟠</div>
-          <div>
-            <div class="provider-name">İşbaşı</div>
-            <div class="provider-desc">İşbaşı SOAP API</div>
-          </div>
-        </div>
-        <div class="provider-card disabled">
-          <div class="provider-icon">🟡</div>
-          <div>
-            <div class="provider-name">Uyumsoft <span class="coming-soon">Yakında</span></div>
-            <div class="provider-desc">Uyumsoft e-Fatura</div>
-          </div>
-        </div>
+      <div class="provider-card" id="providerElogo" onclick="selectProvider('elogo')">
+        <div class="provider-icon-wrap" style="background:rgba(139,92,246,0.1)"><i class="ti ti-database" style="font-size:18px;color:#c4b5fd"></i></div>
+        <div><div class="provider-name">eLogo</div><div class="provider-desc">PostBox SOAP</div></div>
+        <div class="selected-check"><i class="ti ti-check"></i></div>
       </div>
-
-      <hr class="divider">
-
-      <!-- API fields — changes based on provider -->
-      <div id="providerFields">
-        <div class="section-label" id="fieldsLabel">Logo API Bilgileri</div>
-
-        <div id="alertBox" class="alert alert-error"></div>
-
-        <!-- Logo REST fields -->
-        <div id="logoRestFields">
-          <div class="form-group">
-            <label>API Base URL</label>
-            <input type="url" id="baseUrl" placeholder="https://efatura.logo.com.tr">
-            <div class="input-hint">Logo servis sağlayıcınızdan aldığınız API adresi</div>
-          </div>
-          <div class="form-group">
-            <label>API Key</label>
-            <input type="text" id="apiKey" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx">
-          </div>
-        </div>
-
-        <!-- eLogo / İşbaşı SOAP fields -->
-        <div id="elogoFields" style="display:none;">
-          <div class="form-group">
-            <label>Servis URL</label>
-            <input type="url" id="serviceUrl" placeholder="https://pb.elogo.com.tr/PostBoxService.svc">
-            <div class="input-hint">eLogo PostBox servis adresi</div>
-          </div>
-        </div>
-
-        <!-- Common fields -->
-        <div class="form-group">
-          <label>Kullanıcı Adı</label>
-          <input type="text" id="username" placeholder="kullanici@sirket.com" autocomplete="off">
-        </div>
-
-        <div class="form-group">
-          <label>Şifre</label>
-          <input type="password" id="logoPassword" placeholder="••••••••" autocomplete="new-password">
-        </div>
-
-        <!-- Test result -->
-        <div class="test-result" id="testResult">
-          <i class="ti ti-circle-check"></i>
-          <span id="testResultText"></span>
-        </div>
-
-        <!-- Buttons -->
-        <div class="btn-row">
-          <button class="btn-secondary" onclick="goBack()">
-            <i class="ti ti-arrow-left" style="font-size:13px;"></i>
-            Geri
-          </button>
-          <button class="btn-secondary" onclick="skipOnboarding()">
-            Şimdi Atla
-          </button>
-          <button class="btn-primary flex-1" id="testBtn" onclick="testConnection()">
-            <i class="ti ti-plug"></i>
-            Bağlantıyı Test Et
-          </button>
-          <button class="btn-primary flex-1" id="saveBtn" onclick="saveIntegration()" style="display:none;">
-            <i class="ti ti-check"></i>
-            Kaydet ve Başlat
-          </button>
-        </div>
-
+      <div class="provider-card" id="providerIsbasi" onclick="selectProvider('isbasi')">
+        <div class="provider-icon-wrap" style="background:rgba(245,158,11,0.1)"><i class="ti ti-server" style="font-size:18px;color:#fbbf24"></i></div>
+        <div><div class="provider-name">İşbaşı</div><div class="provider-desc">SOAP API</div></div>
+        <div class="selected-check"><i class="ti ti-check"></i></div>
+      </div>
+      <div class="provider-card disabled">
+        <div class="provider-icon-wrap" style="background:rgba(255,255,255,0.04)"><i class="ti ti-clock" style="font-size:18px;color:#334155"></i></div>
+        <div><div class="provider-name">Uyumsoft <span class="coming-soon">Yakında</span></div><div class="provider-desc">e-Fatura</div></div>
       </div>
     </div>
 
+    <div class="divider anim d5"></div>
+
+    <!-- FIELDS -->
+    <div id="providerFields">
+      <div class="section-label anim d5" id="fieldsLabel">Logo API Bilgileri</div>
+
+      <div id="alertBox" class="alert anim d5"><i class="ti ti-alert-circle"></i><span id="alertText"></span></div>
+
+      <!-- Logo REST fields -->
+      <div id="logoRestFields" class="anim d6">
+        <div class="field">
+          <label>API Base URL</label>
+          <div class="field-wrap">
+            <input type="url" id="baseUrl" placeholder="https://efatura.logo.com.tr">
+            <i class="ti ti-link fi"></i>
+          </div>
+          <div class="field-hint">Logo servis sağlayıcınızdan aldığınız API adresi</div>
+        </div>
+        <div class="field">
+          <label>API Key</label>
+          <div class="field-wrap">
+            <input type="text" id="apiKey" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" style="font-family:var(--font-data);font-size:12px">
+            <i class="ti ti-key fi"></i>
+          </div>
+        </div>
+      </div>
+
+      <!-- eLogo / İşbaşı SOAP fields -->
+      <div id="elogoFields" style="display:none" class="anim d6">
+        <div class="field">
+          <label>Servis URL</label>
+          <div class="field-wrap">
+            <input type="url" id="serviceUrl" placeholder="https://pb.elogo.com.tr/PostBoxService.svc">
+            <i class="ti ti-link fi"></i>
+          </div>
+          <div class="field-hint">Örn: https://pb.elogo.com.tr/PostBoxService.svc</div>
+        </div>
+      </div>
+
+      <!-- Common -->
+      <div class="field anim d6">
+        <label>Kullanıcı Adı</label>
+        <div class="field-wrap">
+          <input type="text" id="username" placeholder="kullanici@sirket.com" autocomplete="off">
+          <i class="ti ti-user fi"></i>
+        </div>
+      </div>
+
+      <div class="field anim d7">
+        <label>Şifre</label>
+        <div class="field-wrap">
+          <input type="password" id="logoPassword" placeholder="••••••••" autocomplete="new-password">
+          <i class="ti ti-lock fi"></i>
+          <button class="pw-toggle" onclick="togglePw()" type="button" aria-label="Şifreyi göster">
+            <i class="ti ti-eye" id="pw-eye"></i>
+          </button>
+        </div>
+      </div>
+
+      <!-- Test result -->
+      <div class="test-result" id="testResult">
+        <i class="ti ti-circle-check"></i>
+        <span id="testResultText"></span>
+      </div>
+
+      <!-- Buttons -->
+      <div class="btn-row anim d8">
+        <button class="btn-secondary" onclick="skipOnboarding()">Şimdi Atla</button>
+        <button class="btn-primary flex-1" id="testBtn" onclick="testConnection()">
+          <i class="ti ti-plug" id="test-icon"></i>
+          <span id="test-text">Bağlantıyı Test Et</span>
+        </button>
+        <button class="btn-primary flex-1 success" id="saveBtn" onclick="saveIntegration()" style="display:none">
+          <i class="ti ti-check" id="save-icon"></i>
+          <span id="save-text">Kaydet ve Başlat</span>
+        </button>
+      </div>
+    </div>
   </div>
+
+  <!-- RIGHT -->
+  <div class="right">
+    <div class="right-grid"></div>
+    <div class="right-glow"></div>
+
+    <!-- Integration visual -->
+    <div class="int-visual">
+      <div class="int-platform">
+        <div class="int-logo-mark"><i class="ti ti-bolt"></i></div>
+        <div>
+          <div class="int-platform-name">KUMANDA</div>
+          <div class="int-platform-sub">AI destekli CRM platformu</div>
+        </div>
+      </div>
+      <div class="int-connector">
+        <div class="int-line"></div>
+        <div class="int-dot"></div>
+        <div class="int-line" style="background:linear-gradient(to bottom,rgba(99,102,241,0.2),rgba(99,102,241,0.5))"></div>
+      </div>
+      <div class="int-providers">
+        <div class="int-provider highlighted" id="vis-logo">
+          <div class="int-provider-icon" style="background:rgba(99,102,241,0.1)"><i class="ti ti-cloud" style="color:#a5b4fc"></i></div>
+          <div>
+            <div class="int-provider-name">Logo (İşbaşı)</div>
+            <div class="int-provider-status pending" id="vis-logo-status">Bağlantı bekleniyor...</div>
+          </div>
+        </div>
+        <div class="int-provider" id="vis-elogo">
+          <div class="int-provider-icon" style="background:rgba(139,92,246,0.1)"><i class="ti ti-database" style="color:#c4b5fd"></i></div>
+          <div>
+            <div class="int-provider-name">eLogo</div>
+            <div class="int-provider-status pending">PostBox SOAP</div>
+          </div>
+        </div>
+        <div class="int-provider" id="vis-isbasi">
+          <div class="int-provider-icon" style="background:rgba(245,158,11,0.1)"><i class="ti ti-server" style="color:#fbbf24"></i></div>
+          <div>
+            <div class="int-provider-name">İşbaşı</div>
+            <div class="int-provider-status pending">SOAP API</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="right-info">
+      <div class="ri-title" id="right-title">Entegrasyonunuzu<br>seçin ve bağlayın</div>
+      <div class="ri-sub" id="right-sub">Bağlantı kurulduktan sonra faturalarınız otomatik olarak her 10 dakikada bir senkronize edilir.</div>
+    </div>
+  </div>
+
 </div>
 
 <script>
-  if (!sessionStorage.getItem('inokas_token')) window.location.href = '/auth/login.html';
+if(!sessionStorage.getItem('inokas_token')) window.location.href='/auth/login.html';
 
-  let _selectedProvider = 'logo';
-  let _connectionTested = false;
+let _provider='logo';
+let _tested=false;
 
-  const PROVIDER_LABELS = {
-    logo:   'Logo (İşbaşı) API Bilgileri',
-    elogo:  'eLogo PostBox Bilgileri',
-    isbasi: 'İşbaşı PostBox Bilgileri',
-  };
+const LABELS={
+  logo:'Logo API Bilgileri',
+  elogo:'eLogo PostBox Bilgileri',
+  isbasi:'İşbaşı PostBox Bilgileri',
+};
+const RIGHT_INFO={
+  logo:{title:'Logo REST API ile\nbağlanın',sub:'Logo servis sağlayıcınızdan aldığınız API URL ve key bilgilerini girin.'},
+  elogo:{title:'eLogo PostBox\nbağlantısı',sub:'eLogo kullanıcı adı ve şifrenizle doğrudan SOAP servise bağlanın.'},
+  isbasi:{title:'İşbaşı SOAP\nbağlantısı',sub:'İşbaşı hesap bilgilerinizle PostBox servisine bağlanın.'},
+};
 
-  function selectProvider(provider) {
-    _selectedProvider  = provider;
-    _connectionTested  = false;
+window.addEventListener('load',()=>{
+  const bar=document.getElementById('top-bar');
+  bar.style.width='66%';
+  setTimeout(()=>{bar.style.opacity='0';bar.style.transition='opacity .3s ease';},600);
+});
 
-    document.querySelectorAll('.provider-card:not(.disabled)').forEach(el => el.classList.remove('selected'));
-    document.getElementById('provider' + provider.charAt(0).toUpperCase() + provider.slice(1))?.classList.add('selected');
+function selectProvider(p){
+  _provider=p;_tested=false;
+  document.querySelectorAll('.provider-card:not(.disabled)').forEach(el=>el.classList.remove('selected'));
+  document.getElementById('provider'+p.charAt(0).toUpperCase()+p.slice(1))?.classList.add('selected');
+  document.getElementById('fieldsLabel').textContent=LABELS[p]||'API Bilgileri';
+  const isLogo=p==='logo';
+  const isSoap=p==='elogo'||p==='isbasi';
+  document.getElementById('logoRestFields').style.display=isLogo?'':'none';
+  document.getElementById('elogoFields').style.display=isSoap?'':'none';
+  if(isSoap){const u=document.getElementById('serviceUrl');if(!u.value)u.value='https://pb.elogo.com.tr/PostBoxService.svc';}
+  document.getElementById('testResult').className='test-result';
+  document.getElementById('saveBtn').style.display='none';
+  document.getElementById('testBtn').style.display='flex';
+  hideAlert();
+  // Update right panel visual
+  ['logo','elogo','isbasi'].forEach(id=>{
+    document.getElementById('vis-'+id)?.classList.toggle('highlighted',id===p);
+  });
+  const info=RIGHT_INFO[p]||{};
+  document.getElementById('right-title').innerHTML=info.title?.replace('\n','<br>')||'';
+  document.getElementById('right-sub').textContent=info.sub||'';
+}
 
-    document.getElementById('fieldsLabel').textContent = PROVIDER_LABELS[provider] || 'API Bilgileri';
+function buildPayload(){
+  const username=document.getElementById('username').value.trim();
+  const password=document.getElementById('logoPassword').value;
+  if(_provider==='logo') return {provider:'logo',base_url:document.getElementById('baseUrl').value.trim(),api_key:document.getElementById('apiKey').value.trim(),username,password};
+  return {provider:_provider,service_url:document.getElementById('serviceUrl').value.trim(),username,password};
+}
 
-    const isLogo     = provider === 'logo';
-    const isElogoish = provider === 'elogo' || provider === 'isbasi';
-    document.getElementById('logoRestFields').style.display = isLogo ? '' : 'none';
-    document.getElementById('elogoFields').style.display    = isElogoish ? '' : 'none';
+function validatePayload(p){
+  if(_provider==='logo'){if(!p.base_url)return 'API Base URL zorunlu.';if(!p.api_key)return 'API Key zorunlu.';}
+  else{if(!p.service_url)return 'Servis URL zorunlu.';}
+  if(!p.username)return 'Kullanıcı adı zorunlu.';
+  if(!p.password)return 'Şifre zorunlu.';
+  return null;
+}
 
-    if (isElogoish) {
-      const urlInput = document.getElementById('serviceUrl');
-      if (!urlInput.value) urlInput.value = 'https://pb.elogo.com.tr/PostBoxService.svc';
-    }
+function showAlert(msg,type='error'){
+  const box=document.getElementById('alertBox');
+  box.className=`alert${type==='success'?' success':''} show`;
+  box.innerHTML=`<i class="ti ti-${type==='error'?'alert-circle':'circle-check'}"></i><span>${msg}</span>`;
+}
+function hideAlert(){document.getElementById('alertBox').className='alert';}
 
-    document.getElementById('testResult').className = 'test-result';
-    document.getElementById('saveBtn').style.display = 'none';
-    document.getElementById('testBtn').style.display = 'flex';
-    hideAlert();
-  }
+function togglePw(){
+  const inp=document.getElementById('logoPassword');
+  const eye=document.getElementById('pw-eye');
+  const show=inp.type==='password';
+  inp.type=show?'text':'password';
+  eye.className=show?'ti ti-eye-off':'ti ti-eye';
+}
 
-  function buildPayload() {
-    const username = document.getElementById('username').value.trim();
-    const password = document.getElementById('logoPassword').value;
-    if (_selectedProvider === 'logo') {
-      return { provider: 'logo', base_url: document.getElementById('baseUrl').value.trim(), api_key: document.getElementById('apiKey').value.trim(), username, password };
-    }
-    return { provider: _selectedProvider, service_url: document.getElementById('serviceUrl').value.trim(), username, password };
-  }
+function skipOnboarding(){
+  if(!confirm('Entegrasyonu şimdi atlamak istediğinizden emin misiniz? Faturalar senkronize edilmeyecek.'))return;
+  window.location.replace('/chat');
+}
 
-  function validatePayload(payload) {
-    if (_selectedProvider === 'logo') {
-      if (!payload.base_url) return 'API Base URL zorunlu.';
-      if (!payload.api_key)  return 'API Key zorunlu.';
+async function testConnection(){
+  const payload=buildPayload();
+  const err=validatePayload(payload);
+  if(err)return showAlert(err);
+  hideAlert();
+
+  const icon=document.getElementById('test-icon');
+  const text=document.getElementById('test-text');
+  const btn=document.getElementById('testBtn');
+  icon.className='spinner';
+  text.textContent='Test ediliyor...';
+  btn.classList.add('loading');
+
+  try{
+    const res=await fetch('/api/integrations/test',{method:'POST',headers:{'Content-Type':'application/json','x-auth-token':sessionStorage.getItem('inokas_token')},body:JSON.stringify(payload)});
+    const data=await res.json();
+    const resultEl=document.getElementById('testResult');
+    const resultTextEl=document.getElementById('testResultText');
+    if(res.ok&&data.success){
+      resultEl.className='test-result ok';
+      resultEl.querySelector('i').className='ti ti-circle-check';
+      resultTextEl.textContent='Bağlantı başarılı! Devam edebilirsiniz.';
+      _tested=true;
+      document.getElementById('saveBtn').style.display='flex';
+      document.getElementById('testBtn').style.display='none';
+      // Update visual
+      const statusEl=document.getElementById('vis-'+_provider+'-status')||document.querySelector('#vis-'+_provider+' .int-provider-status');
+      if(statusEl){statusEl.textContent='✓ Bağlı';statusEl.className='int-provider-status connected';}
     } else {
-      if (!payload.service_url) return 'Servis URL zorunlu.';
+      resultEl.className='test-result err';
+      resultEl.querySelector('i').className='ti ti-alert-circle';
+      resultTextEl.textContent=data.error||'Bağlantı başarısız. Bilgileri kontrol edin.';
     }
-    if (!payload.username) return 'Kullanıcı adı zorunlu.';
-    if (!payload.password) return 'Şifre zorunlu.';
-    return null;
+  } catch(err){
+    showAlert('Sunucu hatası: '+err.message);
+  } finally {
+    icon.className='ti ti-plug';
+    text.textContent='Bağlantıyı Test Et';
+    btn.classList.remove('loading');
   }
+}
 
-  function showAlert(msg, type = 'error') {
-    const el = document.getElementById('alertBox');
-    el.className = `alert alert-${type} show`;
-    el.innerHTML = `<i class="ti ti-${type === 'error' ? 'alert-circle' : 'circle-check'}"></i> ${msg}`;
+async function saveIntegration(){
+  const payload=buildPayload();
+  const icon=document.getElementById('save-icon');
+  const text=document.getElementById('save-text');
+  const btn=document.getElementById('saveBtn');
+  icon.className='spinner';
+  text.textContent='Kaydediliyor...';
+  btn.classList.add('loading');
+
+  try{
+    const res=await fetch('/api/integrations',{method:'POST',headers:{'Content-Type':'application/json','x-auth-token':sessionStorage.getItem('inokas_token')},body:JSON.stringify(payload)});
+    const data=await res.json();
+    if(!res.ok)throw new Error(data.error||'Kayıt başarısız.');
+    sessionStorage.setItem('onboarding_complete','true');
+    icon.className='ti ti-check';
+    text.textContent='Kaydedildi! Yönlendiriliyor...';
+
+    const bar=document.getElementById('top-bar');
+    bar.style.opacity='1';
+    bar.style.transition='width 1.5s cubic-bezier(0.1,0,0.3,1)';
+    bar.style.width='100%';
+
+    setTimeout(()=>window.location.replace('/chat'),900);
+  } catch(err){
+    showAlert(err.message);
+    icon.className='ti ti-check';
+    text.textContent='Kaydet ve Başlat';
+    btn.classList.remove('loading');
   }
-
-  function hideAlert() { document.getElementById('alertBox').classList.remove('show'); }
-  function goBack()    { window.location.href = '/chat'; }
-
-  function skipOnboarding() {
-    if (!confirm('Entegrasyonu şimdi atlamak istediğinizden emin misiniz?')) return;
-    window.location.replace('/chat');
-  }
-
-  async function testConnection() {
-    const payload = buildPayload();
-    const err = validatePayload(payload);
-    if (err) return showAlert(err);
-    hideAlert();
-
-    const btn = document.getElementById('testBtn');
-    btn.innerHTML = '<i class="ti ti-loader"></i> Test ediliyor...';
-    btn.classList.add('loading');
-
-    try {
-      const res  = await fetch('/api/integrations/test', { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-auth-token': sessionStorage.getItem('inokas_token') }, body: JSON.stringify(payload) });
-      const data = await res.json();
-      const resultEl = document.getElementById('testResult');
-      const resultTextEl = document.getElementById('testResultText');
-      if (res.ok && data.success) {
-        resultEl.className = 'test-result ok';
-        resultTextEl.textContent = 'Bağlantı başarılı!';
-        resultEl.querySelector('i').className = 'ti ti-circle-check';
-        _connectionTested = true;
-        document.getElementById('saveBtn').style.display = 'flex';
-        document.getElementById('testBtn').style.display = 'none';
-      } else {
-        resultEl.className = 'test-result err';
-        resultTextEl.textContent = data.error || 'Bağlantı başarısız.';
-        resultEl.querySelector('i').className = 'ti ti-alert-circle';
-      }
-    } catch (err) {
-      showAlert('Sunucu hatası: ' + err.message);
-    } finally {
-      const b = document.getElementById('testBtn');
-      b.innerHTML = '<i class="ti ti-plug"></i> Bağlantıyı Test Et';
-      b.classList.remove('loading');
-    }
-  }
-
-  async function saveIntegration() {
-    const payload = buildPayload();
-    const btn     = document.getElementById('saveBtn');
-    btn.innerHTML = '<i class="ti ti-loader"></i> Kaydediliyor...';
-    btn.classList.add('loading');
-    try {
-      const res  = await fetch('/api/integrations', { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-auth-token': sessionStorage.getItem('inokas_token') }, body: JSON.stringify(payload) });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Kayıt başarısız.');
-      sessionStorage.setItem('onboarding_complete', 'true');
-      btn.innerHTML = '✓ Kaydedildi! Yönlendiriliyor...';
-      setTimeout(() => window.location.replace('/chat'), 1200);
-    } catch (err) {
-      showAlert(err.message);
-      btn.innerHTML = '<i class="ti ti-check"></i> Kaydet ve Başlat';
-      btn.classList.remove('loading');
-    }
-  }
+}
 </script>
 </body>
 </html>

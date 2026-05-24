@@ -1,138 +1,460 @@
 <!DOCTYPE html>
 <html lang="tr">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>İnokas CRM — Kayıt Ol</title>
-  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/auth/auth.css">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Kumanda — Kayıt Ol</title>
+<link href="https://fonts.googleapis.com/css2?family=Geist+Mono:wght@400;500;600&family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.x/dist/tabler-icons.min.css">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg-base:#060912;--bg-surface:#0a0e1a;--bg-card:#0f1424;--bg-elevated:#161d35;
+  --accent:#4f46e5;--accent-hover:#4338ca;--accent-light:#a5b4fc;
+  --text-primary:#f1f5f9;--text-secondary:#94a3b8;--text-tertiary:#475569;
+  --border-subtle:rgba(255,255,255,0.05);--border-default:rgba(255,255,255,0.09);
+  --border-accent:rgba(99,102,241,0.5);
+  --success-text:#34d399;--danger-text:#f87171;
+  --font-ui:'Plus Jakarta Sans',sans-serif;--font-data:'Geist Mono',monospace;
+  --radius-md:8px;--radius-lg:12px;
+  --dur-base:220ms;--ease-spring:cubic-bezier(0.34,1.2,0.64,1);
+}
+html,body{height:100%;font-family:var(--font-ui);background:var(--bg-base);color:var(--text-primary)}
+body{overflow-x:hidden}
+
+#top-bar{position:fixed;top:0;left:0;height:3px;width:0;background:linear-gradient(90deg,#4f46e5,#818cf8);z-index:200;border-radius:0 2px 2px 0;transition:width 1.5s cubic-bezier(0.1,0,0.3,1)}
+
+.shell{display:flex;min-height:100vh}
+
+/* ── LEFT ── */
+.left{width:520px;flex-shrink:0;display:flex;flex-direction:column;padding:28px 56px 48px;position:relative;background:var(--bg-base);border-right:0.5px solid var(--border-subtle)}
+.left-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:40px}
+.logo{display:flex;align-items:center;gap:10px;text-decoration:none}
+.logo-mark{width:30px;height:30px;background:var(--accent);border-radius:7px;display:flex;align-items:center;justify-content:center}
+.logo-mark i{font-size:15px;color:#fff}
+.logo-text{font-size:14px;font-weight:800;color:var(--text-primary);letter-spacing:.02em}
+.back-link{font-size:12px;color:var(--text-tertiary);text-decoration:none;display:flex;align-items:center;gap:4px;transition:color var(--dur-base) ease}
+.back-link:hover{color:var(--text-secondary)}
+
+/* ── STEPS ── */
+.steps{display:flex;align-items:center;gap:0;margin-bottom:36px}
+.step{display:flex;align-items:center;gap:8px}
+.step-circle{width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;transition:all var(--dur-base) ease;flex-shrink:0}
+.step-circle.done{background:var(--accent);color:#fff}
+.step-circle.active{background:var(--accent);color:#fff;box-shadow:0 0 0 3px rgba(99,102,241,0.2)}
+.step-circle.pending{background:var(--bg-elevated);color:var(--text-tertiary);border:0.5px solid var(--border-default)}
+.step-label{font-size:11px;font-weight:600;color:var(--text-tertiary);transition:color var(--dur-base) ease}
+.step-label.active{color:var(--text-primary)}
+.step-line{flex:1;height:0.5px;background:var(--border-subtle);margin:0 12px;min-width:20px}
+.step-line.done{background:var(--accent);opacity:.4}
+
+/* ── FORM ── */
+.form-eyebrow{font-size:11px;font-weight:700;letter-spacing:.08em;color:var(--accent-light);text-transform:uppercase;margin-bottom:10px}
+.form-title{font-size:26px;font-weight:900;letter-spacing:-.02em;line-height:1.15;margin-bottom:6px;color:var(--text-primary)}
+.form-sub{font-size:13px;color:var(--text-secondary);margin-bottom:28px;line-height:1.6}
+
+.field{display:flex;flex-direction:column;gap:5px;margin-bottom:14px}
+.field label{font-size:11px;font-weight:700;color:var(--text-tertiary);letter-spacing:.05em;text-transform:uppercase}
+.field-wrap{position:relative}
+.field-wrap i.fi{position:absolute;left:13px;top:50%;transform:translateY(-50%);font-size:15px;color:var(--text-tertiary);transition:color var(--dur-base) ease;pointer-events:none}
+.field-wrap input{
+  width:100%;background:var(--bg-card);
+  border:0.5px solid var(--border-default);
+  border-radius:var(--radius-md);
+  padding:11px 14px 11px 38px;
+  font-size:13px;font-family:var(--font-ui);
+  color:var(--text-primary);outline:none;
+  transition:border-color var(--dur-base) ease,box-shadow var(--dur-base) ease,background var(--dur-base) ease;
+}
+.field-wrap input::placeholder{color:#334155}
+.field-wrap input:hover{border-color:rgba(255,255,255,0.16)}
+.field-wrap input:focus{border-color:var(--border-accent);box-shadow:0 0 0 3px rgba(99,102,241,0.12);background:var(--bg-elevated)}
+.field-wrap:focus-within i.fi{color:var(--accent-light)}
+.field-wrap input.error{border-color:rgba(239,68,68,0.5);box-shadow:0 0 0 3px rgba(239,68,68,0.08)}
+.field-wrap input.valid{border-color:rgba(16,185,129,0.4)}
+.field-hint{font-size:11px;color:var(--text-tertiary);margin-top:3px}
+.pw-toggle{position:absolute;right:12px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:var(--text-tertiary);font-size:15px;padding:2px;transition:color var(--dur-base) ease}
+.pw-toggle:hover{color:var(--text-secondary)}
+.field-row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+
+/* ── PASSWORD STRENGTH ── */
+.pw-strength{margin-top:6px}
+.pw-bars{display:flex;gap:3px;margin-bottom:4px}
+.pw-bar{flex:1;height:3px;border-radius:2px;background:rgba(255,255,255,0.06);transition:background .3s ease}
+.pw-label{font-size:10px;color:var(--text-tertiary);transition:color .3s ease}
+
+/* ── ALERT ── */
+.alert{display:none;align-items:center;gap:8px;padding:10px 14px;border-radius:var(--radius-md);font-size:12px;margin-bottom:14px;border:0.5px solid rgba(239,68,68,0.25);background:rgba(239,68,68,0.08);color:var(--danger-text)}
+.alert.show{display:flex}
+.alert i{font-size:15px;flex-shrink:0}
+
+/* ── PANELS ── */
+.panel{display:none}
+.panel.active{display:block}
+
+/* ── BUTTON ── */
+.btn-row{display:flex;gap:10px;margin-top:6px}
+.btn-submit{
+  flex:1;padding:12px;border-radius:var(--radius-md);
+  background:var(--accent);color:#fff;
+  font-size:13px;font-weight:700;font-family:var(--font-ui);
+  border:none;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;gap:8px;
+  transition:background var(--dur-base) ease,transform 180ms var(--ease-spring),box-shadow var(--dur-base) ease;
+}
+.btn-submit:hover{background:var(--accent-hover);transform:translateY(-1px);box-shadow:0 6px 20px rgba(79,70,229,0.35)}
+.btn-submit:active{transform:scale(0.98);transition:all 80ms ease}
+.btn-submit.loading{opacity:.8;cursor:wait;transform:none;box-shadow:none}
+.btn-submit.success{background:#059669}
+.btn-back{padding:12px 16px;border-radius:var(--radius-md);background:transparent;color:var(--text-secondary);font-size:13px;font-weight:600;font-family:var(--font-ui);border:0.5px solid var(--border-default);cursor:pointer;transition:all var(--dur-base) ease}
+.btn-back:hover{color:var(--text-primary);border-color:var(--border-strong);background:rgba(255,255,255,0.03)}
+
+@keyframes spin{to{transform:rotate(360deg)}}
+.spinner{width:15px;height:15px;border:2px solid rgba(255,255,255,0.2);border-top-color:#fff;border-radius:50%;animation:spin .7s linear infinite;flex-shrink:0}
+
+.form-link{font-size:12px;color:var(--text-secondary);text-align:center;margin-top:20px}
+.form-link a{color:var(--accent-light);text-decoration:none;font-weight:600;transition:color var(--dur-base) ease}
+.form-link a:hover{color:#c7d2fe}
+
+/* ── RIGHT ── */
+.right{flex:1;background:var(--bg-surface);position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;overflow:hidden;gap:28px}
+.right-grid{position:absolute;inset:0;background-image:linear-gradient(rgba(99,102,241,0.04) 1px,transparent 1px),linear-gradient(90deg,rgba(99,102,241,0.04) 1px,transparent 1px);background-size:48px 48px;mask-image:radial-gradient(ellipse at center,black 20%,transparent 75%)}
+.right-glow{position:absolute;top:40%;left:50%;transform:translate(-50%,-50%);width:500px;height:400px;background:radial-gradient(ellipse,rgba(79,70,229,0.1) 0%,transparent 70%);pointer-events:none}
+
+/* ── FEATURE LIST ── */
+.features{position:relative;z-index:1;display:flex;flex-direction:column;gap:14px;max-width:300px}
+.feat-item{display:flex;align-items:flex-start;gap:12px}
+.feat-icon{width:34px;height:34px;border-radius:8px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.feat-icon i{font-size:17px}
+.feat-content{}
+.feat-title{font-size:13px;font-weight:700;color:var(--text-primary);margin-bottom:2px}
+.feat-desc{font-size:11px;color:var(--text-tertiary);line-height:1.5}
+
+/* ── MINI PROGRESS ── */
+.right-title{position:relative;z-index:1;text-align:center}
+.rt-badge{display:inline-flex;align-items:center;gap:6px;background:rgba(99,102,241,0.1);border:0.5px solid rgba(99,102,241,0.2);border-radius:20px;padding:4px 12px;font-size:11px;font-weight:600;color:var(--accent-light);margin-bottom:12px}
+.rt-text{font-size:18px;font-weight:800;color:var(--text-primary);letter-spacing:-.01em;line-height:1.3}
+
+/* ── ANIMATIONS ── */
+@keyframes fade-up{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:translateY(0)}}
+@keyframes panel-in{from{opacity:0;transform:translateX(12px)}to{opacity:1;transform:translateX(0)}}
+.anim{opacity:0;animation:fade-up .5s ease forwards}
+.d1{animation-delay:.05s}.d2{animation-delay:.12s}.d3{animation-delay:.2s}
+.d4{animation-delay:.28s}.d5{animation-delay:.36s}.d6{animation-delay:.44s}
+.panel.active{animation:panel-in .3s ease forwards}
+</style>
 </head>
 <body>
-<div class="auth-split">
 
-  <!-- Left -->
-  <div class="auth-left">
-    <div class="auth-left-inner">
+<div id="top-bar"></div>
 
-      <div class="brand">
-        <div class="brand-dot"></div>
-        <div class="brand-text">KUMANDA</div>
-      </div>
+<div class="shell">
 
-      <div class="auth-title">Hesap oluşturun</div>
-      <div class="auth-sub">Şirketinizi platforma kaydedin</div>
-
-      <div id="alertBox" class="alert alert-error"></div>
-
-      <div class="form-group">
-        <label>Şirket Adı</label>
-        <input type="text" id="companyName" placeholder="İnokas Bilişim Ltd. Şti." autocomplete="organization">
-      </div>
-
-      <div class="form-row">
-        <div class="form-group">
-          <label>Ad</label>
-          <input type="text" id="firstName" placeholder="Erdem" autocomplete="given-name">
-        </div>
-        <div class="form-group">
-          <label>Soyad</label>
-          <input type="text" id="lastName" placeholder="Gökalp" autocomplete="family-name">
-        </div>
-      </div>
-
-      <div class="form-group">
-        <label>E-posta</label>
-        <input type="email" id="email" placeholder="ornek@sirket.com" autocomplete="email">
-      </div>
-
-      <div class="form-group">
-        <label>Şifre</label>
-        <input type="password" id="password" placeholder="••••••••" autocomplete="new-password">
-        <div class="input-hint">En az 8 karakter</div>
-      </div>
-
-      <div class="form-group">
-        <label>Şifre Tekrar</label>
-        <input type="password" id="passwordConfirm" placeholder="••••••••" autocomplete="new-password">
-      </div>
-
-      <button class="btn-primary" id="signupBtn" onclick="handleSignup()" style="margin-top:8px;">
-        Kayıt Ol →
-      </button>
-
-      <div class="auth-link">
-        Zaten hesabınız var mı? <a href="/auth/login.html">Giriş yapın</a>
-      </div>
-
+  <!-- LEFT -->
+  <div class="left">
+    <div class="left-top">
+      <a href="/" class="logo">
+        <div class="logo-mark"><i class="ti ti-bolt"></i></div>
+        <span class="logo-text">KUMANDA</span>
+      </a>
+      <a href="/" class="back-link"><i class="ti ti-arrow-left" style="font-size:13px"></i> Ana sayfa</a>
     </div>
+
+    <!-- STEPS -->
+    <div class="steps anim d1">
+      <div class="step">
+        <div class="step-circle active" id="step1-circle">1</div>
+        <span class="step-label active" id="step1-label">Firma bilgileri</span>
+      </div>
+      <div class="step-line" id="line1"></div>
+      <div class="step">
+        <div class="step-circle pending" id="step2-circle">2</div>
+        <span class="step-label" id="step2-label">Hesap bilgileri</span>
+      </div>
+      <div class="step-line" id="line2"></div>
+      <div class="step">
+        <div class="step-circle pending" id="step3-circle"><i class="ti ti-check" style="font-size:11px"></i></div>
+        <span class="step-label" id="step3-label">Hazır</span>
+      </div>
+    </div>
+
+    <div id="alertBox" class="alert anim d2"><i class="ti ti-alert-circle"></i><span id="alertText"></span></div>
+
+    <!-- PANEL 1: FIRMA -->
+    <div class="panel active" id="panel1">
+      <div class="form-eyebrow anim d2">Adım 1 / 2</div>
+      <h2 class="form-title anim d3">Firmanızı<br>tanıtalım</h2>
+      <p class="form-sub anim d4">Firma adı ve iletişim bilgilerinizi girin.</p>
+
+      <div class="field anim d4">
+        <label>Şirket Adı</label>
+        <div class="field-wrap">
+          <input type="text" id="companyName" placeholder="İnokas Bilişim Ltd. Şti." autocomplete="organization">
+          <i class="ti ti-building fi"></i>
+        </div>
+      </div>
+
+      <div class="field-row anim d5">
+        <div class="field">
+          <label>Ad</label>
+          <div class="field-wrap">
+            <input type="text" id="firstName" placeholder="Erdem" autocomplete="given-name">
+            <i class="ti ti-user fi"></i>
+          </div>
+        </div>
+        <div class="field">
+          <label>Soyad</label>
+          <div class="field-wrap">
+            <input type="text" id="lastName" placeholder="Gökalp" autocomplete="family-name">
+            <i class="ti ti-user fi"></i>
+          </div>
+        </div>
+      </div>
+
+      <div class="btn-row anim d6">
+        <button class="btn-submit" onclick="goToStep2()">
+          <span>Devam Et</span>
+          <i class="ti ti-arrow-right"></i>
+        </button>
+      </div>
+
+      <div class="form-link anim d6">Zaten hesabınız var mı? <a href="/auth/login.html">Giriş yapın</a></div>
+    </div>
+
+    <!-- PANEL 2: HESAP -->
+    <div class="panel" id="panel2">
+      <div class="form-eyebrow">Adım 2 / 2</div>
+      <h2 class="form-title">Hesap<br>bilgileriniz</h2>
+      <p class="form-sub">Giriş için kullanacağınız e-posta ve şifrenizi belirleyin.</p>
+
+      <div class="field">
+        <label>E-posta</label>
+        <div class="field-wrap">
+          <input type="email" id="email" placeholder="ornek@firma.com" autocomplete="email">
+          <i class="ti ti-mail fi"></i>
+        </div>
+      </div>
+
+      <div class="field">
+        <label>Şifre</label>
+        <div class="field-wrap">
+          <input type="password" id="password" placeholder="••••••••" autocomplete="new-password" oninput="checkStrength(this.value)">
+          <i class="ti ti-lock fi"></i>
+          <button class="pw-toggle" onclick="togglePw('password','eye1')" type="button" aria-label="Şifreyi göster">
+            <i class="ti ti-eye" id="eye1"></i>
+          </button>
+        </div>
+        <div class="pw-strength">
+          <div class="pw-bars">
+            <div class="pw-bar" id="bar1"></div>
+            <div class="pw-bar" id="bar2"></div>
+            <div class="pw-bar" id="bar3"></div>
+            <div class="pw-bar" id="bar4"></div>
+          </div>
+          <div class="pw-label" id="pw-label">En az 8 karakter</div>
+        </div>
+      </div>
+
+      <div class="field">
+        <label>Şifre Tekrar</label>
+        <div class="field-wrap">
+          <input type="password" id="passwordConfirm" placeholder="••••••••" autocomplete="new-password">
+          <i class="ti ti-lock fi"></i>
+          <button class="pw-toggle" onclick="togglePw('passwordConfirm','eye2')" type="button" aria-label="Şifreyi göster">
+            <i class="ti ti-eye" id="eye2"></i>
+          </button>
+        </div>
+      </div>
+
+      <div class="btn-row">
+        <button class="btn-back" onclick="goToStep1()"><i class="ti ti-arrow-left" style="font-size:14px"></i></button>
+        <button class="btn-submit" id="signupBtn" onclick="handleSignup()">
+          <i class="ti ti-rocket" id="btn-icon"></i>
+          <span id="btn-text">Hesap Oluştur</span>
+        </button>
+      </div>
+    </div>
+
   </div>
 
-  <!-- Right -->
-  <div class="auth-right">
-    <img src="/assests/kumanda2.gif" alt="Kumanda">
-    <div class="auth-right-quote">
-      <div class="quote-text">Veriye dayalı kararlar,<br>başarıya giden yol.</div>
-      <div class="quote-author">İnokas CRM — Kumanda</div>
+  <!-- RIGHT -->
+  <div class="right">
+    <div class="right-grid"></div>
+    <div class="right-glow"></div>
+
+    <div class="right-title">
+      <div class="rt-badge"><i class="ti ti-sparkles"></i> 14 gün ücretsiz</div>
+      <div class="rt-text">Birkaç dakika içinde<br>hazır olun</div>
+    </div>
+
+    <div class="features">
+      <div class="feat-item">
+        <div class="feat-icon" style="background:rgba(99,102,241,0.1)"><i class="ti ti-plug" style="color:#a5b4fc"></i></div>
+        <div class="feat-content">
+          <div class="feat-title">Kolay entegrasyon</div>
+          <div class="feat-desc">eLogo, Logo ve İşbaşı ile tek tıkla bağlanın. Teknik bilgi gerekmez.</div>
+        </div>
+      </div>
+      <div class="feat-item">
+        <div class="feat-icon" style="background:rgba(16,185,129,0.1)"><i class="ti ti-refresh" style="color:#34d399"></i></div>
+        <div class="feat-content">
+          <div class="feat-title">Otomatik senkronizasyon</div>
+          <div class="feat-desc">Faturalarınız her 10 dakikada bir otomatik güncellenir.</div>
+        </div>
+      </div>
+      <div class="feat-item">
+        <div class="feat-icon" style="background:rgba(139,92,246,0.1)"><i class="ti ti-brain" style="color:#c4b5fd"></i></div>
+        <div class="feat-content">
+          <div class="feat-title">AI Asistan</div>
+          <div class="feat-desc">Türkçe sorular sorun, verilerinizden anında içgörüler alın.</div>
+        </div>
+      </div>
+      <div class="feat-item">
+        <div class="feat-icon" style="background:rgba(245,158,11,0.1)"><i class="ti ti-shield-check" style="color:#fbbf24"></i></div>
+        <div class="feat-content">
+          <div class="feat-title">Güvenli & izole</div>
+          <div class="feat-desc">Verileriniz şifreli saklanır. Her firma tamamen izole çalışır.</div>
+        </div>
+      </div>
     </div>
   </div>
 
 </div>
 
 <script>
-  if (sessionStorage.getItem('inokas_token')) window.location.href = '/';
-  document.addEventListener('keydown', e => { if (e.key === 'Enter') handleSignup(); });
+if(sessionStorage.getItem('inokas_token')) window.location.href='/chat';
+document.addEventListener('keydown',e=>{ if(e.key==='Enter'){ const p1=document.getElementById('panel1'); if(p1.classList.contains('active')) goToStep2(); else handleSignup(); } });
 
-  async function handleSignup() {
-    const companyName     = document.getElementById('companyName').value.trim();
-    const firstName       = document.getElementById('firstName').value.trim();
-    const lastName        = document.getElementById('lastName').value.trim();
-    const email           = document.getElementById('email').value.trim().toLowerCase();
-    const password        = document.getElementById('password').value;
-    const passwordConfirm = document.getElementById('passwordConfirm').value;
-    const btn             = document.getElementById('signupBtn');
+window.addEventListener('load',()=>{
+  const bar=document.getElementById('top-bar');
+  bar.style.width='35%';
+  setTimeout(()=>{bar.style.opacity='0';bar.style.transition='opacity .3s ease';},600);
+});
 
-    hideError();
+function togglePw(inputId,eyeId){
+  const inp=document.getElementById(inputId);
+  const eye=document.getElementById(eyeId);
+  const show=inp.type==='password';
+  inp.type=show?'text':'password';
+  eye.className=show?'ti ti-eye-off':'ti ti-eye';
+}
 
-    if (!companyName)                    return showError('Şirket adı zorunlu.');
-    if (!firstName || !lastName)         return showError('Ad ve soyad zorunlu.');
-    if (!email || !email.includes('@'))  return showError('Geçerli bir e-posta girin.');
-    if (!password)                       return showError('Şifre zorunlu.');
-    if (password.length < 8)            return showError('Şifre en az 8 karakter olmalı.');
-    if (password !== passwordConfirm)   return showError('Şifreler eşleşmiyor.');
+function checkStrength(val){
+  const bars=[document.getElementById('bar1'),document.getElementById('bar2'),document.getElementById('bar3'),document.getElementById('bar4')];
+  const label=document.getElementById('pw-label');
+  const colors=['#ef4444','#f59e0b','#3b82f6','#10b981'];
+  const labels=['Çok zayıf','Zayıf','İyi','Güçlü'];
+  let score=0;
+  if(val.length>=8) score++;
+  if(/[A-Z]/.test(val)) score++;
+  if(/[0-9]/.test(val)) score++;
+  if(/[^A-Za-z0-9]/.test(val)) score++;
+  bars.forEach((b,i)=>{
+    b.style.background=i<score?colors[Math.max(0,score-1)]:'rgba(255,255,255,0.06)';
+  });
+  label.textContent=val.length===0?'En az 8 karakter':labels[Math.max(0,score-1)];
+  label.style.color=val.length===0?'var(--text-tertiary)':colors[Math.max(0,score-1)];
+}
 
-    btn.textContent = 'Kaydediliyor...';
-    btn.classList.add('loading');
+function updateSteps(step){
+  const circles=['step1-circle','step2-circle','step3-circle'];
+  const labels=['step1-label','step2-label','step3-label'];
+  const lines=['line1','line2'];
+  circles.forEach((id,i)=>{
+    const el=document.getElementById(id);
+    if(i<step-1){ el.className='step-circle done'; el.innerHTML='<i class="ti ti-check" style="font-size:11px"></i>'; }
+    else if(i===step-1){ el.className='step-circle active'; el.innerHTML=i===2?'<i class="ti ti-check" style="font-size:11px"></i>':String(i+1); }
+    else{ el.className='step-circle pending'; el.innerHTML=i===2?'<i class="ti ti-check" style="font-size:11px"></i>':String(i+1); }
+  });
+  labels.forEach((id,i)=>{
+    const el=document.getElementById(id);
+    el.className='step-label'+(i===step-1?' active':'');
+  });
+  lines.forEach((id,i)=>{
+    document.getElementById(id).className='step-line'+(i<step-1?' done':'');
+  });
+}
 
-    try {
-      const res = await fetch('/api/auth/signup', {
-        method:  'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ company_name: companyName, first_name: firstName, last_name: lastName, email, password })
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data?.error || 'Kayıt başarısız.');
+function showError(msg){
+  const box=document.getElementById('alertBox');
+  document.getElementById('alertText').textContent=msg;
+  box.classList.add('show');
+}
+function hideError(){ document.getElementById('alertBox').classList.remove('show'); }
 
-      sessionStorage.setItem('inokas_token', data.token);
-      sessionStorage.setItem('onboarding_complete', 'false');
-      btn.textContent = '✓ Hesap oluşturuldu';
-      setTimeout(() => window.location.replace('/auth/onboarding.html'), 800);
+function goToStep2(){
+  const company=document.getElementById('companyName').value.trim();
+  const first=document.getElementById('firstName').value.trim();
+  const last=document.getElementById('lastName').value.trim();
+  hideError();
+  if(!company) return showError('Şirket adı zorunlu.');
+  if(!first||!last) return showError('Ad ve soyad zorunlu.');
+  document.getElementById('panel1').classList.remove('active');
+  document.getElementById('panel2').classList.add('active');
+  updateSteps(2);
+  document.getElementById('email').focus();
+}
 
-    } catch (err) {
-      showError(err.message);
-      btn.textContent = 'Kayıt Ol →';
-      btn.classList.remove('loading');
-    }
+function goToStep1(){
+  hideError();
+  document.getElementById('panel2').classList.remove('active');
+  document.getElementById('panel1').classList.add('active');
+  updateSteps(1);
+}
+
+async function handleSignup(){
+  const companyName=document.getElementById('companyName').value.trim();
+  const firstName=document.getElementById('firstName').value.trim();
+  const lastName=document.getElementById('lastName').value.trim();
+  const email=document.getElementById('email').value.trim().toLowerCase();
+  const password=document.getElementById('password').value;
+  const passwordConfirm=document.getElementById('passwordConfirm').value;
+  const btn=document.getElementById('signupBtn');
+  const icon=document.getElementById('btn-icon');
+  const text=document.getElementById('btn-text');
+  hideError();
+
+  if(!email||!email.includes('@')) return showError('Geçerli bir e-posta girin.');
+  if(!password) return showError('Şifre zorunlu.');
+  if(password.length<8) return showError('Şifre en az 8 karakter olmalı.');
+  if(password!==passwordConfirm) return showError('Şifreler eşleşmiyor.');
+
+  btn.classList.add('loading');
+  icon.className='spinner';
+  text.textContent='Hesap oluşturuluyor...';
+
+  try{
+    const res=await fetch('/api/auth/signup',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({company_name:companyName,first_name:firstName,last_name:lastName,email,password})
+    });
+    const data=await res.json();
+    if(!res.ok) throw new Error(data?.error||'Kayıt başarısız.');
+
+    sessionStorage.setItem('inokas_token',data.token);
+    sessionStorage.setItem('onboarding_complete','false');
+
+    btn.classList.remove('loading');
+    btn.classList.add('success');
+    icon.className='ti ti-check';
+    text.textContent='Hesap oluşturuldu!';
+    updateSteps(3);
+
+    const bar=document.getElementById('top-bar');
+    bar.style.opacity='1';
+    bar.style.transition='width 1.5s cubic-bezier(0.1,0,0.3,1)';
+    bar.style.width='100%';
+
+    setTimeout(()=>window.location.replace('/auth/onboarding.html'),800);
+
+  } catch(err){
+    showError(err.message);
+    btn.classList.remove('loading');
+    icon.className='ti ti-rocket';
+    text.textContent='Hesap Oluştur';
   }
-
-  function showError(msg) {
-    const el = document.getElementById('alertBox');
-    el.textContent = msg;
-    el.classList.add('show');
-  }
-
-  function hideError() {
-    document.getElementById('alertBox').classList.remove('show');
-  }
+}
 </script>
 </body>
 </html>

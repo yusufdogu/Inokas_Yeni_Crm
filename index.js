@@ -77,8 +77,12 @@ app.post('/api/invoices/recheck-now', (req, res) => {
 // ─── Page Routes ──────────────────────────────────────────────────────────────
 app.get('/', (req, res) => {
   res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
-  res.sendFile(path.join(__dirname, 'public', 'chat.html'));
+  res.sendFile(path.join(__dirname, 'public', 'landing.html'));
 });
+
+app.get('/landing', (req, res) =>
+  res.sendFile(path.join(__dirname, 'public', 'landing.html'))
+);
 
 app.get('/signup',     (req, res) => res.sendFile(path.join(__dirname, 'public', 'auth', 'signup.html')));
 app.get('/onboarding', (req, res) => res.sendFile(path.join(__dirname, 'public', 'auth', 'onboarding.html')));
@@ -130,7 +134,7 @@ cron.schedule('*/5 * * * *', async () => {
 const { runElogoSync, runElogoDailyRecheck } = require('./services/elogo-sync-service');
 
 // In your existing 10-minute cron:
-cron.schedule('*/1 * * * *', async () => {
+cron.schedule('*/10 * * * *', async () => {
   await runElogoSync();   // eLogo SOAP
 });
 

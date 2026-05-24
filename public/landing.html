@@ -1,0 +1,705 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Kumanda — İşletmenizin Kontrolü Sizde</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Instrument+Serif:ital@0;1&family=DM+Sans:opsz,wght@9..40,300;400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.x/dist/tabler-icons.min.css">
+<link rel="stylesheet" href="landing.css">
+</head>
+<body>
+
+<div id="top-bar"></div>
+
+<!-- NAV -->
+<nav>
+  <div class="nav-inner">
+    <a href="#" class="nav-logo">
+      <div class="nav-logo-mark"><i class="ti ti-bolt" aria-hidden="true"></i></div>
+      <span class="nav-logo-text">KUMANDA</span>
+    </a>
+    <div class="nav-links">
+      <a href="#nasil-calisir">Nasıl Çalışır</a>
+      <a href="#ozellikler">Özellikler</a>
+      <a href="#fiyatlar">Fiyatlar</a>
+    </div>
+    <div class="nav-cta">
+      <a href="/auth/login.html" class="btn-ghost">Giriş yap</a>
+      <a href="/auth/signup.html" class="btn-primary"><i class="ti ti-arrow-right" aria-hidden="true"></i> Ücretsiz başla</a>
+    </div>
+  </div>
+</nav>
+
+<!-- HERO -->
+<div class="hero-wrap">
+  <div class="hero-left">
+    <div class="hero-badge anim"><i class="ti ti-sparkles" aria-hidden="true"></i> AI Destekli Otomasyon</div>
+    <h1 class="anim" style="transition-delay:.07s">
+      İşletmenizin<br>
+      <em>kontrolü</em><br>
+      artık sizde.
+    </h1>
+    <p class="hero-sub anim" style="transition-delay:.14s">
+      Logo, Paraşüt ve Zirve'nin karmaşasına son.
+      <strong>Faturalarınızı otomatik çekin,</strong> AI ile analiz edin,
+      stok ve carilerinizi tek ekranda yönetin.
+      Sadece yazın — filtre gerekmez.
+    </p>
+    <div class="hero-actions anim" style="transition-delay:.21s">
+      <a href="/auth/signup.html" class="btn-hero"><i class="ti ti-rocket" aria-hidden="true"></i> Ücretsiz deneyin — 14 gün</a>
+      <a href="#nasil-calisir" class="btn-hero-outline"><i class="ti ti-player-play" aria-hidden="true"></i> Nasıl çalışır?</a>
+    </div>
+    <div class="hero-proof anim" style="transition-delay:.28s">
+      <div class="proof-logos">
+        <span class="proof-logo-pill">EYMİR BİLİŞİM</span>
+        <span class="proof-logo-pill">İNOKAS</span>
+      </div>
+      <span class="proof-text">kullanan firmalar</span>
+    </div>
+  </div>
+
+  <!-- INTERACTIVE MOCKUP -->
+  <div class="hero-right anim" style="transition-delay:.18s">
+    <div class="mockup-shell">
+      <!-- titlebar -->
+      <div class="mock-titlebar">
+        <div class="tbar-dot" style="background:#ef4444"></div>
+        <div class="tbar-dot" style="background:#f59e0b"></div>
+        <div class="tbar-dot" style="background:#10b981"></div>
+        <div class="tbar-url"><span id="mock-url">localhost:3000/faturalar</span></div>
+      </div>
+      <!-- tabs -->
+      <div class="mock-tabs" id="mock-tabs">
+        <div class="mock-tab active" data-idx="0"><i class="ti ti-file-invoice" aria-hidden="true"></i>Faturalar</div>
+        <div class="mock-tab" data-idx="1"><i class="ti ti-message-2" aria-hidden="true"></i>AI Chat</div>
+        <div class="mock-tab" data-idx="2"><i class="ti ti-calculator" aria-hidden="true"></i>DMO</div>
+        <div class="mock-tab" data-idx="3"><i class="ti ti-box" aria-hidden="true"></i>Stok</div>
+      </div>
+      <!-- progress -->
+      <div class="mock-progress">
+        <div class="mock-progress-fill" id="mock-prog"></div>
+      </div>
+      <!-- screens -->
+      <div class="mock-screen-wrap">
+
+        <!-- SCREEN 0: FATURALAR -->
+        <div class="mock-screen visible" id="ms-0">
+          <div class="f-kpis">
+            <div class="f-kpi"><div class="f-kpi-l">Bu Ay Ciro</div><div class="f-kpi-v">₺2.4M</div></div>
+            <div class="f-kpi"><div class="f-kpi-l">Bekleyen</div><div class="f-kpi-v amber">₺847K</div></div>
+            <div class="f-kpi"><div class="f-kpi-l">Gecikmiş</div><div class="f-kpi-v red">₺211K</div></div>
+          </div>
+          <div class="f-tabs">
+            <div class="f-tab active">Tümü</div>
+            <div class="f-tab">Gelen</div>
+            <div class="f-tab">Giden</div>
+          </div>
+          <div id="f-rows"></div>
+        </div>
+
+        <!-- SCREEN 1: AI CHAT -->
+        <div class="mock-screen" id="ms-1">
+          <div class="chat-screen-wrap">
+            <div class="chat-msgs" id="mock-chat"></div>
+            <div class="chat-inp-row">
+              <i class="ti ti-message" aria-hidden="true"></i>
+              <span>Bir şeyler sorun…</span>
+              <i class="ti ti-send chat-send" aria-hidden="true"></i>
+            </div>
+          </div>
+        </div>
+
+        <!-- SCREEN 2: DMO -->
+        <div class="mock-screen" id="ms-2">
+          <div class="dmo-grid">
+            <div style="display:flex;flex-direction:column;gap:8px">
+              <div class="dmo-card">
+                <div class="dmo-ct">Sepet</div>
+                <div class="dmo-row"><span class="dmo-name">HP LaserJet Pro</span><span class="dmo-qty">2</span><span class="dmo-price">₺18,450</span><span class="dmo-marj" style="color:#34d399">%22</span></div>
+                <div class="dmo-row"><span class="dmo-name">Canon PIXMA</span><span class="dmo-qty">1</span><span class="dmo-price">₺6,200</span><span class="dmo-marj" style="color:#34d399">%18</span></div>
+                <div class="dmo-row"><span class="dmo-name">Epson EcoTank</span><span class="dmo-qty">3</span><span class="dmo-price">₺24,750</span><span class="dmo-marj" style="color:#fbbf24">%9</span></div>
+                <div class="dmo-row"><span class="dmo-name">Brother MFC</span><span class="dmo-qty">1</span><span class="dmo-price">₺12,300</span><span class="dmo-marj" style="color:#34d399">%15</span></div>
+              </div>
+              <div class="rate-row">
+                <div class="rate-pill"><div class="rate-l">USD/TL</div><div class="rate-v">38.42</div></div>
+                <div class="rate-pill"><div class="rate-l">EUR/TL</div><div class="rate-v">41.87</div></div>
+              </div>
+            </div>
+            <div class="dmo-card">
+              <div class="dmo-ct">Hesaplama</div>
+              <div class="dmo-sr"><span class="dmo-sl">DMO Sepet</span><span class="dmo-sv" style="color:#a5b4fc">₺61,700</span></div>
+              <div class="dmo-sr"><span class="dmo-sl">Tutar indirimi</span><span class="dmo-sv" style="color:#fbbf24">-₺617</span></div>
+              <div class="dmo-sr"><span class="dmo-sl">KDV (%20)</span><span class="dmo-sv">₺12,217</span></div>
+              <div class="dmo-sr"><span class="dmo-sl">Tevkifat</span><span class="dmo-sv">₺2,443</span></div>
+              <div class="dmo-sr"><span class="dmo-sl">Toplam gelir</span><span class="dmo-sv">₺73,974</span></div>
+              <div class="dmo-sr"><span class="dmo-sl">Maliyet</span><span class="dmo-sv">₺51,240</span></div>
+              <div class="dmo-divider"></div>
+              <div class="dmo-sr">
+                <span class="dmo-sl" style="font-weight:600;color:rgba(245,242,236,.8)">Net kâr</span>
+                <span class="dmo-sv" style="color:#34d399;font-size:13px;font-weight:700">₺22,734</span>
+              </div>
+              <div style="display:flex;justify-content:space-between;margin-top:6px">
+                <span style="font-size:10px;color:rgba(245,242,236,.3);font-family:'DM Mono',monospace">Kâr marjı</span>
+                <span style="font-size:10px;color:#34d399;font-weight:600;font-family:'DM Mono',monospace">%30.7</span>
+              </div>
+              <div class="dmo-pb-track"><div class="dmo-pb-fill" id="dmo-bar"></div></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- SCREEN 3: STOK -->
+        <div class="mock-screen" id="ms-3">
+          <div class="stok-kpis">
+            <div class="stok-kpi"><div class="stok-kpi-l">Toplam ürün</div><div class="stok-kpi-v" style="color:#a5b4fc">543</div></div>
+            <div class="stok-kpi"><div class="stok-kpi-l">Kritik stok</div><div class="stok-kpi-v" style="color:#f87171">12</div></div>
+            <div class="stok-kpi"><div class="stok-kpi-l">Stok değeri</div><div class="stok-kpi-v" style="color:#34d399">₺2.1M</div></div>
+          </div>
+          <div id="stok-rows"></div>
+        </div>
+
+      </div><!-- /mock-screen-wrap -->
+    </div><!-- /mockup-shell -->
+  </div><!-- /hero-right -->
+</div><!-- /hero-wrap -->
+
+<!-- AI CHAT SECTION -->
+<section class="chat-section" id="nasil-calisir">
+  <div class="chat-section-inner">
+    <div>
+      <div class="section-eyebrow-inv anim"><i class="ti ti-message-2" aria-hidden="true"></i> AI Asistan</div>
+      <h2 class="section-h2-inv anim" style="transition-delay:.07s">Filtre yok.<br><em>Sadece sor.</em></h2>
+      <p class="section-sub-inv anim" style="transition-delay:.14s">Çalışanlarınız artık saatlerce filtre kurmak zorunda değil. Faturalar, stok, cari — hepsini doğal dille sorun, saniyeler içinde yanıt alın.</p>
+    </div>
+    <div class="chat-ui anim" style="transition-delay:.1s">
+      <div class="chat-ui-header">
+        <div class="chat-ui-av"><i class="ti ti-bolt" aria-hidden="true"></i></div>
+        <div>
+          <div class="chat-ui-name">Kumanda AI</div>
+          <div class="chat-ui-sub">Verilerinize bağlı</div>
+        </div>
+      </div>
+      <div class="chat-ui-body" id="chat-section-demo"></div>
+      <div class="chat-ui-inp">
+        <i class="ti ti-message" aria-hidden="true"></i>
+        <span>Bir şeyler sorun…</span>
+        <i class="ti ti-send send" aria-hidden="true"></i>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- INVOICE DEMO -->
+<section class="demo-section" id="demo">
+  <div class="demo-inner">
+    <div class="section-eyebrow anim"><i class="ti ti-file-invoice" aria-hidden="true"></i> Canlı Demo</div>
+    <h2 class="section-h2 anim" style="transition-delay:.06s">Faturanızı yükleyin,<br><em>anında görün.</em></h2>
+    <p class="section-sub anim" style="transition-delay:.12s">Gerçek bir e-fatura PDF'i yükleyin. AI saniyeler içinde verinizi çeker, stokla eşleştirir ve cariye ekler.</p>
+    <div class="demo-split anim" style="transition-delay:.18s">
+      <div class="upload-zone" id="upload-zone"
+           onclick="document.getElementById('file-input').click()"
+           ondragover="handleDrag(event,true)"
+           ondragleave="handleDrag(event,false)"
+           ondrop="handleDrop(event)">
+        <input type="file" id="file-input" accept=".pdf,.xml" onchange="handleFile(this.files[0])">
+        <div class="upload-icon"><i class="ti ti-cloud-upload" aria-hidden="true"></i></div>
+        <div class="upload-title" id="upload-title">Fatura yükleyin</div>
+        <div class="upload-sub" id="upload-sub">PDF veya XML · Sürükleyip bırakın</div>
+        <div class="upload-types">
+          <span class="upload-type">e-Fatura PDF</span>
+          <span class="upload-type">UBL-TR XML</span>
+          <span class="upload-type">Arşiv PDF</span>
+        </div>
+        <div class="upload-progress" id="upload-progress">
+          <div class="upload-prog-bar"><div class="upload-prog-fill" id="prog-fill"></div></div>
+          <div class="upload-prog-label" id="prog-label">Analiz ediliyor…</div>
+        </div>
+      </div>
+      <div class="demo-result" id="demo-result">
+        <div class="result-card">
+          <div class="result-card-header"><i class="ti ti-file-description" aria-hidden="true"></i> Fatura Bilgileri</div>
+          <div class="result-rows">
+            <div class="result-row"><span class="result-row-label">Firma</span><span class="result-row-value" id="r-firma">—</span></div>
+            <div class="result-row"><span class="result-row-label">Fatura No</span><span class="result-row-value" id="r-no">—</span></div>
+            <div class="result-row"><span class="result-row-label">Tarih</span><span class="result-row-value" id="r-tarih">—</span></div>
+            <div class="result-row"><span class="result-row-label">Tutar (KDV hariç)</span><span class="result-row-value" id="r-tutar">—</span></div>
+            <div class="result-row"><span class="result-row-label">KDV</span><span class="result-row-value" id="r-kdv">—</span></div>
+            <div class="result-row"><span class="result-row-label">Toplam</span><span class="result-row-value pos" id="r-toplam">—</span></div>
+          </div>
+        </div>
+        <div class="result-card">
+          <div class="result-card-header"><i class="ti ti-box" aria-hidden="true"></i> Stok Etkisi</div>
+          <div class="result-rows" id="r-stok"></div>
+        </div>
+        <div class="result-card">
+          <div class="result-card-header"><i class="ti ti-building" aria-hidden="true"></i> Cari Güncelleme</div>
+          <div class="result-rows">
+            <div class="result-row"><span class="result-row-label">Önceki bakiye</span><span class="result-row-value" id="r-cari-prev">—</span></div>
+            <div class="result-row"><span class="result-row-label">Bu fatura</span><span class="result-row-value neg" id="r-cari-fatura">—</span></div>
+            <div class="result-row"><span class="result-row-label">Yeni bakiye</span><span class="result-row-value pos" id="r-cari-new">—</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- HOW IT WORKS -->
+<section class="how-section" id="nasil-calisir-detail">
+  <div class="how-inner">
+    <div class="section-eyebrow anim"><i class="ti ti-route" aria-hidden="true"></i> Nasıl Çalışır?</div>
+    <h2 class="section-h2 anim" style="transition-delay:.06s">4 adımda kurulum,<br><em>sonsuz otomasyon.</em></h2>
+    <p class="section-sub anim" style="transition-delay:.12s">Teknik bilgi gerekmez. Entegrasyonunuzu seçin, bilgilerinizi girin — Kumanda gerisini halleder.</p>
+    <div class="how-grid">
+      <div class="how-step anim" style="transition-delay:.08s">
+        <div class="step-n">01 —</div>
+        <div class="step-icon"><i class="ti ti-plug" aria-hidden="true"></i></div>
+        <div class="step-title">Entegrasyon seçin</div>
+        <div class="step-desc">eLogo, Logo İşbaşı veya İşbaşı SOAP — entegratörünüzü seçin, servis bilgilerinizi girin.</div>
+      </div>
+      <div class="how-step anim" style="transition-delay:.16s">
+        <div class="step-n">02 —</div>
+        <div class="step-icon"><i class="ti ti-refresh" aria-hidden="true"></i></div>
+        <div class="step-title">Otomatik senkron</div>
+        <div class="step-desc">Her 10 dakikada bir faturalar çekilir. Gelen/giden ayrımı VKN bazlı otomatik yapılır.</div>
+      </div>
+      <div class="how-step anim" style="transition-delay:.24s">
+        <div class="step-n">03 —</div>
+        <div class="step-icon"><i class="ti ti-brain" aria-hidden="true"></i></div>
+        <div class="step-title">AI ile analiz</div>
+        <div class="step-desc">Doğal dille sorun — "Bosch'un bekleyen faturaları ne kadar?" Saniyeler içinde yanıt.</div>
+      </div>
+      <div class="how-step anim" style="transition-delay:.32s">
+        <div class="step-n">04 —</div>
+        <div class="step-icon"><i class="ti ti-chart-bar" aria-hidden="true"></i></div>
+        <div class="step-title">Karar verin</div>
+        <div class="step-desc">Cari, stok, DMO marjı — hepsi tek ekranda. Veriye dayalı kararlar alın.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- FEATURES -->
+<section class="feat-section" id="ozellikler">
+  <div class="feat-inner">
+    <div class="section-eyebrow anim"><i class="ti ti-stars" aria-hidden="true"></i> Özellikler</div>
+    <h2 class="section-h2 anim" style="transition-delay:.06s">İhtiyacınız olan her şey<br><em>tek platformda.</em></h2>
+    <p class="section-sub anim" style="transition-delay:.12s">Rakiplerin sağlamadığı istatistikler, Türkiye'ye özgü entegrasyonlar ve gerçek AI.</p>
+    <div class="feat-grid anim" style="transition-delay:.18s">
+      <div class="feat-card">
+        <div class="feat-icon light"><i class="ti ti-file-invoice" aria-hidden="true"></i></div>
+        <div class="feat-title">e-Fatura Otomasyonu</div>
+        <div class="feat-desc">eLogo SOAP ve Logo REST API. Gelen/giden ayrımı, otomatik sınıflandırma, VKN eşleştirme.</div>
+        <div class="feat-tag">eLogo · Logo · İşbaşı</div>
+      </div>
+      <div class="feat-card">
+        <div class="feat-icon light"><i class="ti ti-message-2" aria-hidden="true"></i></div>
+        <div class="feat-title">AI Asistan</div>
+        <div class="feat-desc">Faturalar, stok, cari — Türkçe sorun, anında yanıt alın. Filtre kurmaya gerek yok.</div>
+        <div class="feat-tag">Claude AI destekli</div>
+      </div>
+      <div class="feat-card dark">
+        <div class="feat-icon dark-inv"><i class="ti ti-box" aria-hidden="true"></i></div>
+        <div class="feat-title inv">Stok Yönetimi</div>
+        <div class="feat-desc inv">Faturalardan otomatik stok güncelleme. DMO fiyatlarıyla anlık maliyet karşılaştırması.</div>
+        <div class="feat-tag inv">Anlık güncelleme</div>
+      </div>
+      <div class="feat-card">
+        <div class="feat-icon light"><i class="ti ti-calculator" aria-hidden="true"></i></div>
+        <div class="feat-title">DMO Hesaplama</div>
+        <div class="feat-desc">Devlet Malzeme Ofisi fiyatlarıyla marj analizi. KDV ve tevkifat otomatik hesaplanır.</div>
+        <div class="feat-tag">Güncel kur ile</div>
+      </div>
+      <div class="feat-card">
+        <div class="feat-icon light"><i class="ti ti-building" aria-hidden="true"></i></div>
+        <div class="feat-title">Cari Yönetimi</div>
+        <div class="feat-desc">Firma bazlı alacak/borç takibi. Vadesi geçen faturalar, ödeme geçmişi ve analiz raporları.</div>
+        <div class="feat-tag">Detaylı raporlar</div>
+      </div>
+      <div class="feat-card">
+        <div class="feat-icon light"><i class="ti ti-shield-check" aria-hidden="true"></i></div>
+        <div class="feat-title">Çok Kiracılı Yapı</div>
+        <div class="feat-desc">Her firma kendi verisini görür. Supabase Vault ile şifreli kimlik bilgileri. Rol bazlı erişim.</div>
+        <div class="feat-tag">Güvenli & izole</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- WHATSAPP -->
+<section class="wp-section">
+  <div class="wp-inner">
+    <div>
+      <div class="section-eyebrow-inv anim"><i class="ti ti-brand-whatsapp" aria-hidden="true"></i> WhatsApp Entegrasyonu</div>
+      <h2 class="section-h2-inv anim" style="transition-delay:.07s">Müşterileriniz sorar,<br><em>AI cevaplar.</em></h2>
+      <p class="section-sub-inv anim" style="transition-delay:.14s;margin-bottom:32px">Şirket hattınıza bağlanan müşteriler teknik destek talep eder — AI, verilerinize erişerek mantıklı yanıt verir. Çalışanınız müdahil olmadan.</p>
+      <div class="wp-feature anim" style="transition-delay:.2s">
+        <div class="wp-feature-icon"><i class="ti ti-robot" aria-hidden="true"></i></div>
+        <div class="wp-feature-text">
+          <h4>Otomatik yanıt</h4>
+          <p>Müşteri soruları anında yanıtlanır, çalışanlar daha az müdahil olur.</p>
+        </div>
+      </div>
+      <div class="wp-feature anim" style="transition-delay:.26s">
+        <div class="wp-feature-icon"><i class="ti ti-database" aria-hidden="true"></i></div>
+        <div class="wp-feature-text">
+          <h4>Veriye bağlı</h4>
+          <p>AI, fatura ve stok verilerinize erişerek doğru, bağlamsal yanıtlar üretir.</p>
+        </div>
+      </div>
+      <div class="wp-feature anim" style="transition-delay:.32s">
+        <div class="wp-feature-icon"><i class="ti ti-hand-off" aria-hidden="true"></i></div>
+        <div class="wp-feature-text">
+          <h4>İnsan devralmak isterse</h4>
+          <p>Konuşma ekibinize devredilir, tüm geçmiş korunur.</p>
+        </div>
+      </div>
+    </div>
+    <div class="wp-phone anim" style="transition-delay:.12s">
+      <div class="wp-phone-bar">
+        <div class="wp-logo"><i class="ti ti-brand-whatsapp" aria-hidden="true"></i></div>
+        <div>
+          <div class="wp-contact-name">Eymir Teknik Destek</div>
+          <div class="wp-contact-sub">WhatsApp Business · Kumanda AI</div>
+        </div>
+      </div>
+      <div class="wp-messages" id="wp-messages"></div>
+    </div>
+  </div>
+</section>
+
+<!-- PRICING -->
+<section class="pricing-section" id="fiyatlar">
+  <div class="pricing-inner">
+    <div class="section-eyebrow anim"><i class="ti ti-tag" aria-hidden="true"></i> Fiyatlar</div>
+    <h2 class="section-h2 anim" style="transition-delay:.06s">Büyüklüğünüze göre<br><em>esnek fiyatlandırma.</em></h2>
+    <p class="section-sub anim" style="transition-delay:.12s">Her plan 14 gün ücretsiz deneme içerir. Kredi kartı gerekmez.</p>
+    <div class="pricing-grid anim" style="transition-delay:.18s">
+      <div class="price-card">
+        <div class="price-plan">STARTER</div>
+        <div class="price-amount">₺990<sub>/ay</sub></div>
+        <div class="price-period">yıllık faturalandırma</div>
+        <div class="price-div"></div>
+        <div class="price-feats">
+          <div class="pf"><i class="ti ti-check yes" aria-hidden="true"></i> 1 firma</div>
+          <div class="pf"><i class="ti ti-check yes" aria-hidden="true"></i> 1 entegrasyon</div>
+          <div class="pf"><i class="ti ti-check yes" aria-hidden="true"></i> Aylık 500 fatura</div>
+          <div class="pf"><i class="ti ti-check yes" aria-hidden="true"></i> e-Fatura otomasyonu</div>
+          <div class="pf"><i class="ti ti-check yes" aria-hidden="true"></i> Stok & cari takip</div>
+          <div class="pf no"><i class="ti ti-minus" aria-hidden="true"></i> AI Asistan</div>
+          <div class="pf no"><i class="ti ti-minus" aria-hidden="true"></i> DMO hesaplama</div>
+          <div class="pf no"><i class="ti ti-minus" aria-hidden="true"></i> WhatsApp botu</div>
+        </div>
+        <a href="/auth/signup.html" class="btn-price outline">Ücretsiz dene</a>
+      </div>
+      <div class="price-card featured">
+        <div class="featured-label">EN POPÜLER</div>
+        <div class="price-plan inv">PRO</div>
+        <div class="price-amount inv">₺2,490<sub>/ay</sub></div>
+        <div class="price-period inv">yıllık faturalandırma</div>
+        <div class="price-div inv"></div>
+        <div class="price-feats">
+          <div class="pf inv"><i class="ti ti-check yes" aria-hidden="true"></i> 3 firmaya kadar</div>
+          <div class="pf inv"><i class="ti ti-check yes" aria-hidden="true"></i> Tüm entegrasyonlar</div>
+          <div class="pf inv"><i class="ti ti-check yes" aria-hidden="true"></i> Sınırsız fatura</div>
+          <div class="pf inv"><i class="ti ti-check yes" aria-hidden="true"></i> e-Fatura otomasyonu</div>
+          <div class="pf inv"><i class="ti ti-check yes" aria-hidden="true"></i> Stok & cari takip</div>
+          <div class="pf inv"><i class="ti ti-check yes" aria-hidden="true"></i> AI Asistan</div>
+          <div class="pf inv"><i class="ti ti-check yes" aria-hidden="true"></i> DMO hesaplama</div>
+          <div class="pf no inv"><i class="ti ti-minus" aria-hidden="true"></i> WhatsApp botu</div>
+        </div>
+        <a href="/auth/signup.html" class="btn-price solid">Ücretsiz dene</a>
+      </div>
+      <div class="price-card">
+        <div class="price-plan">ENTERPRISE</div>
+        <div class="price-amount" style="font-size:28px;padding-top:6px">Özel</div>
+        <div class="price-period">ihtiyacınıza göre fiyatlandırma</div>
+        <div class="price-div"></div>
+        <div class="price-feats">
+          <div class="pf"><i class="ti ti-check yes" aria-hidden="true"></i> Sınırsız firma</div>
+          <div class="pf"><i class="ti ti-check yes" aria-hidden="true"></i> Tüm entegrasyonlar</div>
+          <div class="pf"><i class="ti ti-check yes" aria-hidden="true"></i> Sınırsız fatura</div>
+          <div class="pf"><i class="ti ti-check yes" aria-hidden="true"></i> AI Asistan</div>
+          <div class="pf"><i class="ti ti-check yes" aria-hidden="true"></i> DMO hesaplama</div>
+          <div class="pf"><i class="ti ti-check yes" aria-hidden="true"></i> WhatsApp botu</div>
+          <div class="pf"><i class="ti ti-check yes" aria-hidden="true"></i> Öncelikli destek</div>
+          <div class="pf"><i class="ti ti-check yes" aria-hidden="true"></i> Özel entegrasyon</div>
+        </div>
+        <a href="mailto:info@inokas.com.tr" class="btn-price outline">Bize ulaşın</a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- CTA -->
+<section class="cta-section">
+  <div class="cta-inner">
+    <div class="section-eyebrow-inv anim"><i class="ti ti-rocket" aria-hidden="true"></i> Hemen başlayın</div>
+    <h2 class="cta-h anim" style="transition-delay:.07s">Kontrol sizin.<br><em>Ne bekliyorsunuz?</em></h2>
+    <p class="cta-sub anim" style="transition-delay:.14s">14 gün ücretsiz deneyin. Kredi kartı gerekmez. Kurulum 10 dakika.</p>
+    <div class="cta-actions anim" style="transition-delay:.2s">
+      <a href="/auth/signup.html" class="btn-cta"><i class="ti ti-rocket" aria-hidden="true"></i> Ücretsiz başlayın</a>
+      <a href="mailto:info@inokas.com.tr" class="btn-cta-ghost"><i class="ti ti-mail" aria-hidden="true"></i> Demo talep edin</a>
+    </div>
+    <div class="cta-note anim" style="transition-delay:.26s">14 gün ücretsiz · Kredi kartı yok · 10 dk kurulum</div>
+  </div>
+</section>
+
+<footer>
+  <div class="footer-inner">
+    <a href="#" class="footer-logo">
+      <div class="footer-logo-mark"><i class="ti ti-bolt" aria-hidden="true"></i></div>
+      <span class="footer-logo-text">KUMANDA</span>
+    </a>
+    <div class="footer-links">
+      <a href="#nasil-calisir">Nasıl Çalışır</a>
+      <a href="#ozellikler">Özellikler</a>
+      <a href="#fiyatlar">Fiyatlar</a>
+      <a href="/auth/login.html">Giriş Yap</a>
+    </div>
+    <div class="footer-copy">© 2026 İnokas. Tüm hakları saklıdır.</div>
+  </div>
+</footer>
+
+<script>
+// ── DATA ──
+const SCREENS_META = [
+  {url:'localhost:3000/faturalar'},
+  {url:'localhost:3000/chat'},
+  {url:'localhost:3000/dmo'},
+  {url:'localhost:3000/stok'},
+];
+const INVOICE_ROWS = [
+  {co:'Arçelik A.Ş.',      no:'FAT-2026-003847', amt:'₺48,750',  cls:'paid', st:'Ödendi'},
+  {co:'Bosch Sanayi',      no:'FAT-2026-003848', amt:'₺127,300', cls:'wait', st:'Bekliyor'},
+  {co:'Vestel Elektronik', no:'FAT-2026-003849', amt:'₺93,600',  cls:'sync', st:'Senkron'},
+  {co:'Samsung Turkey',    no:'FAT-2026-003850', amt:'₺211,800', cls:'late', st:'Gecikmiş'},
+  {co:'LG Electronics',    no:'FAT-2026-003851', amt:'₺67,400',  cls:'paid', st:'Ödendi'},
+];
+const STOK_ROWS = [
+  {name:'HP LaserJet Pro',    code:'HWP-LJ-PRO',    qty:24, max:50, color:'#34d399'},
+  {name:'Canon PIXMA G570',   code:'CNX-PXM-570',   qty:8,  max:30, color:'#fbbf24'},
+  {name:'Epson EcoTank L3',   code:'EPS-ECO-L3',    qty:2,  max:20, color:'#f87171'},
+  {name:'Brother MFC-L2750',  code:'BTH-MFC-2750',  qty:15, max:25, color:'#34d399'},
+  {name:'Xerox B215 MFP',     code:'XRX-B215-MFP',  qty:5,  max:15, color:'#fbbf24'},
+];
+const CHAT_SCRIPT = [
+  {role:'user', text:'Bu ay en çok alım yaptığım firma?'},
+  {role:'ai',   text:'<span class="chat-hl">Bosch Sanayi A.Ş.</span> — ₺<span class="chat-hl">284,300</span> ile birinci. Geçen aya kıyasla %23 artış var.'},
+  {role:'user', text:'Bekleyen faturaları listele'},
+  {role:'ai',   text:'<span class="chat-hl">23 bekleyen fatura</span>, toplam <span class="chat-hl">₺1.4M</span>. En eski: Vestel Elektronik — 18 gün önce.'},
+];
+const DURATION = 4500;
+
+// ── MOCKUP CAROUSEL ──
+let current = 0;
+let timer = null;
+let progTimer = null;
+
+function renderInvoiceRows() {
+  const c = document.getElementById('f-rows');
+  c.innerHTML = '';
+  INVOICE_ROWS.forEach((r, i) => {
+    const d = document.createElement('div');
+    d.className = 'f-row';
+    d.style.animationDelay = (i * 65) + 'ms';
+    d.innerHTML = `<span class="f-co">${r.co}</span><span class="f-no">${r.no}</span><span class="f-amt">${r.amt}</span><span class="badge ${r.cls}">${r.st}</span>`;
+    c.appendChild(d);
+  });
+}
+
+function renderStokRows() {
+  const c = document.getElementById('stok-rows');
+  c.innerHTML = '';
+  STOK_ROWS.forEach((r, i) => {
+    const pct = Math.round(r.qty / r.max * 100);
+    const d = document.createElement('div');
+    d.className = 'stok-row';
+    d.style.animationDelay = (i * 65) + 'ms';
+    d.innerHTML = `<span class="stok-name">${r.name}</span><span class="stok-code">${r.code}</span><span class="stok-qty" style="color:${r.color}">${r.qty}</span><div class="stok-bar-wrap"><div class="stok-bar-track"><div class="stok-bar-fill" style="width:${pct}%;background:${r.color}"></div></div></div>`;
+    c.appendChild(d);
+  });
+}
+
+function renderChat(wrapId) {
+  const wrap = document.getElementById(wrapId);
+  if (!wrap) return;
+  wrap.innerHTML = '';
+  CHAT_SCRIPT.forEach((m, i) => {
+    setTimeout(() => {
+      if (!document.getElementById(wrapId)) return;
+      const el = document.createElement('div');
+      el.className = 'chat-msg' + (m.role === 'user' ? ' user' : '');
+      if (m.role === 'ai') {
+        el.innerHTML = `<div class="chat-av ai"><i class="ti ti-bolt" aria-hidden="true"></i></div><div class="chat-bubble ai">${m.text}</div>`;
+      } else {
+        el.innerHTML = `<div class="chat-av usr">EG</div><div class="chat-bubble usr">${m.text}</div>`;
+      }
+      wrap.appendChild(el);
+    }, i * 900 + 350);
+  });
+}
+
+function startProgress() {
+  const fill = document.getElementById('mock-prog');
+  if (!fill) return;
+  fill.style.transition = 'none';
+  fill.style.width = '0%';
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      fill.style.transition = 'width ' + DURATION + 'ms linear';
+      fill.style.width = '100%';
+    });
+  });
+}
+
+function goTo(idx, manual) {
+  if (manual) { clearInterval(timer); timer = null; }
+
+  // hide current
+  document.getElementById('ms-' + current).classList.remove('visible');
+  // update tabs
+  document.querySelectorAll('.mock-tab').forEach((t, i) => {
+    t.classList.toggle('active', i === idx);
+  });
+
+  current = idx;
+  document.getElementById('mock-url').textContent = SCREENS_META[idx].url;
+  document.getElementById('ms-' + idx).classList.add('visible');
+
+  // screen-specific init
+  if (idx === 0) renderInvoiceRows();
+  if (idx === 1) renderChat('mock-chat');
+  if (idx === 2) setTimeout(() => { const b = document.getElementById('dmo-bar'); if (b) b.style.width = '30.7%'; }, 500);
+  if (idx === 3) renderStokRows();
+
+  startProgress();
+
+  if (manual) {
+    timer = setInterval(() => goTo((current + 1) % 4, false), DURATION);
+    // if paused by user, resume auto after 2 cycles
+    setTimeout(() => {
+      if (!timer) timer = setInterval(() => goTo((current + 1) % 4, false), DURATION);
+    }, DURATION * 2);
+  }
+}
+
+// tab click handlers
+document.getElementById('mock-tabs').addEventListener('click', e => {
+  const tab = e.target.closest('.mock-tab');
+  if (!tab) return;
+  const idx = parseInt(tab.dataset.idx);
+  if (idx !== current) goTo(idx, true);
+});
+
+// init
+renderInvoiceRows();
+startProgress();
+timer = setInterval(() => goTo((current + 1) % 4, false), DURATION);
+
+// ── SECTION CHAT LOOP ──
+function runSectionChat() {
+  renderChat('chat-section-demo');
+}
+runSectionChat();
+setInterval(() => { document.getElementById('chat-section-demo').innerHTML = ''; runSectionChat(); }, 8500);
+
+// ── WHATSAPP LOOP ──
+const WP_MSGS = [
+  {dir:'in',  text:'Merhaba, HP LaserJet Pro\'nun garantisi var mı?'},
+  {dir:'out', text:'Merhaba! HP LaserJet Pro ürünlerimiz 1 yıl resmi HP garantisi içermektedir. Başka sorunuz var mı?'},
+  {dir:'in',  text:'Stokta kaç adet var?'},
+  {dir:'out', text:'Şu an stoğumuzda 24 adet mevcut. Hızlı sevkiyat için sipariş iletebilirsiniz.'},
+];
+function runWP() {
+  const wrap = document.getElementById('wp-messages');
+  wrap.innerHTML = '';
+  WP_MSGS.forEach((m, i) => {
+    setTimeout(() => {
+      const el = document.createElement('div');
+      el.className = 'wp-msg' + (m.dir === 'out' ? ' out' : '');
+      el.innerHTML = `<div class="wp-bubble ${m.dir === 'out' ? 'out' : 'in'}">${m.text}</div>`;
+      if (m.dir === 'out') {
+        const t = document.createElement('div');
+        t.className = 'wp-time'; t.textContent = 'AI · Kumanda';
+        el.appendChild(t);
+      }
+      wrap.appendChild(el);
+    }, i * 1100 + 300);
+  });
+}
+runWP();
+setInterval(() => { document.getElementById('wp-messages').innerHTML = ''; runWP(); }, 7000);
+
+// ── INVOICE DEMO ──
+function handleDrag(e, on) {
+  e.preventDefault();
+  document.getElementById('upload-zone').classList.toggle('drag', on);
+}
+function handleDrop(e) {
+  e.preventDefault();
+  handleDrag(e, false);
+  const f = e.dataTransfer.files[0];
+  if (f) handleFile(f);
+}
+const DEMO_DATA = [
+  {firma:'Bosch Sanayi A.Ş.',    no:'FAT-2026-003852', tarih:'23.05.2026', tutar:'₺42,500', kdv:'₺8,500',  toplam:'₺51,000',
+   stok:[{name:'HP LaserJet Pro',delta:'+5'},{name:'Canon PIXMA G570',delta:'+3'}],
+   cariPrev:'₺127,300', cariFatura:'-₺51,000', cariNew:'₺76,300'},
+  {firma:'Vestel Elektronik',     no:'FAT-2026-003853', tarih:'22.05.2026', tutar:'₺31,200', kdv:'₺6,240',  toplam:'₺37,440',
+   stok:[{name:'Epson EcoTank L3',delta:'+10'},{name:'Brother MFC-L2750',delta:'+4'}],
+   cariPrev:'₺93,600',  cariFatura:'-₺37,440', cariNew:'₺56,160'},
+];
+let demoIdx = 0;
+function handleFile(file) {
+  if (!file) return;
+  const prog = document.getElementById('upload-progress');
+  const fill = document.getElementById('prog-fill');
+  const label = document.getElementById('prog-label');
+  document.getElementById('upload-title').textContent = file.name;
+  document.getElementById('upload-sub').textContent = 'Analiz ediliyor…';
+  prog.style.display = 'block';
+  let w = 0;
+  const t = setInterval(() => {
+    w += Math.random() * 16 + 8;
+    if (w > 100) w = 100;
+    fill.style.width = w + '%';
+    label.textContent = w < 35 ? 'Fatura okunuyor…' : w < 65 ? 'Kalemler çıkarılıyor…' : w < 88 ? 'Stok eşleştiriliyor…' : 'Cari güncelleniyor…';
+    if (w >= 100) { clearInterval(t); setTimeout(() => showDemoResult(file.name), 300); }
+  }, 110);
+}
+function showDemoResult(fname) {
+  const d = DEMO_DATA[demoIdx % DEMO_DATA.length]; demoIdx++;
+  document.getElementById('upload-zone').classList.add('has-file');
+  document.getElementById('upload-sub').textContent = '✓ ' + fname + ' işlendi';
+  document.getElementById('r-firma').textContent   = d.firma;
+  document.getElementById('r-no').textContent      = d.no;
+  document.getElementById('r-tarih').textContent   = d.tarih;
+  document.getElementById('r-tutar').textContent   = d.tutar;
+  document.getElementById('r-kdv').textContent     = d.kdv;
+  document.getElementById('r-toplam').textContent  = d.toplam;
+  document.getElementById('r-stok').innerHTML = d.stok.map(s =>
+    `<div class="result-row"><span class="result-row-label">${s.name}</span><span class="result-row-value pos">${s.delta}</span></div>`
+  ).join('');
+  document.getElementById('r-cari-prev').textContent    = d.cariPrev;
+  document.getElementById('r-cari-fatura').textContent  = d.cariFatura;
+  document.getElementById('r-cari-new').textContent     = d.cariNew;
+  document.getElementById('demo-result').classList.add('visible');
+}
+
+// ── SCROLL ANIMATIONS ──
+const obs = new IntersectionObserver(entries => {
+  entries.forEach(e => { if (e.isIntersecting) e.target.classList.add('in'); });
+}, { threshold: 0.08 });
+document.querySelectorAll('.anim').forEach(el => obs.observe(el));
+
+// ── TOP BAR (load flash) ──
+window.addEventListener('load', () => {
+  const b = document.getElementById('top-bar');
+  b.style.transition = 'width 1.4s cubic-bezier(0.1,0,0.3,1)';
+  b.style.width = '100%';
+  setTimeout(() => { b.style.opacity = '0'; b.style.transition = 'opacity .4s ease'; }, 900);
+});
+</script>
+</body>
+</html>

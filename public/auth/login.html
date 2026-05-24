@@ -1,111 +1,368 @@
 <!DOCTYPE html>
 <html lang="tr">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>İnokas CRM — Giriş</title>
-  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/auth/auth.css">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Kumanda — Giriş</title>
+<link href="https://fonts.googleapis.com/css2?family=Geist+Mono:wght@400;500;600&family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.x/dist/tabler-icons.min.css">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg-base:#060912;--bg-surface:#0a0e1a;--bg-card:#0f1424;--bg-elevated:#161d35;
+  --accent:#4f46e5;--accent-hover:#4338ca;--accent-light:#a5b4fc;
+  --text-primary:#f1f5f9;--text-secondary:#94a3b8;--text-tertiary:#475569;
+  --border-subtle:rgba(255,255,255,0.05);--border-default:rgba(255,255,255,0.09);
+  --border-accent:rgba(99,102,241,0.5);
+  --success-text:#34d399;--danger-text:#f87171;--warning-text:#fbbf24;
+  --font-ui:'Plus Jakarta Sans',sans-serif;--font-data:'Geist Mono',monospace;
+  --radius-md:8px;--radius-lg:12px;
+  --dur-base:220ms;--ease-spring:cubic-bezier(0.34,1.2,0.64,1);
+}
+
+html,body{height:100%;font-family:var(--font-ui);background:var(--bg-base);color:var(--text-primary);overflow:hidden}
+
+/* ── TOP BAR ── */
+#top-bar{position:fixed;top:0;left:0;height:3px;width:0;background:linear-gradient(90deg,#4f46e5,#818cf8);z-index:200;border-radius:0 2px 2px 0;transition:width 1.5s cubic-bezier(0.1,0,0.3,1)}
+
+/* ── LAYOUT ── */
+.shell{display:flex;height:100vh}
+
+/* ── LEFT PANEL ── */
+.left{width:480px;flex-shrink:0;display:flex;flex-direction:column;justify-content:center;padding:56px 56px;position:relative;background:var(--bg-base);border-right:0.5px solid var(--border-subtle);z-index:1}
+.left-top{position:absolute;top:28px;left:56px;right:56px;display:flex;align-items:center;justify-content:space-between}
+.logo{display:flex;align-items:center;gap:10px;text-decoration:none}
+.logo-mark{width:30px;height:30px;background:var(--accent);border-radius:7px;display:flex;align-items:center;justify-content:center}
+.logo-mark i{font-size:15px;color:#fff}
+.logo-text{font-size:14px;font-weight:800;color:var(--text-primary);letter-spacing:.02em}
+.back-link{font-size:12px;color:var(--text-tertiary);text-decoration:none;display:flex;align-items:center;gap:4px;transition:color var(--dur-base) ease}
+.back-link:hover{color:var(--text-secondary)}
+
+/* ── FORM ── */
+.form-wrap{max-width:340px}
+.form-eyebrow{font-size:11px;font-weight:700;letter-spacing:.08em;color:var(--accent-light);text-transform:uppercase;margin-bottom:14px}
+.form-title{font-size:32px;font-weight:900;letter-spacing:-.02em;line-height:1.1;margin-bottom:8px;color:var(--text-primary)}
+.form-sub{font-size:14px;color:var(--text-secondary);margin-bottom:36px;line-height:1.6}
+
+.field{display:flex;flex-direction:column;gap:6px;margin-bottom:16px}
+.field label{font-size:11px;font-weight:700;color:var(--text-tertiary);letter-spacing:.05em;text-transform:uppercase}
+.field-wrap{position:relative}
+.field-wrap i{position:absolute;left:13px;top:50%;transform:translateY(-50%);font-size:16px;color:var(--text-tertiary);transition:color var(--dur-base) ease;pointer-events:none}
+.field-wrap input{
+  width:100%;background:var(--bg-card);
+  border:0.5px solid var(--border-default);
+  border-radius:var(--radius-md);
+  padding:12px 14px 12px 40px;
+  font-size:14px;font-family:var(--font-ui);
+  color:var(--text-primary);outline:none;
+  transition:border-color var(--dur-base) ease,box-shadow var(--dur-base) ease,background var(--dur-base) ease;
+}
+.field-wrap input::placeholder{color:#334155}
+.field-wrap input:hover{border-color:rgba(255,255,255,0.16)}
+.field-wrap input:focus{border-color:var(--border-accent);box-shadow:0 0 0 3px rgba(99,102,241,0.12);background:var(--bg-elevated)}
+.field-wrap input:focus ~ i, .field-wrap:focus-within i{color:var(--accent-light)}
+.field-wrap input.error{border-color:rgba(239,68,68,0.5);box-shadow:0 0 0 3px rgba(239,68,68,0.08)}
+.pw-toggle{position:absolute;right:12px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:var(--text-tertiary);font-size:16px;padding:2px;transition:color var(--dur-base) ease}
+.pw-toggle:hover{color:var(--text-secondary)}
+
+/* ── ALERT ── */
+.alert{display:none;align-items:center;gap:8px;padding:10px 14px;border-radius:var(--radius-md);font-size:13px;margin-bottom:16px;border:0.5px solid rgba(239,68,68,0.25);background:rgba(239,68,68,0.08);color:var(--danger-text)}
+.alert.show{display:flex}
+.alert i{font-size:16px;flex-shrink:0}
+
+/* ── BUTTON ── */
+.btn-submit{
+  width:100%;padding:13px;border-radius:var(--radius-md);
+  background:var(--accent);color:#fff;
+  font-size:14px;font-weight:700;font-family:var(--font-ui);
+  border:none;cursor:pointer;margin-top:8px;
+  display:flex;align-items:center;justify-content:center;gap:8px;
+  transition:background var(--dur-base) ease,transform 180ms var(--ease-spring),box-shadow var(--dur-base) ease;
+  position:relative;overflow:hidden;
+}
+.btn-submit:hover{background:var(--accent-hover);transform:translateY(-1px);box-shadow:0 6px 20px rgba(79,70,229,0.35)}
+.btn-submit:active{transform:scale(0.98);transition:all 80ms ease}
+.btn-submit.loading{opacity:.8;cursor:wait;transform:none;box-shadow:none}
+.btn-submit.success{background:#059669}
+
+@keyframes spin{to{transform:rotate(360deg)}}
+.spinner{width:16px;height:16px;border:2px solid rgba(255,255,255,0.2);border-top-color:#fff;border-radius:50%;animation:spin .7s linear infinite;flex-shrink:0}
+
+/* ── FOOTER ── */
+.form-footer{margin-top:24px;display:flex;flex-direction:column;gap:12px}
+.form-divider{display:flex;align-items:center;gap:12px}
+.form-divider-line{flex:1;height:0.5px;background:var(--border-subtle)}
+.form-divider-text{font-size:11px;color:var(--text-tertiary)}
+.form-link{font-size:13px;color:var(--text-secondary);text-align:center}
+.form-link a{color:var(--accent-light);text-decoration:none;font-weight:600;transition:color var(--dur-base) ease}
+.form-link a:hover{color:#c7d2fe}
+
+/* ── RIGHT PANEL ── */
+.right{flex:1;background:var(--bg-surface);position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;overflow:hidden;gap:24px}
+.right-grid{position:absolute;inset:0;background-image:linear-gradient(rgba(99,102,241,0.04) 1px,transparent 1px),linear-gradient(90deg,rgba(99,102,241,0.04) 1px,transparent 1px);background-size:48px 48px;mask-image:radial-gradient(ellipse at center,black 20%,transparent 75%)}
+.right-glow{position:absolute;top:40%;left:50%;transform:translate(-50%,-50%);width:500px;height:400px;background:radial-gradient(ellipse,rgba(79,70,229,0.1) 0%,transparent 70%);pointer-events:none}
+
+/* ── MINI MOCKUP ── */
+.mini-mockup{position:relative;z-index:1;width:360px}
+.mm-shell{background:var(--bg-card);border:0.5px solid rgba(255,255,255,0.08);border-radius:12px;overflow:hidden;box-shadow:0 32px 64px rgba(0,0,0,0.6)}
+.mm-bar{height:28px;background:#0f1424;border-bottom:0.5px solid rgba(255,255,255,0.05);display:flex;align-items:center;padding:0 10px;gap:5px}
+.mm-dot{width:7px;height:7px;border-radius:50%}
+.mm-body{display:flex;height:200px}
+.mm-sb{width:100px;background:var(--bg-surface);border-right:0.5px solid rgba(255,255,255,0.04);padding:8px 6px}
+.mm-logo{display:flex;align-items:center;gap:5px;padding:0 4px;margin-bottom:10px}
+.mm-lm{width:16px;height:16px;background:var(--accent);border-radius:4px;display:flex;align-items:center;justify-content:center}
+.mm-lm i{font-size:9px;color:#fff}
+.mm-lt{font-size:8px;font-weight:800;color:#f1f5f9}
+.mm-item{display:flex;align-items:center;gap:5px;padding:5px 6px;border-radius:4px;font-size:8px;font-weight:500;color:#475569;margin-bottom:1px}
+.mm-item.active{background:rgba(79,70,229,0.14);color:#a5b4fc}
+.mm-item i{font-size:10px}
+.mm-main{flex:1;padding:10px}
+.mm-hdr{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
+.mm-title{font-size:9px;font-weight:700;color:#f1f5f9}
+.mm-btn{background:#4f46e5;color:#fff;font-size:7px;font-weight:700;padding:3px 7px;border-radius:4px}
+.mm-kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:4px;margin-bottom:7px}
+.mm-kpi{background:var(--bg-elevated);border-radius:4px;padding:5px 6px;border:0.5px solid rgba(255,255,255,0.05)}
+.mm-kpi-l{font-size:6px;color:#475569;margin-bottom:3px}
+.mm-kpi-v{font-family:var(--font-data);font-size:10px;font-weight:600}
+.mm-row{display:flex;align-items:center;gap:6px;padding:4px 0;border-bottom:0.5px solid rgba(255,255,255,0.04);font-size:7px}
+.mm-row:last-child{border-bottom:none}
+.mm-co{flex:1;font-weight:600;color:#64748b}
+.mm-amt{font-family:var(--font-data);font-weight:500;color:#e2e8f0}
+.mm-badge{padding:1px 5px;border-radius:8px;font-size:6px;font-weight:600}
+.mbs{background:rgba(16,185,129,0.12);color:#34d399}
+.mbw{background:rgba(245,158,11,0.12);color:#fbbf24}
+.mbd{background:rgba(239,68,68,0.12);color:#f87171}
+
+/* ── QUOTE ── */
+.right-quote{position:relative;z-index:1;text-align:center;max-width:300px}
+.quote-text{font-size:16px;font-weight:700;color:var(--text-primary);line-height:1.5;margin-bottom:8px;letter-spacing:-.01em}
+.quote-sub{font-size:12px;color:var(--text-tertiary)}
+
+/* ── STAT PILLS ── */
+.stat-pills{position:relative;z-index:1;display:flex;gap:8px}
+.stat-pill{background:var(--bg-card);border:0.5px solid var(--border-default);border-radius:20px;padding:6px 14px;display:flex;align-items:center;gap:7px;font-size:12px}
+.stat-pill i{font-size:14px;color:var(--accent-light)}
+.pill-num{font-family:var(--font-data);font-weight:600;color:var(--text-primary)}
+.pill-label{color:var(--text-tertiary)}
+
+/* ── ANIMATIONS ── */
+@keyframes fade-up{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)}}
+.anim{opacity:0;animation:fade-up .5s ease forwards}
+.d1{animation-delay:.05s}.d2{animation-delay:.12s}.d3{animation-delay:.2s}
+.d4{animation-delay:.28s}.d5{animation-delay:.36s}.d6{animation-delay:.44s}
+.d7{animation-delay:.52s}
+</style>
 </head>
 <body>
-<div class="auth-split">
 
-  <!-- Left -->
-  <div class="auth-left">
-    <div class="auth-left-inner">
+<div id="top-bar"></div>
 
-      <div class="brand">
-        <div class="brand-dot"></div>
-        <div class="brand-text">KUMANDA</div>
-      </div>
+<div class="shell">
 
-      <div class="auth-title">Tekrar hoş geldiniz</div>
-      <div class="auth-sub">Hesabınıza giriş yapın</div>
+  <!-- LEFT -->
+  <div class="left">
+    <div class="left-top">
+      <a href="/" class="logo">
+        <div class="logo-mark"><i class="ti ti-bolt"></i></div>
+        <span class="logo-text">KUMANDA</span>
+      </a>
+      <a href="/" class="back-link"><i class="ti ti-arrow-left" style="font-size:13px"></i> Ana sayfa</a>
+    </div>
 
-      <div id="alertBox" class="alert alert-error"></div>
+    <div class="form-wrap">
+      <div class="form-eyebrow anim d1">Hoş geldiniz</div>
+      <h1 class="form-title anim d2">Tekrar<br>merhaba</h1>
+      <p class="form-sub anim d3">Hesabınıza giriş yapın ve faturalarınızı yönetmeye devam edin.</p>
 
-      <div class="form-group">
+      <div id="alertBox" class="alert anim d3"><i class="ti ti-alert-circle"></i><span id="alertText"></span></div>
+
+      <div class="field anim d4">
         <label>E-posta</label>
-        <input type="email" id="email" placeholder="ornek@mail.com" autocomplete="email">
+        <div class="field-wrap">
+          <input type="email" id="email" placeholder="ornek@firma.com" autocomplete="email">
+          <i class="ti ti-mail"></i>
+        </div>
       </div>
 
-      <div class="form-group">
+      <div class="field anim d5">
         <label>Şifre</label>
-        <input type="password" id="password" placeholder="••••••••" autocomplete="current-password">
+        <div class="field-wrap">
+          <input type="password" id="password" placeholder="••••••••" autocomplete="current-password">
+          <i class="ti ti-lock"></i>
+          <button class="pw-toggle" onclick="togglePw()" aria-label="Şifreyi göster/gizle" type="button">
+            <i class="ti ti-eye" id="pw-eye"></i>
+          </button>
+        </div>
       </div>
 
-      <button class="btn-primary" id="loginBtn" onclick="handleLogin()" style="margin-top:8px;">
-        Giriş Yap →
+      <button class="btn-submit anim d6" id="loginBtn" onclick="handleLogin()">
+        <i class="ti ti-arrow-right" id="btn-icon"></i>
+        <span id="btn-text">Giriş Yap</span>
       </button>
 
-      <div class="auth-link" style="margin-top:20px;">
-        Hesabınız yok mu? <a href="/auth/signup.html">Kayıt olun</a>
+      <div class="form-footer anim d7">
+        <div class="form-divider">
+          <div class="form-divider-line"></div>
+          <span class="form-divider-text">veya</span>
+          <div class="form-divider-line"></div>
+        </div>
+        <div class="form-link">Hesabınız yok mu? <a href="/auth/signup.html">Ücretsiz kayıt olun</a></div>
       </div>
-
     </div>
   </div>
 
-  <!-- Right -->
-  <div class="auth-right">
-    <img src="/assests/kumanda2.gif" alt="Kumanda">
-    <div class="auth-right-quote">
+  <!-- RIGHT -->
+  <div class="right">
+    <div class="right-grid"></div>
+    <div class="right-glow"></div>
+
+    <div class="stat-pills anim d2">
+      <div class="stat-pill"><i class="ti ti-file-invoice"></i><span class="pill-num">1,247</span><span class="pill-label">fatura</span></div>
+      <div class="stat-pill"><i class="ti ti-plug"></i><span class="pill-num">3</span><span class="pill-label">entegrasyon</span></div>
+      <div class="stat-pill"><i class="ti ti-sparkles"></i><span class="pill-label">AI destekli</span></div>
+    </div>
+
+    <div class="mini-mockup anim d3">
+      <div class="mm-shell">
+        <div class="mm-bar">
+          <div class="mm-dot" style="background:#ef4444"></div>
+          <div class="mm-dot" style="background:#f59e0b"></div>
+          <div class="mm-dot" style="background:#10b981"></div>
+        </div>
+        <div class="mm-body">
+          <div class="mm-sb">
+            <div class="mm-logo"><div class="mm-lm"><i class="ti ti-bolt"></i></div><span class="mm-lt">KUMANDA</span></div>
+            <div class="mm-item active"><i class="ti ti-layout-dashboard"></i> Dashboard</div>
+            <div class="mm-item"><i class="ti ti-file-invoice"></i> Faturalar</div>
+            <div class="mm-item"><i class="ti ti-building"></i> Firmalar</div>
+            <div class="mm-item"><i class="ti ti-box"></i> Stok</div>
+            <div class="mm-item"><i class="ti ti-message-2"></i> AI Chat</div>
+          </div>
+          <div class="mm-main">
+            <div class="mm-hdr"><div class="mm-title">Dashboard</div><div class="mm-btn">+ Ekle</div></div>
+            <div class="mm-kpis">
+              <div class="mm-kpi"><div class="mm-kpi-l">Toplam</div><div class="mm-kpi-v" style="color:#a5b4fc">1,247</div></div>
+              <div class="mm-kpi"><div class="mm-kpi-l">Bekleyen</div><div class="mm-kpi-v" style="color:#fbbf24">₺284K</div></div>
+              <div class="mm-kpi"><div class="mm-kpi-l">Bu ay</div><div class="mm-kpi-v" style="color:#34d399">₺1.2M</div></div>
+            </div>
+            <div class="mm-row"><span class="mm-co">Arçelik A.Ş.</span><span class="mm-amt">₺48,750</span><span class="mm-badge mbs">Ödendi</span></div>
+            <div class="mm-row"><span class="mm-co">Bosch Sanayi</span><span class="mm-amt">₺127,300</span><span class="mm-badge mbw">Bekliyor</span></div>
+            <div class="mm-row"><span class="mm-co">Vestel Elektronik</span><span class="mm-amt">₺93,600</span><span class="mm-badge mbd">Gecikmiş</span></div>
+            <div class="mm-row"><span class="mm-co">Samsung Turkey</span><span class="mm-amt">₺211,800</span><span class="mm-badge mbs">Ödendi</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="right-quote anim d4">
       <div class="quote-text">Veriye dayalı kararlar,<br>başarıya giden yol.</div>
-      <div class="quote-author">İnokas CRM — Kumanda</div>
+      <div class="quote-sub">İnokas CRM — Kumanda</div>
     </div>
   </div>
 
 </div>
 
 <script>
-  if (sessionStorage.getItem('inokas_token')) window.location.href = '/';
-  document.addEventListener('keydown', e => { if (e.key === 'Enter') handleLogin(); });
+if(sessionStorage.getItem('inokas_token')) window.location.href='/chat';
+document.addEventListener('keydown',e=>{if(e.key==='Enter')handleLogin();});
 
-  async function handleLogin() {
-    const email    = document.getElementById('email').value.trim().toLowerCase();
-    const password = document.getElementById('password').value;
-    const alertEl  = document.getElementById('alertBox');
-    const btn      = document.getElementById('loginBtn');
+function togglePw(){
+  const inp=document.getElementById('password');
+  const eye=document.getElementById('pw-eye');
+  const show=inp.type==='password';
+  inp.type=show?'text':'password';
+  eye.className=show?'ti ti-eye-off':'ti ti-eye';
+}
 
-    alertEl.classList.remove('show');
-
-    if (!email || !password) return showError('E-posta ve şifre zorunlu.');
-
-    btn.textContent = 'Giriş yapılıyor...';
+function setLoading(on){
+  const btn=document.getElementById('loginBtn');
+  const icon=document.getElementById('btn-icon');
+  const text=document.getElementById('btn-text');
+  if(on){
     btn.classList.add('loading');
+    icon.className='spinner';
+    text.textContent='Giriş yapılıyor...';
+  } else {
+    btn.classList.remove('loading');
+    icon.className='ti ti-arrow-right';
+    text.textContent='Giriş Yap';
+  }
+}
 
-    try {
-      const res  = await fetch('/api/auth/login', {
-        method:  'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ email, password })
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data?.error || 'Giriş başarısız.');
+function setSuccess(){
+  const btn=document.getElementById('loginBtn');
+  const icon=document.getElementById('btn-icon');
+  const text=document.getElementById('btn-text');
+  btn.classList.add('success');
+  icon.className='ti ti-check';
+  text.textContent='Giriş yapıldı';
+}
 
-      sessionStorage.setItem('inokas_token', data.token);
-      sessionStorage.setItem('onboarding_complete', data.onboarding_complete);
+function showError(msg){
+  const box=document.getElementById('alertBox');
+  document.getElementById('alertText').textContent=msg;
+  box.classList.add('show');
+  document.getElementById('email').classList.add('error');
+  document.getElementById('password').classList.add('error');
+  setTimeout(()=>{
+    document.getElementById('email').classList.remove('error');
+    document.getElementById('password').classList.remove('error');
+  },2000);
+}
 
-      btn.textContent = '✓ Giriş yapıldı';
+function hideError(){
+  document.getElementById('alertBox').classList.remove('show');
+}
 
-      if (!data.onboarding_complete) {
-        setTimeout(() => window.location.replace('/auth/onboarding.html'), 600);
+async function handleLogin(){
+  const email=document.getElementById('email').value.trim().toLowerCase();
+  const password=document.getElementById('password').value;
+  hideError();
+
+  if(!email||!password) return showError('E-posta ve şifre zorunlu.');
+
+  setLoading(true);
+
+  try{
+    const res=await fetch('/api/auth/login',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({email,password})
+    });
+    const data=await res.json();
+    if(!res.ok) throw new Error(data?.error||'Giriş başarısız.');
+
+    sessionStorage.setItem('inokas_token',data.token);
+    sessionStorage.setItem('onboarding_complete',data.onboarding_complete);
+
+    setSuccess();
+
+    // Top bar animation
+    const bar=document.getElementById('top-bar');
+    bar.style.width='100%';
+
+    setTimeout(()=>{
+      if(!data.onboarding_complete){
+        window.location.replace('/auth/onboarding.html');
       } else {
-        setTimeout(() => window.location.replace('/chat'), 600);
+        window.location.replace('/chat');
       }
+    },700);
 
-    } catch (err) {
-      showError(err.message);
-      btn.textContent = 'Giriş Yap →';
-      btn.classList.remove('loading');
-      document.getElementById('password').value = '';
-    }
+  } catch(err){
+    showError(err.message);
+    setLoading(false);
+    document.getElementById('password').value='';
+    document.getElementById('password').focus();
   }
+}
 
-  function showError(msg) {
-    const el = document.getElementById('alertBox');
-    el.textContent = msg;
-    el.classList.add('show');
-  }
+// Top bar on load
+window.addEventListener('load',()=>{
+  const bar=document.getElementById('top-bar');
+  bar.style.width='60%';
+  setTimeout(()=>{bar.style.opacity='0';bar.style.transition='opacity .3s ease';},800);
+});
 </script>
 </body>
 </html>

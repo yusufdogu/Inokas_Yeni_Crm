@@ -13,6 +13,7 @@ router.get('/', async (req, res) => {
       .select('id, product_code, product_name, brand, category, model, maliyet_usd, sozlesme_fiyat_eur, last_purchase_price_cur, last_purchase_currency, last_purchase_rate, last_purchase_price_tl, avg_purchase_price_tl, dmo_code, dmo_fiyat_try, dmo_url, gift_quantity, stock_on_hand, reserved_quantity, is_internal')
       .eq('tenant_id', req.tenantId)
       .eq('is_internal', false)
+      .eq('is_hidden', false)
       .order('product_name', { ascending: true });
     if (error) throw error;
     res.json(data || []);
@@ -88,6 +89,7 @@ router.get('/category-map', async (req, res) => {
       supabase.from('products')
         .select('product_code, category, brand, model, is_internal')
         .eq('tenant_id', req.tenantId)
+        .or('is_hidden.is.null,is_hidden.eq.false')
         .not('product_code', 'is', null),
       supabase.from('invoice_items')
         .select('internal_category')
@@ -110,7 +112,7 @@ router.get('/category-map', async (req, res) => {
     const internalFromProducts = rows.filter(r => r.is_internal).map(r => r.category).filter(Boolean);
     const internalFromInvoices = (invData || []).map(r => String(r.internal_category || '').trim()).filter(Boolean);
     const internal_categories  = [...new Set([...internalFromProducts, ...internalFromInvoices])].sort((a, b) => a.localeCompare(b, 'tr'));
-    const brands               = [...new Set(rows.map(r => r.brand).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'tr'));
+    const brands               = [...new Set(rows.filter(r => !r.is_internal).map(r => r.brand).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'tr'));
     const models               = [...new Set(rows.filter(r => !r.is_internal).map(r => r.model).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'tr'));
 
     res.json({ items: rows, categories, internal_categories, brands, models });

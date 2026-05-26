@@ -1,47 +1,44 @@
 /* ─── shared-filters.css ─────────────────────────────────────────────────────
    Tag-based multi-select filter system.
-   Used by: gelen-faturalar, giden-faturalar, stok hareketleri, urunler, backorder
-   Pages set their own --filter-bg, --filter-border, --filter-input-bg,
-   --filter-text, --filter-tag-bg, --filter-tag-color via local overrides.
-   Defaults below work for both dark (stok) and light (faturalar) contexts.
+   Updated to match landing page design language.
 ─────────────────────────────────────────────────────────────────────────────── */
 
-/* ── Defaults (dark context — stok pages) ───────────────────────────────── */
+/* ── Defaults (light context — faturalar) ───────────────────────────────── */
 :root {
-  --sf-wrap-bg:        #1e293b;
-  --sf-wrap-border:    #334155;
-  --sf-wrap-text:      #f1f5f9;
-  --sf-tag-bg:         #1d4ed8;
-  --sf-tag-color:      #eff6ff;
-  --sf-drop-bg:        #1e293b;
-  --sf-drop-border:    #334155;
-  --sf-drop-text:      #cbd5e1;
-  --sf-drop-hover-bg:  #334155;
-  --sf-drop-hover-text:#f1f5f9;
+  --sf-wrap-bg:         #ffffff;
+  --sf-wrap-border:     rgba(14,13,11,0.15);
+  --sf-wrap-text:       #3a3832;
+  --sf-tag-bg:          #0e0d0b;
+  --sf-tag-color:       rgba(245,242,236,0.9);
+  --sf-drop-bg:         #ffffff;
+  --sf-drop-border:     rgba(14,13,11,0.12);
+  --sf-drop-text:       #3a3832;
+  --sf-drop-hover-bg:   #ede9e0;
+  --sf-drop-hover-text: #0e0d0b;
 }
 
-/* ── Light override — apply .sf-light to the filter bar wrapper ─────────── */
-.sf-light {
-  --sf-wrap-bg:        #ffffff;
-  --sf-wrap-border:    #e2e8f0;
-  --sf-wrap-text:      #374151;
-  --sf-tag-bg:         #2563eb;
-  --sf-tag-color:      #ffffff;
-  --sf-drop-bg:        #ffffff;
-  --sf-drop-border:    #e2e8f0;
-  --sf-drop-text:      #374151;
-  --sf-drop-hover-bg:  #f1f5f9;
-  --sf-drop-hover-text:#0f172a;
+/* ── Dark override — stok pages ─────────────────────────────────────────── */
+.sf-dark {
+  --sf-wrap-bg:         #1a1916;
+  --sf-wrap-border:     rgba(245,242,236,0.1);
+  --sf-wrap-text:       rgba(245,242,236,0.7);
+  --sf-tag-bg:          rgba(245,242,236,0.12);
+  --sf-tag-color:       rgba(245,242,236,0.9);
+  --sf-drop-bg:         #1a1916;
+  --sf-drop-border:     rgba(245,242,236,0.1);
+  --sf-drop-text:       rgba(245,242,236,0.6);
+  --sf-drop-hover-bg:   rgba(245,242,236,0.06);
+  --sf-drop-hover-text: rgba(245,242,236,0.9);
 }
 
-/* ── Tag wrap (the input field container) ───────────────────────────────── */
+/* ── Tag wrap ────────────────────────────────────────────────────────────── */
 .filter-tags-wrap {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 4px;
   padding: 4px 8px;
-  border: 1px solid var(--sf-wrap-border);
+  border: 0.5px solid var(--sf-wrap-border);
   border-radius: 7px;
   background: var(--sf-wrap-bg);
   min-height: 32px;
@@ -50,11 +47,11 @@
   min-width: 160px;
   position: relative;
   box-sizing: border-box;
+  transition: border-color 0.15s;
 }
 
 .filter-tags-wrap:focus-within {
-  border-color: #2563eb;
-  box-shadow: 0 0 0 2px rgba(37,99,235,0.12);
+  border-color: rgba(14,13,11,0.4);
 }
 
 /* ── Tags ────────────────────────────────────────────────────────────────── */
@@ -67,18 +64,19 @@
   border-radius: 5px;
   padding: 2px 7px;
   font-size: 11px;
-  font-weight: 600;
+  font-weight: 500;
   white-space: nowrap;
   max-width: 200px;
   overflow: hidden;
   text-overflow: ellipsis;
+  font-family: 'DM Sans', sans-serif;
 }
 
 .filter-tag-remove {
   cursor: pointer;
   font-size: 13px;
   line-height: 1;
-  opacity: 0.7;
+  opacity: 0.6;
   flex-shrink: 0;
 }
 
@@ -94,10 +92,10 @@
   min-width: 80px;
   flex: 1;
   padding: 2px 4px;
-  font-family: inherit;
+  font-family: 'DM Sans', sans-serif;
 }
 
-.filter-tags-input::placeholder { color: #64748b; }
+.filter-tags-input::placeholder { color: #a8a39a; }
 
 /* ── Dropdown ────────────────────────────────────────────────────────────── */
 .filter-dropdown {
@@ -107,9 +105,9 @@
   z-index: 2000;
   width: 280px;
   background: var(--sf-drop-bg);
-  border: 1px solid var(--sf-drop-border);
+  border: 0.5px solid var(--sf-drop-border);
   border-radius: 10px;
-  box-shadow: 0 8px 24px rgba(0,0,0,0.18);
+  box-shadow: 0 8px 24px rgba(14,13,11,0.12);
   overflow: hidden;
   display: none;
 }
@@ -119,21 +117,24 @@
 .filter-dropdown-list {
   list-style: none;
   margin: 0;
-  padding: 0;
+  padding: 4px;
   max-height: 240px;
   overflow-y: auto;
   scrollbar-width: thin;
-  scrollbar-color: #475569 transparent;
+  scrollbar-color: rgba(14,13,11,0.15) transparent;
 }
 
 .filter-dropdown-item {
-  padding: 8px 12px;
+  padding: 7px 10px;
   font-size: 12px;
   color: var(--sf-drop-text);
   cursor: pointer;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  border-radius: 6px;
+  font-family: 'DM Sans', sans-serif;
+  transition: background 0.1s, color 0.1s;
 }
 
 .filter-dropdown-item:hover {
@@ -142,16 +143,16 @@
 }
 
 .filter-dropdown-item.selected {
-  background: #1d4ed8;
-  color: #eff6ff;
-  font-weight: 600;
+  background: #0e0d0b;
+  color: rgba(245,242,236,0.9);
+  font-weight: 500;
 }
 
 .filter-dropdown-item.highlighted {
   background: var(--sf-drop-hover-bg);
   color: var(--sf-drop-hover-text);
-  outline: 2px solid #2563eb;
-  outline-offset: -2px;
+  outline: 1.5px solid rgba(14,13,11,0.3);
+  outline-offset: -1.5px;
 }
 
 /* ── Advanced toggle button ──────────────────────────────────────────────── */
@@ -159,18 +160,19 @@
   background: none;
   border: none;
   font-size: 12px;
-  font-weight: 600;
-  color: #2563eb;
+  font-weight: 500;
+  color: #6e6a62;
   cursor: pointer;
   padding: 0;
   display: flex;
   align-items: center;
   gap: 4px;
-  font-family: inherit;
+  font-family: 'DM Sans', sans-serif;
   margin-top: 2px;
+  transition: color 0.15s;
 }
 
-.filter-advanced-toggle:hover { color: #1d4ed8; }
+.filter-advanced-toggle:hover { color: #0e0d0b; }
 
 /* ── Range slider ────────────────────────────────────────────────────────── */
 .filter-range-wrap {
@@ -186,12 +188,14 @@
 
 .filter-range-label-row span {
   font-size: 10px;
-  color: #64748b;
+  color: #6e6a62;
+  font-family: 'DM Mono', monospace;
 }
 
 .filter-range-label-row .range-value {
   font-size: 10px;
-  color: #94a3b8;
+  color: #a8a39a;
+  font-family: 'DM Mono', monospace;
 }
 
 .filter-range-inputs {
@@ -202,8 +206,8 @@
 
 .filter-range-inputs input[type="range"] {
   flex: 1;
-  height: 4px;
-  accent-color: #2563eb;
+  height: 3px;
+  accent-color: #0e0d0b;
   cursor: pointer;
 }
 
@@ -211,14 +215,14 @@
 .filter-btn-apply {
   height: 32px;
   padding: 0 14px;
-  background: #2563eb;
-  color: white;
+  background: #0e0d0b;
+  color: rgba(245,242,236,0.9);
   border: none;
   border-radius: 7px;
   font-size: 12px;
-  font-weight: 600;
+  font-weight: 500;
   cursor: pointer;
-  font-family: inherit;
+  font-family: 'DM Sans', sans-serif;
   display: flex;
   align-items: center;
   gap: 4px;
@@ -226,7 +230,7 @@
   transition: background 0.15s;
 }
 
-.filter-btn-apply:hover { background: #1d4ed8; }
+.filter-btn-apply:hover { background: #3a3832; }
 
 .filter-btn-clear {
   height: 32px;
@@ -234,24 +238,43 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  border: 1px solid #334155;
+  border: 0.5px solid rgba(14,13,11,0.2);
   border-radius: 7px;
   background: transparent;
   cursor: pointer;
-  color: #64748b;
+  color: #a8a39a;
   flex-shrink: 0;
-  transition: color 0.15s, border-color 0.15s;
+  transition: color 0.15s, border-color 0.15s, background 0.15s;
 }
 
-.filter-btn-clear:hover { color: #f1f5f9; border-color: #475569; }
-
-/* Light context overrides for clear button */
-.sf-light .filter-btn-clear {
-  border-color: #e2e8f0;
-  color: #94a3b8;
+.filter-btn-clear:hover {
+  color: #b83232;
+  border-color: rgba(184,50,50,0.3);
+  background: rgba(184,50,50,0.06);
 }
 
-.sf-light .filter-btn-clear:hover {
-  color: #ef4444;
-  border-color: #fca5a5;
+/* Dark context clear button */
+.sf-dark .filter-btn-clear {
+  border-color: rgba(245,242,236,0.1);
+  color: rgba(245,242,236,0.3);
+}
+
+.sf-dark .filter-btn-clear:hover {
+  color: #b83232;
+  border-color: rgba(184,50,50,0.3);
+  background: rgba(184,50,50,0.08);
+}
+
+/* ── sf-light kept for backward compat ──────────────────────────────────── */
+.sf-light {
+  --sf-wrap-bg:         #ffffff;
+  --sf-wrap-border:     rgba(14,13,11,0.15);
+  --sf-wrap-text:       #3a3832;
+  --sf-tag-bg:          #0e0d0b;
+  --sf-tag-color:       rgba(245,242,236,0.9);
+  --sf-drop-bg:         #ffffff;
+  --sf-drop-border:     rgba(14,13,11,0.12);
+  --sf-drop-text:       #3a3832;
+  --sf-drop-hover-bg:   #ede9e0;
+  --sf-drop-hover-text: #0e0d0b;
 }

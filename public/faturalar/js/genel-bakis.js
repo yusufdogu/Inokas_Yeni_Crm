@@ -169,8 +169,8 @@ function renderLineChart(gidenData, gelenData, bucket) {
     data: {
       labels,
       datasets: [
-        { label:'Giden', data:gidenPts, borderColor:'#3b82f6', backgroundColor:'rgba(59,130,246,0.12)', borderWidth:2, fill:true, tension:0.4, pointRadius:3, pointBackgroundColor:'#3b82f6', pointBorderColor:'#111827', pointBorderWidth:1.5 },
-        { label:'Gelen', data:gelenPts, borderColor:'#8b5cf6', backgroundColor:'rgba(139,92,246,0.08)', borderWidth:2, fill:true, tension:0.4, pointRadius:3, pointBackgroundColor:'#8b5cf6', pointBorderColor:'#111827', pointBorderWidth:1.5 },
+        { label:'Giden', data:gidenPts, borderColor:'#0e0d0b', backgroundColor:'rgba(14,13,11,0.07)', borderWidth:2, fill:true, tension:0.4, pointRadius:3, pointBackgroundColor:'#0e0d0b', pointBorderColor:'#111827', pointBorderWidth:1.5 },
+        { label:'Gelen', data:gelenPts, borderColor:'#9a6318', backgroundColor:'rgba(154,99,24,0.07)', borderWidth:2, fill:true, tension:0.4, pointRadius:3, pointBackgroundColor:'#9a6318', pointBorderColor:'#111827', pointBorderWidth:1.5 },
       ]
     },
     options: {
@@ -182,8 +182,8 @@ function renderLineChart(gidenData, gelenData, bucket) {
         tooltip: { enabled: false },
       },
       scales: {
-        x: { ticks:{ color:'#334155', font:{ size:10 } }, grid:{ color:'#1a2535' } },
-        y: { ticks:{ color:'#334155', font:{ size:10 }, callback: v => '₺'+_fmtK(v) }, grid:{ color:'#1a2535' } }
+        x: { ticks:{ color:'#d4d0c8', font:{ size:10 } }, grid:{ color:'#e8e4db' } },
+        y: { ticks:{ color:'#d4d0c8', font:{ size:10 }, callback: v => '₺'+_fmtK(v) }, grid:{ color:'#e8e4db' } }
       }
     }
   });
@@ -192,7 +192,7 @@ function renderLineChart(gidenData, gelenData, bucket) {
   tooltipEl.id = 'gbChartTooltip';
   tooltipEl.style.cssText = [
     'position:absolute', 'pointer-events:none', 'display:none',
-    'background:#1e293b', 'border:1px solid #334155', 'border-radius:10px',
+    'background:rgba(245,242,236,0.05)', 'border:0.5px solid rgba(245,242,236,0.1)', 'border-radius:10px',
     'padding:12px 16px', 'box-shadow:0 8px 24px rgba(0,0,0,0.4)',
     'z-index:100', 'min-width:130px',
   ].join(';');
@@ -216,13 +216,13 @@ function renderLineChart(gidenData, gelenData, bucket) {
 
     tooltipEl.innerHTML = `
       <div style="margin-bottom:10px;">
-        <div style="font-size:16px;font-weight:700;color:#60a5fa;">₺${_fmt(gidenTRY)}</div>
-        ${usdRow(gidenUSD, '#60a5fa')}
+        <div style="font-size:16px;font-weight:700;color:#0e0d0b;">₺${_fmt(gidenTRY)}</div>
+        ${usdRow(gidenUSD, '#3a3832')}
       </div>
       <div style="height:1px;background:#334155;margin-bottom:10px;"></div>
       <div>
-        <div style="font-size:16px;font-weight:700;color:#a78bfa;">₺${_fmt(gelenTRY)}</div>
-        ${usdRow(gelenUSD, '#a78bfa')}
+        <div style="font-size:16px;font-weight:700;color:#9a6318;">₺${_fmt(gelenTRY)}</div>
+        ${usdRow(gelenUSD, '#3a3832')}
       </div>
     `;
 
@@ -241,7 +241,7 @@ function renderLineChart(gidenData, gelenData, bucket) {
 
 async function loadReport() {
   const el = document.getElementById('gbReport');
-  el.innerHTML = `<div class="gb-report-loading"><div class="gb-spinner"></div><span style="font-size:12px;color:#475569;margin-top:8px;">Rapor hazırlanıyor...</span></div>`;
+  el.innerHTML = `<div class="gb-report-loading"><div class="gb-spinner"></div><span style="font-size:12px;color:rgba(245,242,236,0.3);margin-top:8px;">Rapor hazırlanıyor...</span></div>`;
 
   try {
     const today = new Date();
@@ -259,11 +259,9 @@ async function loadReport() {
     const topCos     = topCoRes.ok  ? (await topCoRes.json())   || [] : [];
     const lastInvArr = lastRes.ok   ? ((await lastRes.json()).data || []) : [];
 
-    // Sort overdue by amount desc, take top 1
     allOverdue.sort((a,b) => (parseFloat(b.payable_amount_tl)||0) - (parseFloat(a.payable_amount_tl)||0));
     const topOverdue = allOverdue[0];
 
-    // Kritik firmalar — companies with overdue invoices, sorted by overdue amount
     const overdueByCompany = {};
     allOverdue.forEach(inv => {
       const name = inv.companies?.name || '—';
@@ -272,101 +270,97 @@ async function loadReport() {
       overdueByCompany[name].count++;
     });
     const kritikFirmalar = Object.values(overdueByCompany).sort((a,b) => b.overdue_tl - a.overdue_tl);
-    const topKritik = kritikFirmalar[0];
-    // Get this month's volume for top kritik company from topCos
+    const topKritik  = kritikFirmalar[0];
     const topKritikCo = topCos.find(c => c.name === topKritik?.name);
-
     const topPending = pending[0];
     const lastInv    = lastInvArr[0];
 
-    // Auto summary message
-    const overdueMsg  = allOverdue.length > 0
+    const overdueMsg = allOverdue.length > 0
       ? `${allOverdue.length} vadesi geçmiş fatura var. ${topOverdue?.companies?.name || ''} en kritik — ${Math.floor((today - new Date(topOverdue?.due_date)) / 86400000)} gün gecikmiş.`
       : 'Vadesi geçmiş fatura yok.';
-    const pendingMsg  = pending.length > 0 ? ` ${pending.length} fatura onay bekliyor.` : '';
-    const summaryMsg  = overdueMsg + pendingMsg;
+    const pendingMsg = pending.length > 0 ? ` ${pending.length} fatura onay bekliyor.` : '';
+    const summaryMsg = overdueMsg + pendingMsg;
 
     el.innerHTML = `
 
       ${topOverdue ? `
-      <div class="gb-report-section">
+      <div class="gb-report-section" style="border-color:rgba(184,50,50,0.2);">
         <div class="gb-report-section-title">
-          <i class="ti ti-alert-circle" style="font-size:13px; color:#ef4444;" aria-hidden="true"></i>
+          <i class="ti ti-alert-circle" style="font-size:13px; color:#b83232;" aria-hidden="true"></i>
           Vadesi Geçmiş
-          <span class="gb-report-badge" style="color:#ef4444; background:rgba(239,68,68,0.1); margin-left:auto;">${allOverdue.length} fatura</span>
+          <span class="gb-report-badge" style="color:#b83232; background:rgba(184,50,50,0.1); margin-left:auto;">${allOverdue.length} fatura</span>
         </div>
         <div class="gb-report-row">
           <div class="gb-report-row-main">
             <span class="gb-report-row-name">${(topOverdue.companies?.name || '—').slice(0,30)}</span>
-            <span class="gb-report-row-badge" style="color:#ef4444;">En kritik · ${Math.floor((today - new Date(topOverdue.due_date)) / 86400000)} gün</span>
+            <span class="gb-report-row-badge" style="color:#b83232;">En kritik · ${Math.floor((today - new Date(topOverdue.due_date)) / 86400000)} gün</span>
           </div>
-          <span class="gb-report-row-amount">₺${fmt(topOverdue.payable_amount_tl)}</span>
+          <span class="gb-report-row-amount" style="color:rgba(245,242,236,0.7);">₺${fmt(topOverdue.payable_amount_tl)}</span>
         </div>
       </div>` : ''}
 
       ${topKritik ? `
       <div class="gb-report-section">
         <div class="gb-report-section-title">
-          <i class="ti ti-building" style="font-size:13px; color:#f59e0b;" aria-hidden="true"></i>
+          <i class="ti ti-building" style="font-size:13px; color:rgba(245,242,236,0.2);" aria-hidden="true"></i>
           Kritik Firmalar
-          <span class="gb-report-badge" style="color:#f59e0b; background:rgba(245,158,11,0.1); margin-left:auto;">${kritikFirmalar.length} firma</span>
+          <span class="gb-report-badge" style="color:rgba(245,242,236,0.35); background:rgba(245,242,236,0.06); margin-left:auto;">${kritikFirmalar.length} firma</span>
         </div>
         <div class="gb-report-row">
           <div class="gb-report-row-main">
             <span class="gb-report-row-name">${topKritik.name.slice(0,30)}</span>
-            <span class="gb-report-row-badge" style="color:#64748b;">En yüksek hacim${topKritikCo ? ' · ₺' + _fmtK(topKritikCo.total) : ''}</span>
+            <span class="gb-report-row-badge" style="color:rgba(245,242,236,0.25);">En yüksek hacim${topKritikCo ? ' · ₺' + _fmtK(topKritikCo.total) : ''}</span>
           </div>
-          <span class="gb-report-row-amount" style="color:#ef4444;">₺${_fmtK(topKritik.overdue_tl)} gecikmiş</span>
+          <span class="gb-report-row-amount" style="color:rgba(245,242,236,0.5);">₺${_fmtK(topKritik.overdue_tl)} gecikmiş</span>
         </div>
       </div>` : ''}
 
       ${topPending ? `
       <div class="gb-report-section">
         <div class="gb-report-section-title">
-          <i class="ti ti-clock" style="font-size:13px; color:#f59e0b;" aria-hidden="true"></i>
+          <i class="ti ti-clock" style="font-size:13px; color:rgba(245,242,236,0.2);" aria-hidden="true"></i>
           Onay Bekleyen
-          <span class="gb-report-badge" style="color:#f59e0b; background:rgba(245,158,11,0.1); margin-left:auto;">${pending.length} fatura</span>
+          <span class="gb-report-badge" style="color:rgba(245,242,236,0.35); background:rgba(245,242,236,0.06); margin-left:auto;">${pending.length} fatura</span>
         </div>
         <div class="gb-report-row">
           <div class="gb-report-row-main">
             <span class="gb-report-row-name">${(topPending.companies?.name || '—').slice(0,30)}</span>
-            <span class="gb-report-row-badge" style="color:#f59e0b;">${topPending.direction === 'INCOMING' ? 'Gelen' : 'Giden'} · ${topPending.invoice_no || '—'}</span>
+            <span class="gb-report-row-badge" style="color:rgba(245,242,236,0.25);">${topPending.direction === 'INCOMING' ? 'Gelen' : 'Giden'} · ${topPending.invoice_no || '—'}</span>
           </div>
         </div>
       </div>` : ''}
 
       ${lastInv ? `
-      <div style="background:#1e293b; border:1px solid #334155; border-radius:10px; padding:10px 14px; display:flex; align-items:center; gap:10px;">
-        <i class="ti ti-circle-check" style="font-size:18px; color:#22c55e; flex-shrink:0;" aria-hidden="true"></i>
+      <div style="background:rgba(245,242,236,0.04); border:0.5px solid rgba(245,242,236,0.08); border-radius:10px; padding:10px 14px; display:flex; align-items:center; gap:10px;">
+        <i class="ti ti-circle-check" style="font-size:18px; color:#1a6b47; flex-shrink:0;" aria-hidden="true"></i>
         <div style="flex:1; min-width:0;">
-          <div style="font-size:12px; color:#e2e8f0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${(lastInv.companies?.name || '—').slice(0,30)}</div>
-          <div style="font-size:11px; color:#64748b; margin-top:1px;">${(lastInv.invoice_date || '').slice(0,10)} · ₺${fmt(lastInv.payable_amount_tl)}</div>
+          <div style="font-size:12px; color:rgba(245,242,236,0.6); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${(lastInv.companies?.name || '—').slice(0,30)}</div>
+          <div style="font-size:11px; color:rgba(245,242,236,0.25); margin-top:1px; font-family:'DM Mono',monospace;">${(lastInv.invoice_date || '').slice(0,10)} · ₺${fmt(lastInv.payable_amount_tl)}</div>
         </div>
-        <span style="font-size:10px; font-weight:600; color:#22c55e; background:rgba(34,197,94,0.1); padding:2px 7px; border-radius:99px; flex-shrink:0;">Son İşlem</span>
+        <span style="font-size:10px; font-weight:500; color:#1a6b47; background:rgba(26,107,71,0.09); padding:2px 7px; border-radius:99px; flex-shrink:0; font-family:'DM Mono',monospace;">Son İşlem</span>
       </div>` : ''}
 
       ${!topOverdue && !topPending ? `
-      <div style="display:flex; flex-direction:column; align-items:center; justify-content:center; gap:8px; color:#334155; padding:40px 0;">
-        <i class="ti ti-circle-check" style="font-size:32px; color:#22c55e;" aria-hidden="true"></i>
+      <div style="display:flex; flex-direction:column; align-items:center; justify-content:center; gap:8px; color:rgba(245,242,236,0.25); padding:40px 0;">
+        <i class="ti ti-circle-check" style="font-size:32px; color:#1a6b47;" aria-hidden="true"></i>
         <span style="font-size:13px;">Bekleyen kritik işlem yok</span>
       </div>` : ''}
 
-      <!-- Auto summary + suggestions -->
       <div style="display:flex; flex-direction:column; gap:8px; margin-top:4px;">
-        <div style="background:#1e3a5f; border:0.5px solid #2563eb; border-radius:10px 10px 10px 2px; padding:10px 14px; font-size:12px; color:#bfdbfe; line-height:1.6;">
+        <div style="background:rgba(245,242,236,0.04); border:0.5px solid rgba(245,242,236,0.08); border-radius:10px 10px 10px 2px; padding:10px 14px; font-size:12px; color:rgba(245,242,236,0.45); line-height:1.6;">
           ${summaryMsg}
         </div>
         <div style="display:flex; flex-direction:column; gap:4px;">
-          ${topOverdue ? `<button onclick="askReport('${(topOverdue.companies?.name||'').replace(/'/g,"\\'")} vadesi geçmiş faturaları')" class="gb-suggest-btn">Tüm vadesi geçmiş faturalar</button>` : ''}
-          ${topPending ? `<button onclick="askReport('Onay bekleyen faturaların detayını göster')" class="gb-suggest-btn">Onay bekleyen detayı</button>` : ''}
-          ${topKritik ? `<button onclick="askReport('${topKritik.name.replace(/'/g,"\\'")} hakkında rapor')" class="gb-suggest-btn">${topKritik.name.slice(0,25)} detayı</button>` : ''}
+          ${topOverdue ? `<button onclick="askReport('${(topOverdue.companies?.name||'').replace(/'/g,"\\'")} vadesi geçmiş faturaları')" class="gb-suggest-btn">Tüm vadesi geçmiş faturalar →</button>` : ''}
+          ${topPending ? `<button onclick="askReport('Onay bekleyen faturaların detayını göster')" class="gb-suggest-btn">Onay bekleyen detayı →</button>` : ''}
+          ${topKritik ? `<button onclick="askReport('${topKritik.name.replace(/'/g,"\\'")} hakkında rapor')" class="gb-suggest-btn">${topKritik.name.slice(0,25)} detayı →</button>` : ''}
         </div>
       </div>
     `;
 
   } catch(e) {
     console.error('loadReport:', e);
-    el.innerHTML = '<div style="padding:20px; text-align:center; font-size:12px; color:#475569;">Rapor yüklenemedi</div>';
+    el.innerHTML = '<div style="padding:20px; text-align:center; font-size:12px; color:rgba(245,242,236,0.25);">Rapor yüklenemedi</div>';
   }
 }
 
@@ -417,10 +411,10 @@ function renderCompanyPage() {
     return (words[0]?.[0] || '') + (words[1]?.[0] || words[0]?.[1] || '');
   };
 
-  const colors     = ['rgba(59,130,246,0.15)','rgba(139,92,246,0.15)','rgba(16,185,129,0.15)',
-                      'rgba(245,158,11,0.15)','rgba(239,68,68,0.15)','rgba(20,184,166,0.15)',
-                      'rgba(249,115,22,0.15)','rgba(236,72,153,0.15)','rgba(59,130,246,0.15)'];
-  const textColors = ['#60a5fa','#a78bfa','#34d399','#fbbf24','#f87171','#2dd4bf','#fb923c','#f472b6','#60a5fa'];
+  const colors     = ['rgba(14,13,11,0.06)','rgba(14,13,11,0.06)','rgba(14,13,11,0.06)',
+                      'rgba(14,13,11,0.06)','rgba(14,13,11,0.06)','rgba(14,13,11,0.06)',
+                      'rgba(14,13,11,0.06)','rgba(14,13,11,0.06)','rgba(14,13,11,0.06)'];
+  const textColors = ['#3a3832','#3a3832','#3a3832','#3a3832','#3a3832','#3a3832','#3a3832','#3a3832','#3a3832'];
 
   const el = document.getElementById('gbCompanies');
 
@@ -442,12 +436,12 @@ function renderCompanyPage() {
       <div style="width:36px; height:36px; border-radius:9px; background:${colors[globalI % colors.length]}; display:flex; align-items:center; justify-content:center; font-size:13px; font-weight:700; color:${textColors[globalI % textColors.length]}; flex-shrink:0;">${initials(c.name).toUpperCase()}</div>
       <div style="flex:1; min-width:0;">
         <div style="display:flex; justify-content:space-between; align-items:baseline; margin-bottom:6px;">
-          <span style="font-size:13px; color:#e2e8f0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:fit-content;">${c.name}</span>
+          <span style="font-size:13px; color:#080a0c; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:fit-content;">${c.name}</span>
           <span style="font-size:13px; font-weight:700; color:#f1f5f9; flex-shrink:0; margin-left:8px;">₺${_fmtK(c.total)}</span>
         </div>
-        <div style="height:6px; background:#1e293b; border-radius:99px; overflow:hidden; display:flex; gap:1px;">
-          <div style="width:${gidenPct}%; background:#3b82f6; border-radius:99px; cursor:default;" data-giden="₺${_fmtK(giden)}"></div>
-          <div style="width:${gelenPct}%; background:#8b5cf6; cursor:default;" data-gelen="₺${_fmtK(gelen)}"></div>
+        <div style="height:6px; background:#e4dfd4; border-radius:99px; overflow:hidden; display:flex; gap:1px;">
+          <div style="width:${gidenPct}%; background:#0e0d0b; border-radius:99px; cursor:default;" data-giden="₺${_fmtK(giden)}"></div>
+          <div style="width:${gelenPct}%; background:#9a6318; cursor:default;" data-gelen="₺${_fmtK(gelen)}"></div>
         </div>
       </div>
     </div>`;
@@ -459,7 +453,7 @@ function renderCompanyPage() {
   tip.id = 'gbCompanyTooltip';
   tip.style.cssText = [
     'position:fixed', 'pointer-events:none', 'display:none',
-    'background:#1e293b', 'border:1px solid #334155', 'border-radius:10px',
+    'background:rgba(245,242,236,0.05)', 'border:0.5px solid rgba(245,242,236,0.1)', 'border-radius:10px',
     'padding:10px 14px', 'box-shadow:0 8px 24px rgba(0,0,0,0.4)',
     'z-index:200',
   ].join(';');
@@ -469,7 +463,7 @@ function renderCompanyPage() {
     bar.addEventListener('mouseenter', e => {
       const isGiden = bar.style.background === 'rgb(59, 130, 246)';
       const val     = isGiden ? bar.dataset.giden : bar.dataset.gelen;
-      const color   = isGiden ? '#60a5fa' : '#a78bfa';
+      const color   = isGiden ? '#3a3832' : '#3a3832';
       const label   = isGiden ? 'Giden' : 'Gelen';
       tip.innerHTML = `
         <div style="font-size:11px;font-weight:600;color:${color};margin-bottom:3px;">${label}</div>
@@ -500,7 +494,6 @@ async function gbSendMessage() {
   if (!message || _gbLoading) return;
   input.value = '';
 
-  // First message — hide report, show chat
   if (!_gbStarted) {
     _gbStarted = true;
     document.getElementById('gbReport').style.display      = 'none';
@@ -509,17 +502,15 @@ async function gbSendMessage() {
 
   const msgs = document.getElementById('gbChatMessages');
 
-  // Append user message
   const userEl = document.createElement('div');
   userEl.style.cssText = 'display:flex; justify-content:flex-end;';
-  userEl.innerHTML = `<div style="background:#2563eb; color:#fff; padding:9px 13px; border-radius:12px 12px 2px 12px; font-size:13px; line-height:1.55; max-width:85%;">${message}</div>`;
+  userEl.innerHTML = `<div style="background:rgba(245,242,236,0.1); color:rgba(245,242,236,0.85); padding:9px 13px; border-radius:12px 12px 2px 12px; font-size:13px; line-height:1.55; max-width:85%;">${message}</div>`;
   msgs.appendChild(userEl);
   msgs.scrollTop = msgs.scrollHeight;
 
-  // Typing indicator
   const typingEl = document.createElement('div');
-  typingEl.style.cssText = 'display:flex; gap:5px; padding:10px 13px; background:#1e293b; border:1px solid #334155; border-radius:12px 12px 12px 2px; width:fit-content;';
-  typingEl.innerHTML = `<span style="width:7px;height:7px;border-radius:50%;background:#475569;animation:chat-bounce 1.2s infinite;"></span><span style="width:7px;height:7px;border-radius:50%;background:#475569;animation:chat-bounce 1.2s infinite;animation-delay:0.2s;"></span><span style="width:7px;height:7px;border-radius:50%;background:#475569;animation:chat-bounce 1.2s infinite;animation-delay:0.4s;"></span>`;
+  typingEl.style.cssText = 'display:flex; gap:5px; padding:10px 13px; background:rgba(245,242,236,0.05); border:0.5px solid rgba(245,242,236,0.08); border-radius:12px 12px 12px 2px; width:fit-content;';
+  typingEl.innerHTML = `<span style="width:7px;height:7px;border-radius:50%;background:rgba(245,242,236,0.3);animation:chat-bounce 1.2s infinite;"></span><span style="width:7px;height:7px;border-radius:50%;background:rgba(245,242,236,0.3);animation:chat-bounce 1.2s infinite;animation-delay:0.2s;"></span><span style="width:7px;height:7px;border-radius:50%;background:rgba(245,242,236,0.3);animation:chat-bounce 1.2s infinite;animation-delay:0.4s;"></span>`;
   msgs.appendChild(typingEl);
   msgs.scrollTop = msgs.scrollHeight;
 
@@ -542,7 +533,7 @@ async function gbSendMessage() {
     const aEl = document.createElement('div');
     aEl.style.cssText = 'display:flex; flex-direction:column; gap:4px; align-items:flex-start;';
     bubbleEl = document.createElement('div');
-    bubbleEl.style.cssText = 'background:#1e293b; color:#e2e8f0; border:1px solid #334155; padding:10px 13px; border-radius:12px 12px 12px 2px; font-size:13px; line-height:1.6; max-width:90%;';
+    bubbleEl.style.cssText = 'background:rgba(245,242,236,0.05); color:rgba(245,242,236,0.65); border:0.5px solid rgba(245,242,236,0.08); padding:10px 13px; border-radius:12px 12px 12px 2px; font-size:13px; line-height:1.6; max-width:90%;';
     aEl.appendChild(bubbleEl);
     msgs.appendChild(aEl);
 
@@ -574,35 +565,34 @@ async function gbSendMessage() {
                 _gbHistory.push(data.assistant_message);
                 if (_gbHistory.length > 20) _gbHistory = _gbHistory.slice(-20);
               }
-              // Render tables if present
               if (data.tables?.length) {
                 const tablesHtml = data.tables.map(t => `
-                  <div style="margin-top:10px; background:#0f172a; border:1px solid #334155; border-radius:8px; overflow:hidden;">
-                    ${t.title ? `<div style="padding:8px 12px; font-size:11px; font-weight:700; color:#475569; border-bottom:1px solid #334155; text-transform:uppercase; letter-spacing:0.04em;">${t.title}</div>` : ''}
+                  <div style="margin-top:10px; background:rgba(245,242,236,0.03); border:0.5px solid rgba(245,242,236,0.08); border-radius:8px; overflow:hidden;">
+                    ${t.title ? `<div style="padding:8px 12px; font-size:11px; font-weight:500; color:rgba(245,242,236,0.3); border-bottom:0.5px solid rgba(245,242,236,0.07); text-transform:uppercase; letter-spacing:0.04em; font-family:'DM Mono',monospace;">${t.title}</div>` : ''}
                     <div style="overflow-x:auto;">
                       <table style="width:100%; border-collapse:collapse; font-size:12px;">
-                        <thead><tr>${t.headers.map(h => `<th style="padding:8px 12px; text-align:left; color:#475569; font-weight:600; font-size:11px; border-bottom:1px solid #334155; white-space:nowrap;">${h}</th>`).join('')}</tr></thead>
-                        <tbody>${t.rows.map((row, i) => `<tr style="border-top:1px solid #1a2535;">${row.map(cell => `<td style="padding:8px 12px; color:#cbd5e1;">${cell}</td>`).join('')}</tr>`).join('')}</tbody>
+                        <thead><tr>${t.headers.map(h => `<th style="padding:8px 12px; text-align:left; color:rgba(245,242,236,0.3); font-weight:500; font-size:11px; border-bottom:0.5px solid rgba(245,242,236,0.07); white-space:nowrap; font-family:'DM Mono',monospace;">${h}</th>`).join('')}</tr></thead>
+                        <tbody>${t.rows.map(row => `<tr style="border-top:0.5px solid rgba(245,242,236,0.05);">${row.map(cell => `<td style="padding:8px 12px; color:rgba(245,242,236,0.6);">${cell}</td>`).join('')}</tr>`).join('')}</tbody>
                       </table>
                     </div>
                   </div>`).join('');
                 if (bubbleEl) bubbleEl.innerHTML += tablesHtml;
               }
               if (data.pdfs?.length) {
-                  const pdfsHtml = data.pdfs.map(p => `
-                    <a href="${p.pdf_url}" target="_blank" style="display:flex; align-items:center; gap:10px; margin-top:8px; padding:10px 12px; background:#0f172a; border:1px solid #334155; border-radius:8px; text-decoration:none; transition:border-color 0.15s;"
-                       onmouseover="this.style.borderColor='#2563eb'" onmouseout="this.style.borderColor='#334155'">
-                      <i class="ti ti-file-type-pdf" style="font-size:20px; color:#ef4444; flex-shrink:0;" aria-hidden="true"></i>
-                      <div style="flex:1; min-width:0;">
-                        <div style="font-size:12px; font-weight:600; color:#f1f5f9; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${p.invoice_no || '—'}</div>
-                        <div style="font-size:11px; color:#64748b; margin-top:1px;">${p.company || ''} · ${p.amount || ''} ${p.currency || ''}</div>
-                      </div>
-                      <i class="ti ti-external-link" style="font-size:14px; color:#475569; flex-shrink:0;" aria-hidden="true"></i>
-                    </a>`).join('');
-                  if (bubbleEl) bubbleEl.innerHTML += pdfsHtml;
-                }
+                const pdfsHtml = data.pdfs.map(p => `
+                  <a href="${p.pdf_url}" target="_blank" style="display:flex; align-items:center; gap:10px; margin-top:8px; padding:10px 12px; background:rgba(245,242,236,0.04); border:0.5px solid rgba(245,242,236,0.08); border-radius:8px; text-decoration:none; transition:border-color 0.15s;"
+                     onmouseover="this.style.borderColor='rgba(245,242,236,0.25)'" onmouseout="this.style.borderColor='rgba(245,242,236,0.08)'">
+                    <i class="ti ti-file-type-pdf" style="font-size:20px; color:#b83232; flex-shrink:0;" aria-hidden="true"></i>
+                    <div style="flex:1; min-width:0;">
+                      <div style="font-size:12px; font-weight:500; color:rgba(245,242,236,0.7); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${p.invoice_no || '—'}</div>
+                      <div style="font-size:11px; color:rgba(245,242,236,0.3); margin-top:1px; font-family:'DM Mono',monospace;">${p.company || ''} · ${p.amount || ''} ${p.currency || ''}</div>
+                    </div>
+                    <i class="ti ti-external-link" style="font-size:14px; color:rgba(245,242,236,0.25); flex-shrink:0;" aria-hidden="true"></i>
+                  </a>`).join('');
+                if (bubbleEl) bubbleEl.innerHTML += pdfsHtml;
+              }
             } else if (eventType === 'error') {
-              bubbleEl.innerHTML = `<span style="color:#fca5a5;">⚠️ ${data.text}</span>`;
+              bubbleEl.innerHTML = `<span style="color:#b83232;">⚠️ ${data.text}</span>`;
             }
           } catch(e) {}
           eventType = null; dataLine = null;
@@ -613,7 +603,7 @@ async function gbSendMessage() {
   } catch(err) {
     typingEl.remove();
     const errEl = document.createElement('div');
-    errEl.style.cssText = 'background:#450a0a; border:1px solid #7f1d1d; border-radius:10px; padding:9px 13px; font-size:12px; color:#fca5a5;';
+    errEl.style.cssText = 'background:rgba(184,50,50,0.08); border:0.5px solid rgba(184,50,50,0.2); border-radius:10px; padding:9px 13px; font-size:12px; color:#b83232;';
     errEl.textContent = err.message;
     msgs.appendChild(errEl);
   } finally {
@@ -622,8 +612,7 @@ async function gbSendMessage() {
     msgs.scrollTop = msgs.scrollHeight;
     input?.focus();
   }
-}
-function simpleMarkdown(text) {
+}function simpleMarkdown(text) {
   return text
     .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
     .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')

@@ -3,7 +3,31 @@
    Loaded after: sidebar.css, shared-filters.css, gelen-giden.css
 ──────────────────────────────────────────────────────────────────────────────*/
 
-/* ─── Header override — extend fat-page-header for tab layout ────────────── */
+/* ─── Design tokens ──────────────────────────────────────────────────────── */
+:root {
+  --fat-bg:       #f5f2ec;
+  --fat-bg2:      #ede9e0;
+  --fat-bg3:      #e4dfd4;
+  --fat-ink:      #0e0d0b;
+  --fat-ink2:     #3a3832;
+  --fat-ink3:     #6e6a62;
+  --fat-ink4:     #a8a39a;
+  --fat-dark:     #0e0d0b;
+  --fat-dark2:    #1a1916;
+  --fat-dark3:    #252320;
+  --fat-border:   rgba(14,13,11,0.1);
+  --fat-border2:  rgba(14,13,11,0.2);
+  --fat-red:      #b83232;
+  --fat-red-bg:   rgba(184,50,50,0.08);
+  --fat-green:    #1a6b47;
+  --fat-green-bg: rgba(26,107,71,0.09);
+  --fat-amber:    #9a6318;
+  --fat-amber-bg: rgba(154,99,24,0.09);
+  --fat-font-ui:  'DM Sans', sans-serif;
+  --fat-font-data:'DM Mono', monospace;
+}
+
+/* ─── Header ─────────────────────────────────────────────────────────────── */
 .fat-page-header {
   display: flex;
   align-items: center;
@@ -11,17 +35,17 @@
   gap: 16px;
   padding: 0 20px;
   height: 60px;
-  background: #0f172a;
-  border-bottom: 1px solid #1e293b;
+  background: var(--fat-dark);
+  border-bottom: 0.5px solid rgba(245,242,236,0.08);
   flex-shrink: 0;
 }
 
-/* ─── Nav tab pills (header center) ─────────────────────────────────────────*/
+/* ─── Nav tab pills ──────────────────────────────────────────────────────── */
 .fat-nav-tabs {
   display: flex;
   align-items: center;
   gap: 2px;
-  background: rgba(255,255,255,0.06);
+  background: rgba(245,242,236,0.06);
   border-radius: 12px;
   padding: 5px;
   flex-shrink: 0;
@@ -36,22 +60,22 @@
   border-radius: 8px;
   background: transparent;
   font-size: 14px;
-  font-weight: 500;
-  color: rgba(255,255,255,0.35);
+  font-weight: 400;
+  color: rgba(245,242,236,0.35);
   cursor: pointer;
-  font-family: inherit;
+  font-family: var(--fat-font-ui);
   white-space: nowrap;
   transition: background 0.15s, color 0.15s;
 }
 
 .fat-nav-tab:hover {
-  background: rgba(255,255,255,0.07);
-  color: rgba(255,255,255,0.65);
+  background: rgba(245,242,236,0.07);
+  color: rgba(245,242,236,0.65);
 }
 
 .fat-nav-tab--active {
-  background: #1e293b;
-  color: #f1f5f9;
+  background: var(--fat-dark2);
+  color: rgba(245,242,236,0.9);
   font-weight: 500;
 }
 
@@ -63,12 +87,13 @@
   min-width: 18px;
   height: 18px;
   padding: 0 5px;
-  background: #ef4444;
-  color: white;
+  background: var(--fat-red);
+  color: #f5f2ec;
   border-radius: 999px;
   font-size: 11px;
-  font-weight: 700;
+  font-weight: 600;
   line-height: 1;
+  font-family: var(--fat-font-data);
 }
 
 /* ─── Bekleyen sub-tab bar ───────────────────────────────────────────────── */
@@ -76,8 +101,8 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: white;
-  border-bottom: 1px solid #e2e8f0;
+  background: var(--fat-bg);
+  border-bottom: 0.5px solid var(--fat-border);
   flex-shrink: 0;
 }
 
@@ -87,37 +112,46 @@
   gap: 8px;
   padding: 18px 48px;
   border: none;
-  border-bottom: 3px solid transparent;
+  border-bottom: 2px solid transparent;
   background: none;
   font-size: 15px;
-  font-weight: 600;
-  color: #94a3b8;
+  font-weight: 500;
+  color: var(--fat-ink4);
   cursor: pointer;
-  font-family: inherit;
+  font-family: var(--fat-font-ui);
   white-space: nowrap;
   transition: color 0.15s, border-color 0.15s;
 }
 
-.fat-sub-tab:hover { color: #475569; }
+.fat-sub-tab:hover { color: var(--fat-ink2); }
 
 .fat-sub-tab--active {
-  font-weight: 700;
-  color: #0f172a;
+  font-weight: 600;
+  color: var(--fat-ink);
 }
 
-#subTabBekGelen.fat-sub-tab--active { border-bottom-color: #8b5cf6; }
-#subTabBekGiden.fat-sub-tab--active { border-bottom-color: #3b82f6; }
+#subTabBekGelen.fat-sub-tab--active { border-bottom-color: var(--fat-ink3); }
+#subTabBekGiden.fat-sub-tab--active { border-bottom-color: var(--fat-ink); }
 
 .fat-sub-badge {
   font-size: 11px;
-  font-weight: 700;
+  font-weight: 500;
   padding: 2px 7px;
   border-radius: 99px;
+  font-family: var(--fat-font-data);
 }
 
-#subTabBekGelen .fat-sub-badge { background: #faf5ff; color: #8b5cf6; }
-#subTabBekGiden .fat-sub-badge { background: #eff6ff; color: #3b82f6; }
+#subTabBekGelen .fat-sub-badge {
+  background: var(--fat-bg3);
+  color: var(--fat-ink3);
+  border: 0.5px solid var(--fat-border);
+}
 
+#subTabBekGiden .fat-sub-badge {
+  background: var(--fat-bg3);
+  color: var(--fat-ink2);
+  border: 0.5px solid var(--fat-border);
+}
 
 /* ─── Content panels ─────────────────────────────────────────────────────── */
 .fat-panel {
@@ -126,6 +160,7 @@
   flex: 1;
   overflow: hidden;
   min-height: 0;
+  background: var(--fat-bg);
 }
 
 /* ─── Genel Bakış dashboard grid ─────────────────────────────────────────── */
@@ -137,37 +172,34 @@
   padding: 20px;
   overflow-y: auto;
   flex: 1;
+  background: var(--fat-bg);
 }
 
-/* Cash flow card (spans full width) */
 .genel-cashflow-card {
   grid-column: 1 / -1;
-  background: #0f172a;
-  border-radius: 14px;
+  background: var(--fat-dark);
+  border-radius: 12px;
   padding: 20px 24px;
   display: flex;
   gap: 24px;
   align-items: flex-start;
+  border: 0.5px solid rgba(245,242,236,0.08);
 }
 
-/* Asistan card */
 .genel-asistan-card {
-  background: #fff7ed;
-  border: 1px solid #fed7aa;
-  border-radius: 14px;
+  background: var(--fat-bg2);
+  border: 0.5px solid var(--fat-border2);
+  border-radius: 12px;
   padding: 18px 20px;
   display: flex;
   flex-direction: column;
   gap: 12px;
   cursor: pointer;
-  transition: box-shadow 0.15s;
+  transition: background 0.15s;
 }
 
-.genel-asistan-card:hover {
-  box-shadow: 0 4px 16px rgba(251,146,60,0.15);
-}
+.genel-asistan-card:hover { background: var(--fat-bg3); }
 
-/* KPI cards row */
 .genel-kpi-row {
   grid-column: 1 / -1;
   display: grid;
@@ -176,20 +208,19 @@
 }
 
 .genel-kpi-card {
-  background: white;
-  border: 1px solid #e2e8f0;
-  border-radius: 12px;
+  background: #fff;
+  border: 0.5px solid var(--fat-border);
+  border-radius: 10px;
   padding: 14px 16px;
   display: flex;
   flex-direction: column;
   gap: 6px;
 }
 
-/* Bottom row: two lists */
 .genel-list-card {
-  background: white;
-  border: 1px solid #e2e8f0;
-  border-radius: 14px;
+  background: #fff;
+  border: 0.5px solid var(--fat-border);
+  border-radius: 12px;
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -199,8 +230,8 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 14px 16px;
-  border-bottom: 1px solid #f1f5f9;
+  padding: 12px 16px;
+  border-bottom: 0.5px solid var(--fat-border);
   flex-shrink: 0;
 }
 

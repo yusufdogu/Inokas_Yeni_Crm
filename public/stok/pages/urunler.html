@@ -212,10 +212,16 @@
             <div class="modal-field">
               <label style="display:flex; align-items:center; justify-content:space-between;">
                 <span>Kategori</span>
-                <label style="display:flex; align-items:center; gap:5px; font-weight:600; font-size:11px; color:#475569; cursor:pointer; text-transform:none; letter-spacing:0;">
-                  <input type="checkbox" id="pf-is-internal" onchange="onInternalToggle(this.checked)" style="width:auto; accent-color:#2563eb;">
-                  Ofis İçi
-                </label>
+                <div style="display:flex; align-items:center; gap:12px;">
+                  <label style="display:flex; align-items:center; gap:5px; font-weight:600; font-size:11px; color:#475569; cursor:pointer; text-transform:none; letter-spacing:0;">
+                    <input type="checkbox" id="pf-is-internal" onchange="onInternalToggle(this.checked)" style="width:auto; accent-color:#2563eb;">
+                    Ofis İçi
+                  </label>
+                  <label style="display:flex; align-items:center; gap:5px; font-weight:600; font-size:11px; color:#dc2626; cursor:pointer; text-transform:none; letter-spacing:0;">
+                    <input type="checkbox" id="pf-is-hidden" style="width:auto; accent-color:#dc2626;">
+                    Gizle
+                  </label>
+                </div>
               </label>
               <div id="pf-cat-wrap" style="position:relative;">
                 <input type="text" id="pf-category" placeholder="Kategori yaz veya seç..."

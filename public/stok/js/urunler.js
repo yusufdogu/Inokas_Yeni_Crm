@@ -538,6 +538,8 @@ async function openEditModal(productId) {
     const toggle = document.getElementById('pf-is-internal');
     if (toggle) toggle.checked = isInternal;
     onInternalToggle(isInternal);
+    const hiddenToggle = document.getElementById('pf-is-hidden');
+    if (hiddenToggle) hiddenToggle.checked = !!product.is_hidden;
     if (isInternal) {
       const input = document.getElementById('pf-internal-cat-input');
       if (input) input.value = product.category || '';
@@ -745,6 +747,7 @@ async function saveProduct() {
       : (raw === '' ? null : raw);
   });
   payload.is_internal = _isInternalMode;
+  payload.is_hidden = !!(document.getElementById('pf-is-hidden')?.checked);
   if (_isInternalMode) {
     const internalCat = (document.getElementById('pf-internal-cat-input')?.value || '').trim();
     payload.category = internalCat || null;

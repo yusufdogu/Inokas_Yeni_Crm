@@ -110,8 +110,8 @@ async function refreshData(useCache = false) {
   if (!window._filterOptionsLoaded || window._lastFilterView !== currentView) {
     window._lastFilterView = currentView;
     window._filterOptionsLoaded = true;
-    refreshFilterOptions();
-    refreshTotals();
+    await refreshFilterOptions();
+    await refreshKpiSummary();
   }
   if (useCache && allInvoicesCache.length > 0) {
     renderCurrentView();
@@ -142,7 +142,7 @@ async function refreshData(useCache = false) {
     if (f.companies?.length) params.set('companies', f.companies.join(','));
     if (f.brands?.length) params.set('brands', f.brands.join(','));
     if (f.categories?.length) params.set('categories', f.categories.join(','));
-    if (f.products?.length) params.set('products', f.products.join(','));
+    if (f.products?.length) params.set('products', f.products.map(p => encodeURIComponent(p)).join(','));
     if (f.models?.length) params.set('models', f.models.join(','));
 
     if (fatListSort?.col) {
@@ -204,29 +204,29 @@ async function refreshFilterOptions() {
   }
 }
 
-async function refreshTotals() {
+async function refreshKpiSummary() {
   try {
     const params = new URLSearchParams();
     const f = window._fatActiveFilters || {};
 
-    if (window._FAT_PENDING) params.set('pending', 'true');
     if (currentView === 'gelen') params.set('direction', 'INCOMING');
     if (currentView === 'giden') params.set('direction', 'OUTGOING');
-    if (f.dateStart) params.set('date_start', f.dateStart);
-    if (f.dateEnd) params.set('date_end', f.dateEnd);
-    if (f.currency) params.set('currency', f.currency);
-    if (f.search) params.set('search', f.search);
-    if (f.companies?.length) params.set('companies', f.companies.join(','));
-    if (f.brands?.length) params.set('brands', f.brands.join(','));
-    if (f.categories?.length) params.set('categories', f.categories.join(','));
-    if (f.products?.length) params.set('products', f.products.join(','));
-    if (f.models?.length) params.set('models', f.models.join(','));
+    if (window._FAT_PENDING)     params.set('pending', 'true');
 
-    const res = await fetch(`/api/invoices/totals?${params.toString()}`);
+    if (f.dateStart)    params.set('date_start', f.dateStart);
+    if (f.dateEnd)      params.set('date_end',   f.dateEnd);
+    if (f.search)       params.set('search',     f.search);
+    if (f.companies?.length)  params.set('companies',  f.companies.join(','));
+    if (f.brands?.length)     params.set('brands',     f.brands.join(','));
+    if (f.categories?.length) params.set('categories', f.categories.join(','));
+    if (f.products?.length)   params.set('products',   f.products.join(','));
+    if (f.models?.length)     params.set('models',     f.models.join(','));
+
+    const res  = await fetch(`/api/invoices/kpi-summary?${params.toString()}`);
     const data = await res.json();
-    if (typeof updateKpiTotals === 'function') updateKpiTotals(data);
+    if (typeof updateKpiSummary === 'function') updateKpiSummary(data);
   } catch (err) {
-    console.error('refreshTotals hatası:', err.message);
+    console.error('refreshKpiSummary hatası:', err.message);
   }
 }
 function goToPage(page) {

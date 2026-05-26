@@ -1,0 +1,212 @@
+/* ─── faturalar/css/faturalar.css ────────────────────────────────────────────
+   Styles specific to the unified faturalar.html shell.
+   Loaded after: sidebar.css, shared-filters.css, gelen-giden.css
+──────────────────────────────────────────────────────────────────────────────*/
+
+/* ─── Header override — extend fat-page-header for tab layout ────────────── */
+.fat-page-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 0 20px;
+  height: 60px;
+  background: #0f172a;
+  border-bottom: 1px solid #1e293b;
+  flex-shrink: 0;
+}
+
+/* ─── Nav tab pills (header center) ─────────────────────────────────────────*/
+.fat-nav-tabs {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  background: rgba(255,255,255,0.06);
+  border-radius: 12px;
+  padding: 5px;
+  flex-shrink: 0;
+}
+
+.fat-nav-tab {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 9px 22px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  font-size: 14px;
+  font-weight: 500;
+  color: rgba(255,255,255,0.35);
+  cursor: pointer;
+  font-family: inherit;
+  white-space: nowrap;
+  transition: background 0.15s, color 0.15s;
+}
+
+.fat-nav-tab:hover {
+  background: rgba(255,255,255,0.07);
+  color: rgba(255,255,255,0.65);
+}
+
+.fat-nav-tab--active {
+  background: #1e293b;
+  color: #f1f5f9;
+  font-weight: 500;
+}
+
+/* Badge on Bekleyenler */
+.fat-nav-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  background: #ef4444;
+  color: white;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+/* ─── Bekleyen sub-tab bar ───────────────────────────────────────────────── */
+.fat-sub-tabbar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: white;
+  border-bottom: 1px solid #e2e8f0;
+  flex-shrink: 0;
+}
+
+.fat-sub-tab {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 18px 48px;
+  border: none;
+  border-bottom: 3px solid transparent;
+  background: none;
+  font-size: 15px;
+  font-weight: 600;
+  color: #94a3b8;
+  cursor: pointer;
+  font-family: inherit;
+  white-space: nowrap;
+  transition: color 0.15s, border-color 0.15s;
+}
+
+.fat-sub-tab:hover { color: #475569; }
+
+.fat-sub-tab--active {
+  font-weight: 700;
+  color: #0f172a;
+}
+
+#subTabBekGelen.fat-sub-tab--active { border-bottom-color: #8b5cf6; }
+#subTabBekGiden.fat-sub-tab--active { border-bottom-color: #3b82f6; }
+
+.fat-sub-badge {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 99px;
+}
+
+#subTabBekGelen .fat-sub-badge { background: #faf5ff; color: #8b5cf6; }
+#subTabBekGiden .fat-sub-badge { background: #eff6ff; color: #3b82f6; }
+
+
+/* ─── Content panels ─────────────────────────────────────────────────────── */
+.fat-panel {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  overflow: hidden;
+  min-height: 0;
+}
+
+/* ─── Genel Bakış dashboard grid ─────────────────────────────────────────── */
+.genel-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: auto auto auto;
+  gap: 16px;
+  padding: 20px;
+  overflow-y: auto;
+  flex: 1;
+}
+
+/* Cash flow card (spans full width) */
+.genel-cashflow-card {
+  grid-column: 1 / -1;
+  background: #0f172a;
+  border-radius: 14px;
+  padding: 20px 24px;
+  display: flex;
+  gap: 24px;
+  align-items: flex-start;
+}
+
+/* Asistan card */
+.genel-asistan-card {
+  background: #fff7ed;
+  border: 1px solid #fed7aa;
+  border-radius: 14px;
+  padding: 18px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  cursor: pointer;
+  transition: box-shadow 0.15s;
+}
+
+.genel-asistan-card:hover {
+  box-shadow: 0 4px 16px rgba(251,146,60,0.15);
+}
+
+/* KPI cards row */
+.genel-kpi-row {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+}
+
+.genel-kpi-card {
+  background: white;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+/* Bottom row: two lists */
+.genel-list-card {
+  background: white;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.genel-list-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px;
+  border-bottom: 1px solid #f1f5f9;
+  flex-shrink: 0;
+}
+
+.genel-list-body {
+  flex: 1;
+  overflow-y: auto;
+}
+
+@keyframes fat-spin { to { transform: rotate(360deg); } }

@@ -5,6 +5,45 @@ const express = require('express');
 const router = express.Router();
 const { generateAndUploadPdf } = require('../services/pdf-service');
 
+
+
+
+// ── Case-insensitive filter helpers ───────────────────────────────────────────
+
+async function resolveCompanyIds(supabase, tenantId, names) {
+    if (!names?.length) return null;
+    const { data } = await supabase.from('companies').select('id, name').eq('tenant_id', tenantId);
+    const lower = names.map(n => n.toLocaleLowerCase('tr-TR'));
+    const ids = (data || []).filter(c => lower.some(q => c.name.toLocaleLowerCase('tr-TR').includes(q))).map(c => c.id);
+    return ids;
+}
+
+async function resolveInvoiceIdsByBrand(supabase, brands) {
+    if (!brands?.length) return null;
+    const lower = brands.map(b => b.toLocaleLowerCase('tr-TR'));
+    const { data } = await supabase.from('invoice_items').select('invoice_id, brand_name');
+    const ids = [...new Set((data || []).filter(r => r.brand_name && lower.some(q => r.brand_name.toLocaleLowerCase('tr-TR').includes(q))).map(r => r.invoice_id).filter(Boolean))];
+    return ids;
+}
+
+async function resolveInvoiceIdsByProduct(supabase, products) {
+    if (!products?.length) return null;
+    const lower = products.map(p => p.toLocaleLowerCase('tr-TR'));
+    const { data } = await supabase.from('invoice_items').select('invoice_id, product_name');
+    const ids = [...new Set((data || []).filter(r => r.product_name && lower.some(q => r.product_name.toLocaleLowerCase('tr-TR').includes(q))).map(r => r.invoice_id).filter(Boolean))];
+    return ids;
+}
+
+async function resolveInvoiceIdsByCategory(supabase, tenantId, categories) {
+    if (!categories?.length) return null;
+    const lower = categories.map(c => c.toLocaleLowerCase('tr-TR'));
+    const { data: prods } = await supabase.from('products').select('product_code, category').eq('tenant_id', tenantId);
+    const codes = (prods || []).filter(p => p.category && lower.some(q => p.category.toLocaleLowerCase('tr-TR').includes(q))).map(p => p.product_code).filter(Boolean);
+    if (!codes.length) return [];
+    const { data: items } = await supabase.from('invoice_items').select('invoice_id').in('product_code', codes);
+    return [...new Set((items || []).map(r => r.invoice_id).filter(Boolean))];
+}
+
 // ─── Helper: aynı faturada aynı product_code+product_name olan satırları birleştir ───
 async function mergeDuplicateItems(supabase, invoiceId) {
   const { data: items } = await supabase
@@ -169,7 +208,7 @@ router.get('/', async (req, res) => {
       if (!categoryFilteredIds.length) return res.json({ data: [], total: 0, page, limit, total_pages: 0 });
     }
 
-    const products = req.query.products ? req.query.products.split(',').map(s => s.trim()).filter(Boolean) : [];
+    const products = req.query.products ? req.query.products.split(',').map(s => decodeURIComponent(s.trim())).filter(Boolean) : [];
     let productFilteredIds = null;
     if (products.length) {
       const { data: prodItems } = await supabase.from('invoice_items').select('invoice_id').in('product_name', products);
@@ -212,7 +251,7 @@ router.get('/', async (req, res) => {
     if (dateEnd) query = query.lte('invoice_date', dateEnd);
     if (search) query = query.or(`invoice_no.ilike.%${search}%`);
     if (companyId) query = query.eq('company_id', companyId);
-    if (companyIds.length) query = query.in('company_id', companyIds);
+    if (companyIds?.length) query = query.in('company_id', companyIds);
     if (brandFilteredIds) query = query.in('id', brandFilteredIds);
     if (categoryFilteredIds) query = query.in('id', categoryFilteredIds);
     if (productFilteredIds) query = query.in('id', productFilteredIds);
@@ -250,19 +289,21 @@ router.get('/totals', async (req, res) => {
     const nonInternalIds = [...new Set((niItems || []).map(r => r.invoice_id).filter(Boolean))];
     if (!nonInternalIds.length) return res.json({ total_tl: 0, total_usd: 0, count: 0, unpaid_tl: 0 });
 
-    let companyIds = [];
-    if (companies.length) {
-      const { data: matched } = await supabase.from('companies').select('id').in('name', companies).eq('tenant_id', tenantId);
-      companyIds = (matched || []).map(c => c.id);
-      if (!companyIds.length) return res.json({ total_tl: 0, total_usd: 0, count: 0, unpaid_tl: 0 });
-    }
+    // Companies
+    const companyIds = await resolveCompanyIds(supabase, tenantId, companies);
+    if (companyIds !== null && !companyIds.length) return res.json(/* empty */);
 
-    let brandIds = null;
-    if (brands.length) {
-      const { data: bItems } = await supabase.from('invoice_items').select('invoice_id').in('brand_name', brands);
-      brandIds = [...new Set((bItems || []).map(r => r.invoice_id).filter(Boolean))];
-      if (!brandIds.length) return res.json({ total_tl: 0, total_usd: 0, count: 0, unpaid_tl: 0 });
-    }
+    // Brands
+    const brandIds = await resolveInvoiceIdsByBrand(supabase, brands);
+    if (brandIds !== null && !brandIds.length) return res.json(/* empty */);
+
+    // Categories
+    const categoryIds = await resolveInvoiceIdsByCategory(supabase, tenantId, categories);
+    if (categoryIds !== null && !categoryIds.length) return res.json(/* empty */);
+
+    // Products
+    const productIds = await resolveInvoiceIdsByProduct(supabase, products);
+    if (productIds !== null && !productIds.length) return res.json(/* empty */);
 
     const pendingOnly = req.query.pending === 'true';
     let query = supabase
@@ -280,7 +321,7 @@ router.get('/totals', async (req, res) => {
     if (dateStart) query = query.gte('invoice_date', dateStart);
     if (dateEnd) query = query.lte('invoice_date', dateEnd);
     if (search) query = query.or(`invoice_no.ilike.%${search}%`);
-    if (companyIds.length) query = query.in('company_id', companyIds);
+    if (companyIds?.length) query = query.in('company_id', companyIds);
     if (brandIds) query = query.in('id', brandIds);
 
     const { data, error } = await query;
@@ -298,6 +339,354 @@ router.get('/totals', async (req, res) => {
     res.json({ count: rows.length, total_tl, total_usd, unpaid_tl });
   } catch (err) {
     console.error('Totals hatası:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+
+
+// GET /api/invoices/kpi-summary
+router.get('/kpi-summary', async (req, res) => {
+  try {
+    const supabase    = req.app.get('supabase');
+    const tenantId    = req.tenantId;
+    const direction   = req.query.direction;
+    const dateStart   = req.query.date_start;
+    const dateEnd     = req.query.date_end;
+    const pendingOnly = req.query.pending === 'true';
+    const companies   = req.query.companies  ? req.query.companies.split(',').map(s=>s.trim()).filter(Boolean)  : [];
+    const brands      = req.query.brands     ? req.query.brands.split(',').map(s=>s.trim()).filter(Boolean)     : [];
+    const categories  = req.query.categories ? req.query.categories.split(',').map(s=>s.trim()).filter(Boolean) : [];
+    const products    = req.query.products   ? req.query.products.split(',').map(s=>s.trim()).filter(Boolean)   : [];
+    const models      = req.query.models     ? req.query.models.split(',').map(s=>s.trim()).filter(Boolean)     : [];
+    const search      = req.query.search;
+
+    // Companies
+    const companyIds = await resolveCompanyIds(supabase, tenantId, companies);
+    if (companyIds !== null && !companyIds.length) return res.json(/* empty */);
+
+    // Brands
+    const brandIds = await resolveInvoiceIdsByBrand(supabase, brands);
+    if (brandIds !== null && !brandIds.length) return res.json(/* empty */);
+
+    // Categories
+    const categoryIds = await resolveInvoiceIdsByCategory(supabase, tenantId, categories);
+    if (categoryIds !== null && !categoryIds.length) return res.json(/* empty */);
+
+    // Products
+    const productIds = await resolveInvoiceIdsByProduct(supabase, products);
+    if (productIds !== null && !productIds.length) return res.json(/* empty */);
+
+    const { data: excl } = await supabase.from('fully_internal_invoice_ids').select('invoice_id');
+    const excludeIds = (excl||[]).map(r=>r.invoice_id);
+
+    // ── Base query builder ────────────────────────────────────────────────
+    function buildQuery() {
+      let q = supabase
+        .from('invoices')
+        .select('invoice_date, base_currency, payable_amount_tl, payable_amount_cur')
+        .eq('tenant_id', tenantId);
+      if (pendingOnly) q = q.eq('approval_status','pending');
+      else             q = q.or('approval_status.neq.pending,approval_status.is.null');
+      if (direction)          q = q.eq('direction', direction);
+      if (search)             q = q.or(`invoice_no.ilike.%${search}%`);
+      if (companyIds?.length) q = q.in('company_id', companyIds);
+      if (brandIds?.length)   q = q.in('id', brandIds);
+      if (categoryIds?.length)q = q.in('id', categoryIds);
+      if (productIds?.length) q = q.in('id', productIds);
+      if (excludeIds?.length)  q = q.not('id','in',`(${excludeIds.join(',')})`);
+      return q;
+    }
+
+    // ── Determine periods ─────────────────────────────────────────────────
+    const now      = new Date();
+    const hasDateFilter = !!(dateStart || dateEnd);
+    let currStart, currEnd, prevStart, prevEnd, compLabel, bucket;
+
+    if (hasDateFilter) {
+      currStart = dateStart || '2000-01-01';
+      currEnd   = dateEnd   || now.toISOString().slice(0,10);
+      const spanMs  = new Date(currEnd) - new Date(currStart);
+      const spanDays = spanMs / 86400000;
+      const prevEndD   = new Date(new Date(currStart) - 86400000);
+      const prevStartD = new Date(prevEndD - spanMs);
+      prevStart = prevStartD.toISOString().slice(0,10);
+      prevEnd   = prevEndD.toISOString().slice(0,10);
+      compLabel = 'önceki döneme göre';
+      bucket    = spanDays <= 60 ? 'week' : 'month';
+    } else {
+      // Default: this month vs same days last month
+      const y = now.getFullYear(), m = now.getMonth();
+      const todayDay = now.getDate();
+      currStart = new Date(y, m, 1).toISOString().slice(0,10);
+      currEnd   = now.toISOString().slice(0,10);
+      // same days last month
+      const prevM     = m === 0 ? 11 : m - 1;
+      const prevY     = m === 0 ? y - 1 : y;
+      prevStart = new Date(prevY, prevM, 1).toISOString().slice(0,10);
+      const prevEndDay = Math.min(todayDay, new Date(prevY, prevM+1, 0).getDate());
+      prevEnd   = new Date(prevY, prevM, prevEndDay).toISOString().slice(0,10);
+      compLabel = 'geçen aya göre';
+      bucket    = 'month';
+    }
+
+    // ── Fetch all rows (no date filter) for sparkline ─────────────────────
+    const { data: allRows, error } = await buildQuery();
+    if (error) throw error;
+    const rows = allRows || [];
+
+    // ── Helper: aggregate rows within a date range ────────────────────────
+    function aggregate(rows, start, end) {
+      const filtered = rows.filter(r => {
+        if (!r.invoice_date) return false;
+        return r.invoice_date >= start && r.invoice_date <= end;
+      });
+      let try_total=0, usd_total=0, try_count=0, usd_count=0;
+      filtered.forEach(r => {
+        const isUSD = (r.base_currency||'TRY').toUpperCase() === 'USD';
+        if (isUSD) { usd_total += parseFloat(r.payable_amount_cur)||0; usd_count++; }
+        else        { try_total += parseFloat(r.payable_amount_tl) ||0; try_count++; }
+      });
+      return { try_total, usd_total, try_count, usd_count };
+    }
+
+    // ── Bucket key helper ─────────────────────────────────────────────────
+    function bucketKey(dateStr, bucket) {
+      const d = new Date(dateStr);
+      if (bucket === 'month') return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+      const day = d.getDay()||7;
+      const mon = new Date(d); mon.setDate(d.getDate()-(day-1));
+      return mon.toISOString().slice(0,10);
+    }
+
+    // ── Build sparkline series (all-time if no date filter) ───────────────
+    const seriesRows = hasDateFilter
+      ? rows.filter(r => r.invoice_date >= currStart && r.invoice_date <= currEnd)
+      : rows;
+
+    const buckets = {};
+    seriesRows.forEach(r => {
+      if (!r.invoice_date) return;
+      const k = bucketKey(r.invoice_date, bucket);
+      if (!buckets[k]) buckets[k] = { period:k, try_total:0, usd_total:0, try_count:0, usd_count:0 };
+      const isUSD = (r.base_currency||'TRY').toUpperCase() === 'USD';
+      if (isUSD) { buckets[k].usd_total += parseFloat(r.payable_amount_cur)||0; buckets[k].usd_count++; }
+      else        { buckets[k].try_total += parseFloat(r.payable_amount_tl) ||0; buckets[k].try_count++; }
+    });
+    const series = Object.values(buckets).sort((a,b)=>a.period.localeCompare(b.period));
+
+    // ── Totals (all-time for default, filtered range when filter active) ──
+    const allTimeAgg = aggregate(rows, '2000-01-01', '2099-12-31');
+    let current      = aggregate(rows, currStart, currEnd);
+    let previous     = aggregate(rows, prevStart, prevEnd);
+
+    // ── % change fallback to weekly if no prev month data ────────────────
+    let finalCompLabel = compLabel;
+    if (!hasDateFilter) {
+      const hasPrevData = previous.try_total > 0 || previous.usd_total > 0 || previous.try_count > 0;
+      if (!hasPrevData) {
+        // Fall back to last week vs this week
+        const thisMonday = new Date(now); thisMonday.setDate(now.getDate()-(now.getDay()||7)+1);
+        const lastMonday = new Date(thisMonday); lastMonday.setDate(thisMonday.getDate()-7);
+        const lastSunday = new Date(thisMonday); lastSunday.setDate(thisMonday.getDate()-1);
+        currStart = thisMonday.toISOString().slice(0,10);
+        currEnd   = now.toISOString().slice(0,10);
+        prevStart = lastMonday.toISOString().slice(0,10);
+        prevEnd   = lastSunday.toISOString().slice(0,10);
+        current  = aggregate(rows, currStart, currEnd);
+        previous = aggregate(rows, prevStart, prevEnd);
+        finalCompLabel = 'geçen haftaya göre';
+        bucket = 'week';
+      }
+    }
+
+    res.json({
+      totals:            allTimeAgg,
+      current,
+      previous,
+      series,
+      bucket,
+      comparison_label:  finalCompLabel,
+    });
+
+  } catch (err) {
+    console.error('kpi-summary hatası:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+function _emptyKpi() {
+  return { totals:{try_total:0,usd_total:0,try_count:0,usd_count:0}, current:{try_total:0,usd_total:0,try_count:0,usd_count:0}, previous:{try_total:0,usd_total:0,try_count:0,usd_count:0}, series:[], bucket:'month', comparison_label:'geçen aya göre' };
+}
+
+router.get('/top-companies', async (req, res) => {
+  try {
+    const supabase   = req.app.get('supabase');
+    const tenantId   = req.tenantId;
+    const limit = parseInt(req.query.limit) || null;
+    const direction  = req.query.direction;
+    const dateStart  = req.query.date_start;
+    const dateEnd    = req.query.date_end;
+
+    // Exclude fully-internal invoices
+    const { data: niItems } = await supabase
+      .from('invoice_items')
+      .select('invoice_id')
+      .eq('is_internal', false);
+    const nonInternalIds = [...new Set((niItems || []).map(r => r.invoice_id).filter(Boolean))];
+    if (!nonInternalIds.length) return res.json([]);
+
+    // Fetch invoices with company name, direction, amounts
+    let query = supabase
+      .from('invoices')
+      .select('direction, base_currency, payable_amount_tl, payable_amount_cur, calculation_rate, companies(name)')
+      .eq('tenant_id', tenantId)
+      .or('approval_status.neq.pending,approval_status.is.null')
+      .in('id', nonInternalIds);
+
+    if (direction)  query = query.eq('direction', direction);
+    if (dateStart)  query = query.gte('invoice_date', dateStart);
+    if (dateEnd)    query = query.lte('invoice_date', dateEnd);
+
+    const { data, error } = await query;
+    if (error) throw error;
+
+    // Group by company name
+    const map = new Map();
+    for (const row of (data || [])) {
+      const name = row.companies?.name;
+      if (!name) continue;
+
+      if (!map.has(name)) map.set(name, { name, giden_tl: 0, gelen_tl: 0, total: 0 });
+      const entry = map.get(name);
+
+      const isUSD  = (row.base_currency || 'TRY').toUpperCase() === 'USD';
+      const rate   = parseFloat(row.calculation_rate) || 1;
+      const amtTL  = isUSD
+        ? (parseFloat(row.payable_amount_cur) || 0) * rate
+        : (parseFloat(row.payable_amount_tl)  || 0);
+
+      if (row.direction === 'OUTGOING') entry.giden_tl += amtTL;
+      else                              entry.gelen_tl += amtTL;
+      entry.total += amtTL;
+    }
+
+    const result = [...map.values()]
+      .sort((a, b) => b.total - a.total);
+
+    res.json(limit ? result.slice(0, limit) : result);
+  } catch (err) {
+    console.error('top-companies hatası:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/invoices/trend
+// Returns bucketed time-series data for sparklines.
+// Bucket size: 'week' (default) or 'month', auto-selected by date range.
+// Respects all the same filters as /totals.
+router.get('/trend', async (req, res) => {
+  try {
+    const supabase   = req.app.get('supabase');
+    const tenantId   = req.tenantId;
+    const direction  = req.query.direction;
+    const currency   = req.query.currency;
+    const dateStart  = req.query.date_start;
+    const dateEnd    = req.query.date_end;
+    const search     = req.query.search;
+    const pendingOnly = req.query.pending === 'true';
+    const companies  = req.query.companies  ? req.query.companies.split(',').map(s => s.trim()).filter(Boolean)  : [];
+    const brands     = req.query.brands     ? req.query.brands.split(',').map(s => s.trim()).filter(Boolean)     : [];
+    const categories = req.query.categories ? req.query.categories.split(',').map(s => s.trim()).filter(Boolean) : [];
+    const products   = req.query.products   ? req.query.products.split(',').map(s => s.trim()).filter(Boolean)   : [];
+
+    // Companies
+    const companyIds = await resolveCompanyIds(supabase, tenantId, companies);
+    if (companyIds !== null && !companyIds.length) return res.json(/* empty */);
+
+    // Brands
+    const brandIds = await resolveInvoiceIdsByBrand(supabase, brands);
+    if (brandIds !== null && !brandIds.length) return res.json(/* empty */);
+
+    // Categories
+    const categoryIds = await resolveInvoiceIdsByCategory(supabase, tenantId, categories);
+    if (categoryIds !== null && !categoryIds.length) return res.json(/* empty */);
+
+    // Products
+    const productIds = await resolveInvoiceIdsByProduct(supabase, products);
+    if (productIds !== null && !productIds.length) return res.json(/* empty */);
+
+    // Exclude fully-internal invoices
+    const { data: excluded } = await supabase.from('fully_internal_invoice_ids').select('invoice_id');
+    const excludeIds = (excluded || []).map(r => r.invoice_id);
+
+    // ── Fetch raw invoice dates + amounts ─────────────────────────────────
+    let query = supabase
+      .from('invoices')
+      .select('invoice_date, base_currency, payable_amount_tl, payable_amount_cur')
+      .eq('tenant_id', tenantId);
+
+    if (pendingOnly) query = query.eq('approval_status', 'pending');
+    else             query = query.or('approval_status.neq.pending,approval_status.is.null');
+
+    if (direction)      query = query.eq('direction', direction);
+    if (currency)       query = query.eq('base_currency', currency);
+    if (dateStart)      query = query.gte('invoice_date', dateStart);
+    if (dateEnd)        query = query.lte('invoice_date', dateEnd);
+    if (search)         query = query.or(`invoice_no.ilike.%${search}%`);
+    if (companyIds?.length) query = query.in('company_id', companyIds);
+    if (brandIds)       query = query.in('id', brandIds);
+    if (categoryIds)    query = query.in('id', categoryIds);
+    if (productIds)     query = query.in('id', productIds);
+    if (modelIds)       query = query.in('id', modelIds);
+    if (excludeIds.length)  query = query.not('id', 'in', `(${excludeIds.join(',')})`);
+
+    const { data: rows, error } = await query;
+    if (error) throw error;
+    if (!rows || !rows.length) return res.json([]);
+
+    // ── Auto-select bucket size based on date range ───────────────────────
+    const dates    = rows.map(r => r.invoice_date).filter(Boolean).sort();
+    const earliest = dateStart || dates[0];
+    const latest   = dateEnd   || dates[dates.length - 1];
+    const daySpan  = earliest && latest
+      ? (new Date(latest) - new Date(earliest)) / 86400000
+      : 60;
+    const bucket = daySpan > 90 ? 'month' : 'week';
+
+    // ── Group rows into buckets ───────────────────────────────────────────
+    function getBucketKey(dateStr, bucket) {
+      const d = new Date(dateStr);
+      if (bucket === 'month') {
+        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      }
+      // ISO week: Monday-anchored
+      const day  = d.getDay() || 7;
+      const monday = new Date(d);
+      monday.setDate(d.getDate() - (day - 1));
+      return monday.toISOString().slice(0, 10);
+    }
+
+    const buckets = {};
+    for (const row of rows) {
+      if (!row.invoice_date) continue;
+      const key  = getBucketKey(row.invoice_date, bucket);
+      const isTRY = (row.base_currency || 'TRY').toUpperCase() !== 'USD';
+      if (!buckets[key]) buckets[key] = { period: key, try_total: 0, usd_total: 0, try_count: 0, usd_count: 0 };
+      if (isTRY) {
+        buckets[key].try_total += parseFloat(row.payable_amount_tl) || 0;
+        buckets[key].try_count += 1;
+      } else {
+        buckets[key].usd_total += parseFloat(row.payable_amount_cur) || 0;
+        buckets[key].usd_count += 1;
+      }
+    }
+
+    const result = Object.values(buckets).sort((a, b) => a.period.localeCompare(b.period));
+    res.json({ bucket, data: result });
+
+  } catch (err) {
+    console.error('Trend hatası:', err.message);
     res.status(500).json({ error: err.message });
   }
 });
@@ -398,7 +787,7 @@ router.get('/pending', async (req, res) => {
     if (dateStart) query = query.gte('invoice_date', dateStart);
     if (dateEnd) query = query.lte('invoice_date', dateEnd);
     if (search) query = query.or(`invoice_no.ilike.%${search}%`);
-    if (companyIds.length) query = query.in('company_id', companyIds);
+    if (companyIds?.length) query = query.in('company_id', companyIds);
     if (brandFilteredIds) query = query.in('id', brandFilteredIds);
     if (categoryFilteredIds) query = query.in('id', categoryFilteredIds);
     if (limit > 0) query = query.range((page - 1) * limit, page * limit - 1);
@@ -454,7 +843,7 @@ router.get('/ofis-ici', async (req, res) => {
     if (search) query = query.or(`invoice_no.ilike.%${search}%`);
     if (dateStart) query = query.gte('invoice_date', dateStart);
     if (dateEnd) query = query.lte('invoice_date', dateEnd);
-    if (companyIds.length) query = query.in('company_id', companyIds);
+    if (companyIds?.length) query = query.in('company_id', companyIds);
 
     if (totalsOnly) {
       const { data, error, count } = await query;

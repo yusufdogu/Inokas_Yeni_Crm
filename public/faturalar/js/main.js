@@ -33,7 +33,9 @@ document.addEventListener('DOMContentLoaded', () => {
     interactedState.giden = true;
 
     updateActionButtonsTheme();
-    refreshData(false);
+    if (window._FAT_INITIAL_VIEW !== 'genel') {
+        refreshData(false);
+    }
 
     if (initHash === 'ekle') enterEkleView();
 
@@ -500,7 +502,7 @@ async function saveInvoiceToDatabase(e) {
             alert(result.message || "Fatura başarıyla güncellendi.");
             clearStockCaches();
             closeInvoiceModal();
-            refreshData(true);
+            await refreshData(true);
             return;
         } catch (err) {
             console.error("Güncelleme Hatası:", err.message);

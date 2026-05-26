@@ -11,7 +11,7 @@
   let _giderOpen   = false;
 
   const path        = location.pathname;
-  const isFaturalar = path === '/' || path.includes('/faturalar/pages/');
+  const isFaturalar = path === '/' || path.includes('/faturalar/pages/') || path.includes('genel-bakis.html');
   const isOfisIci   = path.includes('ofis-ici');
   const isStok      = path.includes('/stok');
   const isDmo       = path.includes('/dmo');
@@ -39,6 +39,14 @@
   }
 
   function updatePendingBadges() {
+    const total = _pendingGelen + _pendingGiden;
+    // Update the header badge on faturalar.html if present
+    const headerBadge = document.getElementById('bekleyenBadge');
+    if (headerBadge) {
+      headerBadge.textContent = total;
+      headerBadge.style.display = total > 0 ? '' : 'none';
+    }
+    // Legacy sidebar badges (for old standalone pages, no-op if not present)
     const gb = document.getElementById('sb-badge-alis-onayla');
     const sb = document.getElementById('sb-badge-satis-onayla');
     if (gb) { gb.textContent = _pendingGelen; gb.classList.toggle('visible', _pendingGelen > 0); }
@@ -69,38 +77,14 @@
     <div class="sb-divider"></div>
 
     <!-- Faturalar -->
-    <button class="sb-item${isFaturalar || isBekleyen ? ' active' : ''}" id="fat-toggle" onclick="toggleFaturalar()">
+    <a href="/faturalar/pages/faturalar.html"
+       class="sb-item${isFaturalar ? ' active' : ''}"
+       id="fat-toggle" onclick="toggleFaturalar(event)">
       <i class="ti ti-file-invoice"></i>
       <span class="sb-label">Faturalar</span>
       <i class="ti ti-chevron-down sb-chevron" id="fat-chevron"></i>
-    </button>
+    </a>
     <div class="sb-children" id="fat-children">
-
-      <a href="/faturalar/pages/gelen-faturalar.html"
-         class="sb-child${path.includes('gelen-faturalar') ? ' active' : ''}">
-        <i class="ti ti-message-arrow-down"></i>
-        <span class="sb-label">Alışlar</span>
-      </a>
-
-      <a href="/faturalar/pages/bekleyen-gelen.html"
-         class="sb-child${path.includes('bekleyen-gelen') ? ' active' : ''}">
-        <i class="ti ti-clock-hour-4"></i>
-        <span class="sb-label">Alış Onayla</span>
-        ${mkBadge('sb-badge-alis-onayla')}
-      </a>
-
-      <a href="/faturalar/pages/giden-faturalar.html"
-         class="sb-child${path.includes('giden-faturalar') ? ' active' : ''}">
-        <i class="ti ti-message-arrow-up"></i>
-        <span class="sb-label">Satışlar</span>
-      </a>
-
-      <a href="/faturalar/pages/bekleyen-giden.html"
-         class="sb-child${path.includes('bekleyen-giden') ? ' active' : ''}">
-        <i class="ti ti-clock-hour-4"></i>
-        <span class="sb-label">Satış Onayla</span>
-        ${mkBadge('sb-badge-satis-onayla')}
-      </a>
 
       <a href="/faturalar/pages/fatura-yukle.html"
          class="sb-child${path.includes('fatura-yukle') ? ' active' : ''}">
@@ -257,7 +241,7 @@
   }
 
   function initSidebar() {
-    if (isFaturalar || isBekleyen) {
+    if (isFaturalar) {
       _fatOpen = true;
       document.getElementById('fat-children')?.classList.add('open');
       document.getElementById('fat-chevron')?.classList.add('open');
@@ -356,7 +340,16 @@
     document.body.classList.toggle('sidebar-collapsed', !_sidebarOpen);
   };
 
-  window.toggleFaturalar = function () { _accordionToggle('fat'); };
+  window.toggleFaturalar = function (e) {
+    // If chevron clicked, only toggle accordion — don't navigate
+    if (e && e.target.closest('.sb-chevron')) {
+      e.preventDefault();
+      _accordionToggle('fat');
+      return;
+    }
+    // Otherwise let the link navigate, but also open the accordion
+    if (!_fatOpen) _accordionToggle('fat');
+  };
   window.toggleGider     = function () { _accordionToggle('gider'); };
   window.toggleStok      = function () { _accordionToggle('stok'); };
   window.toggleDMO       = function () { _accordionToggle('dmo'); };

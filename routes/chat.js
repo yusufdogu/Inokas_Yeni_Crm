@@ -33,9 +33,27 @@ KURALLAR:
 - Tarihler için GG.AA.YYYY formatı kullan
 - "Bu yıl", "bu ay", "geçen ay" ifadelerini yukarıdaki tarihlere göre yorumla
 - Yanıtlarını kısa ve net tut — gereksiz tekrar yapma
+- Fatura listesi, ürün listesi, firma listesi gibi tablo verilerini MUTLAKA "tables" alanında döndür, text alanında listeleme
+- Sayısal veri içeren her yanıtta tablo veya grafik kullan
+- "Aşağıda yer almaktadır", "Detaylar:" gibi ifadelerin ardından mutlaka tables/charts içinde veri olmalı
 - Veri bulunamazsa bunu açıkça söyle
 - Kullanıcı PDF veya fatura belgesi istediğinde MUTLAKA list_invoices_with_pdf aracını kullan
 - get_invoice_summary PDF döndürmez, sadece özet sayısal bilgi verir
+
+ARAÇ KULLANIM REHBERİ:
+- Onay bekleyen faturalar → get_pending_invoices (approval_status='pending')
+- Vadesi geçmiş / ödenmemiş faturalar → get_unpaid_invoices
+- Fatura özeti / istatistik → get_invoice_summary (sadece approved faturalar)
+- PDF görüntüleme → list_invoices_with_pdf
+- Firma analizi → get_top_companies
+- Ürün analizi → get_top_products
+- Stok → get_stock_status
+- DMO kar analizi → get_dmo_orders veya get_profit_analysis
+- Döviz kuru → get_rate_history
+- Teknik sorunlar → get_technical_issues
+- Teklif → get_quotes
+- Fiyat geçmişi → get_price_history
+
 
 VERİTABANI ŞEMASI:
 
@@ -60,7 +78,7 @@ invoices (faturalar):
   source: 'api' (e-fatura sistemi) | 'manual' (elle girilmiş)
   invoice_type: fatura türü (TEMELFATURA, TICARIFATURA vb.)
   pdf_url: PDF linki
-  NOT: Analizlerde sadece approval_status='approved' faturaları kullan
+  
 
 invoice_items (fatura kalemleri):
   invoice_id → invoices
@@ -428,6 +446,17 @@ const TOOLS = [
       }
     }
   },
+  {
+    name: 'get_pending_invoices',
+    description: 'Onay bekleyen faturaları listeler. approval_status=pending olan faturalar. Sonuçları her zaman tablo olarak göster.',    input_schema: {
+      type: 'object',
+      properties: {
+        direction:    { type: 'string', enum: ['INCOMING', 'OUTGOING', 'ALL'], description: 'INCOMING=gelen, OUTGOING=giden' },
+        company_name: { type: 'string', description: 'Firma adı filtresi' },
+        limit:        { type: 'number', description: 'Maksimum sonuç sayısı, varsayılan 20' },
+      },
+    },
+  },
 ];
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -604,6 +633,41 @@ async function listInvoicesWithPdf({ direction, date_start, date_end, company_na
   return { count: rows.length, pdfs: rows.slice(0, limit).map(r => ({ invoice_no: r.invoice_no, company: r.companies?.name, date: r.invoice_date, amount: fmtN(r.payable_amount_cur || r.payable_amount_tl), currency: r.currency, pdf_url: r.pdf_url })) };
 }
 
+async function getPendingInvoices({ direction, company_name, limit = 20 }, supabase, tenantId) {
+  let query = supabase
+    .from('invoices')
+    .select('id, invoice_no, invoice_date, due_date, direction, base_currency, payable_amount_tl, payable_amount_cur, pdf_url')
+    .eq('tenant_id', tenantId)
+    .eq('approval_status', 'pending')
+    .order('invoice_date', { ascending: false })
+    .limit(limit);
+
+  if (direction && direction !== 'ALL') query = query.eq('direction', direction);
+
+  const { data, error } = await query;
+  if (error) throw error;
+
+  const fmtN = n => (parseFloat(n)||0).toLocaleString('tr-TR', { minimumFractionDigits:2, maximumFractionDigits:2 });
+  let rows = data || [];
+  if (company_name) {
+    const q = company_name.toLocaleLowerCase('tr-TR');
+    rows = rows.filter(r => (r.companies?.name || '').toLocaleLowerCase('tr-TR').includes(q));
+  }
+
+  return {
+    count: rows.length,
+    invoices: rows.map(r => ({
+      invoice_no: r.invoice_no,
+      company:    r.companies?.name,
+      date:       r.invoice_date,
+      direction:  r.direction === 'INCOMING' ? 'Gelen' : 'Giden',
+      amount:     fmtN(r.payable_amount_cur || r.payable_amount_tl),
+      currency:   r.base_currency || 'TRY',
+      pdf_url:    r.pdf_url || null,
+    })),
+  };
+}
+
 // ─── Tool executor — PARALLEL execution ───────────────────────────────────────
 async function executeToolsInParallel(toolUseBlocks, supabase, tenantId) {
   const executions = toolUseBlocks.map(async block => {
@@ -624,6 +688,7 @@ async function executeToolsInParallel(toolUseBlocks, supabase, tenantId) {
         case 'get_quotes':             result = await getQuotes(block.input, supabase, tenantId);            break;
         case 'get_technical_issues':   result = await getTechnicalIssues(block.input, supabase, tenantId);   break;
         case 'get_price_history':      result = await getPriceHistory(block.input, supabase, tenantId);      break;
+        case 'get_pending_invoices': result = await getPendingInvoices(block.input, supabase, tenantId); break;
         default: result = { error: `Bilinmeyen araç: ${block.name}` };
       }
     } catch (e) {

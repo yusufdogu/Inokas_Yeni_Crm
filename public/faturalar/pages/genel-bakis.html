@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Genel Bakış — İnokas CRM</title>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.x/dist/tabler-icons.min.css">
+  <link rel="stylesheet" href="/chat/chat-page.css">
+  <link rel="stylesheet" href="/faturalar/css/genel-bakis.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+  <script src="/shared/auth-interceptor.js"></script>
+  <script src="/faturalar/js/genel-bakis.js"></script>
+</head>
+<body>
+
+<div class="gb-layout">
+
+  <!-- ── LEFT ─────────────────────────────────────────────────────────── -->
+  <div class="gb-left">
+
+    <!-- Cash flow card -->
+    <div class="gb-card">
+
+      <div class="gb-amounts">
+        <div class="gb-amount-item">
+          <div class="gb-amount-label" style="color:#60a5fa;">
+            <i class="ti ti-arrow-up" style="font-size:10px;" aria-hidden="true"></i> GİDEN
+          </div>
+          <div style="display:flex; align-items:baseline; gap:10px;">
+            <div class="gb-amount-value" id="gbGidenTRY">—</div>
+            <div class="gb-amount-usd" id="gbGidenUSD"></div>
+          </div>
+        </div>
+        <div class="gb-amount-item">
+          <div class="gb-amount-label" style="color:#a78bfa;">
+            <i class="ti ti-arrow-down" style="font-size:10px;" aria-hidden="true"></i> GELEN
+          </div>
+          <div style="display:flex; align-items:baseline; gap:10px;">
+            <div class="gb-amount-value" id="gbGelenTRY">—</div>
+            <div class="gb-amount-usd" id="gbGelenUSD"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Period tabs + navigation -->
+      <div class="gb-period-bar">
+        <div class="gb-period-tabs">
+          <button class="gb-period-tab gb-period-tab--active" onclick="setPeriodMode('all')">Tüm Zamanlar</button>
+          <button class="gb-period-tab" onclick="setPeriodMode('week')">Hafta</button>
+          <button class="gb-period-tab" onclick="setPeriodMode('month')">Ay</button>
+          <button class="gb-period-tab" onclick="setPeriodMode('year')">Yıl</button>
+        </div>
+        <div class="gb-period-nav" id="gbPeriodNav" style="display:none;">
+          <button class="gb-period-arrow" id="gbPeriodPrev" onclick="navigatePeriod(-1)">
+            <i class="ti ti-chevron-left" style="font-size:11px;" aria-hidden="true"></i>
+          </button>
+          <span class="gb-period-label" id="gbPeriodLabel"></span>
+          <button class="gb-period-arrow" id="gbPeriodNext" onclick="navigatePeriod(1)">
+            <i class="ti ti-chevron-right" style="font-size:11px;" aria-hidden="true"></i>
+          </button>
+        </div>
+      </div>
+
+      <!-- Line chart -->
+      <div class="gb-linechart-wrap">
+        <canvas id="gbLineChart"></canvas>
+        <div class="gb-chart-loading" id="gbChartLoading">
+          <div class="gb-spinner"></div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Company card -->
+    <div class="gb-card gb-card--companies">
+      <div class="gb-card-header">
+        <span class="gb-card-title">Top Firmalar</span>
+        <div style="display:flex; align-items:center; gap:4px; ">
+          <button id="gbCompanyPrev" style="width:22px; height:22px; border-radius:5px; border:1px solid #334155; background:transparent; color:#64748b; cursor:pointer; display:flex; align-items:center; justify-content:center; font-family:inherit;">
+            <i class="ti ti-chevron-left" style="font-size:11px;" aria-hidden="true"></i>
+          </button>
+          <span id="gbCompanyIndicator" style="font-size:11px; color:#475569; min-width:32px; text-align:center;">1/1</span>
+          <button id="gbCompanyNext" style="width:22px; height:22px; border-radius:5px; border:1px solid #334155; background:transparent; color:#64748b; cursor:pointer; display:flex; align-items:center; justify-content:center; font-family:inherit;">
+            <i class="ti ti-chevron-right" style="font-size:11px;" aria-hidden="true"></i>
+          </button>
+          <span id="gbCompanyCount" style="font-size:10px; color:#334155; margin-left:auto;"></span>
+        </div>
+
+      </div>
+      <div class="gb-companies" id="gbCompanies">
+        <div class="gb-loading"><div class="gb-spinner"></div></div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ── RIGHT: Chat ──────────────────────────────────────────────────── -->
+  <div class="gb-right">
+
+
+      <!-- Report sections -->
+      <div id="gbReport" style="flex:1; overflow-y:auto; padding:14px 16px; display:flex; flex-direction:column; gap:10px;">        <div class="gb-report-loading">
+          <div class="gb-spinner"></div>
+          <span style="font-size:12px; color:#475569; margin-top:8px;">Rapor hazırlanıyor...</span>
+        </div>
+      </div>
+
+      <div id="gbChatMessages" style="display:none; flex:1; overflow-y:auto; padding:14px 16px; flex-direction:column; gap:12px;"></div>
+
+      <!-- Ask follow-up -->
+      <div class="chat-input-area">
+        <div class="chat-input-row">
+          <textarea class="chat-input" id="chatInput" rows="1" placeholder="Rapor hakkında soru sorun..."></textarea>
+          <button class="chat-send-btn" id="chatSendBtn" aria-label="Gönder">
+            <i class="ti ti-send" aria-hidden="true"></i>
+          </button>
+        </div>
+      </div>
+  </div>
+</div>
+
+<!-- Hidden stubs for chat-page.js -->
+<div id="integrationWarning" style="display:none;"></div>
+<div id="chatRight" style="display:none;"></div>
+<div id="chatDivider" style="display:none;"></div>
+<div id="chatStatGrid" style="display:none;"></div>
+
+
+
+</body>
+</html>

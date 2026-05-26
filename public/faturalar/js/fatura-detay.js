@@ -76,16 +76,24 @@ function renderHeader(inv) {
 function goBack() {
     const params = new URLSearchParams(location.search);
     const from   = params.get('from') || '';
+
     if (from === 'ofis-ici') {
         window.location.href = '/faturalar/pages/ofis-ici.html';
         return;
     }
-    const isIn = String(_detayInv?.direction || '').toUpperCase() === 'INCOMING';
-    window.location.href = isIn
-        ? '/faturalar/pages/gelen-faturalar.html'
-        : '/faturalar/pages/giden-faturalar.html';
-}
 
+    const isIn      = String(_detayInv?.direction || '').toUpperCase() === 'INCOMING';
+    const isPending = _detayInv?.approval_status === 'pending';
+
+    if (isPending) {
+        window.location.href = '/faturalar/pages/faturalar.html?tab=bekleyen';
+        return;
+    }
+
+    window.location.href = isIn
+        ? '/faturalar/pages/faturalar.html?tab=gelen'
+        : '/faturalar/pages/faturalar.html?tab=giden';
+}
 // ─── PDF ──────────────────────────────────────────────────────────────────────
 function renderPdf(id, inv) {
     const iframe = document.getElementById('detayPdfIframe');

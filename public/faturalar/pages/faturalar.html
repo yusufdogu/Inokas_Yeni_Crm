@@ -1,0 +1,439 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Faturalar — İnokas CRM</title>
+  <script>
+    if (!sessionStorage.getItem('inokas_token')) window.location.href = '/auth/login.html';
+    // Set initial view before modules load — main.js reads this on DOMContentLoaded
+    window._FAT_INITIAL_VIEW = 'gelen';
+    window._FAT_PENDING      = false;
+  </script>
+  <link href="https://fonts.googleapis.com/css2?family=Geist+Mono:wght@400;600&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.x/dist/tabler-icons.min.css">
+  <link rel="stylesheet" href="/shared/sidebar.css">
+  <link rel="stylesheet" href="/shared/shared-filters.css?v=2">
+  <link rel="stylesheet" href="/faturalar/css/gelen-giden.css?v=1">
+  <link rel="stylesheet" href="/faturalar/css/faturalar.css?v=1">
+  <script src="/shared/auth-interceptor.js"></script>
+  <script src="/shared/sidebar.js" defer></script>
+</head>
+<body>
+  <div class="app-shell">
+    <div id="sidebar-container"></div>
+    <div class="page-area">
+    <div class="fatura-page" id="faturaPage">
+
+      <!-- ─── Header ──────────────────────────────────────────────────── -->
+      <div class="fat-page-header">
+
+        <div style="display:flex; align-items:center; gap:10px; flex-shrink:0;">
+          <button class="sb-toggle-btn" onclick="toggleSidebar()" style="color:#94a3b8;">
+            <i class="ti ti-menu-2"></i>
+          </button>
+          <p style="font-size:15px; font-weight:700; color:#f1f5f9; margin:0;">Faturalar</p>
+        </div>
+
+        <nav class="fat-nav-tabs" id="fatNavTabs">
+          <button class="fat-nav-tab fat-nav-tab--active" id="navTabGenel"   onclick="switchMainTab('genel')">Genel Bakış</button>
+          <button class="fat-nav-tab" id="navTabGiden"    onclick="switchMainTab('giden')">Giden</button>
+          <button class="fat-nav-tab" id="navTabGelen"    onclick="switchMainTab('gelen')">Gelen</button>
+          <button class="fat-nav-tab" id="navTabBekleyen" onclick="switchMainTab('bekleyen')">
+            Bekleyenler
+            <span class="fat-nav-badge" id="bekleyenBadge" style="display:none;">0</span>
+          </button>
+        </nav>
+
+        <div style="width:120px; flex-shrink:0;"></div>
+
+      </div>
+      <!-- ─── END Header ───────────────────────────────────────────────── -->
+
+      <!-- ─── Filter bar ───────────────────────────────────────────────── -->
+      <div class="fatura-topbar" id="fatFilterBar">
+
+        <!-- Row 1: Firma, Ürün İsmi, Tarih -->
+        <div class="fatura-filter-row">
+
+          <div class="filter-tags-wrap" id="companyTagsWrap"
+            onclick="document.getElementById('companyTagInput').focus()" style="flex:2; min-width:180px;">
+            <div id="companyTags" class="filter-tags"></div>
+            <input type="text" id="companyTagInput" class="filter-tags-input" placeholder="Firma ekle...">
+            <div id="companyDropdown" class="filter-dropdown"></div>
+          </div>
+
+          <div class="filter-tags-wrap" id="productTagsWrap"
+            onclick="document.getElementById('productTagInput').focus()" style="flex:2; min-width:180px;">
+            <div id="productTags" class="filter-tags"></div>
+            <input type="text" id="productTagInput" class="filter-tags-input" placeholder="Ürün ismi ekle...">
+            <div id="productDropdown" class="filter-dropdown"></div>
+          </div>
+
+          <div style="display:flex; align-items:center; gap:4px; flex-shrink:0;">
+            <input type="date" id="filterDateStart" onchange="applyFiltersAndFetch()" class="fatura-filter-date">
+            <span class="filter-date-sep">—</span>
+            <input type="date" id="filterDateEnd" onchange="applyFiltersAndFetch()" class="fatura-filter-date">
+          </div>
+
+          <button class="filter-btn-clear" onclick="clearAllFilters()" title="Temizle">
+            <i class="ti ti-trash" style="font-size:14px;"></i>
+          </button>
+
+        </div>
+
+        <!-- Row 2: Kategori, Marka, Döviz -->
+        <div class="fatura-filter-row">
+
+          <div class="filter-tags-wrap" id="categoryTagsWrap"
+            onclick="document.getElementById('categoryTagInput').focus()" style="flex:2; min-width:180px;">
+            <div id="categoryTags" class="filter-tags"></div>
+            <input type="text" id="categoryTagInput" class="filter-tags-input" placeholder="Kategori ekle...">
+            <div id="categoryDropdown" class="filter-dropdown"></div>
+          </div>
+
+          <div class="filter-tags-wrap" id="brandTagsWrap"
+            onclick="document.getElementById('brandTagInput').focus()" style="flex:2; min-width:180px;">
+            <div id="brandTags" class="filter-tags"></div>
+            <input type="text" id="brandTagInput" class="filter-tags-input" placeholder="Marka ekle...">
+            <div id="brandDropdown" class="filter-dropdown"></div>
+          </div>
+
+
+          <select id="filterCurrency" onchange="applyFiltersAndFetch()" class="fatura-filter-select">
+            <option value="">Tüm Dövizler</option>
+            <option value="TRY">TRY</option>
+            <option value="USD">USD</option>
+          </select>
+        </div>
+      </div>
+      <!-- ─── END Filter bar ───────────────────────────────────────────── -->
+
+      <!-- ─── Main content area ───────────────────────────────────────── -->
+      <div class="fat-area" id="fatArea">
+
+        <!-- Bekleyenler sub-tab bar -->
+        <div class="fat-sub-tabbar" id="fatSubTabBar" style="display:none;">
+          <button class="fat-sub-tab fat-sub-tab--active" id="subTabBekGiden" onclick="switchBekleyenTab('giden')">
+            <i class="ti ti-arrow-up" style="font-size:15px; color:#3b82f6;" aria-hidden="true"></i>
+            Giden
+            <span class="fat-sub-badge" id="subTabBekGidenCount"></span>
+          </button>
+          <button class="fat-sub-tab" id="subTabBekGelen" onclick="switchBekleyenTab('gelen')">
+            <i class="ti ti-arrow-down" style="font-size:15px; color:#8b5cf6;" aria-hidden="true"></i>
+            Gelen
+            <span class="fat-sub-badge" id="subTabBekGelenCount"></span>
+          </button>
+
+        </div>
+
+        <!-- Genel Bakış panel — loads as iframe to isolate chat JS -->
+        <div id="panelGenel" class="fat-panel" style="display:none;">
+          <iframe id="genelBakisFrame" src="" style="width:100%; height:100%; border:none; display:block;" title="Genel Bakış"></iframe>
+        </div>
+
+        <!-- List + detail content — used by list.js / detail.js -->
+        <div id="panelList" class="fat-panel fat-panel--active" style="position:relative;">
+          <div id="fatLoadingOverlay" style="position:absolute; inset:0; background:rgba(248,250,252,0); backdrop-filter:blur(0px); display:flex; align-items:center; justify-content:center; z-index:10; pointer-events:none; transition:all 0.25s;">
+            <div id="fatLoadingSpinner" style="width:28px; height:28px; border:2px solid #e2e8f0; border-top-color:#2563eb; border-radius:50%; opacity:0; transition:opacity 0.2s;"></div>
+          </div>
+          <div class="fat-content" id="fatContent"></div>
+        </div>
+
+      </div>
+      <!-- ─── END Main content ─────────────────────────────────────────── -->
+
+    </div>
+    </div>
+  </div>
+
+<!-- ─── Invoice modal (required by main.js) ──────────────────────────────── -->
+<div id="invoiceModal" class="modal-overlay">
+  <div class="modal-content invoice-modal-v2">
+
+    <div id="eklePdfPane" class="ekle-pdf-pane">
+      <input type="file" id="eklePdfInput" accept=".xml" hidden>
+      <div id="eklePdfDrop" class="ekle-pdf-drop">
+        <svg width="52" height="52" fill="none" stroke="#cbd5e1" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+            d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+        </svg>
+        <p style="font-size:15px; font-weight:600; color:#94a3b8; margin-top:14px;">XML Sürükleyin</p>
+        <span style="font-size:13px; color:#cbd5e1; margin-top:4px;">veya klasörden seçin</span>
+        <button type="button" onclick="document.getElementById('eklePdfInput').click()"
+          style="margin-top:16px; padding:8px 20px; background:#2563eb; color:white; border:none; border-radius:8px; font-size:13px; font-weight:600; cursor:pointer; font-family:inherit;">
+          Dosya Seç
+        </button>
+      </div>
+      <iframe id="eklePdfPreview" style="display:none; width:100%; flex:1; border:none;"></iframe>
+    </div>
+
+    <form id="invoiceForm" autocomplete="off" style="flex:1; display:flex; flex-direction:column; overflow:hidden; min-height:0;">
+
+      <div class="invoice-modal-header">
+        <div style="display:flex; align-items:center; gap:10px;">
+          <button type="button" class="btn btn-ghost btn-sm" onclick="closeInvoiceModal()">✕</button>
+          <h2 class="invoice-modal-title" id="invoiceModalTitle">Fatura Ekle</h2>
+        </div>
+        <div style="display:flex; align-items:center; gap:8px;" id="invoiceModalHeaderActions"></div>
+      </div>
+
+      <div class="invoice-modal-body">
+        <div class="invoice-modal-left">
+          <div class="section-header"><h3>Fatura Bilgileri</h3></div>
+          <div class="form-grid">
+            <input type="hidden" id="f_id">
+            <div class="form-group span-2">
+              <label>Firma *</label>
+              <div style="display:flex; gap:6px;">
+                <input type="text" id="f_firma" class="locked-input" required placeholder="Firma adı" style="flex:1;">
+                <input type="text" id="f_vkn"   class="locked-input" placeholder="VKN / TCKN" style="width:130px;">
+              </div>
+            </div>
+            <div class="form-group">
+              <label>Yön *</label>
+              <select id="f_direction" class="locked-input">
+                <option value="INCOMING">Gelen</option>
+                <option value="OUTGOING">Giden</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Onay Durumu</label>
+              <select id="f_approval">
+                <option value="pending">Bekliyor</option>
+                <option value="approved">Onaylandı</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Fatura No *</label>
+              <input type="text" id="f_no" class="locked-input" required>
+            </div>
+            <div class="form-group">
+              <label>Fatura Tarihi</label>
+              <input type="date" id="f_date" class="locked-input">
+            </div>
+            <div class="form-group">
+              <label>Vade Tarihi</label>
+              <input type="date" id="f_due_date">
+            </div>
+            <div class="form-group">
+              <label>Fatura Türü</label>
+              <select id="f_type" class="locked-input">
+                <option value="e-Fatura">e-Fatura</option>
+                <option value="e-Arşiv">e-Arşiv</option>
+                <option value="Temel">Temel</option>
+                <option value="Ticari">Ticari</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Döviz</label>
+              <select id="f_currency" class="locked-input">
+                <option value="TL">TRY</option>
+                <option value="USD">USD</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Döviz Kuru (1 $ = ?)</label>
+              <div style="display:flex; gap:4px;">
+                <input type="number" id="f_kur" step="0.0001" placeholder="0.0000" class="input-accent" style="width:100%">
+                <button type="button" title="TCMB Son Kuru Çek" onclick="fetchTCMBKur()"
+                  style="background:#eef2f5; border:1px solid #cbd5e1; border-radius:4px; cursor:pointer;">🔄</button>
+              </div>
+            </div>
+            <div class="form-group">
+              <label>Matrah (Net)</label>
+              <input type="number" id="f_net" step="0.01" class="locked-input">
+            </div>
+            <div class="form-group">
+              <label>KDV Toplamı</label>
+              <input type="number" id="f_tax" step="0.01" class="locked-input">
+            </div>
+            <div class="form-group span-2">
+              <label>Genel Toplam</label>
+              <input type="number" id="f_total" step="0.01" class="input-highlight locked-input">
+            </div>
+          </div>
+        </div>
+
+        <div class="invoice-modal-items">
+          <div class="section-header" style="margin-bottom:12px;">
+            <h3 style="margin:0;">Ürünler & Hizmetler</h3>
+            <button type="button" class="btn-text" onclick="addLineItem()">＋ Ürün Ekle</button>
+          </div>
+          <div id="unlockWarningBox" style="display:none;" class="unlock-warning">
+            XML ile yüklenen alanlar kilitlidir.
+            <button type="button" class="btn-text" onclick="unlockInvoiceForm()" style="margin-left:8px;">🔓 Kilidi Aç</button>
+          </div>
+          <div class="line-items-wrapper">
+            <table class="line-table">
+              <thead>
+                <tr>
+                  <th>Açıklama</th>
+                  <th width="145">Ürün Kodu</th>
+                  <th width="58">Miktar</th>
+                  <th width="80">B.Fiyat</th>
+                  <th width="100">Toplam</th>
+                  <th width="210">Ofis-İçin</th>
+                  <th width="190">Kategori</th>
+                  <th width="32"></th>
+                </tr>
+              </thead>
+              <tbody id="lineItemsBody"></tbody>
+            </table>
+          </div>
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-top:20px; padding-top:16px; border-top:1px solid var(--border);">
+            <div style="display:flex; flex-direction:column; gap:10px;">
+              <div class="form-group"><label>Telefon</label><input type="text" id="f_phone" placeholder="0212..."></div>
+              <div class="form-group"><label>Web Sitesi</label><input type="text" id="f_website" placeholder="www.firma.com"></div>
+              <div class="form-group"><label>E-Posta</label><input type="email" id="f_email" placeholder="info@firma.com"></div>
+              <div class="form-group"><label>Vergi Dairesi</label><input type="text" id="f_tax_office" class="locked-input" placeholder="Vergi dairesi (XML)"></div>
+            </div>
+            <div style="display:flex; flex-direction:column; gap:10px;">
+              <div class="form-group"><label>Adres</label><input type="text" id="f_address" placeholder="Mahalle, Sokak, No..."></div>
+              <div class="form-group" style="flex:1; display:flex; flex-direction:column;">
+                <label>Notlar</label>
+                <textarea id="f_notes" style="flex:1; resize:none; min-height:120px;"></textarea>
+              </div>
+            </div>
+          </div>
+          <div id="previewPane" style="margin-top:12px;"></div>
+        </div>
+      </div>
+
+      <div class="invoice-modal-footer" style="display:flex; justify-content:space-between; align-items:center;">
+        <label style="display:flex; align-items:center; gap:6px; cursor:pointer; font-size:14px; font-weight:600; color:#334155;">
+          <input type="checkbox" id="f_update_stock" checked style="width:16px; height:16px; accent-color:var(--primary);">
+          Stokları ve Siparişleri Güncelle
+        </label>
+        <div style="display:flex; gap:12px;">
+          <button type="button" class="btn btn-secondary" onclick="closeInvoiceModal()">İptal</button>
+          <button type="submit" form="invoiceForm" class="btn btn-success">💾 Faturayı Kaydet</button>
+        </div>
+      </div>
+
+    </form>
+  </div>
+</div>
+
+<div id="toast-container"></div>
+
+<!-- ─── JS modules (same order as gelen-faturalar.html) ─────────────────── -->
+<script src="/faturalar/js/utils.js?v=20260518-kbd-nav"></script>
+<script src="/faturalar/js/xml.js?v=1"></script>
+<script src="/faturalar/js/api.js?v=20260521-sort"></script>
+<script src="/faturalar/js/state.js?v=20260511-detailpage"></script>
+<script src="/faturalar/js/list.js?v=20260518-tag-filter-fix"></script>
+<script src="/faturalar/js/detail.js?v=20260521-batch-is-internal"></script>
+<script src="/faturalar/js/main.js?v=20260511-bek-pdf-fix"></script>
+
+<script>
+// ── TAB STATE ────────────────────────────────────────────────────────────────
+let _activeMainTab  = 'genel';
+let _activeBekTab   = 'genel';
+
+// ── LOADING OVERLAY ──────────────────────────────────────────────────────────
+function showLoadingOverlay() {
+  const overlay = document.getElementById('fatLoadingOverlay');
+  const spinner = document.getElementById('fatLoadingSpinner');
+  if (!overlay) return;
+  overlay.style.background = 'rgba(248,250,252,0.65)';
+  overlay.style.backdropFilter = 'blur(3px)';
+  overlay.style.pointerEvents = 'all';
+  spinner.style.opacity = '1';
+  spinner.style.animation = 'fat-spin 0.7s linear infinite';
+}
+
+function hideLoadingOverlay() {
+  const overlay = document.getElementById('fatLoadingOverlay');
+  const spinner = document.getElementById('fatLoadingSpinner');
+  if (!overlay) return;
+  overlay.style.background = 'rgba(248,250,252,0)';
+  overlay.style.backdropFilter = 'blur(0px)';
+  overlay.style.pointerEvents = 'none';
+  spinner.style.opacity = '0';
+  spinner.style.animation = '';
+}
+
+// ── MAIN TAB SWITCHER ────────────────────────────────────────────────────────
+function switchMainTab(tab) {
+  _activeMainTab = tab;
+  history.replaceState(null, '', `?tab=${tab}`);
+
+  // Update nav pill styles
+  document.querySelectorAll('.fat-nav-tab').forEach(btn => btn.classList.remove('fat-nav-tab--active'));
+  const tabId = { genel: 'navTabGenel', gelen: 'navTabGelen', giden: 'navTabGiden', bekleyen: 'navTabBekleyen' }[tab];
+  document.getElementById(tabId)?.classList.add('fat-nav-tab--active');
+
+  const isGenel     = tab === 'genel';
+  const isBekleyen  = tab === 'bekleyen';
+  const isListTab   = tab === 'gelen' || tab === 'giden' || isBekleyen;
+
+  // Filter bar: hide on Genel, show on list tabs
+  document.getElementById('fatFilterBar').style.display = (isGenel || isBekleyen) ? 'none' : '';
+
+  // Sub-tab bar: only on Bekleyenler
+  document.getElementById('fatSubTabBar').style.display = isBekleyen ? '' : 'none';
+
+  // Show/hide panels
+  document.getElementById('panelGenel').style.display = isGenel ? '' : 'none';
+  document.getElementById('panelList').style.display  = isListTab ? '' : 'none';
+
+  if (isGenel) {
+    document.getElementById('fatPagination')?.remove();
+    const iframe = document.getElementById('genelBakisFrame');
+    if (iframe && !iframe.getAttribute('src')) {
+        iframe.src = '/faturalar/pages/genel-bakis.html';
+    }
+    return;
+  }
+  if (isBekleyen) {
+    window._FAT_PENDING = true;
+    loadBekleyenCounts();
+    currentView = _activeBekTab === 'giden' ? 'giden' : 'gelen';
+  } else {
+      window._FAT_PENDING = false;
+      currentView = tab;
+  }
+
+  // Reset pagination and refresh
+  window._filterOptionsLoaded = false;
+  _currentPage = 1;
+  showLoadingOverlay();
+  refreshData(false);
+}
+async function loadBekleyenCounts() {
+  try {
+    const res  = await fetch('/api/invoices/pending');
+    const data = await res.json();
+    const list = Array.isArray(data) ? data : (data.data || []);
+    const gelenCount = list.filter(i => i.direction === 'INCOMING').length;
+    const gidenCount = list.filter(i => i.direction === 'OUTGOING').length;
+    const gelenBadge = document.getElementById('subTabBekGelenCount');
+    const gidenBadge = document.getElementById('subTabBekGidenCount');
+    if (gelenBadge) gelenBadge.textContent = gelenCount || '';
+    if (gidenBadge) gidenBadge.textContent = gidenCount || '';
+  } catch(e) {}
+}
+
+function switchBekleyenTab(sub) {
+  _activeBekTab = sub;
+  document.querySelectorAll('.fat-sub-tab').forEach(btn => btn.classList.remove('fat-sub-tab--active'));
+  document.getElementById(sub === 'gelen' ? 'subTabBekGelen' : 'subTabBekGiden')?.classList.add('fat-sub-tab--active');
+
+  currentView = sub;
+  window._FAT_PENDING = true;
+  window._filterOptionsLoaded = false;
+  _currentPage = 1;
+  showLoadingOverlay();
+  refreshData(false);
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  const tab = new URLSearchParams(location.search).get('tab') || 'genel';
+  switchMainTab(tab);
+});
+
+</script>
+
+</body>
+</html>

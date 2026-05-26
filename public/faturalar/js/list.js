@@ -6,7 +6,6 @@ let _fatCompanyFilter;
 let _fatProductFilter;
 let _fatCategoryFilter;
 let _fatBrandFilter;
-let _fatModelFilter;
 
 let _fatPriceMin = 0;
 let _fatPriceMax = 10000000;
@@ -25,17 +24,6 @@ function _onTagFilterChange(advanced = false) {
     applyFiltersAndFetch();
 }
 
-function updateKpiTotals({ count, total_tl, total_usd, unpaid_tl }) {
-    const fmt = n => (parseFloat(n) || 0).toLocaleString('tr-TR', { minimumFractionDigits: 2 });
-
-    // Update whichever KPI elements exist on the page
-    const el = id => document.getElementById(id);
-
-    if (el('kpiTotalCount')) el('kpiTotalCount').textContent = count;
-    if (el('kpiTotalTl')) el('kpiTotalTl').textContent = '₺' + fmt(total_tl);
-    if (el('kpiTotalUsd')) el('kpiTotalUsd').textContent = '$' + fmt(total_usd);
-    if (el('kpiUnpaidTl')) el('kpiUnpaidTl').textContent = '₺' + fmt(unpaid_tl);
-}
 
 // ─── Init tag filters (called from main.js after DOMContentLoaded) ────────────
 function initFatFilters() {
@@ -71,13 +59,7 @@ function initFatFilters() {
         onChange: () => _onTagFilterChange(true),
     });
 
-    _fatModelFilter = createTagFilter({
-        wrapId: 'modelTagsWrap',
-        inputId: 'modelTagInput',
-        dropdownId: 'modelDropdown',
-        getOptions: () => window._fatFilterOptions?.models || [],
-        onChange: () => _onTagFilterChange(true),
-    });
+
 }
 // ─── Advanced panel ───────────────────────────────────────────────────────────
 function toggleAdvancedFilters() {
@@ -100,7 +82,6 @@ function updateAdvancedBadge() {
         (_fatProductFilter?.getSelected().length || 0) > 0 ||
         (_fatCategoryFilter?.getSelected().length || 0) > 0 ||
         (_fatBrandFilter?.getSelected().length || 0) > 0 ||
-        (_fatModelFilter?.getSelected().length || 0) > 0 ||
         _fatPriceMin > 0 ||
         _fatPriceMax < sliderMax;
     badge.style.display = hasActive ? 'inline-block' : 'none';
@@ -128,7 +109,6 @@ function clearAllFilters() {
     _fatProductFilter?.clear();
     _fatCategoryFilter?.clear();
     _fatBrandFilter?.clear();
-    _fatModelFilter?.clear();
 
     const ids = ['filterDateStart', 'filterDateEnd', 'filterStatus', 'filterCurrency', 'mainSearch'];
     ids.forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
@@ -160,7 +140,6 @@ function saveFilterState() {
             products: _fatProductFilter?.getSelected() || [],
             categories: _fatCategoryFilter?.getSelected() || [],
             brands: _fatBrandFilter?.getSelected() || [],
-            models: _fatModelFilter?.getSelected() || [],
             priceMin: _fatPriceMin,
             priceMax: _fatPriceMax,
             showAllGelen: showAllState.gelen,
@@ -257,7 +236,6 @@ function applyFiltersAndFetch() {
         products: _fatProductFilter?.getSelected() || [],
         categories: _fatCategoryFilter?.getSelected() || [],
         brands: _fatBrandFilter?.getSelected() || [],
-        models: _fatModelFilter?.getSelected() || [],
         dateStart: document.getElementById('filterDateStart')?.value || '',
         dateEnd: document.getElementById('filterDateEnd')?.value || '',
         status: document.getElementById('filterStatus')?.value || '',
@@ -268,7 +246,7 @@ function applyFiltersAndFetch() {
     };
 
     refreshData(false);
-    refreshTotals();
+    refreshKpiSummary();
 }
 
 function renderCurrentView() {
@@ -291,6 +269,8 @@ function renderCurrentView() {
 function renderPagination() {
     // Remove existing pagination if any
     document.getElementById('fatPagination')?.remove();
+    const panel = document.getElementById('panelList');
+    if (!panel || panel.style.display === 'none') return;
 
     if (_totalCount === 0) return;
 
@@ -432,60 +412,159 @@ function toggleShowAll() {
     applyFiltersAndFetch();
 }
 
+
 // ─── KPI bar ──────────────────────────────────────────────────────────────────
 
-function renderKpiBar(invoices, totals = null) {
+let _lastKpiTotals  = null;
+let _lastTrendData  = null;  // { bucket, data: [{period, try_total, usd_total, try_count, usd_count}] }
+
+function _sparklineSvg(points, color) {
+    if (!points || points.length < 2) return '';
+    const W = 68, H = 32;
+    const min = Math.min(...points);
+    const max = Math.max(...points);
+    const range = max - min || 1;
+    const coords = points.map((v, i) => {
+        const x = (i / (points.length - 1)) * W;
+        const y = H - ((v - min) / range) * (H - 4) - 2;
+        return `${x.toFixed(1)},${y.toFixed(1)}`;
+    }).join(' ');
+    return `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" style="flex-shrink:0;">
+        <polyline points="${coords}" stroke="${color}" stroke-width="1.8" fill="none" stroke-linejoin="round" stroke-linecap="round"/>
+        <path d="M${coords.split(' ')[0].split(',')[0]},${coords.split(' ')[0].split(',')[1]} ${coords} V${H} H0Z" fill="${color}" fill-opacity="0.08"/>
+    </svg>`;
+}
+
+function _trendArrow(pct) {
+    if (pct > 0)  return { arrow: '↑', color: '#16a34a', text: `↑ %${Math.abs(pct).toFixed(0)}` };
+    if (pct < 0)  return { arrow: '↓', color: '#dc2626', text: `↓ %${Math.abs(pct).toFixed(0)}` };
+    return { arrow: '→', color: '#94a3b8', text: '→ %0' };
+}
+
+function _periodChangePct(data, key) {
+    if (!data || data.length < 2) return 0;
+    const last = data[data.length - 1]?.[key] || 0;
+    const prev = data[data.length - 2]?.[key] || 0;
+    if (!prev) return last > 0 ? 100 : 0;
+    return ((last - prev) / prev) * 100;
+}
+
+function _kpiCard(label, value, sparkSvg, trendText, trendColor) {
+    return `<div class="fat-kpi">
+      <p class="fat-kpi-label">${label}</p>
+      <div style="display:flex; align-items:flex-end; justify-content:space-between; gap:8px; margin-top:6px;">
+        <div>
+          <p class="fat-kpi-value">${value}</p>
+          <p style="font-size:11px; font-weight:500; color:${trendColor}; margin:4px 0 0;">${trendText}</p>
+        </div>
+        ${sparkSvg}
+      </div>
+    </div>`;
+}
+
+// ─── KPI bar ──────────────────────────────────────────────────────────────────
+
+function updateKpiSummary(data) {
+    renderKpiBar(data);
+}
+
+function _pct(curr, prev) {
+    if (!prev) return curr > 0 ? 100 : 0;
+    return ((curr - prev) / prev) * 100;
+}
+
+function _changeBadge(pct) {
+    if (pct > 0)  return `<span style="display:inline-flex;align-items:center;gap:4px;background:#dcfce7;border-radius:99px;padding:3px 10px;font-size:13px;font-weight:500;color:#15803d;">↑ %${Math.abs(pct).toFixed(0)}</span>`;
+    if (pct < 0)  return `<span style="display:inline-flex;align-items:center;gap:4px;background:#fee2e2;border-radius:99px;padding:3px 10px;font-size:13px;font-weight:500;color:#b91c1c;">↓ %${Math.abs(pct).toFixed(0)}</span>`;
+    return `<span style="display:inline-flex;align-items:center;gap:4px;background:#f1f5f9;border-radius:99px;padding:3px 10px;font-size:13px;font-weight:500;color:#64748b;">→ %0</span>`;
+}
+
+function _buildSparkline(series, key, color) {
+    const pts = (series||[]).map(b => b[key] || 0);
+    if (pts.length < 2) return '';
+    const W=400, H=48;
+    const min = Math.min(...pts), max = Math.max(...pts);
+    const range = max - min || 1;
+    const coords = pts.map((v,i) => {
+        const x = (i/(pts.length-1))*W;
+        const y = H - ((v-min)/range)*(H-6) - 3;
+        return `${x.toFixed(1)},${y.toFixed(1)}`;
+    }).join(' ');
+    const first = coords.split(' ')[0];
+    return `<svg width="100%" height="48" viewBox="0 0 400 48" preserveAspectRatio="none" style="display:block;margin-bottom:12px;">
+        <polyline points="${coords}" stroke="${color}" stroke-width="2" fill="none" stroke-linejoin="round" stroke-linecap="round"/>
+        <path d="M${first} ${coords} V48 H0Z" fill="${color}" fill-opacity="0.08"/>
+    </svg>`;
+}
+
+function renderKpiBar(data) {
     const el = document.getElementById('fatKpiBar');
     if (!el) return;
+    if (!data) return;
 
-    const titleEl = document.getElementById('fatPageTitle');
-    if (titleEl) titleEl.textContent = currentView === 'giden' ? 'Giden Faturalar' : 'Gelen Faturalar';
+    const { totals, current, previous, series, bucket, comparison_label } = data;
+    const fmt   = n => (parseFloat(n)||0).toLocaleString('tr-TR', {minimumFractionDigits:2, maximumFractionDigits:2});
+    const isGelen  = currentView === 'gelen';
+    const tryLabel = isGelen ? 'TOPLAM HARCAMA (TRY)' : 'TOPLAM CİRO (TRY)';
+    const usdLabel = isGelen ? 'TOPLAM HARCAMA (USD)' : 'TOPLAM CİRO (USD)';
+    const bucketLabel = bucket === 'month' ? 'aylık' : 'haftalık';
+    const seriesLen = (series||[]).length;
+    const seriesInfo = seriesLen > 0 ? `Son ${seriesLen} ${bucketLabel} dönem` : '—';
 
-    const fmtN = n => (parseFloat(n) || 0).toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-    const isGelen = currentView === 'gelen';
-    const usdLabel = isGelen ? 'HARCAMA (USD)' : 'CİRO (USD)';
-    const tryLabel = isGelen ? 'HARCAMA (TL)' : 'CİRO (TL)';
+    const tryPct = _pct(current.try_total, previous.try_total);
+    const usdPct = _pct(current.usd_total, previous.usd_total);
 
-    // Use server totals if available, otherwise calculate from current page
-    let usdTotal = 0, tryTotal = 0, count = invoices?.length || 0;
+    const tryAvg = totals.try_count > 0 ? totals.try_total / totals.try_count : 0;
+    const usdAvg = totals.usd_count > 0 ? totals.usd_total / totals.usd_count : 0;
 
-    if (totals) {
-        usdTotal = totals.total_usd || 0;
-        tryTotal = totals.total_tl || 0;
-        count = totals.count || 0;
-    } else {
-        (invoices || []).forEach(inv => {
-            const src = invNonInternalPayableAmountSrc(inv);
-            const rate = invCalculationRate(inv);
-            const isUSD = invBaseCurrencyIso(inv) !== 'TRY';
-            if (isUSD) { usdTotal += src; tryTotal += src * rate; }
-            else { tryTotal += src; }
-        });
-    }
+    const usdColor = (totals.usd_total || 0) > 0 ? '#2563eb' : '#94a3b8';
 
     el.innerHTML = `
-    <div class="fat-kpi">
-      <p class="fat-kpi-label">${usdLabel}</p>
-      <p class="fat-kpi-value" style="color:#2563eb;">$${fmtN(usdTotal)}</p>
+    <div class="fat-kpi fat-kpi--big">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:14px;">
+        <div>
+          <p class="fat-kpi-label">${tryLabel}</p>
+          <p style="font-size:28px;font-weight:500;color:#0f172a;margin:6px 0 0;line-height:1;">₺${fmt(totals.try_total)}</p>
+        </div>
+        <div style="text-align:right;">
+          ${_changeBadge(tryPct)}
+          <p style="font-size:11px;color:#94a3b8;margin:5px 0 0;">${comparison_label}</p>
+        </div>
+      </div>
+      ${_buildSparkline(series, 'try_total', '#16a34a')}
+      <div style="display:flex;align-items:center;justify-content:space-between;padding-top:10px;border-top:1px solid #e2e8f0;">
+        <div style="display:flex;gap:16px;">
+          <div><p style="font-size:11px;color:#94a3b8;margin:0 0 2px;">Fatura Adedi</p><p style="font-size:14px;font-weight:500;color:#0f172a;margin:0;">${totals.try_count}</p></div>
+          <div><p style="font-size:11px;color:#94a3b8;margin:0 0 2px;">Ortalama</p><p style="font-size:14px;font-weight:500;color:#0f172a;margin:0;">₺${fmt(tryAvg)}</p></div>
+        </div>
+        <p style="font-size:11px;color:#94a3b8;margin:0;">${seriesInfo}</p>
+      </div>
     </div>
-    <div class="fat-kpi">
-      <p class="fat-kpi-label">${tryLabel}</p>
-      <p class="fat-kpi-value">₺${fmtN(tryTotal)}</p>
-    </div>
-    <div class="fat-kpi">
-      <p class="fat-kpi-label">TOPLAM FATURA</p>
-      <p class="fat-kpi-value">${count}</p>
-    </div>
-  `;
+
+    <div class="fat-kpi fat-kpi--big">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:14px;">
+        <div>
+          <p class="fat-kpi-label">${usdLabel}</p>
+          <p style="font-size:28px;font-weight:500;color:#0f172a;margin:6px 0 0;line-height:1;">$${fmt(totals.usd_total)}</p>
+        </div>
+        <div style="text-align:right;">
+          ${_changeBadge(usdPct)}
+          <p style="font-size:11px;color:#94a3b8;margin:5px 0 0;">${comparison_label}</p>
+        </div>
+      </div>
+      ${_buildSparkline(series, 'usd_total', usdColor)}
+      <div style="display:flex;align-items:center;justify-content:space-between;padding-top:10px;border-top:1px solid #e2e8f0;">
+        <div style="display:flex;gap:16px;">
+          <div><p style="font-size:11px;color:#94a3b8;margin:0 0 2px;">Fatura Adedi</p><p style="font-size:14px;font-weight:500;color:#0f172a;margin:0;">${totals.usd_count}</p></div>
+          <div><p style="font-size:11px;color:#94a3b8;margin:0 0 2px;">Ortalama</p><p style="font-size:14px;font-weight:500;color:#0f172a;margin:0;">$${fmt(usdAvg)}</p></div>
+        </div>
+        <p style="font-size:11px;color:#94a3b8;margin:0;">${seriesInfo}</p>
+      </div>
+    </div>`;
 }
 
-let _lastKpiTotals = null;
 
-// Called by api.js after refreshTotals() returns
-function updateKpiTotals(totals) {
-    _lastKpiTotals = totals;
-    renderKpiBar(allInvoicesCache, totals);
-}
+
 // ─── Tab bar ──────────────────────────────────────────────────────────────────
 
 function renderTabBar() {
@@ -547,9 +626,9 @@ function renderFatContent() {
 
 function renderInvoiceTable(invoices) {
     _lastListInvoices = invoices || [];
-    renderKpiBar(invoices, _lastKpiTotals);
     if (activeTabKey !== 'list') return;
     renderListView(invoices);
+    if (typeof hideLoadingOverlay === 'function') hideLoadingOverlay();
 }
 
 function setFatListSort(col) {

@@ -11,7 +11,6 @@ let _charts       = {};  // Chart.js instances
 
 // ─── Init ──────────────────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
-  // Show integration warning if onboarding not complete
   const onboardingComplete = sessionStorage.getItem('onboarding_complete');
   const warningDismissed   = sessionStorage.getItem('integration_warning_dismissed');
   if (onboardingComplete === 'false' && !warningDismissed) {
@@ -23,6 +22,17 @@ document.addEventListener('DOMContentLoaded', () => {
   bindEvents();
   initResizableSplit();
   restoreHistory();
+
+  // Auto-start: fire an opening message if set by the host page
+  if (window._CHAT_AUTOSTART) {
+    setTimeout(() => {
+      const input = document.getElementById('chatInput');
+      if (input) {
+        input.value = window._CHAT_AUTOSTART;
+        sendMessage();
+      }
+    }, 600);
+  }
 });
 
 function dismissWarning() {

@@ -15,25 +15,26 @@ let _companyFilter;
 let _productFilter;
 let _brandFilter;
 let _categoryFilter;
-let _modelFilter;
 
 // ─── INIT ─────────────────────────────────────────────────────────────────────
-document.addEventListener('DOMContentLoaded', async () => {
-  await Promise.all([loadMovements(), loadProducts()]);
-  initFilters();
-
+async function initHareketler() {
   document.getElementById('filterDateStart')?.addEventListener('change', applyFilters);
   document.getElementById('filterDateEnd')?.addEventListener('change', applyFilters);
   document.getElementById('filterDirection')?.addEventListener('change', applyFilters);
-});
+  await Promise.all([loadMovements(), loadHareketlerProducts()]); // ← then load data
+  initFilters(); // ← initialize filters FIRST
+
+}
 
 // ─── DATA ─────────────────────────────────────────────────────────────────────
-async function loadProducts() {
+async function loadHareketlerProducts()  {
   try {
     const res = await fetch('/api/products');
     if (!res.ok) return;
     allProducts = await res.json();
-  } catch { }
+  } catch {
+    console.log("Problem with /api/products occured")
+  }
 }
 
 async function loadMovements() {
@@ -51,7 +52,7 @@ async function loadMovements() {
     applyFilters();
   } catch {
     if (!cached) {
-      document.getElementById('hareketler-count').textContent = 'Veri alınamadı.';
+      console.log('data cant be loaded');
     }
   }
 }
@@ -94,13 +95,6 @@ function initFilters() {
     onChange:   () => { updateAdvancedBadge(); applyFilters(); },
   });
 
-  _modelFilter = createTagFilter({
-    wrapId:     'modelTagsWrap',
-    inputId:    'modelTagInput',
-    dropdownId: 'modelDropdown',
-    getOptions: () => [...new Set(allMovements.map(m => String(m.model || '').trim()).filter(Boolean))].sort((a,b) => a.localeCompare(b,'tr')),
-    onChange:   () => { updateAdvancedBadge(); applyFilters(); },
-  });
 }
 
 function applyFilters() {
@@ -108,12 +102,12 @@ function applyFilters() {
   const products   = _productFilter?.getSelected()  || [];
   const brands     = _brandFilter?.getSelected()    || [];
   const categories = _categoryFilter?.getSelected() || [];
-  const models     = _modelFilter?.getSelected()    || [];
   const dateStart  = document.getElementById('filterDateStart')?.value || '';
   const dateEnd    = document.getElementById('filterDateEnd')?.value   || '';
   const direction  = document.getElementById('filterDirection')?.value || '';
 
   filteredMovements = allMovements.filter(m => {
+    window._stokFilteredMovements = filteredMovements;
     if (companies.length && !companies.includes(String(m.company_name || '').trim())) return false;
     if (products.length) {
       const nameMatch = products.includes(String(m.product_name || '').trim());
@@ -122,7 +116,6 @@ function applyFilters() {
     }
     if (brands.length     && !brands.includes(String(m.brand || '').trim()))       return false;
     if (categories.length && !categories.includes(String(m.category || '').trim())) return false;
-    if (models.length     && !models.includes(String(m.model || '').trim()))        return false;
     const d = String(m.invoice_date || '').slice(0, 10);
     if (dateStart && d < dateStart) return false;
     if (dateEnd   && d > dateEnd)   return false;
@@ -133,17 +126,16 @@ function applyFilters() {
     return true;
   });
 
-  renderKpis();
-  renderTable();
+  renderHareketlerKpis();
+  renderStokHareketlerTable();
   updateAnaliz();
 }
 
-function clearAllFilters() {
+function _clearHareketlerFilters() {
   _companyFilter?.clear();
   _productFilter?.clear();
   _brandFilter?.clear();
   _categoryFilter?.clear();
-  _modelFilter?.clear();
   ['filterDateStart','filterDateEnd','filterDirection'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.value = '';
@@ -182,12 +174,11 @@ function toggleAdvancedFilters() {
 }
 
 function updateAdvancedBadge() {
-  const badge = document.getElementById('advancedFiltersBadge');
+  const badge = document.getElementById('hareketlerAdvBadge');
   if (!badge) return;
   const hasAdvanced =
     (_brandFilter?.getSelected().length    || 0) > 0 ||
-    (_categoryFilter?.getSelected().length || 0) > 0 ||
-    (_modelFilter?.getSelected().length    || 0) > 0;
+    (_categoryFilter?.getSelected().length || 0) > 0 ;
   badge.style.display = hasAdvanced ? 'inline-block' : 'none';
 }
 
@@ -203,7 +194,6 @@ function groupByProduct(movements) {
         product_name: String(m.product_name || '—').trim(),
         brand:        String(m.brand || '').trim(),
         category:     String(m.category || '').trim(),
-        model:        String(m.model || '').trim(),
         total_in:     0,
         total_out:    0,
         last_date:    '',
@@ -231,7 +221,7 @@ function groupByProduct(movements) {
 }
 
 // ─── RENDER KPIs ──────────────────────────────────────────────────────────────
-function renderKpis() {
+function renderHareketlerKpis() {
   const grouped = groupByProduct(filteredMovements);
   const inQty   = filteredMovements.filter(m => m.direction === 'INCOMING').reduce((s,m) => s + Number(m.quantity||0), 0);
   const outQty  = filteredMovements.filter(m => m.direction === 'OUTGOING').reduce((s,m) => s + Number(m.quantity||0), 0);
@@ -240,12 +230,12 @@ function renderKpis() {
   document.getElementById('kpi-in').textContent     = `+${fmtQty(inQty)}`;
   document.getElementById('kpi-out').textContent    = `-${fmtQty(outQty)}`;
   document.getElementById('kpi-amount').textContent = fmtQty(filteredMovements.length) + ' kayıt';
-  document.getElementById('hareketler-count').textContent = `${fmtQty(grouped.length)} ürün`;
 }
 
 // ─── RENDER TABLE ─────────────────────────────────────────────────────────────
-function renderTable() {
+function renderStokHareketlerTable() {
   const body    = document.getElementById('movementsTableBody');
+  console.log('renderTable called, body:', body, 'grouped:', groupByProduct(filteredMovements).length);
   const emptyEl = document.getElementById('movementsEmpty');
   if (!body) return;
 
@@ -262,7 +252,7 @@ function renderTable() {
     const tr = document.createElement('tr');
     tr.className = 'clickable';
     tr.onclick = () => {
-      window.location.href = `/stok/pages/urun-hareketleri.html?sku=${encodeURIComponent(product.sku)}`;
+      openUrunHareketleri(product.sku);
     };
     tr.innerHTML = `
       <td style="font-weight:600;">${esc(product.product_name)}</td>
@@ -272,7 +262,6 @@ function renderTable() {
       <td class="text-right text-success"><strong>+${fmtQty(product.total_in)}</strong></td>
       <td class="text-right text-danger"><strong>-${fmtQty(product.total_out)}</strong></td>
       <td style="white-space:nowrap; color:#64748b; font-size:12px;">${product.last_date || '—'}</td>
-      <td style="color:#64748b; font-size:12px;">${product.companies.size} firma</td>
     `;
     body.appendChild(tr);
   });

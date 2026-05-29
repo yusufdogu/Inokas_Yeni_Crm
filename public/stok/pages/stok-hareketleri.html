@@ -25,7 +25,6 @@
       <button class="sb-toggle-btn" onclick="toggleSidebar()"><i class="ti ti-menu-2"></i></button>
       <div>
         <p class="page-header-title">Stok Hareketleri</p>
-        <p class="page-header-sub" id="hareketler-count">Yükleniyor...</p>
       </div>
     </div>
 
@@ -141,7 +140,6 @@
             <th class="text-right">Toplam Giriş</th>
             <th class="text-right">Toplam Çıkış</th>
             <th>Son Hareket</th>
-            <th>Firmalar</th>
           </tr>
         </thead>
         <tbody id="movementsTableBody"></tbody>
@@ -169,7 +167,8 @@
 <div id="toast-container"></div>
 
 <script src="/shared/auth-interceptor.js"></script>  <!-- no defer -->
-<script src="/shared/sidebar.js" defer></script>      <!-- defer is fine --><script src="/stok/js/utils.js?v=20260523-dropdown-limit"></script>
+<script src="/shared/sidebar.js" defer></script>      <!-- defer is fine -->
+<script src="/stok/js/utils.js?v=20260523-dropdown-limit"></script>
 <script src="/stok/js/analytics.js"></script>
 <script src="/stok/js/stok-hareketleri.js?v=20260523-brand-fix"></script>
 </body>

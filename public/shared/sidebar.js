@@ -2,6 +2,41 @@
   'use strict';
 
   let _sidebarOpen = false;
+
+  // ─── Sidebar mode: 'expanded' | 'collapsed' | 'hover' ────────────────────
+  const SIDEBAR_MODE_KEY = 'inokas_sidebar_mode';
+  let _sidebarMode = localStorage.getItem(SIDEBAR_MODE_KEY) || 'hover';
+
+  function setSidebarMode(mode) {
+    _sidebarMode = mode;
+    localStorage.setItem(SIDEBAR_MODE_KEY, mode);
+    applyMode();
+  }
+
+  function applyMode() {
+    const sidebar = document.getElementById('sidebar');
+    if (!sidebar) return;
+
+    // Remove all mode classes first
+    sidebar.classList.remove('sb-mode-expanded', 'sb-mode-collapsed', 'sb-mode-hover');
+    document.body.classList.remove('sidebar-collapsed');
+
+    if (_sidebarMode === 'expanded') {
+      sidebar.classList.add('sb-mode-expanded');
+    } else if (_sidebarMode === 'collapsed') {
+      sidebar.classList.add('sb-mode-collapsed','collapsed');
+      document.body.classList.add('sidebar-collapsed');
+    } else {
+      // hover mode — start collapsed, expand on mouseenter
+      sidebar.classList.add('sb-mode-hover', 'collapsed');
+      document.body.classList.add('sidebar-collapsed');
+    }
+
+    // Update toggle buttons active state
+    document.querySelectorAll('.sb-mode-btn').forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.mode === _sidebarMode);
+    });
+  }
   let _fatOpen     = false;
   let _stokOpen    = false;
   let _dmoOpen     = false;
@@ -119,33 +154,13 @@
     <div class="sb-divider"></div>
 
     <!-- Stok -->
-    <button class="sb-item${isStok ? ' active' : ''}" id="stok-toggle" onclick="toggleStok()">
+    <a href="/stok/pages/stok.html"
+       class="sb-item${path.includes('stok') ? ' active' : ''}">
       <i class="ti ti-package"></i>
       <span class="sb-label">Stok</span>
-      <i class="ti ti-chevron-down sb-chevron" id="stok-chevron"></i>
-    </button>
-    <div class="sb-children" id="stok-children">
-      <a href="/stok/pages/stok-hareketleri.html"
-         class="sb-child${path.includes('hareketler') ? ' active' : ''}">
-        <i class="ti ti-arrows-exchange"></i>
-        <span class="sb-label">Ürün Hareketleri</span>
-      </a>
-      <a href="/stok/pages/urunler.html"
-         class="sb-child${path.includes('urunler') ? ' active' : ''}">
-        <i class="ti ti-box"></i>
-        <span class="sb-label">Ürünler</span>
-      </a>
-      <a href="/stok/pages/kategori-yonetimi.html"
-         class="sb-child${path.includes('kategori-yonetimi') ? ' active' : ''}">
-        <i class="ti ti-category"></i>
-        <span class="sb-label">Kategori Yönetimi</span>
-      </a>
-      <a href="/stok/pages/backorder.html"
-         class="sb-child${path.includes('backorder') ? ' active' : ''}">
-        <i class="ti ti-clock-pause"></i>
-        <span class="sb-label">Backorder</span>
-      </a>
-    </div>
+    </a>
+    
+    <div class="sb-divider"></div>
 
     <div class="sb-divider"></div>
 
@@ -225,6 +240,17 @@
   </a>
   <div class="sb-divider"></div>
   <div class="sb-footer">
+    <div class="sb-mode-row">
+      <button class="sb-mode-btn" data-mode="collapsed" onclick="window.setSidebarMode('collapsed')" title="Daralt">
+        <i class="ti ti-layout-sidebar-left-collapse"></i>
+      </button>
+      <button class="sb-mode-btn" data-mode="hover" onclick="window.setSidebarMode('hover')" title="Hover">
+        <i class="ti ti-layout-sidebar"></i>
+      </button>
+      <button class="sb-mode-btn" data-mode="expanded" onclick="window.setSidebarMode('expanded')" title="Genişlet">
+        <i class="ti ti-layout-sidebar-left-expand"></i>
+      </button>
+    </div>
     <button class="sb-item" id="sb-logout-btn">
       <i class="ti ti-logout"></i>
       <span class="sb-label">Çıkış</span>
@@ -272,28 +298,30 @@
       document.getElementById('quotes-chevron')?.classList.add('open');
     }
 
-    document.getElementById('sb-logout-btn')?.addEventListener('click', () => {
-      sessionStorage.removeItem('inokas_token');
-      window.location.replace('/auth/login.html');
-    });
+    // Apply saved mode
+    applyMode();
 
-    // Hover to expand/collapse
+    // Hover events — only active in hover mode
     const sidebar = document.getElementById('sidebar');
     if (sidebar) {
       sidebar.addEventListener('mouseenter', () => {
+        if (_sidebarMode !== 'hover') return;
         _sidebarOpen = true;
         sidebar.classList.remove('collapsed');
         document.body.classList.remove('sidebar-collapsed');
       });
       sidebar.addEventListener('mouseleave', () => {
+        if (_sidebarMode !== 'hover') return;
         _sidebarOpen = false;
         sidebar.classList.add('collapsed');
         document.body.classList.add('sidebar-collapsed');
       });
-      // Start collapsed
-      sidebar.classList.add('collapsed');
-      document.body.classList.add('sidebar-collapsed');
     }
+
+    document.getElementById('sb-logout-btn')?.addEventListener('click', () => {
+      sessionStorage.removeItem('inokas_token');
+      window.location.replace('/auth/login.html');
+    });
 
     // Load pending counts after render
     loadPendingCounts();
@@ -335,10 +363,14 @@
 
   // ─── Toggles ──────────────────────────────────────────────────────────────
   window.toggleSidebar = function () {
-    _sidebarOpen = !_sidebarOpen;
-    document.getElementById('sidebar')?.classList.toggle('collapsed', !_sidebarOpen);
-    document.body.classList.toggle('sidebar-collapsed', !_sidebarOpen);
+    if (_sidebarMode === 'hover') {
+      _sidebarOpen = !_sidebarOpen;
+      document.getElementById('sidebar')?.classList.toggle('collapsed', !_sidebarOpen);
+      document.body.classList.toggle('sidebar-collapsed', !_sidebarOpen);
+    }
   };
+
+  window.setSidebarMode = setSidebarMode;
 
   window.toggleFaturalar = function (e) {
     // If chevron clicked, only toggle accordion — don't navigate

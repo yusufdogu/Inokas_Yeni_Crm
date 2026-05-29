@@ -9,7 +9,7 @@ let _activeIntCat      = null;
 let _editingIntCatName = null;
 
 // ── INIT ──────────────────────────────────────────────────────────────────────
-document.addEventListener('DOMContentLoaded', () => { loadCategories(); loadInternalCats(); });
+function initKategori() { loadCategories(); loadInternalCats(); };
 
 async function loadCategories() {
     try {

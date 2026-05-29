@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Stok — Genel Bakış</title>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.x/dist/tabler-icons.min.css">
+
+  <link rel="stylesheet" href="/stok/css/genel-bakis.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+  <script src="/shared/auth-interceptor.js"></script>
+</head>
+<body>
+
+<div class="gb-layout">
+
+  <!-- ── LEFT ────────────────────────────────────────────────────────────────── -->
+  <div class="gb-left">
+
+    <!-- Hero: total stock value -->
+    <div class="gb-hero">
+      <div class="gb-hero-badge" id="gbHeroBadge" style="display:none;">
+        <i class="ti ti-trending-up" aria-hidden="true"></i>
+        <span id="gbHeroBadgeText"></span>
+      </div>
+      <div class="gb-hero-label">Toplam Stok Değeri</div>
+      <div class="gb-hero-value" id="gbHeroTL">—</div>
+      <div class="gb-hero-sub">
+        <span id="gbHeroUSD" style="color:rgba(245,242,236,0.55);">—</span>
+        <span style="color:rgba(245,242,236,0.3); margin-left:4px;">USD bazında</span>
+      </div>
+    </div>
+
+    <!-- Movement chart -->
+    <div class="gb-chart-section">
+
+      <div class="gb-section-header">
+        <div class="gb-period-tabs">
+          <button class="gb-ptab" id="ptabWeek"  onclick="setPeriod('week')">Hafta</button>
+          <button class="gb-ptab gb-ptab--active" id="ptabMonth" onclick="setPeriod('month')">Ay</button>
+          <button class="gb-ptab" id="ptabYear"  onclick="setPeriod('year')">Yıl</button>
+        </div>
+        <div class="gb-period-nav">
+          <button class="gb-period-arrow" onclick="navigatePeriod(-1)" aria-label="Önceki">
+            <i class="ti ti-chevron-left" style="font-size:11px;" aria-hidden="true"></i>
+          </button>
+          <span class="gb-period-label" id="gbPeriodLabel"></span>
+          <button class="gb-period-arrow" onclick="navigatePeriod(1)" aria-label="Sonraki">
+            <i class="ti ti-chevron-right" style="font-size:11px;" aria-hidden="true"></i>
+          </button>
+        </div>
+      </div>
+
+      <div class="gb-chart-wrap">
+        <canvas id="gbMovChart"></canvas>
+      </div>
+
+    </div>
+
+    <!-- Inner tabs: Firmalar / Ürünler -->
+    <div class="gb-inner-tabs-section">
+      <div class="gb-inner-tabs-header">
+        <span class="gb-section-title">En Hareketli Ürünler</span>
+        <div class="gb-pager">
+          <button class="gb-pager-btn" id="gbPagerPrev" onclick="innerPageNav(-1)" aria-label="Önceki">
+            <i class="ti ti-chevron-left" aria-hidden="true"></i>
+          </button>
+          <span class="gb-pager-indicator" id="gbPagerIndicator">1/1</span>
+          <button class="gb-pager-btn" id="gbPagerNext" onclick="innerPageNav(1)" aria-label="Sonraki">
+            <i class="ti ti-chevron-right" aria-hidden="true"></i>
+          </button>
+        </div>
+      </div>
+      <div class="gb-inner-list" id="gbInnerList">
+        <div class="gb-loading"><div class="gb-spinner"></div></div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ── RIGHT ────────────────────────────────────────────────────────────────── -->
+  <div class="gb-right">
+
+    <!-- Asistan Diyor -->
+    <div class="gb-asistan" id="gbAsistan">
+      <div class="gb-asistan-header">
+        <i class="ti ti-sparkles" aria-hidden="true"></i>
+        <span>Asistan Diyor</span>
+      </div>
+      <div class="gb-asistan-body" id="gbAsistanBody">
+        <div class="gb-loading gb-loading--inline">
+          <div class="gb-spinner"></div>
+          <span>Rapor hazırlanıyor...</span>
+        </div>
+      </div>
+      <div class="gb-asistan-btns" id="gbAsistanBtns" style="display:none;">
+        <button class="gb-asistan-btn" onclick="gbAutoSend('Ölü stok listesini göster')">Ölü stoğu gör</button>
+        <button class="gb-asistan-btn" onclick="gbAutoSend('Risk altındaki ürünleri listele')">Risk raporu</button>
+      </div>
+    </div>
+
+    <!-- Chat area -->
+    <div class="gb-chat-messages" id="gbChatMessages"></div>
+
+    <div class="gb-chat-input-area">
+      <div class="gb-chat-input-row">
+        <textarea class="gb-chat-input" id="gbChatInput" rows="1" placeholder="Stok hakkında soru sorun..."></textarea>
+        <button class="gb-chat-send" id="gbChatSend" onclick="gbSend()" aria-label="Gönder">
+          <i class="ti ti-send" aria-hidden="true"></i>
+        </button>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script src="/stok/js/genel-bakis.js"></script>
+</body>
+</html>

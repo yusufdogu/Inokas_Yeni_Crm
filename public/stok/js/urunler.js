@@ -1,7 +1,6 @@
 // stok/urunler.js — Ürünler page
 
 let brandOptions = [];
-let modelOptions = [];
 let productCategoryOptions = [];
 let internalCategoryOptions = [];
 let _categoryTemplates = [];
@@ -10,18 +9,13 @@ let _attrTemplate = null;
 let _attrFilters = {};     // attributeId → string | string[]
 let _attrTagFilters = {};  // attributeId → tagFilter instance
 
-let allProducts = [];
 let _internalOnlySkus = new Set();
 let _internalCatOptions = [];
 let _editingId = null;
 let _isAddMode = false;
 let _isInternalMode = false;
-let _advancedOpen = false;
 
 // Tag filters
-let _brandFilter;
-let _categoryFilter;
-let _modelFilter;
 let _currencyFilter;
 
 // Price range
@@ -29,19 +23,18 @@ let _maliyetMin = 0;
 let _maliyetMax = 0;
 
 // ─── INIT ─────────────────────────────────────────────────────────────────────
-document.addEventListener('DOMContentLoaded', async () => {
-  document.getElementById('urunSearch')?.addEventListener('input', applyFilters);
+async function initUrunler() {
+  document.getElementById('urunSearch')?.addEventListener('input', applyUrunlerFilters);
   await Promise.all([loadProducts(), loadCategoryOptions(), loadCategoryTemplates()]);
   initFilters();
-});
+}
 
 // ─── DATA ─────────────────────────────────────────────────────────────────────
 async function loadProducts() {
   try {
-    const [productsRes, summaryRes, movementsRes] = await Promise.all([
+    const [productsRes, summaryRes] = await Promise.all([
       fetch('/api/products'),
       fetch('/api/stocks/summary'),
-      fetch('/api/stocks/movements')
     ]);
     if (!productsRes.ok) throw new Error();
     allProducts = await productsRes.json();
@@ -52,26 +45,11 @@ async function loadProducts() {
       allProducts = allProducts.filter(p => !_internalOnlySkus.has(String(p.product_code || '').trim()));
     }
 
-    if (movementsRes.ok) {
-      const movements = await movementsRes.json();
-      const stockMap = new Map();
-      movements.forEach(m => {
-        const sku = String(m.sku || '').trim();
-        if (!sku) return;
-        const qty = Number(m.quantity || 0);
-        const current = stockMap.get(sku) || 0;
-        stockMap.set(sku, current + (m.direction === 'INCOMING' ? qty : -qty));
-      });
-      allProducts.forEach(p => {
-        p.current_stock = stockMap.get(String(p.product_code || '').trim()) ?? 0;
-      });
-    }
-
     initPriceRange();
-    renderKpis();
-    applyFilters();
-  } catch {
-    document.getElementById('urunler-count').textContent = 'Veri alınamadı.';
+    renderUrunlerKpis();
+    applyUrunlerFilters();
+  } catch(e) {
+    console.error('Ürünler yüklenemedi', e.message);
   }
 }
 
@@ -96,9 +74,6 @@ async function loadCategoryOptions() {
       : [];
     brandOptions = Array.isArray(data?.brands)
       ? data.brands.map(x => String(x || '').trim()).filter(Boolean)
-      : [];
-    modelOptions = Array.isArray(data?.models)
-      ? data.models.map(x => String(x || '').trim()).filter(Boolean)
       : [];
   } catch { }
 }
@@ -126,7 +101,7 @@ function updateMaliyetRange() {
   _maliyetMax = Number(maxEl?.value || 0);
   if (_maliyetMin > _maliyetMax) [_maliyetMin, _maliyetMax] = [_maliyetMax, _maliyetMin];
   updateMaliyetLabel();
-  applyFilters();
+  applyUrunlerFilters();
 }
 
 function updateMaliyetLabel() {
@@ -138,56 +113,48 @@ function updateMaliyetLabel() {
 // ─── FILTERS ──────────────────────────────────────────────────────────────────
 function initFilters() {
   _brandFilter = createTagFilter({
-    wrapId: 'brandTagsWrap',
-    inputId: 'brandTagInput',
-    dropdownId: 'brandDropdown',
+    wrapId: 'urBrandTagsWrap',
+    inputId: 'urBrandTagInput',
+    dropdownId: 'urBrandDropdown',
     getOptions: () => brandOptions,
-    onChange: () => applyFilters(),
+    onChange: () => applyUrunlerFilters(),
   });
 
   _categoryFilter = createTagFilter({
-    wrapId: 'categoryTagsWrap',
-    inputId: 'categoryTagInput',
-    dropdownId: 'categoryDropdown',
+    wrapId: 'urCategoryTagsWrap',
+    inputId: 'urCategoryTagInput',
+    dropdownId: 'urCategoryDropdown',
     getOptions: () => [...new Set(allProducts.map(p => String(p.category || '').trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'tr')),
-    onChange: () => { applyFilters(); onCategoryFilterChange(); },
+    onChange: () => { applyUrunlerFilters(); onCategoryFilterChange(); },
   });
 
-  _modelFilter = createTagFilter({
-    wrapId: 'modelTagsWrap',
-    inputId: 'modelTagInput',
-    dropdownId: 'modelDropdown',
-    getOptions: () => [...new Set(allProducts.map(p => String(p.model || '').trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'tr')),
-    onChange: () => applyFilters(),
-  });
+
 
   _currencyFilter = createTagFilter({
-    wrapId: 'currencyTagsWrap',
-    inputId: 'currencyTagInput',
-    dropdownId: 'currencyDropdown',
+    wrapId: 'urCurrencyTagsWrap',
+    inputId: 'urCurrencyTagInput',
+    dropdownId: 'urCurrencyDropdown',
     getOptions: () => [...new Set(allProducts.map(p => String(p.last_purchase_currency || '').trim()).filter(Boolean))].sort(),
-    onChange: () => { updateAdvancedBadge(); applyFilters(); },
+    onChange: () => { updateUrAdvancedBadge(); applyUrunlerFilters(); },
   });
 }
 
-function applyFilters() {
+function applyUrunlerFilters() {
   const search = (document.getElementById('urunSearch')?.value || '').trim().toLocaleLowerCase('tr-TR');
   const brands = _brandFilter?.getSelected() || [];
   const categories = _categoryFilter?.getSelected() || [];
-  const models = _modelFilter?.getSelected() || [];
   const currencies = _currencyFilter?.getSelected() || [];
   const dmoOnly = !!document.getElementById('filterDmoOnly')?.checked;
   const inStockOnly = !!document.getElementById('filterInStockOnly')?.checked;
 
   const sliderMax = Number(document.getElementById('maliyetMax')?.max || 0);
 
-  const filtered = allProducts.filter(p => {
+  let filtered = allProducts.filter(p => {
     if (brands.length && !brands.includes(String(p.brand || '').trim())) return false;
     if (categories.length && !categories.includes(String(p.category || '').trim())) return false;
-    if (models.length && !models.includes(String(p.model || '').trim())) return false;
     if (currencies.length && !currencies.includes(String(p.last_purchase_currency || '').trim())) return false;
     if (dmoOnly && !String(p.dmo_code || '').trim()) return false;
-    if (inStockOnly && !(Number(p.current_stock || 0) > 0)) return false;
+    if (inStockOnly && !(Number(p.stock_on_hand || 0) > 0)) return false;
 
     // Maliyet range — only apply if slider has been moved from defaults
     const maliyet = Number(p.maliyet_usd || 0);
@@ -225,31 +192,30 @@ function applyFilters() {
     });
   }
 
-  renderTable(filtered);
-  renderKpis(filtered);
-  updateAdvancedBadge();
+  renderUrunlerTable(filtered);
+  renderUrunlerKpis(filtered);
+  updateUrAdvancedBadge();
 }
 
-function clearFilters() {
+function _clearUrunlerFilters() {
   document.getElementById('urunSearch').value = '';
   _brandFilter?.clear();
   _categoryFilter?.clear();
-  _modelFilter?.clear();
   _currencyFilter?.clear();
   const dmoEl = document.getElementById('filterDmoOnly');
   if (dmoEl) dmoEl.checked = false;
   const inStockEl = document.getElementById('filterInStockOnly');
   if (inStockEl) inStockEl.checked = false;
   initPriceRange();
-  updateAdvancedBadge();
-  applyFilters();
+  updateUrAdvancedBadge();
+  applyUrunlerFilters();
 }
 
 // ─── ADVANCED PANEL ───────────────────────────────────────────────────────────
-function toggleAdvancedFilters() {
+function _toggleUrunlerAdvanced() {
   _advancedOpen = !_advancedOpen;
-  document.getElementById('advancedFiltersPanel')?.classList.toggle('open', _advancedOpen);
-  const btnText = document.getElementById('advancedFiltersBtnText');
+  document.getElementById('urAdvancedFiltersPanel')?.classList.toggle('open', _advancedOpen);
+  const btnText = document.getElementById('urAdvancedFiltersBtnText');
   if (btnText) {
     btnText.innerHTML = _advancedOpen
       ? `<i class="ti ti-chevron-up" style="font-size:12px;"></i> Gelişmiş Filtreler`
@@ -257,8 +223,8 @@ function toggleAdvancedFilters() {
   }
 }
 
-function updateAdvancedBadge() {
-  const badge = document.getElementById('advancedFiltersBadge');
+function updateUrAdvancedBadge() {
+  const badge = document.getElementById('urAdvancedFiltersBadge');
   if (!badge) return;
   const sliderMax = Number(document.getElementById('maliyetMax')?.max || 0);
   const dmoOnly = !!document.getElementById('filterDmoOnly')?.checked;
@@ -275,20 +241,16 @@ function updateAdvancedBadge() {
 }
 
 // ─── KPIs ─────────────────────────────────────────────────────────────────────
-function renderKpis(subset) {
+function renderUrunlerKpis(subset) {
   const src = subset || allProducts;
   const categories = new Set(src.map(p => String(p.category || '').trim()).filter(Boolean));
   const brands = new Set(src.map(p => String(p.brand || '').trim()).filter(Boolean));
-  const models = new Set(src.map(p => String(p.model || '').trim()).filter(Boolean));
-  document.getElementById('kpi-total').textContent = fmtQty(src.length);
+  document.getElementById('kpi-total-ur').textContent = fmtQty(src.length);
   document.getElementById('kpi-categories').textContent = String(categories.size);
-  document.getElementById('kpi-brands').textContent = String(brands.size);
-  document.getElementById('kpi-models').textContent = String(models.size);
-  document.getElementById('urunler-count').textContent = `${fmtQty(src.length)} ürün`;
 }
 
 // ─── TABLE ────────────────────────────────────────────────────────────────────
-function renderTable(filtered) {
+function renderUrunlerTable(filtered) {
   const body = document.getElementById('urunlerTableBody');
   const emptyEl = document.getElementById('urunlerEmpty');
   if (!body) return;
@@ -318,10 +280,12 @@ function renderTable(filtered) {
     <td><span class="badge-sku">${esc(p.product_code || '—')}</span></td>
     <td>${p.brand ? `<span class="pill-brand">${esc(p.brand)}</span>` : '—'}</td>
     <td>${p.category ? `<span class="pill-category">${esc(p.category)}</span>` : '—'}</td>
-    <td style="color:#64748b; font-size:12px;">${esc(p.model || '—')}</td>
-    <td style="text-align:right; font-family:'Geist Mono',monospace; font-size:12px;">${Number(p.current_stock || 0) > 0 ? `<span style="color:#166534; font-weight:700;">${Number(p.current_stock).toLocaleString('tr-TR')}</span>` : `<span style="color:#94a3b8;">0</span>`}</td>
+    <td style="text-align:right; font-family:'DM Mono',monospace; font-size:12px;">${Number(p.stock_on_hand || 0) > 0 ? `<span style="color:#166534; font-weight:700;">${Number(p.stock_on_hand).toLocaleString('tr-TR')}</span>` : `<span style="color:#94a3b8;">0</span>`}</td>
     <td class="text-right price-cell">${p.last_purchase_price_cur != null ?
         `${Number(p.last_purchase_price_cur).toLocaleString('tr-TR', { minimumFractionDigits: 2 })} ${p.last_purchase_currency || ''}` :
+        '—'}</td>
+    <td class="text-right total-stock-price-cell">${p.last_purchase_price_cur != null ?
+        `${Number(p.last_purchase_price_cur*p.stock_on_hand).toLocaleString('tr-TR', { minimumFractionDigits: 2 })} ${p.last_purchase_currency || ''}` :
         '—'}</td>
   `;
     body.appendChild(tr);
@@ -335,7 +299,7 @@ const _NUMERIC_FIELDS = new Set([
 ]);
 const _READONLY_FIELDS = new Set(['created_at', 'updated_at', 'dmo_fiyat_updated']);
 const _ALL_FIELDS = [
-  'product_name', 'product_code', 'brand', 'category', 'model',
+  'product_name', 'product_code', 'brand', 'category',
   'maliyet_usd', 'sozlesme_fiyat_eur',
   'last_purchase_price_cur', 'last_purchase_currency', 'last_purchase_rate',
   'last_purchase_price_tl', 'avg_purchase_price_tl',
@@ -371,26 +335,9 @@ function selectBrand(value) {
   if (dropdown) dropdown.style.display = 'none';
 }
 
-function onModelInput(query) {
-  const dropdown = document.getElementById('pf-model-dropdown');
-  if (!dropdown) return;
-  const q = (query || '').toLocaleLowerCase('tr-TR');
-  const matches = modelOptions.filter(o => !q || o.toLocaleLowerCase('tr-TR').startsWith(q));
-  if (!matches.length && !q) { dropdown.style.display = 'none'; return; }
-  dropdown.innerHTML = matches.map(o =>
-    `<div onclick="selectModel('${esc(o)}')"
-      style="padding:8px 12px; font-size:12px; color:#374151; cursor:pointer;"
-      onmouseover="this.style.background='#f1f5f9'" onmouseout="this.style.background=''">${esc(o)}</div>`
-  ).join('');
-  dropdown.style.display = matches.length ? 'block' : 'none';
-}
 
-function selectModel(value) {
-  const input    = document.getElementById('pf-model');
-  const dropdown = document.getElementById('pf-model-dropdown');
-  if (input)    input.value = value;
-  if (dropdown) dropdown.style.display = 'none';
-}
+
+
 
 // ─── NORMAL KATEGORİ (autocomplete) ──────────────────────────────────────────
 function onCatInput(query) {
@@ -476,9 +423,6 @@ document.addEventListener('click', (e) => {
   const brandDd   = document.getElementById('pf-brand-dropdown');
   if (brandWrap && brandDd && !brandWrap.contains(e.target)) brandDd.style.display = 'none';
 
-  const modelWrap = document.getElementById('pf-model-wrap');
-  const modelDd   = document.getElementById('pf-model-dropdown');
-  if (modelWrap && modelDd && !modelWrap.contains(e.target)) modelDd.style.display = 'none';
 });
 
 function openAddModal() {
@@ -582,7 +526,7 @@ async function onCategoryFilterChange() {
     _attrFilters = {};
     const wrap = document.getElementById('dynamic-attr-filters');
     if (wrap) wrap.style.display = 'none';
-    const missingWrap = document.getElementById('filterMissingAttrsWrap');
+    const missingWrap = document.getElementById('urFilterMissingAttrsWrap');
     if (missingWrap) missingWrap.style.display = 'none';
     return;
   }
@@ -607,7 +551,7 @@ async function loadAttrValues(category) {
 
 function renderDynamicAttrFilters() {
   const wrap = document.getElementById('dynamic-attr-filters');
-  const missingWrap = document.getElementById('filterMissingAttrsWrap');
+  const missingWrap = document.getElementById('urFilterMissingAttrsWrap');
   if (!wrap) return;
 
   _attrTagFilters = {};
@@ -671,8 +615,8 @@ onclick="document.getElementById('dattr-input-${a.id}').focus()">
 
   if (!_advancedOpen) {
     _advancedOpen = true;
-    document.getElementById('advancedFiltersPanel')?.classList.add('open');
-    const btnText = document.getElementById('advancedFiltersBtnText');
+    document.getElementById('urAdvancedFiltersPanel')?.classList.add('open');
+    const btnText = document.getElementById('urAdvancedFiltersBtnText');
     if (btnText) btnText.innerHTML = `<i class="ti ti-chevron-up" style="font-size:12px;"></i> Gelişmiş Filtreler`;
   }
 }
@@ -686,8 +630,8 @@ function onAttrFilterChange() {
   document.querySelectorAll('#dynamic-attr-filters input[data-attr-id]').forEach(inp => {
     if (inp.value.trim()) _attrFilters[inp.dataset.attrId] = inp.value.trim();
   });
-  applyFilters();
-  updateAdvancedBadge();
+  applyUrunlerFilters();
+  updateUrAdvancedBadge();
 }
 
 // ─── DİNAMİK KATEGORİ ÖZELLİKLERİ ───────────────────────────────────────────

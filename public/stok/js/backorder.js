@@ -15,16 +15,16 @@ let _advSelModel = '';
 
 
 // ─── INIT ─────────────────────────────────────────────────────────────────────
-document.addEventListener('DOMContentLoaded', async () => {
+async function initBackorder() {
   await loadBrandsCategories();
   addPoLine();
   document.getElementById('poCompanyVkn')?.addEventListener('blur', autoFillCompanyByVkn);
   document.getElementById('boSearch')?.addEventListener('input', renderTable);
-  document.getElementById('filterDateStart')?.addEventListener('change', renderTable);
-  document.getElementById('filterDateEnd')?.addEventListener('change', renderTable);
+  document.getElementById('boFilterDateStart')?.addEventListener('change', renderTable);
+  document.getElementById('boFilterDateEnd')?.addEventListener('change', renderTable);
   document.getElementById('showCompleted')?.addEventListener('change', renderTable);
   await loadPendingOrders();
-});
+};
 
 async function loadBrandsCategories() {
   try {
@@ -71,7 +71,6 @@ function renderKpis() {
   document.getElementById('kpi-pending').textContent = fmtQty(pending.length);
   document.getElementById('kpi-qty').textContent = fmtQty(pendingQty);
   document.getElementById('kpi-received').textContent = fmtQty(receivedQty);
-  document.getElementById('bo-count').textContent = `${fmtQty(pending.length)} bekleyen kalem`;
 }
 
 // ─── RENDER TABLE ─────────────────────────────────────────────────────────────
@@ -80,8 +79,8 @@ function renderTable() {
   const emptyEl = document.getElementById('poEmpty');
   const search = (document.getElementById('boSearch')?.value || '').trim().toLocaleLowerCase('tr-TR');
   const showCompleted = !!document.getElementById('showCompleted')?.checked;
-  const dateStart = document.getElementById('filterDateStart')?.value || '';
-  const dateEnd = document.getElementById('filterDateEnd')?.value || '';
+  const dateStart = document.getElementById('boFilterDateStart')?.value || '';
+  const dateEnd = document.getElementById('boFilterDateEnd')?.value || '';
   if (!body) return;
 
   const filtered = allPendingOrders.filter(po => {
@@ -182,10 +181,10 @@ function renderTable() {
   });
 }
 
-function clearFilters() {
+function _clearBoFilters() {
   document.getElementById('boSearch').value = '';
-  document.getElementById('filterDateStart').value = '';
-  document.getElementById('filterDateEnd').value = '';
+  document.getElementById('boFilterDateStart').value = '';
+  document.getElementById('boFilterDateEnd').value = '';
   document.getElementById('showCompleted').checked = false;
   renderTable();
 }

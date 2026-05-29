@@ -1,28 +1,20 @@
 // stok/urun-hareketleri.js — Ürün Hareketleri detail page
 
-let allMovements      = [];
-let filteredMovements = [];
 let _sku              = '';
-let _companyFilter;
 
 // ─── INIT ─────────────────────────────────────────────────────────────────────
-document.addEventListener('DOMContentLoaded', async () => {
-  const params = new URLSearchParams(location.search);
-  _sku = params.get('sku') || '';
+async function initUrunHareketleri(sku)  {
+  _sku = sku || '';
+  if (!_sku) return;
 
-  if (!_sku) {
-    document.getElementById('pageProductName').textContent = 'SKU bulunamadı';
-    return;
-  }
+  document.getElementById('uhProductSku').textContent = _sku;
 
-  document.getElementById('pageProductSku').textContent = _sku;
-
-  document.getElementById('filterDirection')?.addEventListener('change', applyFilters);
-  document.getElementById('filterDateStart')?.addEventListener('change', applyFilters);
-  document.getElementById('filterDateEnd')?.addEventListener('change', applyFilters);
+  document.getElementById('uhFilterDirection')?.addEventListener('change', applyHareketlerFilters);
+  document.getElementById('uhFilterDateStart')?.addEventListener('change', applyHareketlerFilters);
+  document.getElementById('uhFilterDateEnd')?.addEventListener('change', applyHareketlerFilters);
 
   await loadMovements();
-});
+};
 
 // ─── DATA ─────────────────────────────────────────────────────────────────────
 async function loadMovements() {
@@ -33,29 +25,29 @@ async function loadMovements() {
 
     // Set product name from first result
     const firstName = allMovements[0]?.product_name || _sku;
-    document.getElementById('pageProductName').textContent = firstName;
+    document.getElementById('uhProductName').textContent = firstName;
 
     // Init company filter after data loads
     _companyFilter = createTagFilter({
-      wrapId:     'companyTagsWrap',
-      inputId:    'companyTagInput',
-      dropdownId: 'companyDropdown',
+      wrapId:     'uhCompanyTagsWrap',
+      inputId:    'uhCompanyTagInput',
+      dropdownId: 'uhCompanyDropDown',
       getOptions: () => [...new Set(allMovements.map(m => String(m.company_name || '').trim()).filter(Boolean))].sort((a,b) => a.localeCompare(b,'tr')),
-      onChange:   () => applyFilters(),
+      onChange:   () => applyHareketlerFilters(),
     });
 
-    applyFilters();
+    applyHareketlerFilters();
   } catch {
-    document.getElementById('pageProductName').textContent = 'Veri alınamadı';
+    document.getElementById('uhProductName').textContent = 'Veri alınamadı';
   }
 }
 
 // ─── FILTERS ──────────────────────────────────────────────────────────────────
-function applyFilters() {
+function applyHareketlerFilters() {
   const companies = _companyFilter?.getSelected() || [];
-  const direction = document.getElementById('filterDirection')?.value || '';
-  const dateStart = document.getElementById('filterDateStart')?.value || '';
-  const dateEnd   = document.getElementById('filterDateEnd')?.value   || '';
+  const direction = document.getElementById('uhFilterDirection')?.value || '';
+  const dateStart = document.getElementById('uhFilterDateStart')?.value || '';
+  const dateEnd   = document.getElementById('uhFilterDateEnd')?.value   || '';
 
   filteredMovements = allMovements.filter(m => {
     if (companies.length && !companies.includes(String(m.company_name || '').trim())) return false;
@@ -67,15 +59,15 @@ function applyFilters() {
   });
 
   renderStats();
-  renderTable();
+  renderUrunHareketlerTable();
 }
 
-function clearFilters() {
+function _clearUhFilters() {
   _companyFilter?.clear();
-  document.getElementById('filterDirection').value  = '';
-  document.getElementById('filterDateStart').value  = '';
-  document.getElementById('filterDateEnd').value    = '';
-  applyFilters();
+  document.getElementById('uhFilterDirection').value  = '';
+  document.getElementById('uhFilterDateStart').value  = '';
+  document.getElementById('uhFilterDateEnd').value    = '';
+  applyHareketlerFilters();
 }
 
 // ─── STATS ────────────────────────────────────────────────────────────────────
@@ -94,7 +86,7 @@ function renderStats() {
 }
 
 // ─── TABLE ────────────────────────────────────────────────────────────────────
-function renderTable() {
+function renderUrunHareketlerTable() {
   const body    = document.getElementById('uhTableBody');
   const emptyEl = document.getElementById('uhEmpty');
   if (!body) return;

@@ -43,6 +43,12 @@ let fatListSort = { col: 'date', dir: 'desc' };
 let _fatDetailList = [];   // mevcut filtreli+sıralı liste
 let _fatDetailIdx  = -1;   // açık faturanın indeksi
 
+// in state.js
+let _restoringFilters = false;
+
+// ─── Active filters object ────────────────────────────────────────────────────
+window._fatActiveFilters = {};
+
 // ─── Rapor state'i ───────────────────────────────────────────────────────────
 let raporMode = 'gelen';
 let raporSort = { col: 'usd', dir: 'desc' };
@@ -98,3 +104,85 @@ let bulkIncoming     = [];
 let bulkOutgoing     = [];
 let bulkFailed       = [];
 let bulkUploadRunning = false;
+
+
+function saveFilterState() {
+  const state = {
+    view:       currentView,
+    tab:        _activeMainTab,
+    filters:    window._fatActiveFilters || {},
+    // tag filter selected values
+    companies:  _fatCompanyFilter?.getSelected()  || [],
+    brands:     _fatBrandFilter?.getSelected()    || [],
+    categories: _fatCategoryFilter?.getSelected() || [],
+    products:   _fatProductFilter?.getSelected()  || [],
+    // date + currency inputs
+    dateStart:  document.getElementById('filterDateStart')?.value || '',
+    dateEnd:    document.getElementById('filterDateEnd')?.value   || '',
+    currency:   document.getElementById('filterCurrency')?.value  || '',
+    page:       _currentPage,
+  };
+  try {
+    sessionStorage.setItem(FILTER_STATE_KEY, JSON.stringify(state));
+  } catch(e) {}
+}
+
+function restoreFilterState() {
+  try {
+    const raw = sessionStorage.getItem(FILTER_STATE_KEY);
+    if (!raw) return;
+    const state = JSON.parse(raw);
+
+    // Restore active filters object
+    window._fatActiveFilters = state.filters || {};
+
+    // Restore date + currency inputs
+    if (state.dateStart) {
+      const el = document.getElementById('filterDateStart');
+      if (el) el.value = state.dateStart;
+    }
+    if (state.dateEnd) {
+      const el = document.getElementById('filterDateEnd');
+      if (el) el.value = state.dateEnd;
+    }
+    if (state.currency) {
+      const el = document.getElementById('filterCurrency');
+      if (el) el.value = state.currency;
+    }
+
+    // Restore page
+    if (state.page) _currentPage = state.page;
+
+    // Tag filters are restored after initFatFilters() runs — see restoreTagFilters()
+    window._pendingTagRestore = {
+      companies:  state.companies  || [],
+      brands:     state.brands     || [],
+      categories: state.categories || [],
+      products:   state.products   || [],
+    };
+  } catch(e) {}
+}
+
+// Called from main.js after initFatFilters()
+function restoreTagFilters() {
+  const pending = window._pendingTagRestore;
+  if (!pending) return;
+
+  function restoreOne(filter, values) {
+    if (!filter || !values.length) return;
+    // Inject selected values directly — clear first
+    filter.clear();
+    values.forEach(v => {
+      // Simulate selection by pushing into selected and re-rendering
+      filter._forceSelect(v);
+    });
+  }
+
+  // _forceSelect needs to be exposed from createTagFilter — see step 3
+  if (_fatCompanyFilter)  pending.companies.forEach(v  => _fatCompanyFilter._forceSelect(v));
+  if (_fatBrandFilter)    pending.brands.forEach(v     => _fatBrandFilter._forceSelect(v));
+  if (_fatCategoryFilter) pending.categories.forEach(v => _fatCategoryFilter._forceSelect(v));
+  if (_fatProductFilter)  pending.products.forEach(v   => _fatProductFilter._forceSelect(v));
+
+  window._pendingTagRestore = null;
+}

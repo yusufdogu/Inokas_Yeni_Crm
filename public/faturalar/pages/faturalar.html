@@ -57,18 +57,35 @@
         <div class="fatura-filter-row">
 
           <div class="filter-tags-wrap" id="companyTagsWrap"
-            onclick="document.getElementById('companyTagInput').focus()" style="flex:2; min-width:180px;">
+            onclick="document.getElementById('companyTagInput').focus()" >
             <div id="companyTags" class="filter-tags"></div>
             <input type="text" id="companyTagInput" class="filter-tags-input" placeholder="Firma ekle...">
             <div id="companyDropdown" class="filter-dropdown"></div>
           </div>
 
           <div class="filter-tags-wrap" id="productTagsWrap"
-            onclick="document.getElementById('productTagInput').focus()" style="flex:2; min-width:180px;">
+            onclick="document.getElementById('productTagInput').focus()" >
             <div id="productTags" class="filter-tags"></div>
             <input type="text" id="productTagInput" class="filter-tags-input" placeholder="Ürün ismi ekle...">
             <div id="productDropdown" class="filter-dropdown"></div>
           </div>
+
+          <div class="filter-tags-wrap" id="brandTagsWrap"
+            onclick="document.getElementById('brandTagInput').focus()" >
+            <div id="brandTags" class="filter-tags"></div>
+            <input type="text" id="brandTagInput" class="filter-tags-input" placeholder="Marka ekle...">
+            <div id="brandDropdown" class="filter-dropdown"></div>
+          </div>
+
+          <div class="filter-tags-wrap" id="categoryTagsWrap"
+            onclick="document.getElementById('categoryTagInput').focus()">
+            <div id="categoryTags" class="filter-tags"></div>
+            <input type="text" id="categoryTagInput" class="filter-tags-input" placeholder="Kategori ekle...">
+            <div id="categoryDropdown" class="filter-dropdown"></div>
+          </div>
+          <select id="filterCurrency" onchange="applyFiltersAndFetch()" class="fatura-filter-select">
+            <option value="">Tüm Dövizler</option>
+          </select>
 
           <div style="display:flex; align-items:center; gap:4px; flex-shrink:0;">
             <input type="date" id="filterDateStart" onchange="applyFiltersAndFetch()" class="fatura-filter-date">
@@ -79,36 +96,31 @@
           <button class="filter-btn-clear" onclick="clearAllFilters()" title="Temizle">
             <i class="ti ti-trash" style="font-size:14px;"></i>
           </button>
-
-        </div>
-
-        <!-- Row 2: Kategori, Marka, Döviz -->
-        <div class="fatura-filter-row">
-
-          <div class="filter-tags-wrap" id="categoryTagsWrap"
-            onclick="document.getElementById('categoryTagInput').focus()" style="flex:2; min-width:180px;">
-            <div id="categoryTags" class="filter-tags"></div>
-            <input type="text" id="categoryTagInput" class="filter-tags-input" placeholder="Kategori ekle...">
-            <div id="categoryDropdown" class="filter-dropdown"></div>
-          </div>
-
-          <div class="filter-tags-wrap" id="brandTagsWrap"
-            onclick="document.getElementById('brandTagInput').focus()" style="flex:2; min-width:180px;">
-            <div id="brandTags" class="filter-tags"></div>
-            <input type="text" id="brandTagInput" class="filter-tags-input" placeholder="Marka ekle...">
-            <div id="brandDropdown" class="filter-dropdown"></div>
-          </div>
-
-
-          <select id="filterCurrency" onchange="applyFiltersAndFetch()" class="fatura-filter-select">
-            <option value="">Tüm Dövizler</option>
-            <option value="TRY">TRY</option>
-            <option value="USD">USD</option>
-          </select>
         </div>
       </div>
       <!-- ─── END Filter bar ───────────────────────────────────────────── -->
-
+      <!-- ─── KPI Bar ─────────────────────────────────────────────────────────── -->
+      <div class="fat-kpi-bar" id="fatKpiBar" style="display:none;">
+        <div class="fat-kpi-card">
+          <span class="fat-kpi-label">Fatura Adedi</span>
+          <span class="fat-kpi-value" id="kpiCount">—</span>
+        </div>
+        <div class="fat-kpi-card">
+          <span class="fat-kpi-label">TL Toplam</span>
+          <span class="fat-kpi-value" id="kpiTryTotal">—</span>
+          <span class="fat-kpi-sub" id="kpiTryAvg"></span>
+        </div>
+        <div class="fat-kpi-card">
+          <span class="fat-kpi-label">USD Toplam</span>
+          <span class="fat-kpi-value" id="kpiUsdTotal">—</span>
+          <span class="fat-kpi-sub" id="kpiUsdAvg"></span>
+        </div>
+        <div class="fat-kpi-card">
+          <span class="fat-kpi-label">Ort. Fatura (TL)</span>
+          <span class="fat-kpi-value" id="kpiAvgTry">—</span>
+        </div>
+      </div>
+      <!-- ─── END KPI Bar ──────────────────────────────────────────────────────── -->
       <!-- ─── Main content area ───────────────────────────────────────── -->
       <div class="fat-area" id="fatArea">
 
@@ -318,7 +330,8 @@
 <div id="toast-container"></div>
 
 <!-- ─── JS modules (same order as gelen-faturalar.html) ─────────────────── -->
-<script src="/faturalar/js/utils.js?v=20260518-kbd-nav"></script>
+
+<script src="/faturalar/js/utils.js"></script>
 <script src="/faturalar/js/xml.js?v=1"></script>
 <script src="/faturalar/js/api.js?v=20260521-sort"></script>
 <script src="/faturalar/js/state.js?v=20260511-detailpage"></script>
@@ -326,114 +339,8 @@
 <script src="/faturalar/js/detail.js?v=20260521-batch-is-internal"></script>
 <script src="/faturalar/js/main.js?v=20260511-bek-pdf-fix"></script>
 
-<script>
-// ── TAB STATE ────────────────────────────────────────────────────────────────
-let _activeMainTab  = 'genel';
-let _activeBekTab   = 'genel';
+<script src="/faturalar/js/faturalar.js"></script>
 
-// ── LOADING OVERLAY ──────────────────────────────────────────────────────────
-function showLoadingOverlay() {
-  const overlay = document.getElementById('fatLoadingOverlay');
-  const spinner = document.getElementById('fatLoadingSpinner');
-  if (!overlay) return;
-  overlay.style.background = 'rgba(248,250,252,0.65)';
-  overlay.style.backdropFilter = 'blur(3px)';
-  overlay.style.pointerEvents = 'all';
-  spinner.style.opacity = '1';
-  spinner.style.animation = 'fat-spin 0.7s linear infinite';
-}
-
-function hideLoadingOverlay() {
-  const overlay = document.getElementById('fatLoadingOverlay');
-  const spinner = document.getElementById('fatLoadingSpinner');
-  if (!overlay) return;
-  overlay.style.background = 'rgba(248,250,252,0)';
-  overlay.style.backdropFilter = 'blur(0px)';
-  overlay.style.pointerEvents = 'none';
-  spinner.style.opacity = '0';
-  spinner.style.animation = '';
-}
-
-// ── MAIN TAB SWITCHER ────────────────────────────────────────────────────────
-function switchMainTab(tab) {
-  _activeMainTab = tab;
-  history.replaceState(null, '', `?tab=${tab}`);
-
-  // Update nav pill styles
-  document.querySelectorAll('.fat-nav-tab').forEach(btn => btn.classList.remove('fat-nav-tab--active'));
-  const tabId = { genel: 'navTabGenel', gelen: 'navTabGelen', giden: 'navTabGiden', bekleyen: 'navTabBekleyen' }[tab];
-  document.getElementById(tabId)?.classList.add('fat-nav-tab--active');
-
-  const isGenel     = tab === 'genel';
-  const isBekleyen  = tab === 'bekleyen';
-  const isListTab   = tab === 'gelen' || tab === 'giden' || isBekleyen;
-
-  // Filter bar: hide on Genel, show on list tabs
-  document.getElementById('fatFilterBar').style.display = (isGenel || isBekleyen) ? 'none' : '';
-
-  // Sub-tab bar: only on Bekleyenler
-  document.getElementById('fatSubTabBar').style.display = isBekleyen ? '' : 'none';
-
-  // Show/hide panels
-  document.getElementById('panelGenel').style.display = isGenel ? '' : 'none';
-  document.getElementById('panelList').style.display  = isListTab ? '' : 'none';
-
-  if (isGenel) {
-    document.getElementById('fatPagination')?.remove();
-    const iframe = document.getElementById('genelBakisFrame');
-    if (iframe && !iframe.getAttribute('src')) {
-        iframe.src = '/faturalar/pages/genel-bakis.html';
-    }
-    return;
-  }
-  if (isBekleyen) {
-    window._FAT_PENDING = true;
-    loadBekleyenCounts();
-    currentView = _activeBekTab === 'giden' ? 'giden' : 'gelen';
-  } else {
-      window._FAT_PENDING = false;
-      currentView = tab;
-  }
-
-  // Reset pagination and refresh
-  window._filterOptionsLoaded = false;
-  _currentPage = 1;
-  showLoadingOverlay();
-  refreshData(false);
-}
-async function loadBekleyenCounts() {
-  try {
-    const res  = await fetch('/api/invoices/pending');
-    const data = await res.json();
-    const list = Array.isArray(data) ? data : (data.data || []);
-    const gelenCount = list.filter(i => i.direction === 'INCOMING').length;
-    const gidenCount = list.filter(i => i.direction === 'OUTGOING').length;
-    const gelenBadge = document.getElementById('subTabBekGelenCount');
-    const gidenBadge = document.getElementById('subTabBekGidenCount');
-    if (gelenBadge) gelenBadge.textContent = gelenCount || '';
-    if (gidenBadge) gidenBadge.textContent = gidenCount || '';
-  } catch(e) {}
-}
-
-function switchBekleyenTab(sub) {
-  _activeBekTab = sub;
-  document.querySelectorAll('.fat-sub-tab').forEach(btn => btn.classList.remove('fat-sub-tab--active'));
-  document.getElementById(sub === 'gelen' ? 'subTabBekGelen' : 'subTabBekGiden')?.classList.add('fat-sub-tab--active');
-
-  currentView = sub;
-  window._FAT_PENDING = true;
-  window._filterOptionsLoaded = false;
-  _currentPage = 1;
-  showLoadingOverlay();
-  refreshData(false);
-}
-
-document.addEventListener('DOMContentLoaded', () => {
-  const tab = new URLSearchParams(location.search).get('tab') || 'genel';
-  switchMainTab(tab);
-});
-
-</script>
 
 </body>
 </html>

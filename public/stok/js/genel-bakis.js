@@ -6,7 +6,6 @@ const LOW_STOCK_THRESHOLD = 10;
 const PAGE_SIZE           = 3;
 
 // ── State ─────────────────────────────────────────────────────────────────────
-let _summary          = [];
 let _movements        = [];
 let _internalSkus     = new Set();
 let _urunRanking      = [];
@@ -18,6 +17,8 @@ let _chatLoading      = false;
 let _chartInstance=null;
 let _periodOffset=0;
 
+let allProducts = [];
+
 
 // ── Init ──────────────────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
@@ -28,15 +29,12 @@ document.addEventListener('DOMContentLoaded', () => {
 // ── Data loading ──────────────────────────────────────────────────────────────
 async function loadSummary() {
   try {
-    const res  = await fetch('/api/stocks/summary');
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const json = await res.json();
+    const productsRes  = await fetch('/api/products');
+    if (!productsRes.ok) throw new Error();
+    allProducts = await productsRes.json();
 
-    _internalSkus = new Set(json.internal_only_skus || []);
-    _summary      = (json.data || []).filter(r => !_internalSkus.has(r.sku));
-
-    renderHero(_summary);
-    loadAsistanReport(_summary);
+    renderHero(allProducts);
+    loadAsistanReport(allProducts);
   } catch (err) {
     console.error('Stok özet yüklenemedi:', err);
     document.getElementById('gbHeroTL').textContent = 'Yüklenemedi';
@@ -69,10 +67,17 @@ function renderHero(data) {
   let totalUSD = 0;
 
   data.forEach(r => {
-    const stock = Number(r.current_stock || 0);
-    if (stock <= 0) return;
-    totalTL  += stock * Number(r.avg_purchase_price_tl || 0);
-    totalUSD += Number(r.stock_usd || 0);
+    const stock       = Number(r.stock_on_hand || 0);
+    const avgTL       = Number(r.avg_purchase_price_tl || 0);
+    const lastCur     = (r.last_purchase_currency || '').toUpperCase().trim();
+
+    if (Math.floor(stock) > 0) {
+      if ((lastCur === 'TRY' || lastCur === 'TL') && avgTL > 0) {
+        totalTL+=stock * r.avg_purchase_price_tl
+      } else if (lastCur === 'USD' && r.last_purchase_price_cur >0) {
+        totalUSD += stock * r.last_purchase_price_cur;
+      }
+    }
   });
 
   document.getElementById('gbHeroTL').textContent =

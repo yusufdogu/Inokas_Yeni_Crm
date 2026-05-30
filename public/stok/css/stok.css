@@ -305,48 +305,7 @@
 
 .stk-empty.visible { display: block; }
 
-/* ── Sub-view (Ürün Hareketleri) ───────────────────────────────────────────── */
-.stk-subview-header {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 10px 16px;
-  background: var(--stk-bg2);
-  border-bottom: 0.5px solid var(--stk-border);
-  flex-shrink: 0;
-}
 
-.stk-back-btn {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 6px 12px;
-  border: 0.5px solid var(--stk-border2);
-  border-radius: var(--stk-r);
-  background: #fff;
-  color: var(--stk-ink2);
-  font-size: 12px;
-  font-weight: 500;
-  cursor: pointer;
-  font-family: var(--stk-font-ui);
-  transition: background 0.15s, color 0.15s;
-}
-
-.stk-back-btn:hover { background: var(--stk-bg3); color: var(--stk-ink); }
-
-.stk-subview-title {
-  font-size: 14px;
-  font-weight: 500;
-  color: var(--stk-ink);
-  margin: 0;
-}
-
-.stk-subview-sub {
-  font-size: 11px;
-  color: var(--stk-ink4);
-  font-family: var(--stk-font-data);
-  margin: 0;
-}
 
 /* ── Ürün Hareketleri stats ────────────────────────────────────────────────── */
 .stk-uh-stats {
@@ -816,6 +775,298 @@
   border-top-color: var(--stk-ink);
   border-radius: 50%;
   animation: stk-spin 0.7s linear infinite;
+}
+
+
+/* ── Ürün modal — two-tab layout ─────────────────────────────────────────── */
+
+.stk-modal-box--large {
+  max-width: 860px;
+  width: 92vw;
+  max-height: 88vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.stk-urun-modal-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 20px 0;
+  border-bottom: 0.5px solid rgba(14,13,11,0.1);
+  flex-shrink: 0;
+}
+
+.stk-urun-modal-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 9px;
+  background: rgba(14,13,11,0.06);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  font-weight: 600;
+  color: #3a3832;
+  flex-shrink: 0;
+  font-family: 'DM Mono', monospace;
+}
+
+.stk-urun-modal-title-wrap {
+  flex: 1;
+  min-width: 0;
+}
+
+.stk-urun-modal-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--stk-ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+}
+
+.stk-urun-modal-sub {
+  font-size: 11px;
+  color: var(--stk-ink4);
+  font-family: 'DM Mono', monospace;
+  margin-top: 2px;
+}
+
+.stk-urun-modal-tabs {
+  display: flex;
+  padding: 0 20px;
+  border-bottom: 0.5px solid rgba(14,13,11,0.1);
+  flex-shrink: 0;
+}
+
+.stk-urun-tab {
+  font-size: 12px;
+  font-weight: 400;
+  padding: 10px 0;
+  margin-right: 20px;
+  border: none;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: var(--stk-ink4);
+  cursor: pointer;
+  font-family: 'DM Sans', sans-serif;
+  transition: color 0.12s;
+}
+
+.stk-urun-tab:hover { color: var(--stk-ink3); }
+
+.stk-urun-tab--active {
+  color: var(--stk-ink);
+  border-bottom-color: var(--stk-ink);
+  font-weight: 500;
+}
+
+.stk-urun-panel {
+  display: none;
+  flex-direction: column;
+  flex: 1;
+  overflow: hidden;
+  min-height: 0;
+}
+
+.stk-urun-panel--active {
+  display: flex;
+}
+
+/* Hareketler tab — table scrolls inside */
+#urunPanelHar .stk-tbl-wrap {
+  flex: 1;
+  overflow-y: auto;
+}
+
+/* Detay tab — body scrolls */
+#urunPanelDet {
+  overflow: hidden;
+}
+
+#urunPanelDet .stk-modal-body {
+  flex: 1;
+  overflow-y: auto;
+}
+
+#urunPanelDet .stk-modal-footer {
+  flex-shrink: 0;
+  border-top: 0.5px solid rgba(14,13,11,0.1);
+}
+
+/* PDF button in table */
+.stk-pdf-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  color: var(--stk-ink3);
+  border: 0.5px solid rgba(14,13,11,0.15);
+  border-radius: 5px;
+  padding: 2px 7px;
+  background: transparent;
+  cursor: pointer;
+  text-decoration: none;
+  font-family: 'DM Sans', sans-serif;
+  transition: background 0.1s;
+}
+
+.stk-pdf-btn:hover {
+  background: rgba(14,13,11,0.05);
+  color: var(--stk-ink);
+}
+
+/* ── Chip toggles ─────────────────────────────────────────────────────────── */
+
+.stk-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 30px;
+  padding: 0 10px;
+  border: 0.5px solid rgba(14,13,11,0.18);
+  border-radius: 99px;
+  background: transparent;
+  font-size: 12px;
+  color: var(--stk-ink3);
+  cursor: pointer;
+  font-family: 'DM Sans', sans-serif;
+  white-space: nowrap;
+  transition: background 0.12s, color 0.12s, border-color 0.12s;
+}
+
+.stk-chip:hover {
+  background: rgba(14,13,11,0.05);
+  color: var(--stk-ink);
+}
+
+.stk-chip--active {
+  background: var(--stk-ink);
+  color: rgba(245,242,236,0.92);
+  border-color: var(--stk-ink);
+}
+
+.stk-chip--active:hover {
+  background: var(--stk-ink2);
+  color: rgba(245,242,236,0.92);
+}
+
+/* ── KPI strip — Ürünler option B ────────────────────────────────────────── */
+
+.stk-kpi-grid--urunler {
+  display: grid;
+  grid-template-columns: 1.7fr 1fr 1fr 1fr 1fr;
+  border-bottom: 0.5px solid rgba(14,13,11,0.1);
+  flex-shrink: 0;
+}
+
+.stk-kpi-grid--urunler .stk-kpi {
+  padding: 10px 16px;
+  border-right: 0.5px solid rgba(14,13,11,0.1);
+}
+
+.stk-kpi-grid--urunler .stk-kpi:last-child {
+  border-right: none;
+}
+
+.stk-kpi--hero {
+  background: var(--stk-bg2, #ede9e0);
+}
+
+.stk-kpi--hero .stk-kpi-value {
+  font-size: 20px;
+}
+
+.stk-kpi-sub {
+  font-size: 11px;
+  color: var(--stk-ink4);
+  font-family: 'DM Mono', monospace;
+  margin-top: 1px;
+}
+
+.stk-kpi--clickable {
+  cursor: pointer;
+  transition: background 0.12s;
+}
+
+.stk-kpi--clickable:hover {
+  background: rgba(14,13,11,0.03);
+}
+
+.stk-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 14px;
+  border-top: 0.5px solid rgba(14,13,11,0.1);
+  flex-shrink: 0;
+  gap: 12px;
+}
+
+.stk-pg-info {
+  font-size: 11px;
+  color: var(--stk-ink4);
+  font-family: 'DM Mono', monospace;
+  white-space: nowrap;
+}
+
+.stk-pg-controls {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.stk-pg-size {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.stk-pg-btn {
+  min-width: 28px;
+  height: 28px;
+  padding: 0 6px;
+  border: 0.5px solid rgba(14,13,11,0.15);
+  border-radius: 5px;
+  background: transparent;
+  color: var(--stk-ink3);
+  font-size: 12px;
+  font-family: 'DM Mono', monospace;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.1s, color 0.1s;
+}
+
+.stk-pg-btn:hover:not(:disabled) {
+  background: rgba(14,13,11,0.05);
+  color: var(--stk-ink);
+}
+
+.stk-pg-btn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+.stk-pg-btn--active {
+  background: var(--stk-ink);
+  color: rgba(245,242,236,0.9);
+  border-color: var(--stk-ink);
+}
+
+.stk-pg-btn--active:hover {
+  background: var(--stk-ink2);
+}
+
+.stk-pg-ellipsis {
+  font-size: 12px;
+  color: var(--stk-ink4);
+  padding: 0 4px;
+  font-family: 'DM Mono', monospace;
 }
 
 @keyframes stk-spin { to { transform: rotate(360deg); } }

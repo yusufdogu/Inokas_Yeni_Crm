@@ -15,6 +15,7 @@ let _companyFilter;
 let _productFilter;
 let _brandFilter;
 let _categoryFilter;
+let _hareketSort = { col: null, dir: 'desc' };
 
 // ─── INIT ─────────────────────────────────────────────────────────────────────
 async function initHareketler() {
@@ -232,6 +233,28 @@ function renderHareketlerKpis() {
   document.getElementById('kpi-amount').textContent = fmtQty(filteredMovements.length) + ' kayıt';
 }
 
+
+function sortHareketler(col) {
+  if (_hareketSort.col === col) {
+    _hareketSort.dir = _hareketSort.dir === 'desc' ? 'asc' : 'desc';
+  } else {
+    _hareketSort.col = col;
+    _hareketSort.dir = 'desc';
+  }
+  updateHareketSortHeaders();
+  renderStokHareketlerTable();
+}
+
+function updateHareketSortHeaders() {
+  ['total_in', 'total_out', 'last_date'].forEach(col => {
+    const el = document.getElementById(`hareketSortHdr-${col}`);
+    if (!el) return;
+    const isActive = _hareketSort.col === col;
+    el.innerHTML   = isActive ? (_hareketSort.dir === 'desc' ? ' ↓' : ' ↑') : ' ↕';
+    el.style.opacity = isActive ? '1' : '0.35';
+  });
+}
+
 // ─── RENDER TABLE ─────────────────────────────────────────────────────────────
 function renderStokHareketlerTable() {
   const body    = document.getElementById('movementsTableBody');
@@ -241,6 +264,23 @@ function renderStokHareketlerTable() {
 
   body.innerHTML = '';
   const grouped = groupByProduct(filteredMovements);
+
+  if (_hareketSort.col) {
+    grouped.sort((a, b) => {
+      let aVal, bVal;
+      if (_hareketSort.col === 'total_in') {
+        aVal = Number(a.total_in  || 0);
+        bVal = Number(b.total_in  || 0);
+      } else if (_hareketSort.col === 'total_out') {
+        aVal = Number(a.total_out || 0);
+        bVal = Number(b.total_out || 0);
+      } else if (_hareketSort.col === 'last_date') {
+        aVal = a.last_date ? new Date(a.last_date).getTime() : 0;
+        bVal = b.last_date ? new Date(b.last_date).getTime() : 0;
+      }
+      return _hareketSort.dir === 'desc' ? bVal - aVal : aVal - bVal;
+    });
+  }
 
   if (!grouped.length) {
     emptyEl.classList.add('visible');

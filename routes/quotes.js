@@ -148,18 +148,6 @@ async function generateAndStorePdf(supabase, quoteId) {
   const { execSync } = require('child_process');
   let chromePath = process.env.PUPPETEER_EXECUTABLE_PATH;
   if (!chromePath) {
-    const candidates = [
-      '/run/current-system/sw/bin/chromium',
-      '/usr/bin/chromium',
-      '/usr/bin/chromium-browser',
-      '/usr/bin/google-chrome',
-      '/nix/var/nix/profiles/default/bin/chromium',
-    ];
-    for (const c of candidates) {
-      try { execSync(`test -f ${c}`); chromePath = c; break; } catch { }
-    }
-  }
-  if (!chromePath) {
     try { chromePath = execSync('which chromium 2>/dev/null || which chromium-browser 2>/dev/null', { encoding: 'utf8' }).trim(); } catch { }
   }
   const browser = await puppeteer.launch({

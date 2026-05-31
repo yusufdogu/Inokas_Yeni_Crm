@@ -6,12 +6,11 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Teklif Formu — İnokas CRM</title>
   <script>if (!sessionStorage.getItem('inokas_token')) window.location.href = '/auth/login.html';</script>
-  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap"
-    rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.x/dist/tabler-icons.min.css">
   <link rel="stylesheet" href="/shared/sidebar.css">
-  <link rel="stylesheet" href="/quotes/css/quotes.css?v=1">
-  <link rel="stylesheet" href="/quotes/css/teklif-form.css?v=20260522-horizontal">
+  <link rel="stylesheet" href="/quotes/css/quotes.css?v=2">
+  <link rel="stylesheet" href="/quotes/css/teklif-form.css?v=20260530-tabs">
 </head>
 
 <body>
@@ -23,34 +22,69 @@
       <!-- Header -->
       <div class="page-header">
         <button class="sb-toggle-btn" onclick="toggleSidebar()"><i class="ti ti-menu-2"></i></button>
-        <div style="display:flex; align-items:center; gap:10px;">
-          <div>
-            <p class="page-header-title" id="formTitle">Yeni Teklif</p>
-            <p class="page-header-sub" id="formRefNo"></p>
-          </div>
+        <div>
+          <p class="page-header-title" id="formTitle">Yeni Teklif</p>
+          <p class="page-header-sub" id="formRefNo"></p>
         </div>
-        <div style="margin-left:auto; display:flex; gap:8px;">
-          <select class="form-input" id="statusSelect" style="font-size:13px; padding:6px 10px;">
+        <!-- Edit mode: save button in header (hidden in create mode) -->
+        <div style="margin-left:auto; display:none; gap:8px; align-items:center;" id="headerActions">
+          <select class="form-input" id="headerStatusSelect" style="font-size:13px; padding:6px 10px; width:auto;">
             <option value="pending">Beklemede</option>
             <option value="accepted">Kabul</option>
             <option value="rejected">Red</option>
             <option value="draft">Taslak</option>
           </select>
-          <button class="btn-primary" onclick="saveQuote()"><i class="ti ti-device-floppy"></i> Kaydet</button>
+          <button class="btn-primary" id="headerSaveBtn" onclick="saveQuote()">
+            <i class="ti ti-device-floppy"></i> Kaydet
+          </button>
         </div>
       </div>
 
-      <div class="form-area">
+      <!-- Tab bar (edit mode only) -->
+      <div class="tab-bar" id="tabBar" style="display:none;">
+        <button class="tab-btn active" id="tab1" onclick="switchTab(1)">
+          <i class="ti ti-info-circle"></i> Genel Bilgiler
+        </button>
+        <button class="tab-btn" id="tab2" onclick="switchTab(2)">
+          <i class="ti ti-file-text"></i> Teklif Hususları
+        </button>
+        <button class="tab-btn" id="tab3" onclick="switchTab(3)">
+          <i class="ti ti-package"></i> Ürün Kalemleri
+        </button>
+      </div>
 
-        <!-- Üst: Genel Bilgiler (yatay) -->
-        <div class="form-card">
+      <!-- Stepper bar (create mode only) -->
+      <div class="stepper-bar" id="stepperBar" style="display:none;">
+        <div class="stepper-track">
+          <div class="stepper-step" id="sstep1">
+            <div class="stepper-circle" id="scircle1">1</div>
+            <span class="stepper-label">Genel Bilgiler</span>
+          </div>
+          <div class="stepper-line" id="sline1"></div>
+          <div class="stepper-step" id="sstep2">
+            <div class="stepper-circle" id="scircle2">2</div>
+            <span class="stepper-label">Teklif Hususları</span>
+          </div>
+          <div class="stepper-line" id="sline2"></div>
+          <div class="stepper-step" id="sstep3">
+            <div class="stepper-circle" id="scircle3">3</div>
+            <span class="stepper-label">Ürün Kalemleri</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Form area -->
+      <div class="form-area" id="formArea">
+
+        <!-- Card 1: Genel Bilgiler -->
+        <div class="form-card step-card" id="card1" style="display:none;">
           <div class="form-card-title">Genel Bilgiler</div>
 
           <div class="genel-bilgiler-row">
             <div class="form-group form-group--wide" style="position:relative;">
-              <label class="form-label">Şirket Adı</label>
-              <input type="text" class="form-input" id="companyName" placeholder="Şirket ara..." autocomplete="off"
-                oninput="onCompanySearch()">
+              <label class="form-label">Şirket Adı <span class="req">*</span></label>
+              <input type="text" class="form-input" id="companyName" placeholder="Şirket ara..."
+                autocomplete="off" oninput="onCompanySearch()">
               <div id="companyDropdown" class="company-dropdown" style="display:none;"></div>
             </div>
 
@@ -58,13 +92,14 @@
               <label class="form-label">İşin Adı</label>
               <input type="text" class="form-input" id="jobName" placeholder="İşin adı...">
             </div>
+
             <div class="form-group">
-              <label class="form-label">Teklif Tarihi</label>
+              <label class="form-label">Teklif Tarihi <span class="req">*</span></label>
               <input type="date" class="form-input" id="quoteDate">
             </div>
 
             <div class="form-group">
-              <label class="form-label">Teklif Türü</label>
+              <label class="form-label">Teklif Türü <span class="req">*</span></label>
               <select class="form-input" id="quoteType">
                 <option value="">Seçin...</option>
                 <option value="Yaklaşık Maliyet Fiyat Teklifi">Yaklaşık Maliyet Fiyat Teklifi</option>
@@ -72,40 +107,74 @@
               </select>
             </div>
 
-
             <div class="form-group">
               <label class="form-label">Geçerlilik Tarihi</label>
               <input type="date" class="form-input" id="validUntil">
             </div>
           </div>
 
-          <div class="form-group form-group--notes">
-            <label class="form-label">Not</label>
-            <textarea class="form-input" id="quoteNotes" placeholder="Opsiyonel not..."></textarea>
-          </div>
-
-          <div class="form-group" style="margin-top:14px;">
-            <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:8px;">
-              <label class="form-label">TEKLİFE İLİŞKİN GENEL HUSUSLAR</label>
-              <button type="button" onclick="addTermRow()" style="background:#f1f5f9; border:1px solid var(--border); border-radius:6px; padding:4px 10px; 
-  font-size:12px; font-family:inherit; cursor:pointer;">+ Satır Ekle</button>
+          <div style="margin-top:16px;">
+            <div class="form-group" id="createStatusGroup" style="margin-bottom:0;">
+              <label class="form-label">Durum</label>
+              <select class="form-input" id="statusSelect" style="max-width:220px;">
+                <option value="pending">Beklemede</option>
+                <option value="accepted">Kabul</option>
+                <option value="rejected">Red</option>
+                <option value="draft">Taslak</option>
+              </select>
             </div>
-            <div id="termsList"></div>
           </div>
 
+          <!-- Step nav (create mode) -->
+          <div class="step-nav-bar" id="nav1">
+            <div></div>
+            <button class="btn-step-next" onclick="nextStep()">
+              İleri <i class="ti ti-arrow-right"></i>
+            </button>
+          </div>
         </div>
 
-        <!-- Sağ: Ürün Kalemleri -->
-        <div class="form-card form-card--items">
+        <!-- Card 2: Teklif Hususları -->
+        <div class="form-card step-card" id="card2" style="display:none;">
+          <div class="form-card-title">Kapak Mektubu</div>
+          <p class="terms-hint" style="margin-bottom:12px;">
+            <i class="ti ti-info-circle" style="margin-right:4px;"></i>
+            Bu metin PDF'in kapak sayfasında müşteriye görünecektir. İstediğiniz gibi düzenleyebilirsiniz.
+          </p>
+          <textarea class="form-input" id="quoteNotes" style="min-height:160px; line-height:1.8;"></textarea>
+
+          <div style="display:flex; align-items:center; justify-content:space-between; margin-top:24px; margin-bottom:10px;">
+            <div class="form-card-title" style="margin-bottom:0;">Genel Hususlar</div>
+            <button type="button" onclick="addTermRow()" class="btn-primary" style="padding:6px 12px; font-size:12px;"><i class="ti ti-plus"></i> Satır Ekle</button>
+          </div>
+          <p class="terms-hint">
+            <i class="ti ti-info-circle" style="margin-right:4px;"></i>
+            Buraya yazdıklarınız PDF'in ilk sayfasında madde madde görünecektir.
+          </p>
+          <div id="termsList" style="margin-top:14px;"></div>
+
+          <div class="step-nav-bar" id="nav2">
+            <button class="btn-step-back" onclick="prevStep()">
+              <i class="ti ti-arrow-left"></i> Geri
+            </button>
+            <button class="btn-step-next" onclick="nextStep()">
+              İleri <i class="ti ti-arrow-right"></i>
+            </button>
+          </div>
+        </div>
+
+        <!-- Card 3: Ürün Kalemleri -->
+        <div class="form-card form-card--items step-card" id="card3" style="display:none;">
           <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:16px;">
             <div class="form-card-title" style="margin-bottom:0;">Ürün Kalemleri</div>
-            <button class="btn-secondary" onclick="addExtraColumn()" style="padding:6px 12px; font-size:12px; background:#f1f5f9; border:1px solid var(--border); 
-  border-radius:8px; color:var(--text-main); font-family:inherit; cursor:pointer;">
-              <i class="ti ti-column-insert-right"></i> Kolon Ekle
-            </button>
-            <button class="btn-primary" onclick="addRow()" style="padding:6px 12px; font-size:12px;">
-              <i class="ti ti-plus"></i> Satır Ekle
-            </button>
+            <div style="display:flex; gap:8px;">
+              <button class="btn-secondary" onclick="addExtraColumn()" style="padding:6px 12px; font-size:12px;">
+                <i class="ti ti-column-insert-right"></i> Kolon Ekle
+              </button>
+              <button class="btn-primary" onclick="addRow()" style="padding:6px 12px; font-size:12px;">
+                <i class="ti ti-plus"></i> Satır Ekle
+              </button>
+            </div>
           </div>
 
           <div class="items-table-wrap">
@@ -126,10 +195,18 @@
             </table>
           </div>
 
-          <!-- Toplam -->
           <div class="items-total">
             <span>Toplam (KDV Hariç)</span>
             <strong id="totalDisplay">₺0,00</strong>
+          </div>
+
+          <div class="step-nav-bar" id="nav3">
+            <button class="btn-step-back" onclick="prevStep()">
+              <i class="ti ti-arrow-left"></i> Geri
+            </button>
+            <button class="btn-finish" id="finishBtn" onclick="finishQuote()">
+              <i class="ti ti-file-type-pdf"></i> PDF Oluştur
+            </button>
           </div>
         </div>
 
@@ -137,9 +214,28 @@
     </div>
   </div>
 
-  <script src="/shared/auth-interceptor.js"></script> <!-- no defer -->
-  <script src="/shared/sidebar.js" defer></script> <!-- defer is fine -->
-  <script src="/quotes/js/teklif-form.js?v=1"></script>
+  <!-- Success Overlay (create mode only) -->
+  <div class="success-overlay" id="successOverlay">
+    <div class="success-box">
+      <div class="success-check-wrap">
+        <div class="success-check"><i class="ti ti-check"></i></div>
+      </div>
+      <h2 class="success-title">Teklif oluşturuldu!</h2>
+      <p class="success-sub">Görüntülemek ister misiniz?</p>
+      <div class="success-actions">
+        <button class="btn-show-pdf" onclick="showPdf()">
+          <i class="ti ti-external-link"></i> Teklifi Göster
+        </button>
+        <button class="btn-go-list" onclick="goToList()">
+          Tekliflerime Git <i class="ti ti-arrow-right"></i>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <script src="/shared/auth-interceptor.js"></script>
+  <script src="/shared/sidebar.js" defer></script>
+  <script src="/quotes/js/teklif-form.js?v=20260530-tabs"></script>
 </body>
 
 </html>

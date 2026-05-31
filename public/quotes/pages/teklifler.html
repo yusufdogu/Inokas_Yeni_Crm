@@ -10,7 +10,7 @@
     rel="stylesheet">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.x/dist/tabler-icons.min.css">
   <link rel="stylesheet" href="/shared/sidebar.css">
-  <link rel="stylesheet" href="/quotes/css/quotes.css?v=1">
+  <link rel="stylesheet" href="/quotes/css/quotes.css?v=2">
 </head>
 
 <body>
@@ -35,8 +35,15 @@
 
       <!-- Filter Bar -->
       <div class="filter-bar">
-        <input type="text" class="filter-input" id="searchInput" placeholder="Şirket adı veya ref no ara..."
-          oninput="applyFilters()">
+        <div style="position:relative;">
+          <input type="text" class="filter-input" id="searchInput" placeholder="Şirket adı veya ref no ara..."
+            oninput="onSearchInput()" autocomplete="off">
+          <div id="searchDropdown" style="
+            display:none; position:absolute; top:100%; left:0; min-width:100%; background:#fff;
+            border:1px solid var(--border); border-radius:8px; box-shadow:0 4px 16px rgba(0,0,0,0.08);
+            z-index:200; margin-top:4px; max-height:220px; overflow-y:auto;
+          "></div>
+        </div>
         <select class="filter-select" id="statusFilter" onchange="applyFilters()">
           <option value="">Tüm Durumlar</option>
           <option value="pending">Beklemede</option>
@@ -99,7 +106,7 @@
 
   <script src="/shared/auth-interceptor.js"></script> <!-- no defer -->
   <script src="/shared/sidebar.js" defer></script> <!-- defer is fine -->
-  <script src="/quotes/js/teklifler.js?v=1"></script>
+  <script src="/quotes/js/teklifler.js?v=20260531-outlook"></script>
 </body>
 
 </html>

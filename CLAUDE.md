@@ -27,9 +27,20 @@ There is no build step, no bundler, no test suite. The app is deployed to Railwa
 
 `index.js` (Express, Node.js) is the main server. On startup it spawns `app.py` (Flask, Python) as a child process. The Node server proxies `/api/dmo/*` routes to the Python service at `localhost:5000`. The Python service handles PDF parsing and web scraping that require Python libraries (pdfplumber, BeautifulSoup).
 
+### Auth & Multi-Tenancy
+
+Auth is session-based. `public/auth/login.html` posts credentials to `/api/auth`; on success, the server returns a token stored in `sessionStorage` as `inokas_token`.
+
+Every API route (except `/api/auth`) is protected by `middleware/tenant.js`, which reads `x-auth-token` from request headers, looks up the session in the `sessions` Supabase table, and injects `req.tenantId`, `req.userId`, and `req.userRole` into the request.
+
+`public/shared/auth-interceptor.js` is included in every page. It monkey-patches `window.fetch` to automatically attach `x-auth-token` to all `/api/` calls. Pages check `sessionStorage.getItem('inokas_token')` on load and redirect to `/auth/login.html` if missing.
+
+`public/index.html` is a redirect-only entry point — it sends authenticated users to `/faturalar/pages/gelen-faturalar.html` and unauthenticated users to `/auth/login.html`.
+
 ### Database: Supabase (PostgreSQL)
 
 All persistent state lives in Supabase. Key tables:
+- `sessions` — auth sessions keyed on token; includes `tenant_id`, `user_id`, `role`, `expires_at`
 - `companies` — counter-party firms, uniquely keyed on `vkn_tckn`
 - `invoices` — invoice headers; `direction` is either `'INCOMING'` or `'OUTGOING'`; `efatura_uuid` is the unique e-invoice identifier from XML
 - `invoice_items` — line items; `is_internal` marks inter-company transfers; `product_code` is the SKU
@@ -44,63 +55,113 @@ Two Supabase RPCs are used:
 
 Stock movements are **not** stored in a dedicated table. The `/api/stocks/summary` endpoint derives all stock positions and FIFO profit analysis dynamically by joining `invoice_items` with `invoices`.
 
+### API Routes
+
+Routes are split into separate files under `routes/`. `index.js` mounts them:
+
+| Mount prefix | File |
+|---|---|
+| `/api/auth` | `routes/auth.js` |
+| `/api/invoices`, `/api/save-invoice`, `/api/invoice-items` | `routes/invoices.js` |
+| `/api/settings`, `/api/tenant-vkn` | `routes/settings.js` |
+| `/api/products`, `/api/category-templates`, `/api/category-attributes`, `/api/product-attribute-values` | `routes/products.js` |
+| `/api/purchase-orders`, `/api/purchase-order-items` | `routes/purchase-orders.js` |
+| `/api/stocks` | `routes/stocks.js` |
+| `/api/payments` | `routes/payments.js` |
+| `/api/companies` | `routes/companies.js` |
+| `/api/cari` | `routes/cari.js` |
+| `/api/dmo` | `routes/dmo.js` (also proxies to Python) |
+| `/api/quotes`, `/api/product-groups` | `routes/quotes.js` |
+| `/api/chat` | `routes/chat.js` |
+| `/api/transcribe` | `routes/transcribe.js` |
+| `/api/whatsapp` | `routes/whatsapp.js` |
+| `/api/integrations` | `routes/integrations.js` |
+
 ### Frontend: Vanilla JS (no framework)
 
-All UI is plain HTML/CSS/JS. The three main sections correspond to three pages:
-- `/` → `public/index.html` — invoice management (parse XML, view, edit, delete invoices; record payments)
-- `/stok.html` → `public/stok.html` + `public/stok.js` — stock summary, movements, purchase orders, SKU merging, FIFO profit drill-down
-- `/dmo/dmo-index.html` → `dmo/` — DMO.gov.tr price tracking; PDF upload for DMO order parsing
+All UI is plain HTML/CSS/JS. No import/export — all functions are global scope. Pages are organized into sections, each with its own `pages/`, `css/`, and `js/` subdirectories under `public/`.
 
-`public/nav-pill.js` and `public/nav.css` are shared navigation components used across pages.
+#### Page Structure
 
-The DMO section (`dmo/`) loads Supabase directly from the browser using a hardcoded anon key in `dmo/supabase-client.js`. All other pages communicate only with the Express server API.
+| Section | Entry pages |
+|---|---|
+| **Faturalar** | `public/faturalar/pages/` — gelen-faturalar, giden-faturalar, genel-bakis, bekleyen-gelen, bekleyen-giden, fatura-detay, fatura-yukle, rapor, ofis-ici |
+| **Stok** | `public/stok/pages/` — stok, genel-bakis, urunler, stok-hareketleri, urun-hareketleri, backorder, kategori-yonetimi |
+| **DMO** | `public/dmo/pages/` — invoice, siparisler, yeni-siparis, sepet-hesapla |
+| **Cari** | `public/cari/` — cari-index.html, firma.html |
+| **Teklifler** | `public/quotes/pages/` — teklifler, teklif-form |
+| **Chat** | `public/chat.html` |
+| **Auth** | `public/auth/` — login, signup, onboarding |
+| **Settings** | `public/settings.html` |
 
-#### Faturalar JS Modülleri (`public/faturalar/`)
+#### Shared Components (`public/shared/`)
 
-`public/index.html` yükleme sırası (bağımlılık sırasına göre):
-1. `faturalar/utils.js` — yardımcı fonksiyonlar (formatMoneyDisplay, invPayableAmountSrc, vb.)
-2. `faturalar/xml.js` — UBL-XML tarayıcı taraflı parse ve renderXmlToPdfIframe
-3. `faturalar/api.js` — sunucu API çağrıları
-4. `faturalar/state.js` — global state değişkenleri (allInvoicesCache, bekleyenCache, vb.)
-5. `faturalar/list.js` — fatura listesi görünümü ve filtre mantığı
-6. `faturalar/detail.js` — fatura detay paneli (bilgiler/ürünler/ödemeler sekmeleri, inline düzenleme)
-7. `faturalar/main.js` — başlatma, hash yönlendirme, rapor ve bekleyen sayfaları
+- `sidebar.js` — generates sidebar HTML at runtime; used by all main sections
+- `sidebar.css` — dark sidebar theme (`#0f172a`); shared across all sections
+- `auth-interceptor.js` — patches `window.fetch` to inject auth token on all `/api/` calls; included in every page
+- `supabase-client.js` — browser-side Supabase client (anon key); used by pages that query Supabase directly
+- `shared-filters.css` — shared filter bar styles
+- `nav-pill.js` / `nav.css` — shared navigation pill component
 
-Tüm fonksiyonlar global scope'ta tanımlıdır (import/export yok). `import`/`export` kullanma.
+#### Sidebar Structure
 
-#### Sidebar Yapısı
+All sections use the same sidebar pattern:
+- `<div id="sidebar-container"></div>` in the HTML body
+- `<script src="/shared/sidebar.js" defer></script>` in the head
+- CSS classes: `.app-shell` (flex container), `#sidebar` (dark panel), `.page-area` (content area), `.sb-item`, `.sb-children` (accordion), `.sb-child`, `.sb-brand`, `.sb-footer`
+- `#sidebar.collapsed { width: 52px; }` — `toggleSidebar()` toggles the `collapsed` class
 
-Her iki ana bölüm (faturalar ve DMO) aynı sidebar yapısını paylaşır:
-- **Faturalar:** `public/sidebar.js` (çalışma zamanında HTML üretir), `public/sidebar.css` (DMO ile aynı koyu tema)
-- **DMO:** `dmo/js/sidebar.js` + `dmo/css/sidebar.css`
+#### Faturalar JS Modules (`public/faturalar/js/`)
 
-Sidebar CSS sınıfları: `.app-shell` (flex kapsayıcı), `#sidebar` (koyu panel, `#0f172a`), `.page-area` (içerik alanı), `.sb-item`, `.sb-children` (akordeon), `.sb-child`, `.sb-brand`, `.sb-footer`.
+`faturalar.html` and the other faturalar pages load scripts in dependency order:
 
-`#sidebar.collapsed { width: 52px; }` — `toggleSidebar()` ile `collapsed` sınıfı açılır/kapanır.
+1. `utils.js` — helper functions (formatMoneyDisplay, invPayableAmountSrc, etc.)
+2. `xml.js` — UBL-XML browser-side parsing and renderXmlToPdfIframe
+3. `api.js` — server API calls
+4. `state.js` — global state variables (allInvoicesCache, bekleyenCache, etc.)
+5. `list.js` — invoice list view and filter logic
+6. `detail.js` — invoice detail panel (bilgiler/ürünler/ödemeler tabs, inline editing)
+7. `main.js` — init, hash routing, pending/report page orchestration
 
-#### Fatura Detay Sekmelerinin Davranışı
+Additional standalone page scripts (each page loads only what it needs):
+- `genel-bakis.js` — genel-bakis.html only; uses Chart.js
+- `bekleyen-page.js` — bekleyen pages
+- `fatura-detay.js` — fatura-detay.html standalone detail page
+- `ofis-ici.js` — ofis-ici.html
+- `rapor.js` — rapor.html
 
-`detail.js` içindeki `renderDetailTabContent`: bilgiler ve ürünler sekmeleri doğrudan `enterBilgilerEdit` / `enterUrunlerEdit` ile açılır — okuma modu (renderBilgilerView / renderUrunlerView) bypass edilir.
+Do not use `import`/`export`. All functions must be global scope.
 
-Ürünler düzenleme (`enterUrunlerEdit`): her satırda kategori `<select>` gösterilir. Ofis-içi satırlar için `INTERNAL_CATEGORY_OPTIONS` (statik liste), diğerleri için `productCategoryOptionList` (DB'den). "+ yeni kategori ekle" seçeneği seçilince satır içi input gösterilir (✓/✕ butonları).
+#### Fatura Detail Tab Behaviour
 
-#### Bekleyen Faturalar Listesi
+`detail.js` → `renderDetailTabContent`: bilgiler and ürünler tabs open directly via `enterBilgilerEdit` / `enterUrunlerEdit` — read-only mode (renderBilgilerView / renderUrunlerView) is bypassed.
 
-`renderBekleyenList` (main.js) tablo satırı değil kart (`<div class="bek-card">`) üretir. Her kartta: fatura no (bold), yön noktası (yeşil=gelen/kırmızı=giden), firma adı, tutar+döviz, tarih. `#bekTbody` artık `<div class="bek-card-list">` (tablo değil).
+Ürünler edit (`enterUrunlerEdit`): each row shows a category `<select>`. In-house rows use `INTERNAL_CATEGORY_OPTIONS` (static list); others use `productCategoryOptionList` (from DB). Selecting "+ yeni kategori ekle" shows an inline input (✓/✕ buttons).
 
-#### Rapor Sayfası Scroll
+#### Stok JS Modules (`public/stok/js/`)
 
-`.rapor-body` → `overflow: hidden`; `.rapor-table-wrap` → `overflow-y: auto; flex: 1; min-height: 0` — tablo KPI kartlarından bağımsız dikey scroll yapar.
+`stok.html` loads all stok scripts together (global scope, dependency order):
+
+1. `utils.js`
+2. `urunler.js`
+3. `stok-hareketleri.js`
+4. `urun-hareketleri.js`
+5. `backorder.js`
+6. `kategori-yonetimi.js`
+7. `analytics.js`
+8. `stok.js` — orchestrator / init
+
+`genel-bakis.html` loads only `genel-bakis.js` (standalone, uses Chart.js).
 
 ### Invoice XML Flow (UBL Format)
 
-Turkish e-invoices use UBL XML. The frontend parses XML in the browser (`faturalar.js`) using `DOMParser` + XPath-style namespace queries with the `cbc:`/`cac:` namespace prefixes. After parsing, it POSTs to `/api/save-invoice`.
+Turkish e-invoices use UBL XML. The frontend parses XML in the browser (`xml.js`) using `DOMParser` + XPath-style namespace queries with the `cbc:`/`cac:` namespace prefixes. After parsing, it POSTs to `/api/save-invoice`.
 
 The server validates direction via `INOKAS_VKN`:
 - `INCOMING`: `customer_vkn` must equal `INOKAS_VKN`
 - `OUTGOING`: `supplier_vkn` must equal `INOKAS_VKN`
 
-`INOKAS_VKN` is injected into `index.html` at request time as `window.__INOKAS_VKN__` (see `getFaturalarIndexHtml()` in `index.js`).
+`INOKAS_VKN` is now served via `/api/tenant-vkn` (fetched at runtime) rather than injected into HTML at request time.
 
 ### Services (Legacy / Manual Sync)
 
@@ -110,11 +171,11 @@ The server validates direction via `INOKAS_VKN`:
 
 ### Cache Busting
 
-HTML and JS files are served with `no-cache` headers. JS/CSS files referenced in HTML use `?v=<tag>` query strings (e.g., `faturalar.js?v=20260423-po-integration`) to bust browser cache after deploys. When updating JS, increment the version tag in the corresponding HTML `<script src>` tag.
+HTML and JS files are served with `no-cache` headers. JS/CSS files referenced in HTML use `?v=<tag>` query strings (e.g., `?v=20260521-sort`) to bust browser cache after deploys. When updating JS, increment the version tag in the corresponding HTML `<script src>` tag.
 
 ### Stock Calculation Details
 
-`/api/stocks/summary` in `index.js` builds FIFO lots from `INCOMING` invoice items, consumes them against `OUTGOING` items (sorted by invoice date), and computes:
+`routes/stocks.js` → `GET /api/stocks/summary` builds FIFO lots from `INCOMING` invoice items, consumes them against `OUTGOING` items (sorted by invoice date), and computes:
 - `current_stock` = total_in − total_out
 - `fifo_gross_profit_usd` per product — revenue in USD minus FIFO cost
 - USD conversion: items priced in TRY are divided by `calculation_rate` from the invoice header

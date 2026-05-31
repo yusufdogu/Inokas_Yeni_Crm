@@ -1,6 +1,7 @@
 // quotes/js/teklifler.js
 let _quotesCache = [];
 let _activeMailId = null;
+let _activeMailCompany = null;
 
 const STATUS_LABELS = {
   pending: { label: 'Beklemede', cls: 'badge-pending' },
@@ -130,6 +131,7 @@ async function deleteQuote(id, refNo) {
 // ── Mail Modal ────────────────────────────────────────────────────────────────
 function openMailModal(id, companyName, refNo) {
   _activeMailId = id;
+  _activeMailCompany = companyName;
   document.getElementById('mailTo').value = '';
   document.getElementById('mailSubject').value = `Fiyat Teklifi — ${refNo}`;
   document.getElementById('mailBody').value = `Sayın İlgili,\n\nİlgili projeniz kapsamında hazırlamış olduğumuz teklifimiz ekte sunulmuştur.\n\nSaygılarımızla...`;
@@ -149,19 +151,88 @@ async function sendMail() {
   if (!to) { alert('E-posta adresi gerekli.'); return; }
 
   try {
-    const res = await fetch(`/api/quotes/${encodeURIComponent(_activeMailId)}/send-email`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ to, subject, body })
+    // 1. PDF indir
+    const token = sessionStorage.getItem('inokas_token');
+    const res = await fetch(`/api/quotes/${encodeURIComponent(_activeMailId)}/pdf`, {
+      headers: { 'x-auth-token': token }
     });
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(data.error || 'HTTP ' + res.status);
-    alert('Mail başarıyla gönderildi.');
+    if (res.ok) {
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      const fileName = (_activeMailCompany || 'teklif').replace(/[^a-zA-Z0-9ğüşıöçĞÜŞİÖÇ\s]/g, '').trim() + '.pdf';
+      a.href = url;
+      a.download = fileName;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }
+
+    // 2. Outlook compose aç
+    const outlookUrl = 'https://outlook.office.com/mail/deeplink/compose?' +
+      'to=' + encodeURIComponent(to) +
+      '&subject=' + encodeURIComponent(subject) +
+      '&body=' + encodeURIComponent(body);
+    window.open(outlookUrl, '_blank');
+
     closeMailModal();
   } catch (e) {
-    alert('Mail hatası: ' + e.message);
+    alert('Hata: ' + e.message);
   }
 }
+
+// ── Company Search Dropdown (filter bar) ──────────────────────────────────────
+let _searchTimer = null;
+
+function onSearchInput() {
+  const q = document.getElementById('searchInput').value.trim();
+  clearTimeout(_searchTimer);
+  if (q.length < 1) { closeSearchDropdown(); applyFilters(); return; }
+  _searchTimer = setTimeout(() => fetchCompanySuggestions(q), 250);
+}
+
+async function fetchCompanySuggestions(q) {
+  try {
+    const res  = await fetch(`/api/companies/search?q=${encodeURIComponent(q)}`);
+    if (!res.ok) return;
+    const list = await res.json();
+    renderSearchDropdown(list);
+  } catch { closeSearchDropdown(); }
+}
+
+function renderSearchDropdown(list) {
+  const dd = document.getElementById('searchDropdown');
+  if (!list.length) { closeSearchDropdown(); return; }
+  dd.innerHTML = '';
+  list.forEach(c => {
+    const item = document.createElement('div');
+    item.style.cssText = 'padding:9px 14px; font-size:13px; cursor:pointer; color:var(--text-main); border-bottom:1px solid #f5f0eb;';
+    item.textContent = c.name;
+    item.addEventListener('mouseenter', () => item.style.background = '#fdf9f5');
+    item.addEventListener('mouseleave', () => item.style.background = '');
+    item.addEventListener('click', () => selectSearchCompany(c.name));
+    dd.appendChild(item);
+  });
+  dd.style.display = 'block';
+}
+
+function selectSearchCompany(name) {
+  document.getElementById('searchInput').value = name;
+  closeSearchDropdown();
+  applyFilters();
+}
+
+function closeSearchDropdown() {
+  const dd = document.getElementById('searchDropdown');
+  if (dd) dd.style.display = 'none';
+}
+
+document.addEventListener('click', e => {
+  if (!e.target.closest('#searchInput') && !e.target.closest('#searchDropdown')) {
+    closeSearchDropdown();
+  }
+});
 
 // ── Init ──────────────────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', loadQuotes);

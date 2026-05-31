@@ -69,15 +69,11 @@ function buildPdfHtml(qt, logo) {
       <div style="text-align:right;margin-top:24px;font-size:10.5pt;">${formatDate(qt.quote_date)}</div>
       <div style="margin-top:28px;">
         <p><strong>KONU : ${qt.quote_type || 'Fiyat Teklifi'}</strong></p>
-        <p><strong>Ref No: ${qt.reference_no || ''}</strong></p>
       </div>
-      <div style="margin-top:32px;"><p>Sayın ilgili;</p></div>
-      <div style="margin-top:20px;line-height:1.8;">
-        <p>İlgili projeniz kapsamında ihtiyacınız olan ürünler ve hizmetler için hazırlamış olduğumuz teklifimiz ekte görüş</p>
-        <p>ve değerlendirmelerinize sunulmuştur.</p>
-        <p>Teklifimiz ile ilgili her türlü soru ve görüşlerinizi lütfen bizimle paylaşınız.</p>
+      <div style="margin-top:32px;line-height:1.9;">
+        ${(qt.notes || 'Sayın ilgili;\nİlgili projeniz kapsamında ihtiyacınız olan ürünler ve hizmetler için hazırlamış olduğumuz teklifimiz ekte görüş ve değerlendirmelerinize sunulmuştur.\nTeklifimiz ile ilgili her türlü soru ve görüşlerinizi lütfen bizimle paylaşınız.\nSaygılarımızla…')
+          .split('\n').map(line => `<p>${line || '&nbsp;'}</p>`).join('')}
       </div>
-      <div style="margin-top:28px;"><p>Saygılarımızla…</p></div>
       <div style="margin-top:60px;">
         <p><strong>TEKLİFE İLİŞKİN GENEL HUSUSLAR;</strong></p>
           ${(qt.terms && qt.terms.length ? qt.terms : ['1)Teklifimizdeki fiyatlara KDV dahil değildir.'])
@@ -385,19 +381,46 @@ router.post('/:id/send-email', async (req, res) => {
     const supabase = getSupabase(req);
     const { data: qt } = await supabase.from('quotes').select('reference_no, pdf_url').eq('id', req.params.id).single();
 
+    // Ensure PDF exists
+    let pdfUrl = qt?.pdf_url;
+    if (!pdfUrl) pdfUrl = await generateAndStorePdf(supabase, req.params.id);
+
+    // Download PDF buffer for attachment
+    let pdfBuffer = null;
+    if (pdfUrl) {
+      pdfBuffer = await new Promise((resolve, reject) => {
+        const lib = pdfUrl.startsWith('https') ? require('https') : require('http');
+        lib.get(pdfUrl, res => {
+          const chunks = [];
+          res.on('data', chunk => chunks.push(chunk));
+          res.on('end', () => resolve(Buffer.concat(chunks)));
+          res.on('error', reject);
+        }).on('error', reject);
+      });
+    }
+
     const transporter = nodemailer.createTransport({
-      service: 'gmail',
+      host: 'smtp.office365.com',
+      port: 587,
+      secure: false,
       auth: {
-        user: process.env.GMAIL_USER,
-        pass: process.env.GMAIL_APP_PASSWORD,
+        user: process.env.OUTLOOK_USER,
+        pass: process.env.OUTLOOK_PASSWORD,
       },
+      tls: { rejectUnauthorized: false },
     });
 
     const mailOptions = {
-      from: `İnokas CRM <${process.env.GMAIL_USER}>`,
+      from: `İnokas CRM <${process.env.OUTLOOK_USER}>`,
       to,
       subject,
-      text: body, html: `<p>${body.replace(/\n/g, '<br>')}</p>` + (qt?.pdf_url ? `<p>Teklif PDF: <a href="${qt.pdf_url}">Görüntülemek için tıklayın</a></p>` : ''),
+      text: body,
+      html: `<p>${body.replace(/\n/g, '<br>')}</p>`,
+      attachments: pdfBuffer ? [{
+        filename: `teklif-${qt?.reference_no || req.params.id}.pdf`,
+        content: pdfBuffer,
+        contentType: 'application/pdf',
+      }] : [],
     };
 
     await transporter.sendMail(mailOptions);

@@ -1,14 +1,15 @@
 /* quotes.css */
 :root {
-  --primary:   #2563eb;
-  --success:   #059669;
-  --danger:    #dc2626;
-  --warning:   #d97706;
-  --bg:        #f8fafc;
-  --card:      #ffffff;
-  --border:    #e2e8f0;
-  --text-main: #1e293b;
-  --text-sub:  #64748b;
+  --primary:      #c2732a;
+  --primary-hover:#a85f20;
+  --success:      #059669;
+  --danger:       #dc2626;
+  --warning:      #d97706;
+  --bg:           #faf8f4;
+  --card:         #ffffff;
+  --border:       #e5ddd4;
+  --text-main:    #2d2319;
+  --text-sub:     #8a7968;
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -51,14 +52,15 @@ body {
   border-radius: 8px; padding: 8px 16px; font-size: 13px;
   font-weight: 600; cursor: pointer; display: flex;
   align-items: center; gap: 6px; font-family: inherit;
+  transition: background 0.15s;
 }
-.btn-primary:hover { background: #1d4ed8; }
+.btn-primary:hover { background: var(--primary-hover); }
 
 /* ── Filter Bar ── */
 .filter-bar {
   padding: 12px 24px;
-  background: #111827;
-  border-bottom: 1px solid #1e293b;
+  background: #fff;
+  border-bottom: 1px solid var(--border);
   display: flex;
   gap: 10px;
   align-items: center;
@@ -66,15 +68,15 @@ body {
 }
 
 .filter-input {
-  background: #1e293b; border: 1px solid #334155; color: #f1f5f9;
+  background: var(--bg); border: 1px solid var(--border); color: var(--text-main);
   border-radius: 8px; padding: 7px 12px; font-size: 13px;
   font-family: inherit; outline: none; min-width: 200px;
 }
-.filter-input::placeholder { color: #64748b; }
+.filter-input::placeholder { color: var(--text-sub); }
 .filter-input:focus { border-color: var(--primary); }
 
 .filter-select {
-  background: #1e293b; border: 1px solid #334155; color: #f1f5f9;
+  background: var(--bg); border: 1px solid var(--border); color: var(--text-main);
   border-radius: 8px; padding: 7px 12px; font-size: 13px;
   font-family: inherit; outline: none; cursor: pointer;
 }
@@ -92,11 +94,12 @@ body {
   background: #fff;
   border-radius: 12px;
   overflow: hidden;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.07);
+  box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+  border: 1px solid var(--border);
 }
 
 .data-table th {
-  background: #f8fafc;
+  background: var(--bg);
   padding: 10px 14px;
   font-size: 11px;
   font-weight: 700;
@@ -110,12 +113,12 @@ body {
 .data-table td {
   padding: 12px 14px;
   font-size: 13px;
-  border-bottom: 1px solid #f1f5f9;
+  border-bottom: 1px solid #f5f0eb;
   vertical-align: middle;
 }
 
 .data-table tr:last-child td { border-bottom: none; }
-.data-table tr:hover td { background: #f8fafc; }
+.data-table tr:hover td { background: #fdf9f5; }
 
 /* ── Status Badges ── */
 .badge {
@@ -136,7 +139,7 @@ body {
   border-radius: 6px; padding: 5px 8px; cursor: pointer;
   color: var(--text-sub); font-size: 14px; transition: all 0.15s;
 }
-.btn-icon:hover { background: #f1f5f9; color: var(--text-main); }
+.btn-icon:hover { background: #fdf5ee; color: var(--primary); border-color: #e8c9a8; }
 .btn-icon.danger:hover { background: #fee2e2; color: var(--danger); border-color: #fca5a5; }
 
 /* ── Empty State ── */
@@ -147,7 +150,7 @@ body {
 
 /* ── Modal ── */
 .modal-overlay {
-  position: fixed; inset: 0; background: rgba(0,0,0,0.5);
+  position: fixed; inset: 0; background: rgba(0,0,0,0.4);
   display: flex; align-items: center; justify-content: center;
   z-index: 1000; padding: 20px;
 }
@@ -156,8 +159,9 @@ body {
 .modal-box {
   background: #fff; border-radius: 16px;
   width: 100%; max-width: 480px;
-  box-shadow: 0 20px 60px rgba(0,0,0,0.2);
+  box-shadow: 0 20px 60px rgba(0,0,0,0.15);
   min-height: 520px; display: flex; flex-direction: column;
+  border: 1px solid var(--border);
 }
 
 .modal-header {
@@ -180,18 +184,21 @@ body {
 .form-input {
   border: 1px solid var(--border); border-radius: 8px;
   padding: 8px 12px; font-size: 13px; font-family: inherit;
-  outline: none; color: var(--text-main);
+  outline: none; color: var(--text-main); background: #fff;
+  transition: border-color 0.15s;
 }
 .form-input:focus { border-color: var(--primary); }
 
 textarea.form-input { resize: vertical; min-height: 80px; }
 
 .btn-secondary {
-  background: #f1f5f9; border: none; border-radius: 8px;
+  background: var(--bg); border: 1px solid var(--border); border-radius: 8px;
   padding: 8px 16px; font-size: 13px; font-weight: 600;
   cursor: pointer; font-family: inherit; color: var(--text-main);
+  display: flex; align-items: center; gap: 6px;
+  transition: background 0.15s;
 }
-.btn-secondary:hover { background: #e2e8f0; }
+.btn-secondary:hover { background: #f0e9df; }
 
 .btn-danger {
   background: var(--danger); color: #fff; border: none;

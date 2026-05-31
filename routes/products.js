@@ -122,6 +122,25 @@ router.get('/category-map', async (req, res) => {
   }
 });
 
+// GET /api/products/search?q=...
+router.get('/search', async (req, res) => {
+  try {
+    const q = String(req.query.q || '').trim();
+    if (!q) return res.json([]);
+    const { data, error } = await req.app.get('supabase')
+      .from('products')
+      .select('id, product_code, product_name, brand, category')
+      .eq('tenant_id', req.tenantId)
+      .ilike('product_name', `%${q}%`)
+      .order('product_name', { ascending: true })
+      .limit(10);
+    if (error) throw error;
+    res.json(data || []);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // GET /api/products/by-code
 router.get('/by-code', async (req, res) => {
   try {

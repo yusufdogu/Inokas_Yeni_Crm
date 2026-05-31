@@ -8,4 +8,4 @@ cmds = ["PUPPETEER_SKIP_DOWNLOAD=true npm ci", "pip install -r requirements.txt 
 LD_LIBRARY_PATH = "${stdenv.cc.cc.lib}/lib"
 
 [start]
-cmd = "node index.js"
+cmd = "which chromium || which chromium-browser || find /nix -name chromium -type f 2>/dev/null | head -5; node index.js"

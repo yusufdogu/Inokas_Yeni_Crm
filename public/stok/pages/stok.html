@@ -11,6 +11,7 @@
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.x/dist/tabler-icons.min.css">
   <link rel="stylesheet" href="/shared/sidebar.css">
   <link rel="stylesheet" href="/shared/shared-filters.css">
+  <link rel="stylesheet" href="/stok/css/kategori-yonetimi.css">
   <link rel="stylesheet" href="/stok/css/stok-base.css">
   <link rel="stylesheet" href="/stok/css/stok.css">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
@@ -35,7 +36,6 @@
 
       <nav class="stk-nav-tabs" id="stkNavTabs">
         <button class="stk-nav-tab stk-nav-tab--active" id="navTabGenel"      onclick="switchTab('genel')">Genel Bakış</button>
-        <button class="stk-nav-tab" id="navTabHareketler"                      onclick="switchTab('hareketler')">Stok Hareketleri</button>
         <button class="stk-nav-tab" id="navTabUrunler"                         onclick="switchTab('urunler')">Ürünler</button>
         <button class="stk-nav-tab" id="navTabBackorder"                       onclick="switchTab('backorder')">Backorder</button>
         <button class="stk-nav-tab" id="navTabKategori"                        onclick="switchTab('kategori')">Kategori</button>
@@ -53,193 +53,55 @@
         <iframe id="genelBakisFrame" src="" style="width:100%; height:100%; border:none; display:block;" title="Genel Bakış"></iframe>
       </div>
 
-      <!-- Stok Hareketleri panel -->
-      <div id="panelHareketler" class="stk-panel" style="display:none;">
-
-        <!-- Filter bar -->
-        <div class="stk-filter-bar" id="filterBarHareketler">
-          <div class="stk-filter-row">
-            <div class="filter-tags-wrap" id="companyTagsWrap" onclick="document.getElementById('companyTagInput').focus()" style="flex:2;">
-              <div id="companyTags" class="filter-tags"></div>
-              <input type="text" id="companyTagInput" class="filter-tags-input" placeholder="Firma ekle...">
-              <div id="companyDropdown" class="filter-dropdown"></div>
-            </div>
-            <div class="filter-tags-wrap" id="productTagsWrap" onclick="document.getElementById('productTagInput').focus()" style="flex:2;">
-              <div id="productTags" class="filter-tags"></div>
-              <input type="text" id="productTagInput" class="filter-tags-input" placeholder="Ürün / SKU ekle...">
-              <div id="productDropdown" class="filter-dropdown"></div>
-            </div>
-            <div style="display:flex; align-items:center; gap:4px; flex-shrink:0;">
-              <input type="date" id="filterDateStart" class="stk-filter-date">
-              <span class="stk-date-sep">—</span>
-              <input type="date" id="filterDateEnd" class="stk-filter-date">
-            </div>
-            <select id="filterDirection" class="stk-filter-select">
-              <option value="">Tüm Hareketler</option>
-              <option value="INCOMING">▲ Giriş</option>
-              <option value="OUTGOING">▼ Çıkış</option>
-            </select>
-            <button class="stk-filter-clear" onclick="clearHareketlerFilters()" title="Temizle">
-              <i class="ti ti-trash" style="font-size:13px;"></i>
-            </button>
-          </div>
-
-          <button class="stk-adv-toggle" onclick="toggleHareketlerAdvanced()">
-            <i class="ti ti-chevron-down" style="font-size:12px;" id="hareketlerAdvChevron"></i> Gelişmiş Filtreler
-            <span id="hareketlerAdvBadge" style="display:none; background:var(--stk-ink); color:rgba(245,242,236,0.9); border-radius:99px; padding:1px 7px; font-size:11px; font-weight:500; margin-left:4px;">!</span>
-          </button>
-
-          <div id="hareketlerAdvPanel" class="stk-adv-panel">
-            <div class="stk-filter-row" style="margin-top:8px;">
-              <div class="filter-tags-wrap" id="brandTagsWrap" onclick="document.getElementById('brandTagInput').focus()">
-                <div id="brandTags" class="filter-tags"></div>
-                <input type="text" id="brandTagInput" class="filter-tags-input" placeholder="Marka ekle...">
-                <div id="brandDropdown" class="filter-dropdown"></div>
-              </div>
-              <div class="filter-tags-wrap" id="categoryTagsWrap" onclick="document.getElementById('categoryTagInput').focus()">
-                <div id="categoryTags" class="filter-tags"></div>
-                <input type="text" id="categoryTagInput" class="filter-tags-input" placeholder="Kategori ekle...">
-                <div id="categoryDropdown" class="filter-dropdown"></div>
-              </div>
-
-            </div>
-          </div>
-        </div>
-
-        <!-- KPIs -->
-        <div class="stk-kpi-grid" id="kpiGridHareketler">
-          <div class="stk-kpi"><p class="stk-kpi-label">Ürün Sayısı</p><p class="stk-kpi-value" id="kpi-total">—</p></div>
-          <div class="stk-kpi"><p class="stk-kpi-label">Toplam Giriş</p><p class="stk-kpi-value stk-kpi--green" id="kpi-in">—</p></div>
-          <div class="stk-kpi"><p class="stk-kpi-label">Toplam Çıkış</p><p class="stk-kpi-value stk-kpi--red" id="kpi-out">—</p></div>
-          <div class="stk-kpi"><p class="stk-kpi-label">Toplam Kayıt</p><p class="stk-kpi-value" id="kpi-amount">—</p></div>
-        </div>
-
-        <!-- Stok Hareketleri content — switches between list and sub-view -->
-        <div class="stk-content" id="hareketlerContent">
-
-          <!-- Main list view -->
-          <div id="hareketlerList" class="stk-tbl-wrap">
-            <table class="stk-tbl">
-              <thead>
-                <tr>
-                  <th>Ürün Adı</th>
-                  <th>SKU</th>
-                  <th>Marka</th>
-                  <th>Kategori</th>
-                  <th class="text-right">Toplam Giriş</th>
-                  <th class="text-right">Toplam Çıkış</th>
-                  <th>Son Hareket</th>
-                </tr>
-              </thead>
-              <tbody id="movementsTableBody"></tbody>
-            </table>
-            <div id="movementsEmpty" class="stk-empty">Hareket kaydı bulunamadı.</div>
-          </div>
-
-          <!-- Ürün Hareketleri sub-view (inline) -->
-          <div id="urunHareketleriView" style="display:none; flex-direction:column; flex:1; overflow:hidden;">
-
-            <!-- Sub-view header -->
-            <div class="stk-subview-header">
-              <button class="stk-back-btn" onclick="closeUrunHareketleri()">
-                <i class="ti ti-arrow-left" style="font-size:14px;"></i> Geri
-              </button>
-              <div>
-                <p class="stk-subview-title" id="uhProductName">—</p>
-                <p class="stk-subview-sub" id="uhProductSku"></p>
-              </div>
-            </div>
-
-            <!-- Sub-view stats -->
-            <div class="stk-uh-stats" id="uhStatsRow">
-              <div class="stk-uh-stat"><span class="stk-uh-stat-label">Toplam Giriş</span><span class="stk-uh-stat-value stk-kpi--green" id="statIn">—</span></div>
-              <div class="stk-uh-stat"><span class="stk-uh-stat-label">Toplam Çıkış</span><span class="stk-uh-stat-value stk-kpi--red" id="statOut">—</span></div>
-              <div class="stk-uh-stat"><span class="stk-uh-stat-label">Net Stok</span><span class="stk-uh-stat-value" id="statNet">—</span></div>
-              <div class="stk-uh-stat"><span class="stk-uh-stat-label">Firma Sayısı</span><span class="stk-uh-stat-value" id="statCompanies">—</span></div>
-              <div class="stk-uh-stat"><span class="stk-uh-stat-label">Toplam Kayıt</span><span class="stk-uh-stat-value" id="statTotal">—</span></div>
-            </div>
-
-            <!-- Sub-view filter -->
-            <div class="stk-filter-bar">
-              <div class="stk-filter-row">
-                <div class="filter-tags-wrap" id="uhCompanyTagsWrap" onclick="document.getElementById('uhCompanyTagInput').focus()" style="flex:2;">
-                  <div id="uhCompanyTags" class="filter-tags"></div>
-                  <input type="text" id="uhCompanyTagInput" class="filter-tags-input" placeholder="Firma ekle...">
-                  <div id="uhCompanyDropdown" class="filter-dropdown"></div>
-                </div>
-                <select id="uhFilterDirection" class="stk-filter-select">
-                  <option value="">Tüm Hareketler</option>
-                  <option value="INCOMING">▲ Giriş</option>
-                  <option value="OUTGOING">▼ Çıkış</option>
-                </select>
-                <div style="display:flex; align-items:center; gap:4px; flex-shrink:0;">
-                  <input type="date" id="uhFilterDateStart" class="stk-filter-date">
-                  <span class="stk-date-sep">—</span>
-                  <input type="date" id="uhFilterDateEnd" class="stk-filter-date">
-                </div>
-                <button class="stk-filter-clear" onclick="clearUhFilters()" title="Temizle">
-                  <i class="ti ti-trash" style="font-size:13px;"></i>
-                </button>
-              </div>
-            </div>
-
-            <!-- Sub-view table -->
-            <div class="stk-tbl-wrap">
-              <table class="stk-tbl">
-                <thead>
-                  <tr>
-                    <th style="width:100px;">Tarih</th>
-                    <th style="width:80px;">İşlem</th>
-                    <th style="width:160px;">Fatura No</th>
-                    <th>Firma</th>
-                    <th style="width:80px; text-align:right;">Miktar</th>
-                    <th style="width:120px; text-align:right;">Birim Fiyat</th>
-                    <th style="width:70px;">Döviz</th>
-                    <th style="width:50px;">PDF</th>
-                  </tr>
-                </thead>
-                <tbody id="uhTableBody"></tbody>
-              </table>
-              <div id="uhEmpty" class="stk-empty">Hareket bulunamadı.</div>
-            </div>
-
-          </div>
-        </div>
-
-        <!-- Analiz bar -->
-        <div class="stk-analiz-bar" onclick="toggleAnaliz()">
-          <div style="display:flex; align-items:center; gap:8px;">
-            <i class="ti ti-chart-bar" style="font-size:15px;"></i>
-            <span>Analiz</span>
-          </div>
-          <i class="ti ti-chevron-down stk-analiz-chevron" id="analizChevron"></i>
-        </div>
-        <div class="stk-analiz-panel" id="analizPanel">
-          <div class="stk-analiz-grid" id="analizGrid"></div>
-        </div>
-
-      </div>
-
       <!-- Ürünler panel -->
+      <!-- ── Ürünler panel — drop this in place of the existing panelUrunler div ── -->
       <div id="panelUrunler" class="stk-panel" style="display:none;">
 
+        <!-- Filter bar -->
         <div class="stk-filter-bar">
           <div class="stk-filter-row">
-            <div class="filter-tags-wrap" style="flex:2;" onclick="document.getElementById('urunSearch').focus()">
-              <input type="text" id="urunSearch" class="filter-tags-input" placeholder="Ürün adı, SKU ara...">
+
+            <!-- Ürün adı tag filter -->
+            <div class="filter-tags-wrap" id="urProductNameTagsWrap" style="flex:2;" onclick="document.getElementById('urProductNameTagInput').focus()">
+              <div id="urProductNameTags" class="filter-tags"></div>
+              <input type="text" id="urProductNameTagInput" class="filter-tags-input" placeholder="Ürün adı ekle...">
+              <div id="urProductNameDropdown" class="filter-dropdown"></div>
             </div>
+
+            <!-- Marka tag filter -->
             <div class="filter-tags-wrap" id="urBrandTagsWrap" onclick="document.getElementById('urBrandTagInput').focus()">
               <div id="urBrandTags" class="filter-tags"></div>
               <input type="text" id="urBrandTagInput" class="filter-tags-input" placeholder="Marka ekle...">
               <div id="urBrandDropdown" class="filter-dropdown"></div>
             </div>
+
+            <!-- Kategori tag filter -->
             <div class="filter-tags-wrap" id="urCategoryTagsWrap" onclick="document.getElementById('urCategoryTagInput').focus()">
               <div id="urCategoryTags" class="filter-tags"></div>
               <input type="text" id="urCategoryTagInput" class="filter-tags-input" placeholder="Kategori ekle...">
               <div id="urCategoryDropdown" class="filter-dropdown"></div>
             </div>
+            <div class="filter-tags-wrap" id="urCurrencyTagsWrap" style="max-width:160px;" onclick="document.getElementById('urCurrencyTagInput').focus()">
+              <div id="urCurrencyTags" class="filter-tags"></div>
+              <input type="text" id="urCurrencyTagInput" class="filter-tags-input" placeholder="Para birimi...">
+              <div id="urCurrencyDropdown" class="filter-dropdown"></div>
+            </div>
 
-            <button class="stk-filter-clear" onclick="clearUrunlerFilters()" title="Temizle">
+            <!-- Quick chip toggles -->
+            <button class="stk-chip stk-chip--active" id="chipInStock" onclick="toggleChip('inStock')">
+              <i class="ti ti-package" style="font-size:12px;"></i> Depoda
+            </button>
+            <button class="stk-chip" id="chipDmo" onclick="toggleChip('dmo')">
+              <i class="ti ti-building-store" style="font-size:12px;"></i> DMO
+            </button>
+            <button class="stk-chip" id="chipRisk" onclick="toggleChip('risk')">
+              <i class="ti ti-alert-circle" style="font-size:12px;"></i> Risk
+            </button>
+            <button class="stk-chip" id="chipDead" onclick="toggleChip('dead')">
+              <i class="ti ti-ghost" style="font-size:12px;"></i> Ölü Stok
+            </button>
+
+            <button class="stk-filter-clear" onclick="_clearUrunlerFilters()" title="Temizle">
               <i class="ti ti-trash" style="font-size:13px;"></i>
             </button>
             <button class="stk-btn-primary" onclick="openAddModal()">
@@ -247,41 +109,48 @@
             </button>
           </div>
 
-          <button class="stk-adv-toggle" onclick="toggleUrunlerAdvanced()">
-            <i class="ti ti-chevron-down" style="font-size:12px;"></i> Gelişmiş Filtreler
-            <span id="urAdvancedFiltersBadge" style="display:none; background:var(--stk-ink); color:rgba(245,242,236,0.9); border-radius:99px; padding:1px 7px; font-size:11px; margin-left:4px;">!</span>
-          </button>
+        </div>
 
-          <div id="urAdvancedFiltersPanel" class="stk-adv-panel">
-            <div class="stk-filter-row" style="margin-top:8px; align-items:center; flex-wrap:wrap; gap:8px;">
-              <div class="filter-tags-wrap" id="urCurrencyTagsWrap" style="max-width:160px;" onclick="document.getElementById('urCurrencyTagInput').focus()">
-                <div id="urCurrencyTags" class="filter-tags"></div>
-                <input type="text" id="urCurrencyTagInput" class="filter-tags-input" placeholder="Para birimi...">
-                <div id="urCurrencyDropdown" class="filter-dropdown"></div>
-              </div>
-              <label class="stk-toggle-label">
-                <input type="checkbox" id="filterInStockOnly" onchange="updateUrAdvancedBadge(); applyUrunlerFilters();">
-                <span class="stk-toggle-chip stk-toggle-chip--green">📦 Depoda</span>
-              </label>
-              <label class="stk-toggle-label">
-                <input type="checkbox" id="filterDmoOnly" onchange="updateUrAdvancedBadge(); applyUrunlerFilters();">
-                <span class="stk-toggle-chip stk-toggle-chip--amber">DMO</span>
-              </label>
-              <label class="stk-toggle-label" id="urFilterMissingAttrsWrap" style="display:none;">
-                <input type="checkbox" id="filterMissingAttrs" onchange="onAttrFilterChange();">
-                <span class="stk-toggle-chip stk-toggle-chip--amber">⚠ Eksik Özellik</span>
-              </label>
-            </div>
-            <div id="dynamic-attr-filters" style="display:none; margin-top:8px;"></div>
+        <!-- KPI strip — Option B layout -->
+        <div class="stk-kpi-grid stk-kpi-grid--urunler">
+
+          <!-- Hero: total stock value -->
+          <div class="stk-kpi stk-kpi--hero">
+            <p class="stk-kpi-label">Toplam Stok Değeri</p>
+            <p class="stk-kpi-value" id="kpi-stock-tl">—</p>
+            <p class="stk-kpi-sub" id="kpi-stock-usd">—</p>
           </div>
+
+          <!-- Aktif SKU -->
+          <div class="stk-kpi">
+            <p class="stk-kpi-label">Aktif SKU</p>
+            <p class="stk-kpi-value" id="kpi-total-ur">—</p>
+            <p class="stk-kpi-sub">depoda ürün</p>
+          </div>
+
+          <!-- Kategori -->
+          <div class="stk-kpi">
+            <p class="stk-kpi-label">Kategori</p>
+            <p class="stk-kpi-value" id="kpi-categories">—</p>
+          </div>
+
+          <!-- Risk altında — clickable -->
+          <div class="stk-kpi stk-kpi--clickable" onclick="toggleChip('risk')" title="Risk altındakileri filtrele">
+            <p class="stk-kpi-label">Risk Altında</p>
+            <p class="stk-kpi-value stk-kpi--amber" id="kpi-risk">—</p>
+            <p class="stk-kpi-sub">düşük stok</p>
+          </div>
+
+          <!-- Ölü stok — clickable -->
+          <div class="stk-kpi stk-kpi--clickable" onclick="toggleChip('dead')" title="Ölü stoğu filtrele">
+            <p class="stk-kpi-label">Ölü Stok</p>
+            <p class="stk-kpi-value stk-kpi--red" id="kpi-dead">—</p>
+            <p class="stk-kpi-sub">hiç çıkış yok</p>
+          </div>
+
         </div>
 
-        <div class="stk-kpi-grid">
-          <div class="stk-kpi"><p class="stk-kpi-label">Toplam Ürün</p><p class="stk-kpi-value" id="kpi-total-ur">—</p></div>
-          <div class="stk-kpi"><p class="stk-kpi-label">Kategori</p><p class="stk-kpi-value" id="kpi-categories">—</p></div>
-          <div class="stk-kpi"><p class="stk-kpi-label">Marka</p><p class="stk-kpi-value" id="kpi-brands">—</p></div>
-        </div>
-
+        <!-- Table -->
         <div class="stk-tbl-wrap">
           <table class="stk-tbl">
             <thead>
@@ -290,14 +159,21 @@
                 <th style="width:10%;">SKU / Kod</th>
                 <th style="width:10%;">Marka</th>
                 <th style="width:10%;">Kategori</th>
-                <th style="width:8%; text-align:right;">Mevcut Miktar</th>
-                <th style="width:10%; text-align:right;">Son Alış Fiyatı</th>
-                <th style="width:10%; text-align:right;">Toplam Stok Fiyatı</th>
+                <th style="width:8%; text-align:right; cursor:pointer;" onclick="sortUrunler('stock_on_hand')">
+                  Mevcut Miktar<span id="urunSortHdr-stock_on_hand" style="font-family:'DM Mono',monospace; font-size:10px; opacity:0.35;"> ↕</span>
+                </th>
+                <th style="width:10%; text-align:right; cursor:pointer;" onclick="sortUrunler('last_purchase_price_cur')">
+                  Son Alış Fiyatı<span id="urunSortHdr-last_purchase_price_cur" style="font-family:'DM Mono',monospace; font-size:10px; opacity:0.35;"> ↕</span>
+                </th>
+                <th style="width:10%; text-align:right; cursor:pointer;" onclick="sortUrunler('total_stock_price')">
+                  Toplam Stok (TL)<span id="urunSortHdr-total_stock_price" style="font-family:'DM Mono',monospace; font-size:10px; opacity:0.35;"> ↕</span>
+                </th>
               </tr>
             </thead>
             <tbody id="urunlerTableBody"></tbody>
           </table>
           <div id="urunlerEmpty" class="stk-empty">Ürün bulunamadı.</div>
+          <div id="urunlerPagination" class="stk-pagination"></div>
         </div>
 
       </div>
@@ -307,13 +183,15 @@
 
         <div class="stk-filter-bar">
           <div class="stk-filter-row">
-            <div class="filter-tags-wrap" id="boSearchWrap" onclick="document.getElementById('boSearch').focus()" style="flex:2;">
-              <input type="text" id="boSearch" class="filter-tags-input" placeholder="Firma, ürün veya SKU ara...">
+            <div class="filter-tags-wrap" id="boCompanyTagsWrap" onclick="document.getElementById('boCompanyTagInput').focus()" style="flex:2;">
+              <div id="boCompanyTags" class="filter-tags"></div>
+              <input type="text" id="boCompanyTagInput" class="filter-tags-input" placeholder="Firma ekle...">
+              <div id="boCompanyDropdown" class="filter-dropdown"></div>
             </div>
-            <div style="display:flex; align-items:center; gap:4px; flex-shrink:0;">
-              <input type="date" id="boFilterDateStart" class="stk-filter-date">
-              <span class="stk-date-sep">—</span>
-              <input type="date" id="boFilterDateEnd" class="stk-filter-date">
+            <div class="filter-tags-wrap" id="boProductTagsWrap" onclick="document.getElementById('boProductTagInput').focus()" style="flex:2;">
+              <div id="boProductTags" class="filter-tags"></div>
+              <input type="text" id="boProductTagInput" class="filter-tags-input" placeholder="Ürün / SKU ekle...">
+              <div id="boProductDropdown" class="filter-dropdown"></div>
             </div>
             <label class="stk-toggle-label">
               <input type="checkbox" id="showCompleted">
@@ -332,7 +210,6 @@
         </div>
 
         <div class="stk-content">
-          <!-- New Backorder Form -->
           <div class="stk-bo-form-wrap">
             <details class="stk-bo-details">
               <summary class="stk-bo-summary">
@@ -434,108 +311,184 @@
   </div><!-- /.page-area -->
 </div><!-- /.app-shell -->
 
-<!-- ── Modals (shared) ──────────────────────────────────────────────────────── -->
+<!-- ── Modals ────────────────────────────────────────────────────────────────── -->
 
-<!-- Product modal (Ürünler tab) -->
+<!-- Ürün modal — two tabs: Hareketler + Detay -->
 <div id="productModal" class="stk-modal-overlay" style="display:none;" onclick="if(event.target===this) closeModal()">
-  <div class="stk-modal-box">
-    <div class="stk-modal-header">
-      <div>
-        <h2 id="modalTitle" class="stk-modal-title">Ürün Detayı</h2>
-        <div class="stk-modal-sub" id="modalSubTitle"></div>
+  <div class="stk-modal-box stk-modal-box--large">
+
+    <!-- Header -->
+    <div class="stk-urun-modal-header">
+      <div class="stk-urun-modal-avatar" id="urunModalAvatar">—</div>
+      <div class="stk-urun-modal-title-wrap">
+        <h2 class="stk-urun-modal-title" id="modalTitle">Ürün Detayı</h2>
+        <div class="stk-urun-modal-sub" id="modalSubTitle"></div>
       </div>
       <button class="stk-modal-close" onclick="closeModal()">✕</button>
     </div>
-    <div class="stk-modal-body">
 
-      <div class="stk-modal-section">
-        <div class="stk-modal-section-title">Temel Bilgiler</div>
-        <div class="stk-modal-grid">
-          <div class="stk-modal-field stk-modal-field--full">
-            <label>Ürün Adı <span class="req">*</span></label>
-            <input type="text" id="pf-product_name">
+    <!-- Tabs -->
+    <div class="stk-urun-modal-tabs">
+      <button class="stk-urun-tab stk-urun-tab--active" id="urunTabHar" onclick="switchUrunTab('har')">Stok Hareketleri</button>
+      <button class="stk-urun-tab" id="urunTabDet" onclick="switchUrunTab('det')">Ürün Detayı</button>
+    </div>
+
+    <!-- Tab: Hareketler -->
+    <div id="urunPanelHar" class="stk-urun-panel stk-urun-panel--active">
+
+      <!-- KPIs -->
+      <div class="stk-uh-stats" id="uhStatsRow">
+        <div class="stk-uh-stat"><span class="stk-uh-stat-label">Toplam Giriş</span><span class="stk-uh-stat-value stk-kpi--green" id="statIn">—</span></div>
+        <div class="stk-uh-stat"><span class="stk-uh-stat-label">Toplam Çıkış</span><span class="stk-uh-stat-value stk-kpi--red" id="statOut">—</span></div>
+        <div class="stk-uh-stat"><span class="stk-uh-stat-label">Net Stok</span><span class="stk-uh-stat-value" id="statNet">—</span></div>
+        <div class="stk-uh-stat"><span class="stk-uh-stat-label">Firma Sayısı</span><span class="stk-uh-stat-value" id="statCompanies">—</span></div>
+        <div class="stk-uh-stat"><span class="stk-uh-stat-label">Toplam Kayıt</span><span class="stk-uh-stat-value" id="statTotal">—</span></div>
+      </div>
+
+      <!-- Filter -->
+      <div class="stk-filter-bar">
+        <div class="stk-filter-row">
+          <div class="filter-tags-wrap" id="uhCompanyTagsWrap" onclick="document.getElementById('uhCompanyTagInput').focus()" style="flex:2;">
+            <div id="uhCompanyTags" class="filter-tags"></div>
+            <input type="text" id="uhCompanyTagInput" class="filter-tags-input" placeholder="Firma ekle...">
+            <div id="uhCompanyDropdown" class="filter-dropdown"></div>
           </div>
-          <div class="stk-modal-field">
-            <label>Ürün Kodu / SKU <span class="req">*</span></label>
-            <input type="text" id="pf-product_code">
+          <select id="uhFilterDirection" class="stk-filter-select">
+            <option value="">Tüm Hareketler</option>
+            <option value="INCOMING">▲ Giriş</option>
+            <option value="OUTGOING">▼ Çıkış</option>
+          </select>
+          <div style="display:flex; align-items:center; gap:4px; flex-shrink:0;">
+            <input type="date" id="uhFilterDateStart" class="stk-filter-date">
+            <span class="stk-date-sep">—</span>
+            <input type="date" id="uhFilterDateEnd" class="stk-filter-date">
           </div>
-          <div class="stk-modal-field">
-            <label>Marka</label>
-            <div id="pf-brand-wrap" style="position:relative;">
-              <input type="text" id="pf-brand" placeholder="Marka yaz veya seç..." autocomplete="off" oninput="onBrandInput(this.value)" onfocus="onBrandInput(this.value)">
-              <div id="pf-brand-dropdown" class="stk-autocomplete-drop" style="display:none;"></div>
+          <button class="stk-filter-clear" onclick="clearUhFilters()" title="Temizle">
+            <i class="ti ti-trash" style="font-size:13px;"></i>
+          </button>
+        </div>
+      </div>
+
+      <!-- Table -->
+      <div class="stk-tbl-wrap">
+        <table class="stk-tbl">
+          <thead>
+            <tr>
+              <th style="width:100px; cursor:pointer;" onclick="sortUh('date')">
+                Tarih<span id="uhSortHdr-date" style="font-family:'DM Mono',monospace; font-size:10px; opacity:0.35;"> ↓</span>
+              </th>
+              <th style="width:80px;">İşlem</th>
+              <th style="width:160px;">Fatura No</th>
+              <th>Firma</th>
+              <th style="width:80px; text-align:right; cursor:pointer;" onclick="sortUh('qty')">
+                Miktar<span id="uhSortHdr-qty" style="font-family:'DM Mono',monospace; font-size:10px; opacity:0.35;"> ↕</span>
+              </th>
+              <th style="width:60px; text-align:center;">PDF</th>
+            </tr>
+          </thead>
+          <tbody id="uhTableBody"></tbody>
+        </table>
+        <div id="uhEmpty" class="stk-empty">Hareket bulunamadı.</div>
+      </div>
+
+    </div>
+
+    <!-- Tab: Detay -->
+    <div id="urunPanelDet" class="stk-urun-panel">
+
+      <div class="stk-modal-body">
+
+        <div class="stk-modal-section">
+          <div class="stk-modal-section-title">Temel Bilgiler</div>
+          <div class="stk-modal-grid">
+            <div class="stk-modal-field stk-modal-field--full">
+              <label>Ürün Adı <span class="req">*</span></label>
+              <input type="text" id="pf-product_name">
             </div>
-          </div>
-          <div class="stk-modal-field">
-            <label style="display:flex; align-items:center; justify-content:space-between;">
-              <span>Kategori</span>
-              <div style="display:flex; align-items:center; gap:10px;">
-                <label style="display:flex; align-items:center; gap:4px; font-size:11px; color:var(--stk-ink3); cursor:pointer; text-transform:none; letter-spacing:0; font-weight:400;">
-                  <input type="checkbox" id="pf-is-internal" onchange="onInternalToggle(this.checked)" style="width:auto;">
-                  Ofis İçi
-                </label>
-                <label style="display:flex; align-items:center; gap:4px; font-size:11px; color:var(--stk-red); cursor:pointer; text-transform:none; letter-spacing:0; font-weight:400;">
-                  <input type="checkbox" id="pf-is-hidden" style="width:auto;">
-                  Gizle
-                </label>
+            <div class="stk-modal-field">
+              <label>Ürün Kodu / SKU <span class="req">*</span></label>
+              <input type="text" id="pf-product_code">
+            </div>
+            <div class="stk-modal-field">
+              <label>Marka</label>
+              <div id="pf-brand-wrap" style="position:relative;">
+                <input type="text" id="pf-brand" placeholder="Marka yaz veya seç..." autocomplete="off" oninput="onBrandInput(this.value)" onfocus="onBrandInput(this.value)">
+                <div id="pf-brand-dropdown" class="stk-autocomplete-drop" style="display:none;"></div>
               </div>
-            </label>
-            <div id="pf-cat-wrap" style="position:relative;">
-              <input type="text" id="pf-category" placeholder="Kategori yaz veya seç..." autocomplete="off" oninput="onCatInput(this.value)" onfocus="onCatInput(this.value)">
-              <div id="pf-cat-dropdown" class="stk-autocomplete-drop" style="display:none;"></div>
             </div>
-            <div id="pf-internal-cat-wrap" style="display:none; position:relative;">
-              <input type="text" id="pf-internal-cat-input" placeholder="Kategori yaz veya seç..." autocomplete="off" oninput="onInternalCatInput(this.value)" onfocus="onInternalCatInput(this.value)">
-              <div id="pf-internal-cat-dropdown" class="stk-autocomplete-drop" style="display:none;"></div>
+            <div class="stk-modal-field">
+              <label style="display:flex; align-items:center; justify-content:space-between;">
+                <span>Kategori</span>
+                <div style="display:flex; align-items:center; gap:10px;">
+                  <label style="display:flex; align-items:center; gap:4px; font-size:11px; color:var(--stk-ink3); cursor:pointer; text-transform:none; letter-spacing:0; font-weight:400;">
+                    <input type="checkbox" id="pf-is-internal" onchange="onInternalToggle(this.checked)" style="width:auto;">
+                    Ofis İçi
+                  </label>
+                  <label style="display:flex; align-items:center; gap:4px; font-size:11px; color:var(--stk-red); cursor:pointer; text-transform:none; letter-spacing:0; font-weight:400;">
+                    <input type="checkbox" id="pf-is-hidden" style="width:auto;">
+                    Gizle
+                  </label>
+                </div>
+              </label>
+              <div id="pf-cat-wrap" style="position:relative;">
+                <input type="text" id="pf-category" placeholder="Kategori yaz veya seç..." autocomplete="off" oninput="onCatInput(this.value)" onfocus="onCatInput(this.value)">
+                <div id="pf-cat-dropdown" class="stk-autocomplete-drop" style="display:none;"></div>
+              </div>
+              <div id="pf-internal-cat-wrap" style="display:none; position:relative;">
+                <input type="text" id="pf-internal-cat-input" placeholder="Kategori yaz veya seç..." autocomplete="off" oninput="onInternalCatInput(this.value)" onfocus="onInternalCatInput(this.value)">
+                <div id="pf-internal-cat-dropdown" class="stk-autocomplete-drop" style="display:none;"></div>
+              </div>
             </div>
           </div>
-
         </div>
+
+        <div class="stk-modal-section" id="dynamic-attrs-section" style="display:none;">
+          <div class="stk-modal-section-title">Kategori Özellikleri</div>
+          <div class="stk-modal-grid" id="dynamic-attrs-grid"></div>
+        </div>
+
+        <div class="stk-modal-section">
+          <div class="stk-modal-section-title">Fiyatlar</div>
+          <div class="stk-modal-grid">
+            <div class="stk-modal-field"><label>Maliyet (USD)</label><input type="number" step="0.01" id="pf-maliyet_usd"></div>
+            <div class="stk-modal-field"><label>Sözleşme Fiyatı (EUR)</label><input type="number" step="0.01" id="pf-sozlesme_fiyat_eur"></div>
+            <div class="stk-modal-field"><label>Son Alış Fiyatı</label><input type="number" step="0.01" id="pf-last_purchase_price_cur"></div>
+            <div class="stk-modal-field"><label>Para Birimi</label><input type="text" id="pf-last_purchase_currency" placeholder="USD / EUR / TRY"></div>
+            <div class="stk-modal-field"><label>Son Alış Kuru</label><input type="number" step="0.0001" id="pf-last_purchase_rate"></div>
+            <div class="stk-modal-field"><label>Son Alış (TL)</label><input type="number" step="0.01" id="pf-last_purchase_price_tl"></div>
+            <div class="stk-modal-field"><label>Ort. Alış (TL)</label><input type="number" step="0.01" id="pf-avg_purchase_price_tl"></div>
+          </div>
+        </div>
+
+        <div class="stk-modal-section">
+          <div class="stk-modal-section-title">DMO Bilgileri</div>
+          <div class="stk-modal-grid">
+            <div class="stk-modal-field"><label>DMO Kodu</label><input type="text" id="pf-dmo_code"></div>
+            <div class="stk-modal-field"><label>DMO Fiyatı (TRY)</label><input type="number" step="0.01" id="pf-dmo_fiyat_try"></div>
+            <div class="stk-modal-field stk-modal-field--full"><label>DMO URL</label><input type="text" id="pf-dmo_url" placeholder="https://www.dmo.gov.tr/..."></div>
+            <div class="stk-modal-field"><label>Hediye Miktarı</label><input type="number" step="1" id="pf-gift_quantity"></div>
+          </div>
+        </div>
+
+        <div class="stk-modal-section">
+          <div class="stk-modal-section-title">Sistem Bilgileri</div>
+          <div class="stk-modal-grid">
+            <div class="stk-modal-field"><label>Oluşturulma</label><input type="text" id="pf-created_at" readonly class="stk-readonly"></div>
+            <div class="stk-modal-field"><label>Son Güncelleme</label><input type="text" id="pf-updated_at" readonly class="stk-readonly"></div>
+            <div class="stk-modal-field"><label>DMO Fiyat Güncelleme</label><input type="text" id="pf-dmo_fiyat_updated" readonly class="stk-readonly"></div>
+          </div>
+        </div>
+
       </div>
 
-      <div class="stk-modal-section" id="dynamic-attrs-section" style="display:none;">
-        <div class="stk-modal-section-title">Kategori Özellikleri</div>
-        <div class="stk-modal-grid" id="dynamic-attrs-grid"></div>
-      </div>
-
-      <div class="stk-modal-section">
-        <div class="stk-modal-section-title">Fiyatlar</div>
-        <div class="stk-modal-grid">
-          <div class="stk-modal-field"><label>Maliyet (USD)</label><input type="number" step="0.01" id="pf-maliyet_usd"></div>
-          <div class="stk-modal-field"><label>Sözleşme Fiyatı (EUR)</label><input type="number" step="0.01" id="pf-sozlesme_fiyat_eur"></div>
-          <div class="stk-modal-field"><label>Son Alış Fiyatı</label><input type="number" step="0.01" id="pf-last_purchase_price_cur"></div>
-          <div class="stk-modal-field"><label>Para Birimi</label><input type="text" id="pf-last_purchase_currency" placeholder="USD / EUR / TRY"></div>
-          <div class="stk-modal-field"><label>Son Alış Kuru</label><input type="number" step="0.0001" id="pf-last_purchase_rate"></div>
-          <div class="stk-modal-field"><label>Son Alış (TL)</label><input type="number" step="0.01" id="pf-last_purchase_price_tl"></div>
-          <div class="stk-modal-field"><label>Ort. Alış (TL)</label><input type="number" step="0.01" id="pf-avg_purchase_price_tl"></div>
-        </div>
-      </div>
-
-      <div class="stk-modal-section">
-        <div class="stk-modal-section-title">DMO Bilgileri</div>
-        <div class="stk-modal-grid">
-          <div class="stk-modal-field"><label>DMO Kodu</label><input type="text" id="pf-dmo_code"></div>
-          <div class="stk-modal-field"><label>DMO Fiyatı (TRY)</label><input type="number" step="0.01" id="pf-dmo_fiyat_try"></div>
-          <div class="stk-modal-field stk-modal-field--full"><label>DMO URL</label><input type="text" id="pf-dmo_url" placeholder="https://www.dmo.gov.tr/..."></div>
-          <div class="stk-modal-field"><label>Hediye Miktarı</label><input type="number" step="1" id="pf-gift_quantity"></div>
-        </div>
-      </div>
-
-      <div class="stk-modal-section">
-        <div class="stk-modal-section-title">Sistem Bilgileri</div>
-        <div class="stk-modal-grid">
-          <div class="stk-modal-field"><label>Oluşturulma</label><input type="text" id="pf-created_at" readonly class="stk-readonly"></div>
-          <div class="stk-modal-field"><label>Son Güncelleme</label><input type="text" id="pf-updated_at" readonly class="stk-readonly"></div>
-          <div class="stk-modal-field"><label>DMO Fiyat Güncelleme</label><input type="text" id="pf-dmo_fiyat_updated" readonly class="stk-readonly"></div>
-        </div>
+      <div class="stk-modal-footer">
+        <span id="modalMsg" class="stk-msg"></span>
+        <button class="stk-btn-secondary" onclick="closeModal()">İptal</button>
+        <button class="stk-btn-primary" id="modalSaveBtn" onclick="saveProduct()">Kaydet</button>
       </div>
 
     </div>
-    <div class="stk-modal-footer">
-      <span id="modalMsg" class="stk-msg"></span>
-      <button class="stk-btn-secondary" onclick="closeModal()">İptal</button>
-      <button class="stk-btn-primary" id="modalSaveBtn" onclick="saveProduct()">Kaydet</button>
-    </div>
+
   </div>
 </div>
 
@@ -604,7 +557,6 @@
 <script src="/shared/sidebar.js" defer></script>
 <script src="/stok/js/utils.js"></script>
 <script src="/stok/js/urunler.js"></script>
-<script src="/stok/js/stok-hareketleri.js"></script>
 <script src="/stok/js/urun-hareketleri.js"></script>
 <script src="/stok/js/backorder.js"></script>
 <script src="/stok/js/kategori-yonetimi.js"></script>

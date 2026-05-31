@@ -55,6 +55,7 @@ function getSoldQtyLastDaysBySku(allMovements, sku, days) {
 function createTagFilter({ wrapId, inputId, dropdownId, placeholder, getOptions, onChange }) {
   const wrap     = document.getElementById(wrapId);
   const input    = document.getElementById(inputId);
+  console.log('initFatFilters input el:', document.getElementById('brandTagInput'));
   const dropdown = document.getElementById(dropdownId);
   if (!wrap || !input || !dropdown) return { getSelected: () => [] };
 
@@ -78,6 +79,8 @@ function createTagFilter({ wrapId, inputId, dropdownId, placeholder, getOptions,
   }
 
   function renderDropdown(query) {
+    console.log('renderDropdown called', { query, opts: getOptions(), selected });
+
     const opts = getOptions().filter(o =>
       !selected.includes(o) &&
       (!query || o.toLocaleLowerCase('tr-TR').includes(query.toLocaleLowerCase('tr-TR')))
@@ -119,13 +122,15 @@ function createTagFilter({ wrapId, inputId, dropdownId, placeholder, getOptions,
     if (idx >= 0 && items[idx]) items[idx].scrollIntoView({ block: 'nearest' });
   }
 
-  input.addEventListener('focus', () => { highlightIdx = -1; renderDropdown(input.value); });
+  // ✅ FIX 1: always pass '' on focus so full list shows immediately
+  input.addEventListener('focus', () => { highlightIdx = -1; renderDropdown(''); });
   input.addEventListener('input', () => { highlightIdx = -1; renderDropdown(input.value); });
   input.addEventListener('keydown', (e) => {
     const items = getItems();
     if (e.key === 'ArrowDown') {
       e.preventDefault();
-      if (!dropdown.classList.contains('open')) { renderDropdown(input.value); return; }
+      // ✅ FIX 2: pass '' not input.value so reopening also shows full list
+      if (!dropdown.classList.contains('open')) { renderDropdown(''); return; }
       setHighlight(Math.min(highlightIdx + 1, items.length - 1));
     } else if (e.key === 'ArrowUp') {
       e.preventDefault();

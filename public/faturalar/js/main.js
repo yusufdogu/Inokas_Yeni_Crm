@@ -7,7 +7,7 @@
 // Utilities   → faturalar/utils.js
 
 // --- INITIALIZATION ---
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
     // ← SET currentView FIRST before anything else
     const initHash = location.hash.slice(1);
     if (initHash === 'giden' || window._FAT_INITIAL_VIEW === 'giden') currentView = 'giden';
@@ -15,7 +15,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
 
     const cachedIsPending = sessionStorage.getItem('inokas_cache_is_pending') === 'true';
-    const nowIsPending    = !!window._FAT_PENDING;
+    const nowIsPending = !!window._FAT_PENDING;
     if (cachedIsPending !== nowIsPending) {
         sessionStorage.removeItem(INVOICE_CACHE_KEY);
     }
@@ -25,6 +25,7 @@ document.addEventListener('DOMContentLoaded', () => {
     bindModalOutsideClose();
     restoreFilterState();
     initFatFilters();
+
     loadInternalCategoryOptions();
 
     showAllState.gelen = true;
@@ -34,7 +35,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     updateActionButtonsTheme();
     if (window._FAT_INITIAL_VIEW !== 'genel') {
-        refreshData(false);
+        // call restoreAndApply() instead of restoreTagFilters()
+        await refreshData(false);
+        await restoreAndApply();
     }
 
     if (initHash === 'ekle') enterEkleView();
@@ -65,6 +68,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         saveFilterState();
         renderCurrentView();
+        refreshKpiSummary()
     };
 
     document.getElementById('filterDateStart')?.addEventListener('change', onFilterChange);
@@ -103,6 +107,15 @@ function setupEventListeners() {
         });
     }
 }
+// in main.js, wrap restoreTagFilters
+async function restoreAndApply() {
+    window._restoringFilters = true;
+    restoreTagFilters();
+    window._restoringFilters = false;
+    // Now manually sync _fatActiveFilters from restored tag state
+    applyFiltersAndFetch();
+}
+
 
 function syncPaidFieldByStatus() {
     const statusEl = document.getElementById('f_status');

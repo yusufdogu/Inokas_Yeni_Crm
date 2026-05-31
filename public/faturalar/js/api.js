@@ -193,15 +193,34 @@ async function refreshFilterOptions() {
     const data = await res.json();
 
     window._fatFilterOptions = {
-      companies: data.companies || [],
-      brands: data.brands || [],
-      products: data.products || [],
-      categories: data.categories || [],
-      models: data.models || [],
+      companies:     data.companies     || [],
+      brands:        data.brands        || [],
+      products:      data.products      || [],
+      categories:    data.categories    || [],
+      currencies:    data.currencies    || [],
+      relationships: data.relationships || [],   // ← new
     };
+
+    populateCurrencySelect(); // ← add this
+
   } catch (err) {
     console.error('refreshFilterOptions hatası:', err.message);
   }
+}
+
+function populateCurrencySelect() {
+  const sel = document.getElementById('filterCurrency');
+  if (!sel) return;
+  const currencies = window._fatFilterOptions?.currencies || [];
+  const current = sel.value; // preserve selected value
+  sel.innerHTML = '<option value="">Tüm Dövizler</option>';
+  currencies.forEach(cur => {
+    const opt = document.createElement('option');
+    opt.value = cur;
+    opt.textContent = cur;
+    if (cur === current) opt.selected = true;
+    sel.appendChild(opt);
+  });
 }
 
 async function refreshKpiSummary() {
@@ -229,6 +248,7 @@ async function refreshKpiSummary() {
     console.error('refreshKpiSummary hatası:', err.message);
   }
 }
+
 function goToPage(page) {
   if (page < 1 || page > _totalPages) return;
   _currentPage = page;

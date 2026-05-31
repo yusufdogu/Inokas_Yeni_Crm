@@ -22,45 +22,72 @@ function _onTagFilterChange(advanced = false) {
     if (advanced) updateAdvancedBadge();
     saveFilterState();
     applyFiltersAndFetch();
+    refreshKpiSummary()
 }
 
 
 // ─── Init tag filters (called from main.js after DOMContentLoaded) ────────────
 function initFatFilters() {
-    _fatCompanyFilter = createTagFilter({
-        wrapId: 'companyTagsWrap',
-        inputId: 'companyTagInput',
-        dropdownId: 'companyDropdown',
-        getOptions: () => window._fatFilterOptions?.companies || [],
-        onChange: () => _onTagFilterChange(false),
-    });
+  _fatCompanyFilter = createTagFilter({
+    wrapId: 'companyTagsWrap', inputId: 'companyTagInput', dropdownId: 'companyDropdown',
+    getOptions: () => _getDependentOptions('company'),
+    onChange: () => _onTagFilterChange(false),
+  });
 
-    _fatProductFilter = createTagFilter({
-        wrapId: 'productTagsWrap',
-        inputId: 'productTagInput',
-        dropdownId: 'productDropdown',
-        getOptions: () => window._fatFilterOptions?.products || [],
-        onChange: () => _onTagFilterChange(true),
-    });
+  _fatBrandFilter = createTagFilter({
+    wrapId: 'brandTagsWrap', inputId: 'brandTagInput', dropdownId: 'brandDropdown',
+    getOptions: () => _getDependentOptions('brand'),
+    onChange: () => _onTagFilterChange(true),
+  });
 
-    _fatCategoryFilter = createTagFilter({
-        wrapId: 'categoryTagsWrap',
-        inputId: 'categoryTagInput',
-        dropdownId: 'categoryDropdown',
-        getOptions: () => window._fatFilterOptions?.categories || [],
-        onChange: () => _onTagFilterChange(true),
-    });
+  _fatCategoryFilter = createTagFilter({
+    wrapId: 'categoryTagsWrap', inputId: 'categoryTagInput', dropdownId: 'categoryDropdown',
+    getOptions: () => _getDependentOptions('category'),
+    onChange: () => _onTagFilterChange(true),
+  });
 
-    _fatBrandFilter = createTagFilter({
-        wrapId: 'brandTagsWrap',
-        inputId: 'brandTagInput',
-        dropdownId: 'brandDropdown',
-        getOptions: () => window._fatFilterOptions?.brands || [],
-        onChange: () => _onTagFilterChange(true),
-    });
-
-
+  _fatProductFilter = createTagFilter({
+    wrapId: 'productTagsWrap', inputId: 'productTagInput', dropdownId: 'productDropdown',
+    getOptions: () => _getDependentOptions('product'),
+    onChange: () => _onTagFilterChange(true),
+  });
 }
+
+function _getDependentOptions(field) {
+  const rels = window._fatFilterOptions?.relationships || [];
+
+  const selectedCompanies  = _fatCompanyFilter?.getSelected()  || [];
+  const selectedBrands     = _fatBrandFilter?.getSelected()    || [];
+  const selectedCategories = _fatCategoryFilter?.getSelected() || [];
+  const selectedProducts   = _fatProductFilter?.getSelected()  || [];
+
+  // Build sibling selections — everything except the field being queried
+  const hasConstraints =
+    (field !== 'company'  && selectedCompanies.length)  ||
+    (field !== 'brand'    && selectedBrands.length)     ||
+    (field !== 'category' && selectedCategories.length) ||
+    (field !== 'product'  && selectedProducts.length);
+
+  const allKey = { company: 'companies', brand: 'brands', category: 'categories', product: 'products' }[field];
+  const all = window._fatFilterOptions?.[allKey] || [];
+
+  if (!hasConstraints) return all;
+
+  const matched = new Set(
+    rels
+      .filter(r =>
+        (field === 'company'  || !selectedCompanies.length  || selectedCompanies.includes(r.company))   &&
+        (field === 'brand'    || !selectedBrands.length     || selectedBrands.includes(r.brand))         &&
+        (field === 'category' || !selectedCategories.length || selectedCategories.includes(r.category))  &&
+        (field === 'product'  || !selectedProducts.length   || selectedProducts.includes(r.product))
+      )
+      .map(r => r[field])
+      .filter(Boolean)
+  );
+
+  return all.filter(o => matched.has(o));
+}
+
 // ─── Advanced panel ───────────────────────────────────────────────────────────
 function toggleAdvancedFilters() {
     _fatAdvancedOpen = !_fatAdvancedOpen;
@@ -244,7 +271,7 @@ function applyFiltersAndFetch() {
         priceMin: _fatPriceMin,
         priceMax: _fatPriceMax,
     };
-
+    saveFilterState();
     refreshData(false);
     refreshKpiSummary();
 }
@@ -462,106 +489,6 @@ function _kpiCard(label, value, sparkSvg, trendText, trendColor) {
     </div>`;
 }
 
-// ─── KPI bar ──────────────────────────────────────────────────────────────────
-
-function updateKpiSummary(data) {
-    renderKpiBar(data);
-}
-
-function _pct(curr, prev) {
-    if (!prev) return curr > 0 ? 100 : 0;
-    return ((curr - prev) / prev) * 100;
-}
-
-function _changeBadge(pct) {
-    if (pct > 0)  return `<span style="display:inline-flex;align-items:center;gap:4px;background:#dcfce7;border-radius:99px;padding:3px 10px;font-size:13px;font-weight:500;color:#15803d;">↑ %${Math.abs(pct).toFixed(0)}</span>`;
-    if (pct < 0)  return `<span style="display:inline-flex;align-items:center;gap:4px;background:#fee2e2;border-radius:99px;padding:3px 10px;font-size:13px;font-weight:500;color:#b91c1c;">↓ %${Math.abs(pct).toFixed(0)}</span>`;
-    return `<span style="display:inline-flex;align-items:center;gap:4px;background:#f1f5f9;border-radius:99px;padding:3px 10px;font-size:13px;font-weight:500;color:#64748b;">→ %0</span>`;
-}
-
-function _buildSparkline(series, key, color) {
-    const pts = (series||[]).map(b => b[key] || 0);
-    if (pts.length < 2) return '';
-    const W=400, H=48;
-    const min = Math.min(...pts), max = Math.max(...pts);
-    const range = max - min || 1;
-    const coords = pts.map((v,i) => {
-        const x = (i/(pts.length-1))*W;
-        const y = H - ((v-min)/range)*(H-6) - 3;
-        return `${x.toFixed(1)},${y.toFixed(1)}`;
-    }).join(' ');
-    const first = coords.split(' ')[0];
-    return `<svg width="100%" height="48" viewBox="0 0 400 48" preserveAspectRatio="none" style="display:block;margin-bottom:12px;">
-        <polyline points="${coords}" stroke="${color}" stroke-width="2" fill="none" stroke-linejoin="round" stroke-linecap="round"/>
-        <path d="M${first} ${coords} V48 H0Z" fill="${color}" fill-opacity="0.08"/>
-    </svg>`;
-}
-
-function renderKpiBar(data) {
-    const el = document.getElementById('fatKpiBar');
-    if (!el) return;
-    if (!data) return;
-
-    const { totals, current, previous, series, bucket, comparison_label } = data;
-    const fmt   = n => (parseFloat(n)||0).toLocaleString('tr-TR', {minimumFractionDigits:2, maximumFractionDigits:2});
-    const isGelen  = currentView === 'gelen';
-    const tryLabel = isGelen ? 'TOPLAM HARCAMA (TRY)' : 'TOPLAM CİRO (TRY)';
-    const usdLabel = isGelen ? 'TOPLAM HARCAMA (USD)' : 'TOPLAM CİRO (USD)';
-    const bucketLabel = bucket === 'month' ? 'aylık' : 'haftalık';
-    const seriesLen = (series||[]).length;
-    const seriesInfo = seriesLen > 0 ? `Son ${seriesLen} ${bucketLabel} dönem` : '—';
-
-    const tryPct = _pct(current.try_total, previous.try_total);
-    const usdPct = _pct(current.usd_total, previous.usd_total);
-
-    const tryAvg = totals.try_count > 0 ? totals.try_total / totals.try_count : 0;
-    const usdAvg = totals.usd_count > 0 ? totals.usd_total / totals.usd_count : 0;
-
-    const usdColor = (totals.usd_total || 0) > 0 ? '#2563eb' : '#94a3b8';
-
-    el.innerHTML = `
-    <div class="fat-kpi fat-kpi--big">
-      <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:14px;">
-        <div>
-          <p class="fat-kpi-label">${tryLabel}</p>
-          <p style="font-size:28px;font-weight:500;color:#0f172a;margin:6px 0 0;line-height:1;">₺${fmt(totals.try_total)}</p>
-        </div>
-        <div style="text-align:right;">
-          ${_changeBadge(tryPct)}
-          <p style="font-size:11px;color:#94a3b8;margin:5px 0 0;">${comparison_label}</p>
-        </div>
-      </div>
-      ${_buildSparkline(series, 'try_total', '#16a34a')}
-      <div style="display:flex;align-items:center;justify-content:space-between;padding-top:10px;border-top:1px solid #e2e8f0;">
-        <div style="display:flex;gap:16px;">
-          <div><p style="font-size:11px;color:#94a3b8;margin:0 0 2px;">Fatura Adedi</p><p style="font-size:14px;font-weight:500;color:#0f172a;margin:0;">${totals.try_count}</p></div>
-          <div><p style="font-size:11px;color:#94a3b8;margin:0 0 2px;">Ortalama</p><p style="font-size:14px;font-weight:500;color:#0f172a;margin:0;">₺${fmt(tryAvg)}</p></div>
-        </div>
-        <p style="font-size:11px;color:#94a3b8;margin:0;">${seriesInfo}</p>
-      </div>
-    </div>
-
-    <div class="fat-kpi fat-kpi--big">
-      <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:14px;">
-        <div>
-          <p class="fat-kpi-label">${usdLabel}</p>
-          <p style="font-size:28px;font-weight:500;color:#0f172a;margin:6px 0 0;line-height:1;">$${fmt(totals.usd_total)}</p>
-        </div>
-        <div style="text-align:right;">
-          ${_changeBadge(usdPct)}
-          <p style="font-size:11px;color:#94a3b8;margin:5px 0 0;">${comparison_label}</p>
-        </div>
-      </div>
-      ${_buildSparkline(series, 'usd_total', usdColor)}
-      <div style="display:flex;align-items:center;justify-content:space-between;padding-top:10px;border-top:1px solid #e2e8f0;">
-        <div style="display:flex;gap:16px;">
-          <div><p style="font-size:11px;color:#94a3b8;margin:0 0 2px;">Fatura Adedi</p><p style="font-size:14px;font-weight:500;color:#0f172a;margin:0;">${totals.usd_count}</p></div>
-          <div><p style="font-size:11px;color:#94a3b8;margin:0 0 2px;">Ortalama</p><p style="font-size:14px;font-weight:500;color:#0f172a;margin:0;">$${fmt(usdAvg)}</p></div>
-        </div>
-        <p style="font-size:11px;color:#94a3b8;margin:0;">${seriesInfo}</p>
-      </div>
-    </div>`;
-}
 
 
 
@@ -680,6 +607,7 @@ function renderListView(invoices) {
         const total = formatMoneyDisplay(inv, invNonInternalPayableAmountSrc(inv));
         const comp = (inv.companies?.name || 'Bilinmeyen').replace(/</g, '&lt;');
         const no = (inv.invoice_no || '-').replace(/</g, '&lt;');
+        saveFilterState();
         return `<tr onclick="openFatDetailPage('${inv.id}')">
             <td><span class="fat-tbl-no">${no}</span></td>
             <td>${comp}</td>

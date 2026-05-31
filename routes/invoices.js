@@ -691,16 +691,21 @@ router.get('/trend', async (req, res) => {
   }
 });
 
-// GET /api/invoices/filter-options
 router.get('/filter-options', async (req, res) => {
   try {
     const supabase = req.app.get('supabase');
     const tenantId = req.tenantId;
     const direction = req.query.direction;
 
-    const { data: niItems } = await supabase.from('invoice_items').select('invoice_id').eq('is_internal', false);
+    const { data: niItems } = await supabase
+      .from('invoice_items')
+      .select('invoice_id')
+      .eq('is_internal', false);
+
     const nonInternalIds = [...new Set((niItems || []).map(r => r.invoice_id).filter(Boolean))];
-    if (!nonInternalIds.length) return res.json({ companies: [], brands: [], products: [], categories: [], models: [], currencies: [] });
+    if (!nonInternalIds.length) {
+      return res.json({ companies: [], brands: [], products: [], categories: [], models: [], currencies: [], relationships: [] });
+    }
 
     let invQuery = supabase
       .from('invoices')
@@ -715,23 +720,72 @@ router.get('/filter-options', async (req, res) => {
     const companies = [...new Set((invRows || []).map(r => r.companies?.name).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'tr'));
     const currencies = [...new Set((invRows || []).map(r => r.base_currency).filter(Boolean))].sort();
 
+    // FIX 1: build invoiceCompanyMap from invRows
+    const invoiceCompanyMap = {};
+    (invRows || []).forEach(r => {
+      if (r.id && r.companies?.name) invoiceCompanyMap[r.id] = r.companies.name;
+    });
+
     const directionFilteredIds = direction ? (invRows || []).map(r => r.id).filter(Boolean) : nonInternalIds;
-    if (!directionFilteredIds.length) return res.json({ companies, brands: [], products: [], categories: [], models: [], currencies });
-
-    const { data: itemRows } = await supabase.from('invoice_items').select('brand_name, product_name, product_code').eq('is_internal', false).in('invoice_id', directionFilteredIds.slice(0, 1000));
-
-    const brands = [...new Set((itemRows || []).map(r => r.brand_name).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'tr'));
-    const products = [...new Set((itemRows || []).map(r => r.product_name).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'tr'));
-
-    const productCodes = [...new Set((itemRows || []).map(r => r.product_code).filter(Boolean))];
-    let categories = [], models = [];
-    if (productCodes.length) {
-      const { data: productRows } = await supabase.from('products').select('category, model').eq('tenant_id', tenantId).in('product_code', productCodes.slice(0, 1000)).not('category', 'is', null);
-      categories = [...new Set((productRows || []).map(r => r.category).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'tr'));
-      models = [...new Set((productRows || []).map(r => r.model).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'tr'));
+    if (!directionFilteredIds.length) {
+      return res.json({ companies, brands: [], products: [], categories: [], models: [], currencies, relationships: [] });
     }
 
-    res.json({ companies, brands, products, categories, models, currencies });
+    // FIX 2: include invoice_id in select
+    const { data: itemRows } = await supabase
+      .from('invoice_items')
+      .select('invoice_id, brand_name, product_name, product_code')
+      .eq('is_internal', false)
+      .in('invoice_id', directionFilteredIds.slice(0, 1000));
+
+    const products  = [...new Set((itemRows || []).map(r => r.product_name).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'tr'));
+    const productCodes = [...new Set((itemRows || []).map(r => r.product_code).filter(Boolean))];
+
+    // FIX 3: initialize to [] so they're never undefined
+    let categories    = [];
+    let models        = [];
+    let relationships = [];
+    let brands              = [];
+
+    if (productCodes.length) {
+      const { data: productRows } = await supabase
+        .from('products')
+        .select('product_code, category,brand, model')
+        .eq('tenant_id', tenantId)
+        .eq('is_internal', false)
+        .in('product_code', productCodes.slice(0, 1000))
+        .not('category', 'is', null);
+
+      categories = [...new Set((productRows || []).map(r => r.category).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'tr'));
+      models     = [...new Set((productRows || []).map(r => r.model).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'tr'));
+      brands    = [...new Set((productRows || []).map(r => r.brand).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'tr'));
+
+      const productCodeMeta = {};
+      (productRows || []).forEach(r => {
+        productCodeMeta[r.product_code] = { category: r.category, model: r.model, brand: r.brand };
+      });
+
+      // FIX 4: deduplicate relationships
+      const seen = new Set();
+      relationships = (itemRows || [])
+        .filter(r => r.product_code && productCodeMeta[r.product_code])
+        .reduce((acc, r) => {
+          const key = `${r.invoice_id}|${r.brand_name}|${r.product_name}|${productCodeMeta[r.product_code].category}`;
+          if (!seen.has(key)) {
+            seen.add(key);
+            acc.push({
+              company:  invoiceCompanyMap[r.invoice_id] || null,
+              brand:    productCodeMeta[r.product_code].brand   || null,
+              product:  r.product_name || null,
+              category: productCodeMeta[r.product_code].category,
+              model:    productCodeMeta[r.product_code].model || null,
+            });
+          }
+          return acc;
+        }, []);
+    }
+
+    res.json({ companies, brands, products, categories, models, currencies, relationships });
   } catch (err) {
     console.error('filter-options hatası:', err.message);
     res.status(500).json({ error: err.message });

@@ -262,7 +262,7 @@ function createTagFilter({ wrapId, inputId, dropdownId, getOptions, onChange }) 
         });
         dropdown.classList.toggle('open', opts.length > 0);
     }
-
+    input.addEventListener('focus', () => { highlightIdx = -1; renderDropdown(''); });  // ← add this
     input.addEventListener('input', () => { highlightIdx = -1; renderDropdown(input.value); });
     input.addEventListener('keydown', (e) => {
         const items = getItems();
@@ -292,7 +292,15 @@ function createTagFilter({ wrapId, inputId, dropdownId, getOptions, onChange }) 
     });
 
     return {
-        getSelected: () => [...selected],
-        clear: () => { selected = []; renderTags(); },
+      getSelected:   () => [...selected],
+      clear:         () => { selected = []; renderTags(); },
+      // in createTagFilter return value
+      _forceSelect: (v) => {
+        if (!selected.includes(v)) {
+            selected.push(v);
+            renderTags();
+            if (!window._restoringFilters) onChange(selected);
+        }
+      },
     };
 }

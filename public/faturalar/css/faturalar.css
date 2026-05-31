@@ -239,5 +239,54 @@
   flex: 1;
   overflow-y: auto;
 }
+/* ─── KPI Bar ────────────────────────────────────────────────────────────── */
+.fat-kpi-bar {
+  display: flex;
+  gap: 8px;
+  padding: 10px 16px;
+  background: var(--fat-bg2);
+  border-bottom: 0.5px solid var(--fat-border);
+  flex-shrink: 0;
+}
 
+.fat-kpi-card {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  background: var(--fat-bg);
+  border: 0.5px solid var(--fat-border2);
+  border-radius: 8px;
+  padding: 10px 14px;
+  flex: 1;
+  min-width: 0;
+}
+
+.fat-kpi-label {
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--fat-ink4);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  white-space: nowrap;
+}
+
+.fat-kpi-value {
+  font-size: 17px;
+  font-weight: 600;
+  color: var(--fat-ink);
+  font-family: var(--fat-font-data);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.fat-kpi-delta {
+  font-size: 11px;
+  font-family: var(--fat-font-data);
+  color: var(--fat-ink4);
+  white-space: nowrap;
+}
+
+.fat-kpi-delta--up   { color: var(--fat-green); }
+.fat-kpi-delta--down { color: var(--fat-red);   }
 @keyframes fat-spin { to { transform: rotate(360deg); } }

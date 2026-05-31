@@ -2,7 +2,6 @@
 // Tab switching + lazy init for the unified Stok shell.
 
 let _activeTab       = 'genel';
-let _hareketlerReady = false;
 let _urunlerReady    = false;
 let _backorderReady  = false;
 let _kategoriReady   = false;
@@ -12,42 +11,30 @@ function switchTab(tab) {
   _activeTab = tab;
   history.replaceState(null, '', `?tab=${tab}`);
 
-  // Update nav pills
   document.querySelectorAll('.stk-nav-tab').forEach(btn => btn.classList.remove('stk-nav-tab--active'));
   const ids = {
-    genel:      'navTabGenel',
-    hareketler: 'navTabHareketler',
-    urunler:    'navTabUrunler',
-    backorder:  'navTabBackorder',
-    kategori:   'navTabKategori',
+    genel:     'navTabGenel',
+    urunler:   'navTabUrunler',
+    backorder: 'navTabBackorder',
+    kategori:  'navTabKategori',
   };
   document.getElementById(ids[tab])?.classList.add('stk-nav-tab--active');
 
-  // Show/hide panels
   const panels = {
-    genel:      'panelGenel',
-    hareketler: 'panelHareketler',
-    urunler:    'panelUrunler',
-    backorder:  'panelBackorder',
-    kategori:   'panelKategori',
+    genel:     'panelGenel',
+    urunler:   'panelUrunler',
+    backorder: 'panelBackorder',
+    kategori:  'panelKategori',
   };
   Object.entries(panels).forEach(([t, id]) => {
     const el = document.getElementById(id);
     if (el) el.style.display = t === tab ? '' : 'none';
   });
 
-  // Lazy init each tab on first visit
   if (tab === 'genel') {
     const iframe = document.getElementById('genelBakisFrame');
     if (iframe && !iframe.getAttribute('src')) {
       iframe.src = '/stok/pages/genel-bakis.html';
-    }
-  } else if (tab === 'hareketler' && !_hareketlerReady) {
-    _hareketlerReady = true;
-    if (typeof initHareketler === 'function') {
-      initHareketler().then(() => {
-        if (typeof applyFilters === 'function') applyFilters();
-      });
     }
   } else if (tab === 'urunler' && !_urunlerReady) {
     _urunlerReady = true;
@@ -60,7 +47,6 @@ function switchTab(tab) {
     if (typeof initKategori === 'function') initKategori();
   }
 }
-
 // ── ANALIZ ────────────────────────────────────────────────────────────────────
 function toggleAnaliz() {
   _analizOpen = !_analizOpen;
@@ -72,18 +58,11 @@ function toggleAnaliz() {
   }
 }
 
-// ── ÜRÜN HAREKETLERİ SUB-VIEW ─────────────────────────────────────────────────
-function openUrunHareketleri(sku) {
-  document.getElementById('hareketlerList').style.display        = 'none';
-  document.getElementById('urunHareketleriView').style.display   = 'flex';
-  document.getElementById('analizPanel')?.classList.remove('open');
-  _analizOpen = false;
-  if (typeof initUrunHareketleri === 'function') initUrunHareketleri(sku);
-}
-
-function closeUrunHareketleri() {
-  document.getElementById('urunHareketleriView').style.display  = 'none';
-  document.getElementById('hareketlerList').style.display       = '';
+function switchUrunTab(tab) {
+  document.getElementById('urunTabHar').classList.toggle('stk-urun-tab--active', tab === 'har');
+  document.getElementById('urunTabDet').classList.toggle('stk-urun-tab--active', tab === 'det');
+  document.getElementById('urunPanelHar').classList.toggle('stk-urun-panel--active', tab === 'har');
+  document.getElementById('urunPanelDet').classList.toggle('stk-urun-panel--active', tab === 'det');
 }
 
 // ── FILTER HELPERS ────────────────────────────────────────────────────────────
@@ -97,10 +76,6 @@ function clearUrunlerFilters() {
 
 function clearBoFilters() {
   if (typeof _clearBoFilters === 'function') _clearBoFilters();
-}
-
-function clearUhFilters() {
-  if (typeof _clearUhFilters === 'function') _clearUhFilters();
 }
 
 function toggleHareketlerAdvanced() {
@@ -120,5 +95,6 @@ function toggleUrunlerAdvanced() {
 // ── INIT ──────────────────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
   const tab = new URLSearchParams(location.search).get('tab') || 'genel';
-  switchTab(tab);
+  const validTabs = ['genel', 'urunler', 'backorder', 'kategori'];
+  switchTab(validTabs.includes(tab) ? tab : 'genel');
 });

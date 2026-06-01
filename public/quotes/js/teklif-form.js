@@ -256,7 +256,7 @@ function buildPayload(isEdit = false) {
     status:        statusEl?.value || 'pending',
     terms:         getTerms(),
     extra_columns: _extraColumns,
-    currency:      'TRY',
+    currency: document.getElementById('currency').value || 'TRY',
     items:         collectItems(),
   };
 }
@@ -283,6 +283,7 @@ async function loadQuote(id) {
     document.getElementById('jobName').value               = qt.job_name || '';
     document.getElementById('quoteDate').value             = (qt.quote_date || '').slice(0, 10);
     document.getElementById('validUntil').value            = (qt.valid_until || '').slice(0, 10);
+    document.getElementById('currency').value              = qt.currency || 'TRY';
     document.getElementById('quoteNotes').value            = qt.notes || '';
     document.getElementById('quoteType').value             = qt.quote_type || '';
     document.getElementById('headerStatusSelect').value    = qt.status || 'pending';
@@ -375,9 +376,13 @@ function recalcTotal() {
   document.querySelectorAll('#itemsTbody tr').forEach(tr => {
     sum += parseFloat(document.getElementById(`total_${tr.id}`)?.value) || 0;
   });
+  const cur = document.getElementById('currency')?.value || 'TRY';
+  const symbols = { TRY: '₺', USD: '$', EUR: '€' };
   document.getElementById('totalDisplay').textContent =
-    '₺' + sum.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    (symbols[cur] || cur) + sum.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
+
+function recalc() { recalcTotal(); }
 
 // ── Unit / Takım ──────────────────────────────────────────────────────────────
 function onUnitChange(rowId) {

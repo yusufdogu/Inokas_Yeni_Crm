@@ -196,6 +196,11 @@
           </div>
 
           <div class="items-total">
+            <select id="currency" onchange="recalc()" style="border:1px solid var(--border); border-radius:6px; padding:5px 8px; font-size:13px; font-family:inherit; background:#fdfaf8; outline:none; color:var(--text-main); cursor:pointer;">
+              <option value="TRY">₺ TRY</option>
+              <option value="USD">$ USD</option>
+              <option value="EUR">€ EUR</option>
+            </select>
             <span>Toplam (KDV Hariç)</span>
             <strong id="totalDisplay">₺0,00</strong>
           </div>
@@ -235,7 +240,7 @@
 
   <script src="/shared/auth-interceptor.js"></script>
   <script src="/shared/sidebar.js" defer></script>
-  <script src="/quotes/js/teklif-form.js?v=20260530-tabs"></script>
+  <script src="/quotes/js/teklif-form.js?v=20260601-currency"></script>
 </body>
 
 </html>

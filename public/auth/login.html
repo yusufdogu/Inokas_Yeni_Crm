@@ -333,6 +333,17 @@ async function handleLogin(){
     if(!res.ok) throw new Error(data?.error||'Giriş başarısız.');
     sessionStorage.setItem('inokas_token',data.token);
     sessionStorage.setItem('onboarding_complete',data.onboarding_complete);
+
+    if (data.tenant_id) {
+      sessionStorage.setItem('inokas_tenant_id', data.tenant_id);
+    } else {
+      // decode from JWT payload (no library needed)
+      try {
+        const payload = JSON.parse(atob(data.token.split('.')[1]));
+        sessionStorage.setItem('inokas_tenant_id', payload.tenant_id || payload.tenantId || '');
+      } catch(e) {}
+    }
+
     setSuccess();
     const bar=document.getElementById('top-bar');
     bar.style.width='100%';

@@ -101,7 +101,6 @@ function getPeriodDatesAt(offset) {
   return result;
 }
 
-// ── CASH FLOW ──────────────────────────────────────────────────────────────
 async function loadCashflow() {
   document.getElementById('gbChartLoading').style.display = 'flex';
   try {
@@ -110,18 +109,19 @@ async function loadCashflow() {
     if (start) params.set('date_start', start);
     if (end)   params.set('date_end',   end);
 
-    // Update period label
     const labelEl = document.getElementById('gbPeriodLabel');
     if (labelEl && label) labelEl.textContent = label;
 
-    const [gidenRes, gelenRes] = await Promise.all([
-      fetch(`/api/invoices/kpi-summary?direction=OUTGOING&${params}`, { headers: _hdrs }),
-      fetch(`/api/invoices/kpi-summary?direction=INCOMING&${params}`, { headers: _hdrs }),
+    const [gidenKpi, gelenKpi, gidenSeries, gelenSeries] = await Promise.all([
+      fetch(`/api/invoices/kpi-summary?direction=OUTGOING&${params}`, { headers: _hdrs }).then(r => r.json()),
+      fetch(`/api/invoices/kpi-summary?direction=INCOMING&${params}`, { headers: _hdrs }).then(r => r.json()),
+      fetch(`/api/invoices/cashflow-series?direction=OUTGOING&${params}`, { headers: _hdrs }).then(r => r.json()),
+      fetch(`/api/invoices/cashflow-series?direction=INCOMING&${params}`, { headers: _hdrs }).then(r => r.json()),
     ]);
-    const [gidenData, gelenData] = await Promise.all([gidenRes.json(), gelenRes.json()]);
 
-    renderAmounts(gidenData, gelenData);
-    renderLineChart(gidenData, gelenData, bucket);
+    renderAmounts(gidenKpi, gelenKpi);
+    renderLineChart({ series: gidenSeries.series }, { series: gelenSeries.series }, bucket);
+
   } catch(e) {
     console.error('loadCashflow:', e);
   } finally {
@@ -130,11 +130,10 @@ async function loadCashflow() {
 }
 
 function renderAmounts(gidenData, gelenData) {
-  const src = _periodMode === 'all' ? 'totals' : 'current';
-  const gidenTRY = gidenData[src]?.try_total || 0;
-  const gelenTRY = gelenData[src]?.try_total || 0;
-  const gidenUSD = gidenData[src]?.usd_total || 0;
-  const gelenUSD = gelenData[src]?.usd_total || 0;
+  const gidenTRY = gidenData.totals?.try_total || 0;
+  const gelenTRY = gelenData.totals?.try_total || 0;
+  const gidenUSD = gidenData.totals?.usd_total || 0;
+  const gelenUSD = gelenData.totals?.usd_total || 0;
 
   document.getElementById('gbGidenTRY').textContent = '₺' + _fmt(gidenTRY);
   document.getElementById('gbGelenTRY').textContent = '₺' + _fmt(gelenTRY);

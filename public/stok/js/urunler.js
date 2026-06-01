@@ -80,8 +80,6 @@ async function loadCategoryOptions() {
 }
 
 
-
-
 // ─── FILTERS ──────────────────────────────────────────────────────────────────
 function initFilters() {
   _productNameFilter = createTagFilter({
@@ -267,18 +265,6 @@ function _clearUrunlerFilters() {
   _filterDead    = false;
   _syncChipUI();
   applyUrunlerFilters();
-}
-
-// ─── ADVANCED PANEL ───────────────────────────────────────────────────────────
-function _toggleUrunlerAdvanced() {
-  _advancedOpen = !_advancedOpen;
-  document.getElementById('urAdvancedFiltersPanel')?.classList.toggle('open', _advancedOpen);
-  const btnText = document.getElementById('urAdvancedFiltersBtnText');
-  if (btnText) {
-    btnText.innerHTML = _advancedOpen
-      ? `<i class="ti ti-chevron-up" style="font-size:12px;"></i> Gelişmiş Filtreler`
-      : `<i class="ti ti-chevron-down" style="font-size:12px;"></i> Gelişmiş Filtreler`;
-  }
 }
 
 
@@ -712,12 +698,47 @@ function renderUrunHareketleriInModal(movements) {
   const totalOut = movements.filter(m => m.direction === 'OUTGOING').reduce((s, m) => s + Number(m.quantity || 0), 0);
   const companies = new Set(movements.map(m => m.company_name).filter(Boolean)).size;
 
+  // Monetary values — grouped by currency
+  const inByCurrency  = {};
+  const outByCurrency = {};
+
+  movements.forEach(m => {
+    const price = Number(m.unit_price_cur || 0);
+    const qty   = Number(m.quantity || 0);
+    let cur     = (m.currency || '').toUpperCase().trim();
+    if (cur === 'TL') cur = 'TRY';
+    if (!cur || price === 0) return;
+    const val = price * qty;
+    if (m.direction === 'INCOMING') {
+      inByCurrency[cur]  = (inByCurrency[cur]  || 0) + val;
+    } else {
+      outByCurrency[cur] = (outByCurrency[cur] || 0) + val;
+    }
+  });
+
+  const fmtCurrency = (map) => {
+    const entries = Object.entries(map);
+    if (!entries.length) return '—';
+    return entries
+      .sort((a, b) => b[1] - a[1])
+      .map(([cur, val]) => {
+        const symbol = cur === 'TRY' ? '₺' : cur === 'USD' ? '$' : cur === 'EUR' ? '€' : cur + ' ';
+        return symbol + val.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      })
+      .join(' · ');
+  };
+
+
+
   const el = id => document.getElementById(id);
   if (el('statIn'))        el('statIn').textContent        = '+' + totalIn.toLocaleString('tr-TR');
   if (el('statOut'))       el('statOut').textContent       = '-' + totalOut.toLocaleString('tr-TR');
   if (el('statNet'))       el('statNet').textContent       = (totalIn - totalOut).toLocaleString('tr-TR');
   if (el('statCompanies')) el('statCompanies').textContent = companies.toString();
   if (el('statTotal'))     el('statTotal').textContent     = movements.length.toString();
+
+  if (el('statInVal'))  el('statInVal').textContent  = fmtCurrency(inByCurrency);
+  if (el('statOutVal')) el('statOutVal').textContent = fmtCurrency(outByCurrency);
 
   // Reset inputs
   const dirSel = el('uhFilterDirection');

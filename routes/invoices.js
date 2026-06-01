@@ -345,169 +345,147 @@ router.get('/totals', async (req, res) => {
 
 
 
-// GET /api/invoices/kpi-summary
 router.get('/kpi-summary', async (req, res) => {
   try {
-    const supabase    = req.app.get('supabase');
-    const tenantId    = req.tenantId;
-    const direction   = req.query.direction;
-    const dateStart   = req.query.date_start;
-    const dateEnd     = req.query.date_end;
-    const pendingOnly = req.query.pending === 'true';
-    const companies   = req.query.companies  ? req.query.companies.split(',').map(s=>s.trim()).filter(Boolean)  : [];
-    const brands      = req.query.brands     ? req.query.brands.split(',').map(s=>s.trim()).filter(Boolean)     : [];
-    const categories  = req.query.categories ? req.query.categories.split(',').map(s=>s.trim()).filter(Boolean) : [];
-    const products    = req.query.products   ? req.query.products.split(',').map(s=>s.trim()).filter(Boolean)   : [];
-    const models      = req.query.models     ? req.query.models.split(',').map(s=>s.trim()).filter(Boolean)     : [];
-    const search      = req.query.search;
+    const supabase = req.app.get('supabase');
+    const tenantId = req.tenantId;
+    const { direction, pending, date_start, date_end,
+            companies, brands, categories, products } = req.query;
 
-    // Companies
-    const companyIds = await resolveCompanyIds(supabase, tenantId, companies);
-    if (companyIds !== null && !companyIds.length) return res.json(/* empty */);
+    const emptyRes = { totals: { total_count: 0, try_total: 0, try_count: 0, usd_total: 0, usd_count: 0, eur_total: 0, eur_count: 0 } };
+    const hasItemFilter = !!(brands || categories || products);
 
-    // Brands
-    const brandIds = await resolveInvoiceIdsByBrand(supabase, brands);
-    if (brandIds !== null && !brandIds.length) return res.json(/* empty */);
+    // ── Step 1: resolve filter IDs (mirrors invoice list route) ──────────
+    let brandFilteredIds = null;
+    if (brands) {
+      const brandList = brands.split(',').map(s => s.trim()).filter(Boolean);
+      const { data: brandItems } = await supabase
+        .from('invoice_items')
+        .select('invoice_id')
+        .in('brand_name', brandList);
+      brandFilteredIds = [...new Set((brandItems || []).map(r => r.invoice_id).filter(Boolean))];
+      if (!brandFilteredIds.length) return res.json(emptyRes);
+    }
 
-    // Categories
-    const categoryIds = await resolveInvoiceIdsByCategory(supabase, tenantId, categories);
-    if (categoryIds !== null && !categoryIds.length) return res.json(/* empty */);
-
-    // Products
-    const productIds = await resolveInvoiceIdsByProduct(supabase, products);
-    if (productIds !== null && !productIds.length) return res.json(/* empty */);
-
-    const { data: excl } = await supabase.from('fully_internal_invoice_ids').select('invoice_id');
-    const excludeIds = (excl||[]).map(r=>r.invoice_id);
-
-    // ── Base query builder ────────────────────────────────────────────────
-    function buildQuery() {
-      let q = supabase
-        .from('invoices')
-        .select('invoice_date, base_currency, payable_amount_tl, payable_amount_cur')
+    let categoryFilteredIds = null;
+    if (categories) {
+      const categoryList = categories.split(',').map(s => s.trim()).filter(Boolean);
+      const { data: catProducts } = await supabase
+        .from('products')
+        .select('product_code')
+        .in('category', categoryList)
         .eq('tenant_id', tenantId);
-      if (pendingOnly) q = q.eq('approval_status','pending');
-      else             q = q.or('approval_status.neq.pending,approval_status.is.null');
-      if (direction)          q = q.eq('direction', direction);
-      if (search)             q = q.or(`invoice_no.ilike.%${search}%`);
-      if (companyIds?.length) q = q.in('company_id', companyIds);
-      if (brandIds?.length)   q = q.in('id', brandIds);
-      if (categoryIds?.length)q = q.in('id', categoryIds);
-      if (productIds?.length) q = q.in('id', productIds);
-      if (excludeIds?.length)  q = q.not('id','in',`(${excludeIds.join(',')})`);
-      return q;
+      const catCodes = (catProducts || []).map(r => r.product_code).filter(Boolean);
+      if (!catCodes.length) return res.json(emptyRes);
+      const { data: catItems } = await supabase
+        .from('invoice_items')
+        .select('invoice_id')
+        .in('product_code', catCodes);
+      categoryFilteredIds = [...new Set((catItems || []).map(r => r.invoice_id).filter(Boolean))];
+      if (!categoryFilteredIds.length) return res.json(emptyRes);
     }
 
-    // ── Determine periods ─────────────────────────────────────────────────
-    const now      = new Date();
-    const hasDateFilter = !!(dateStart || dateEnd);
-    let currStart, currEnd, prevStart, prevEnd, compLabel, bucket;
-
-    if (hasDateFilter) {
-      currStart = dateStart || '2000-01-01';
-      currEnd   = dateEnd   || now.toISOString().slice(0,10);
-      const spanMs  = new Date(currEnd) - new Date(currStart);
-      const spanDays = spanMs / 86400000;
-      const prevEndD   = new Date(new Date(currStart) - 86400000);
-      const prevStartD = new Date(prevEndD - spanMs);
-      prevStart = prevStartD.toISOString().slice(0,10);
-      prevEnd   = prevEndD.toISOString().slice(0,10);
-      compLabel = 'önceki döneme göre';
-      bucket    = spanDays <= 60 ? 'week' : 'month';
-    } else {
-      // Default: this month vs same days last month
-      const y = now.getFullYear(), m = now.getMonth();
-      const todayDay = now.getDate();
-      currStart = new Date(y, m, 1).toISOString().slice(0,10);
-      currEnd   = now.toISOString().slice(0,10);
-      // same days last month
-      const prevM     = m === 0 ? 11 : m - 1;
-      const prevY     = m === 0 ? y - 1 : y;
-      prevStart = new Date(prevY, prevM, 1).toISOString().slice(0,10);
-      const prevEndDay = Math.min(todayDay, new Date(prevY, prevM+1, 0).getDate());
-      prevEnd   = new Date(prevY, prevM, prevEndDay).toISOString().slice(0,10);
-      compLabel = 'geçen aya göre';
-      bucket    = 'month';
+    let productFilteredIds = null;
+    if (products) {
+      const productList = products.split(',').map(s => decodeURIComponent(s.trim())).filter(Boolean);
+      const { data: prodItems } = await supabase
+        .from('invoice_items')
+        .select('invoice_id')
+        .in('product_name', productList);
+      productFilteredIds = [...new Set((prodItems || []).map(r => r.invoice_id).filter(Boolean))];
+      if (!productFilteredIds.length) return res.json(emptyRes);
     }
 
-    // ── Fetch all rows (no date filter) for sparkline ─────────────────────
-    const { data: allRows, error } = await buildQuery();
+    // ── Step 2: company filter ────────────────────────────────────────────
+    let companyIds = null;
+    if (companies) {
+      const companyList = companies.split(',').map(s => s.trim()).filter(Boolean);
+      const { data: matchedCompanies } = await supabase
+        .from('companies')
+        .select('id')
+        .in('name', companyList)
+        .eq('tenant_id', tenantId);
+      companyIds = (matchedCompanies || []).map(c => c.id);
+      if (!companyIds.length) return res.json(emptyRes);
+    }
+
+    // ── Step 3: get excluded (fully internal) invoice ids ─────────────────
+    const { data: excluded } = await supabase
+      .from('fully_internal_invoice_ids')
+      .select('invoice_id');
+    const excludeIds = (excluded || []).map(r => r.invoice_id);
+
+    // ── Step 4: build invoice query ───────────────────────────────────────
+    let q = supabase
+      .from('invoices')
+      .select('id, base_currency, payable_amount_tl, payable_amount_cur')
+      .eq('tenant_id', tenantId)
+      .or('approval_status.neq.pending,approval_status.is.null');
+
+    if (pending === 'true') q = supabase.from('invoices').select('id, base_currency, payable_amount_tl, payable_amount_cur').eq('tenant_id', tenantId).eq('approval_status', 'pending');
+    if (direction)          q = q.eq('direction', direction);
+    if (req.query.currency) q = q.eq('base_currency', req.query.currency);
+    if (date_start)         q = q.gte('invoice_date', date_start);
+    if (date_end)           q = q.lte('invoice_date', date_end);
+    if (companyIds)         q = q.in('company_id', companyIds);
+    if (excludeIds.length)  q = q.not('id', 'in', `(${excludeIds.join(',')})`);
+    if (brandFilteredIds)   q = q.in('id', brandFilteredIds);
+    if (categoryFilteredIds)q = q.in('id', categoryFilteredIds);
+    if (productFilteredIds) q = q.in('id', productFilteredIds);
+
+    const { data: invoiceRows, error } = await q;
     if (error) throw error;
-    const rows = allRows || [];
+    if (!invoiceRows?.length) return res.json(emptyRes);
 
-    // ── Helper: aggregate rows within a date range ────────────────────────
-    function aggregate(rows, start, end) {
-      const filtered = rows.filter(r => {
-        if (!r.invoice_date) return false;
-        return r.invoice_date >= start && r.invoice_date <= end;
+    // ── Step 5: aggregate ─────────────────────────────────────────────────
+    if (!hasItemFilter) {
+      // No item filter → aggregate invoice totals
+      let try_total = 0, try_count = 0, usd_total = 0, usd_count = 0, eur_total = 0, eur_count = 0, total_count = 0;
+      invoiceRows.forEach(r => {
+        const cur = (r.base_currency || 'TRY').toUpperCase();
+        total_count++;
+        if (cur === 'USD')                      { usd_total += parseFloat(r.payable_amount_cur) || 0; usd_count++; }
+        else if (cur === 'TRY' || cur === 'TL') { try_total += parseFloat(r.payable_amount_tl)  || 0; try_count++; }
+        else if (cur === 'EUR')                 { eur_total += parseFloat(r.payable_amount_cur) || 0; eur_count++; }
       });
-      let try_total=0, usd_total=0, try_count=0, usd_count=0;
-      filtered.forEach(r => {
-        const isUSD = (r.base_currency||'TRY').toUpperCase() === 'USD';
-        if (isUSD) { usd_total += parseFloat(r.payable_amount_cur)||0; usd_count++; }
-        else        { try_total += parseFloat(r.payable_amount_tl) ||0; try_count++; }
-      });
-      return { try_total, usd_total, try_count, usd_count };
+      return res.json({ totals: { total_count, try_total, try_count, usd_total, usd_count, eur_total, eur_count } });
     }
 
-    // ── Bucket key helper ─────────────────────────────────────────────────
-    function bucketKey(dateStr, bucket) {
-      const d = new Date(dateStr);
-      if (bucket === 'month') return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
-      const day = d.getDay()||7;
-      const mon = new Date(d); mon.setDate(d.getDate()-(day-1));
-      return mon.toISOString().slice(0,10);
+    // Item filter active → fetch matching items and aggregate
+    const validInvoiceIds = invoiceRows.map(r => r.id);
+    let itemQ = supabase
+      .from('invoice_items')
+      .select('invoice_id, currency, total_price_cur, product_code, brand_name, product_name, is_internal')
+      .eq('is_internal', false)
+      .in('invoice_id', validInvoiceIds.slice(0, 1000));
+
+    const { data: itemRows } = await itemQ;
+    let matchingItems = itemRows || [];
+
+    if (brandFilteredIds) {
+      const brandList = brands.split(',').map(s => s.trim()).filter(Boolean);
+      matchingItems = matchingItems.filter(r => brandList.includes(r.brand_name));
+    }
+    if (categoryFilteredIds) {
+      matchingItems = matchingItems.filter(r => categoryFilteredIds.includes(r.invoice_id));
+    }
+    if (productFilteredIds) {
+      const productList = products.split(',').map(s => decodeURIComponent(s.trim())).filter(Boolean);
+      matchingItems = matchingItems.filter(r => productList.includes(r.product_name));
     }
 
-    // ── Build sparkline series (all-time if no date filter) ───────────────
-    const seriesRows = hasDateFilter
-      ? rows.filter(r => r.invoice_date >= currStart && r.invoice_date <= currEnd)
-      : rows;
+    if (!matchingItems.length) return res.json(emptyRes);
 
-    const buckets = {};
-    seriesRows.forEach(r => {
-      if (!r.invoice_date) return;
-      const k = bucketKey(r.invoice_date, bucket);
-      if (!buckets[k]) buckets[k] = { period:k, try_total:0, usd_total:0, try_count:0, usd_count:0 };
-      const isUSD = (r.base_currency||'TRY').toUpperCase() === 'USD';
-      if (isUSD) { buckets[k].usd_total += parseFloat(r.payable_amount_cur)||0; buckets[k].usd_count++; }
-      else        { buckets[k].try_total += parseFloat(r.payable_amount_tl) ||0; buckets[k].try_count++; }
+    let try_total = 0, try_count = 0, usd_total = 0, usd_count = 0, eur_total = 0, eur_count = 0, total_count = 0;
+    matchingItems.forEach(r => {
+      const cur = (r.currency || 'TRY').toUpperCase();
+      total_count++;
+      if (cur === 'USD')                      { usd_total += parseFloat(r.total_price_cur) || 0; usd_count++; }
+      else if (cur === 'TRY' || cur === 'TL') { try_total += parseFloat(r.total_price_cur) || 0; try_count++; }
+      else if (cur === 'EUR')                 { eur_total += parseFloat(r.total_price_cur) || 0; eur_count++; }
     });
-    const series = Object.values(buckets).sort((a,b)=>a.period.localeCompare(b.period));
 
-    // ── Totals (all-time for default, filtered range when filter active) ──
-    const allTimeAgg = aggregate(rows, '2000-01-01', '2099-12-31');
-    let current      = aggregate(rows, currStart, currEnd);
-    let previous     = aggregate(rows, prevStart, prevEnd);
-
-    // ── % change fallback to weekly if no prev month data ────────────────
-    let finalCompLabel = compLabel;
-    if (!hasDateFilter) {
-      const hasPrevData = previous.try_total > 0 || previous.usd_total > 0 || previous.try_count > 0;
-      if (!hasPrevData) {
-        // Fall back to last week vs this week
-        const thisMonday = new Date(now); thisMonday.setDate(now.getDate()-(now.getDay()||7)+1);
-        const lastMonday = new Date(thisMonday); lastMonday.setDate(thisMonday.getDate()-7);
-        const lastSunday = new Date(thisMonday); lastSunday.setDate(thisMonday.getDate()-1);
-        currStart = thisMonday.toISOString().slice(0,10);
-        currEnd   = now.toISOString().slice(0,10);
-        prevStart = lastMonday.toISOString().slice(0,10);
-        prevEnd   = lastSunday.toISOString().slice(0,10);
-        current  = aggregate(rows, currStart, currEnd);
-        previous = aggregate(rows, prevStart, prevEnd);
-        finalCompLabel = 'geçen haftaya göre';
-        bucket = 'week';
-      }
-    }
-
-    res.json({
-      totals:            allTimeAgg,
-      current,
-      previous,
-      series,
-      bucket,
-      comparison_label:  finalCompLabel,
-    });
+    res.json({ totals: { total_count, try_total, try_count, usd_total, usd_count, eur_total, eur_count } });
 
   } catch (err) {
     console.error('kpi-summary hatası:', err.message);
@@ -515,9 +493,53 @@ router.get('/kpi-summary', async (req, res) => {
   }
 });
 
-function _emptyKpi() {
-  return { totals:{try_total:0,usd_total:0,try_count:0,usd_count:0}, current:{try_total:0,usd_total:0,try_count:0,usd_count:0}, previous:{try_total:0,usd_total:0,try_count:0,usd_count:0}, series:[], bucket:'month', comparison_label:'geçen aya göre' };
-}
+router.get('/cashflow-series', async (req, res) => {
+  try {
+    const supabase  = req.app.get('supabase');
+    const tenantId  = req.tenantId;
+    const { direction, date_start, date_end } = req.query;
+
+    // get excluded invoice ids
+    const { data: excluded } = await supabase
+      .from('fully_internal_invoice_ids')
+      .select('invoice_id');
+    const excludeIds = (excluded || []).map(r => r.invoice_id);
+
+    let q = supabase
+      .from('invoices')
+      .select('invoice_date, base_currency, payable_amount_tl, payable_amount_cur')
+      .eq('tenant_id', tenantId)
+      .or('approval_status.neq.pending,approval_status.is.null');
+
+    if (direction)  q = q.eq('direction', direction);
+    if (date_start) q = q.gte('invoice_date', date_start);
+    if (date_end)   q = q.lte('invoice_date', date_end);
+    if (excludeIds.length) q = q.not('id', 'in', `(${excludeIds.join(',')})`);
+
+    const { data: rows, error } = await q;
+    if (error) throw error;
+
+    const buckets = {};
+    (rows || []).forEach(r => {
+      if (!r.invoice_date) return;
+      const d = new Date(r.invoice_date);
+      const k = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      if (!buckets[k]) buckets[k] = { period: k, try_total: 0, usd_total: 0, eur_total: 0 };
+      const cur = (r.base_currency || 'TRY').toUpperCase();
+      if (cur === 'USD')                      buckets[k].usd_total += parseFloat(r.payable_amount_cur) || 0;
+      else if (cur === 'TRY' || cur === 'TL') buckets[k].try_total += parseFloat(r.payable_amount_tl)  || 0;
+      else if (cur === 'EUR')                 buckets[k].eur_total += parseFloat(r.payable_amount_cur) || 0;
+    });
+
+    const series = Object.values(buckets).sort((a, b) => a.period.localeCompare(b.period));
+    res.json({ series });
+
+  } catch (err) {
+    console.error('cashflow-series hatası:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 
 router.get('/top-companies', async (req, res) => {
   try {

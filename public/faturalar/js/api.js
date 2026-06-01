@@ -1,80 +1,6 @@
 // Backend API iletişim katmanı
 // Sadece fetch çağrıları ve veri cache'leme — DOM'a dokunmaz.
 
-// ─── Ürün kodu / kategori cache ───────────────────────────────────────────────
-
-async function ensureProductCodeLookupSetLoaded(force = false) {
-  const now = Date.now();
-  const fresh = productCodeLookupSet && (now - productCodeLookupFetchedAt) < PRODUCT_CODE_CACHE_TTL_MS;
-  if (!force && fresh) return;
-  if (productCodeLookupPromise) {
-    await productCodeLookupPromise;
-    return;
-  }
-
-  productCodeLookupPromise = (async () => {
-    const res = await fetch('/api/products/codes');
-    if (!res.ok) throw new Error('Ürün kod listesi alınamadı');
-    const json = await res.json();
-    const codes = Array.isArray(json?.codes) ? json.codes : [];
-    productCodeLookupSet = new Set(
-      codes.map((x) => normalizeProductCodeForMatch(x)).filter(Boolean)
-    );
-    productCodeLookupFetchedAt = Date.now();
-  })();
-
-  try {
-    await productCodeLookupPromise;
-  } finally {
-    productCodeLookupPromise = null;
-  }
-}
-
-async function ensureProductCategoryLookupLoaded(force = false) {
-  const now = Date.now();
-  const fresh = productCategoryOptionList.length > 0 && (now - productCategoryFetchedAt) < PRODUCT_CODE_CACHE_TTL_MS;
-  if (!force && fresh) return;
-  if (productCategoryPromise) {
-    await productCategoryPromise;
-    return;
-  }
-  productCategoryPromise = (async () => {
-    const res = await fetch('/api/products/category-map');
-    if (!res.ok) throw new Error('Ürün kategori listesi alınamadı');
-    const json = await res.json();
-    const rows = Array.isArray(json?.rows) ? json.rows : [];
-    const categories = Array.isArray(json?.categories) ? json.categories : [];
-    productCategoryByCodeMap = new Map(
-      rows
-        .map((r) => [normalizeProductCodeForMatch(r?.product_code), String(r?.category || '').trim()])
-        .filter(([k]) => !!k)
-    );
-    productCategoryOptionList = categories
-      .map((x) => String(x || '').trim())
-      .filter(Boolean);
-    productCategoryFetchedAt = Date.now();
-  })();
-  try {
-    await productCategoryPromise;
-  } finally {
-    productCategoryPromise = null;
-  }
-}
-
-// ─── Stok / FIFO cache ────────────────────────────────────────────────────────
-
-let _stocksSummaryCache = null;
-let _stocksSummaryFetchedAt = 0;
-const STOCKS_CACHE_TTL_MS = 5 * 60 * 1000;
-
-async function ensureStocksSummaryLoaded() {
-  const now = Date.now();
-  if (_stocksSummaryCache && (now - _stocksSummaryFetchedAt) < STOCKS_CACHE_TTL_MS) return;
-  const res = await fetch('/api/stocks/summary');
-  if (!res.ok) throw new Error('Stok özeti alınamadı');
-  _stocksSummaryCache = await res.json();
-  _stocksSummaryFetchedAt = Date.now();
-}
 
 async function ensureBulkTenantVkn() {
     if (bulkTenantVkn) return bulkTenantVkn;
@@ -105,73 +31,73 @@ let _totalPages = 1;
 let _totalCount = 0;
 let _pageLimit = 10;
 
-async function refreshData(useCache = false) {
-  // Refresh filter options and totals when view changes or on first load
+async function initInvoiceView(useCache = false) {
   if (!window._filterOptionsLoaded || window._lastFilterView !== currentView) {
     window._lastFilterView = currentView;
     window._filterOptionsLoaded = true;
     await refreshFilterOptions();
     await refreshKpiSummary();
   }
-  if (useCache && allInvoicesCache.length > 0) {
-    renderCurrentView();
+
+  if (useCache && allInvoicesCache?.length > 0) {
+    _lastListInvoices = allInvoicesCache;
+    if (activeTabKey === 'list') {
+      renderListView(allInvoicesCache);
+      hideLoadingOverlay();
+    }
     return;
   }
 
   try {
     const params = new URLSearchParams();
 
-    // Direction from current view
     if (currentView === 'gelen') params.set('direction', 'INCOMING');
     if (currentView === 'giden') params.set('direction', 'OUTGOING');
 
-    // Pending filter
     const apiUrl = window._FAT_PENDING ? '/api/invoices/pending' : '/api/invoices';
 
-    // Pagination
     params.set('page', _currentPage);
     params.set('limit', _pageLimit);
 
     const f = window._fatActiveFilters || {};
-
-    if (f.dateStart) params.set('date_start', f.dateStart);
-    if (f.dateEnd) params.set('date_end', f.dateEnd);
-    if (f.currency) params.set('currency', f.currency);
-    if (f.status) params.set('status', f.status);
-    if (f.search) params.set('search', f.search);
-    if (f.companies?.length) params.set('companies', f.companies.join(','));
-    if (f.brands?.length) params.set('brands', f.brands.join(','));
+    if (f.dateStart)       params.set('date_start',  f.dateStart);
+    if (f.dateEnd)         params.set('date_end',     f.dateEnd);
+    if (f.currency)        params.set('currency',     f.currency);
+    if (f.status)          params.set('status',       f.status);
+    if (f.search)          params.set('search',       f.search);
+    if (f.companies?.length)  params.set('companies',  f.companies.join(','));
+    if (f.brands?.length)     params.set('brands',     f.brands.join(','));
     if (f.categories?.length) params.set('categories', f.categories.join(','));
-    if (f.products?.length) params.set('products', f.products.map(p => encodeURIComponent(p)).join(','));
-    if (f.models?.length) params.set('models', f.models.join(','));
+    if (f.products?.length)   params.set('products',   f.products.map(p => encodeURIComponent(p)).join(','));
+    if (f.models?.length)     params.set('models',     f.models.join(','));
 
     if (fatListSort?.col) {
       const colMap = { company: 'company_name', total: 'total', date: 'invoice_date' };
-      const sortBy = colMap[fatListSort.col] || 'invoice_date';
-      params.set('sort_by', sortBy);
+      params.set('sort_by', colMap[fatListSort.col] || 'invoice_date');
       params.set('sort_dir', fatListSort.dir || 'desc');
     }
 
-    const res = await fetch(`${apiUrl}?${params.toString()}`);
+    const res  = await fetch(`${apiUrl}?${params.toString()}`);
     const json = await res.json();
 
-    if (window._FAT_PENDING) {
-      allInvoicesCache = json.data || [];
-      _totalCount = json.total || 0;
-      _totalPages = json.total_pages || 1;
-      _currentPage = json.page || 1;
-    } else {
-      allInvoicesCache = json.data || [];
-      _totalCount = json.total || 0;
-      _totalPages = json.total_pages || 1;
-      _currentPage = json.page || 1;
+    allInvoicesCache = json.data        || [];
+    _totalCount      = json.total       || 0;
+    _totalPages      = json.total_pages || 1;
+    _currentPage     = json.page        || 1;
+
+    if (allInvoicesCache && hasInteracted()) {
+      _lastListInvoices = allInvoicesCache;
+      saveFilterState();
+      if (activeTabKey === 'list') {
+        renderListView(allInvoicesCache);
+        hideLoadingOverlay();
+      }
     }
 
-    renderCurrentView();
     renderPagination();
 
   } catch (err) {
-    console.error('refreshData hatası:', err.message);
+    console.error('initInvoiceView hatası:', err.message);
   }
 }
 
@@ -182,86 +108,6 @@ window._fatFilterOptions = {
   categories: [],
   models: [],
 };
-
-async function refreshFilterOptions() {
-  try {
-    const params = new URLSearchParams();
-    if (currentView === 'gelen') params.set('direction', 'INCOMING');
-    if (currentView === 'giden') params.set('direction', 'OUTGOING');
-
-    const res = await fetch(`/api/invoices/filter-options?${params.toString()}`);
-    const data = await res.json();
-
-    window._fatFilterOptions = {
-      companies:     data.companies     || [],
-      brands:        data.brands        || [],
-      products:      data.products      || [],
-      categories:    data.categories    || [],
-      currencies:    data.currencies    || [],
-      relationships: data.relationships || [],   // ← new
-    };
-
-    populateCurrencySelect(); // ← add this
-
-  } catch (err) {
-    console.error('refreshFilterOptions hatası:', err.message);
-  }
-}
-
-function populateCurrencySelect() {
-  const sel = document.getElementById('filterCurrency');
-  if (!sel) return;
-  const currencies = window._fatFilterOptions?.currencies || [];
-  const current = sel.value; // preserve selected value
-  sel.innerHTML = '<option value="">Tüm Dövizler</option>';
-  currencies.forEach(cur => {
-    const opt = document.createElement('option');
-    opt.value = cur;
-    opt.textContent = cur;
-    if (cur === current) opt.selected = true;
-    sel.appendChild(opt);
-  });
-}
-
-async function refreshKpiSummary() {
-  try {
-    const params = new URLSearchParams();
-    const f = window._fatActiveFilters || {};
-
-    if (currentView === 'gelen') params.set('direction', 'INCOMING');
-    if (currentView === 'giden') params.set('direction', 'OUTGOING');
-    if (window._FAT_PENDING)     params.set('pending', 'true');
-
-    if (f.dateStart)    params.set('date_start', f.dateStart);
-    if (f.dateEnd)      params.set('date_end',   f.dateEnd);
-    if (f.search)       params.set('search',     f.search);
-    if (f.companies?.length)  params.set('companies',  f.companies.join(','));
-    if (f.brands?.length)     params.set('brands',     f.brands.join(','));
-    if (f.categories?.length) params.set('categories', f.categories.join(','));
-    if (f.products?.length)   params.set('products',   f.products.join(','));
-    if (f.models?.length)     params.set('models',     f.models.join(','));
-
-    const res  = await fetch(`/api/invoices/kpi-summary?${params.toString()}`);
-    const data = await res.json();
-    if (typeof updateKpiSummary === 'function') updateKpiSummary(data);
-  } catch (err) {
-    console.error('refreshKpiSummary hatası:', err.message);
-  }
-}
-
-function goToPage(page) {
-  if (page < 1 || page > _totalPages) return;
-  _currentPage = page;
-  refreshData(false);
-  window.scrollTo({ top: 0, behavior: 'smooth' });
-}
-
-function changeLimit(newLimit) {
-  _pageLimit = parseInt(newLimit) || 10;
-  _currentPage = 1;
-  refreshData(false);
-}
-// ─── ADD THESE TO api.js ─────────────────────────────────────────────────────
 
 // ─── Brand / Model cache ──────────────────────────────────────────────────────
 let _brandOptions = [];          // ['ASUS', 'EPSON', 'HP', ...]
@@ -329,5 +175,65 @@ async function saveNewCategoryToProduct(sku, category) {
     if (normalSku) productCategoryByCodeMap.set(normalSku, category);
   } catch (e) {
     console.warn('Kategori kaydedilemedi:', e.message);
+  }
+}
+
+// ─── Ürün kodu / kategori cache ───────────────────────────────────────────────
+
+async function ensureProductCodeLookupSetLoaded(force = false) {
+  const now = Date.now();
+  const fresh = productCodeLookupSet && (now - productCodeLookupFetchedAt) < PRODUCT_CODE_CACHE_TTL_MS;
+  if (!force && fresh) return;
+  if (productCodeLookupPromise) {
+    await productCodeLookupPromise;
+    return;
+  }
+
+  productCodeLookupPromise = (async () => {
+    const res = await fetch('/api/products/codes');
+    if (!res.ok) throw new Error('Ürün kod listesi alınamadı');
+    const json = await res.json();
+    const codes = Array.isArray(json?.codes) ? json.codes : [];
+    productCodeLookupSet = new Set(
+      codes.map((x) => normalizeProductCodeForMatch(x)).filter(Boolean)
+    );
+    productCodeLookupFetchedAt = Date.now();
+  })();
+
+  try {
+    await productCodeLookupPromise;
+  } finally {
+    productCodeLookupPromise = null;
+  }
+}
+
+async function ensureProductCategoryLookupLoaded(force = false) {
+  const now = Date.now();
+  const fresh = productCategoryOptionList.length > 0 && (now - productCategoryFetchedAt) < PRODUCT_CODE_CACHE_TTL_MS;
+  if (!force && fresh) return;
+  if (productCategoryPromise) {
+    await productCategoryPromise;
+    return;
+  }
+  productCategoryPromise = (async () => {
+    const res = await fetch('/api/products/category-map');
+    if (!res.ok) throw new Error('Ürün kategori listesi alınamadı');
+    const json = await res.json();
+    const rows = Array.isArray(json?.rows) ? json.rows : [];
+    const categories = Array.isArray(json?.categories) ? json.categories : [];
+    productCategoryByCodeMap = new Map(
+      rows
+        .map((r) => [normalizeProductCodeForMatch(r?.product_code), String(r?.category || '').trim()])
+        .filter(([k]) => !!k)
+    );
+    productCategoryOptionList = categories
+      .map((x) => String(x || '').trim())
+      .filter(Boolean);
+    productCategoryFetchedAt = Date.now();
+  })();
+  try {
+    await productCategoryPromise;
+  } finally {
+    productCategoryPromise = null;
   }
 }

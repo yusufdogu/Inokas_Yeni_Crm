@@ -47,16 +47,7 @@ function switchTab(tab) {
     if (typeof initKategori === 'function') initKategori();
   }
 }
-// ── ANALIZ ────────────────────────────────────────────────────────────────────
-function toggleAnaliz() {
-  _analizOpen = !_analizOpen;
-  document.getElementById('analizPanel')?.classList.toggle('open', _analizOpen);
-  const chevron = document.getElementById('analizChevron');
-  if (chevron) chevron.classList.toggle('open', _analizOpen);
-  if (_analizOpen && typeof renderCharts === 'function') {
-    renderCharts(window._stokFilteredMovements || []);
-  }
-}
+
 
 function switchUrunTab(tab) {
   document.getElementById('urunTabHar').classList.toggle('stk-urun-tab--active', tab === 'har');
@@ -65,32 +56,12 @@ function switchUrunTab(tab) {
   document.getElementById('urunPanelDet').classList.toggle('stk-urun-panel--active', tab === 'det');
 }
 
-// ── FILTER HELPERS ────────────────────────────────────────────────────────────
-function clearHareketlerFilters() {
-  if (typeof _clearHareketlerFilters === 'function') _clearHareketlerFilters();
-}
 
-function clearUrunlerFilters() {
-  if (typeof _clearUrunlerFilters === 'function') _clearUrunlerFilters();
-}
 
 function clearBoFilters() {
   if (typeof _clearBoFilters === 'function') _clearBoFilters();
 }
 
-function toggleHareketlerAdvanced() {
-  const panel = document.getElementById('hareketlerAdvPanel');
-  if (!panel) return;
-  const isOpen = panel.classList.toggle('open');
-  const chevron = document.getElementById('hareketlerAdvChevron');
-  if (chevron) chevron.style.transform = isOpen ? 'rotate(180deg)' : '';
-}
-
-function toggleUrunlerAdvanced() {
-  const panel = document.getElementById('urAdvancedFiltersPanel');
-  if (!panel) return;
-  panel.classList.toggle('open');
-}
 
 // ── INIT ──────────────────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {

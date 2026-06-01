@@ -116,8 +116,9 @@
           <span class="fat-kpi-sub" id="kpiUsdAvg"></span>
         </div>
         <div class="fat-kpi-card">
-          <span class="fat-kpi-label">Ort. Fatura (TL)</span>
-          <span class="fat-kpi-value" id="kpiAvgTry">—</span>
+          <span class="fat-kpi-label">EUR Toplam</span>
+          <span class="fat-kpi-value" id="kpiEurTotal">—</span>
+          <span class="fat-kpi-delta" id="kpiEurDelta"></span>
         </div>
       </div>
       <!-- ─── END KPI Bar ──────────────────────────────────────────────────────── -->
@@ -127,12 +128,12 @@
         <!-- Bekleyenler sub-tab bar -->
         <div class="fat-sub-tabbar" id="fatSubTabBar" style="display:none;">
           <button class="fat-sub-tab fat-sub-tab--active" id="subTabBekGiden" onclick="switchBekleyenTab('giden')">
-            <i class="ti ti-arrow-up" style="font-size:15px; color:#3b82f6;" aria-hidden="true"></i>
+            <i class="ti ti-arrow-up" style="font-size:15px; color:#6e6a62;" aria-hidden="true"></i>
             Giden
             <span class="fat-sub-badge" id="subTabBekGidenCount"></span>
           </button>
           <button class="fat-sub-tab" id="subTabBekGelen" onclick="switchBekleyenTab('gelen')">
-            <i class="ti ti-arrow-down" style="font-size:15px; color:#8b5cf6;" aria-hidden="true"></i>
+            <i class="ti ti-arrow-down" style="font-size:15px; color:#9a6318;" aria-hidden="true"></i>
             Gelen
             <span class="fat-sub-badge" id="subTabBekGelenCount"></span>
           </button>
@@ -150,6 +151,20 @@
             <div id="fatLoadingSpinner" style="width:28px; height:28px; border:2px solid #e2e8f0; border-top-color:#2563eb; border-radius:50%; opacity:0; transition:opacity 0.2s;"></div>
           </div>
           <div class="fat-content" id="fatContent"></div>
+        </div>
+
+        <div id="fatPagination" style="display:none;">
+          <span id="fatPagInfo" class="fat-pag-info"></span>
+          <div id="fatPagPages" class="fat-pag-pages"></div>
+          <div class="fat-pag-limit">
+            <span class="fat-pag-label">Sayfa başına:</span>
+            <select id="fatPagLimit" class="fat-pag-select" onchange="changeLimit(this.value)">
+              <option value="10">10</option>
+              <option value="25">25</option>
+              <option value="50">50</option>
+              <option value="100">100</option>
+            </select>
+          </div>
         </div>
 
       </div>

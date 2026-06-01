@@ -36,7 +36,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     updateActionButtonsTheme();
     if (window._FAT_INITIAL_VIEW !== 'genel') {
         // call restoreAndApply() instead of restoreTagFilters()
-        await refreshData(false);
+        await initInvoiceView(false);
         await restoreAndApply();
     }
 
@@ -116,29 +116,6 @@ async function restoreAndApply() {
     applyFiltersAndFetch();
 }
 
-
-function syncPaidFieldByStatus() {
-    const statusEl = document.getElementById('f_status');
-    const paidEl = document.getElementById('f_paid');
-    const totalEl = document.getElementById('f_total');
-    if (!statusEl || !paidEl || !totalEl) return;
-    const status = (statusEl.value || 'unpaid').toLowerCase();
-    const total = parseFloat(totalEl.value) || 0;
-    if (status === 'partial') {
-        paidEl.readOnly = false;
-        paidEl.placeholder = 'Kısmi ödeme tutarı girin';
-        return;
-    }
-    paidEl.readOnly = true;
-    if (status === 'unpaid') {
-        paidEl.value = '0';
-        paidEl.placeholder = '0,00';
-    } else if (status === 'paid') {
-        paidEl.value = total > 0 ? String(total) : '0';
-        paidEl.placeholder = 'Toplam kadar otomatik';
-    }
-}
-
 // --- MODAL CONTROLS ---
 function openInvoiceModal() {
     document.getElementById('invoiceForm').reset();
@@ -158,86 +135,6 @@ function openInvoiceModal() {
     document.getElementById('invoiceModal').style.display = 'flex';
 }
 
-async function viewInvoice(id) {
-    const inv = allInvoicesCache.find(i => i.id === id);
-    if (!inv) return;
-
-    document.getElementById('invoiceForm').reset();
-    document.getElementById('f_id').value = inv.id;
-    document.getElementById('f_vkn').value = inv.companies?.vkn_tckn || '';
-
-    if (inv.companies?.vkn_tckn) {
-        fetchPendingOrdersForCompany(inv.companies.vkn_tckn);
-    }
-
-    document.getElementById('f_firma').value = inv.companies?.name || '';
-    document.getElementById('f_no').value = inv.invoice_no || '';
-    document.getElementById('f_type').value = inv.invoice_type || 'Ticari';
-    document.getElementById('f_date').value = inv.invoice_date || '';
-    document.getElementById('f_due_date').value = inv.due_date || '';
-    document.getElementById('f_tax_office').value = inv.companies?.tax_office || '';
-    document.getElementById('f_currency').value = invCurrencySelectValue(inv) || inv.currency || 'TL';
-    document.getElementById('f_kur').value = inv.calculation_rate ?? inv.exchange_rate ?? '';
-    document.getElementById('f_net').value = invNetForForm(inv);
-    document.getElementById('f_tax').value = invTaxForForm(inv);
-    document.getElementById('f_total').value = invPayableForForm(inv);
-    document.getElementById('f_notes').value = inv.notes || '';
-
-    const lockedInputs = document.querySelectorAll('.locked-input');
-    lockedInputs.forEach(el => {
-        el.setAttribute('readonly', 'true');
-        if (el.tagName === 'SELECT') el.setAttribute('disabled', 'true');
-        el.style.backgroundColor = '#f1f5f9';
-        const label = el.parentElement.querySelector('label');
-        if (label) {
-            let icon = label.querySelector('.dynamic-lock-icon');
-            if (!icon) {
-                label.innerHTML += ' <span class="dynamic-lock-icon" style="font-size:13px; margin-left:4px;" title="Bu alan resmi veridir, değiştirilmesi kilitlenmiştir.">🔒</span>';
-            } else {
-                icon.innerText = '🔒';
-            }
-        }
-    });
-
-    document.getElementById('unlockWarningBox').style.display = 'block';
-
-    document.getElementById('lineItemsBody').innerHTML = '';
-    if (inv.invoice_items && inv.invoice_items.length > 0) {
-        inv.invoice_items.forEach(item => {
-            addLineItem(
-                item.product_name || '',
-                item.quantity || 1,
-                item.unit_price_cur || 0,
-                item.total_price_cur || 0,
-                item.tax_rate || 20,
-                item.product_code || item.sku || '',
-                item.purchase_order_item_id || '',
-                !!item.is_internal,
-                item.internal_category || '',
-                item.product_category || ''
-            );
-        });
-    } else {
-        addLineItem();
-    }
-
-    try {
-        await ensureProductCodeLookupSetLoaded();
-        const missingSkus = Array.from(new Set(
-            (inv.invoice_items || [])
-                .map((it) => String(it.product_code || it.sku || '').trim())
-                .filter(Boolean)
-                .filter((sku) => !isInProductCodeLookup(sku))
-        ));
-        if (missingSkus.length) {
-            showXmlSuccess(inv.companies?.name || '-', inv.companies?.vkn_tckn || '-', missingSkus);
-        }
-    } catch (e) {
-        console.warn('SKU uyarı kontrolü yapılamadı:', e);
-    }
-
-    document.getElementById('invoiceModal').style.display = 'flex';
-}
 
 function unlockInvoiceForm() {
     const lockedInputs = document.querySelectorAll('.locked-input');
@@ -303,18 +200,6 @@ function enterEkleView() {
     }
 }
 
-function resetEklePdf() {
-    const iframe = document.getElementById('eklePdfIframe');
-    const drop = document.getElementById('eklePdfDrop');
-    const bar = document.getElementById('eklePdfBar');
-    if (iframe) { iframe.style.display = 'none'; iframe.src = ''; }
-    if (bar) bar.style.display = 'none';
-    if (drop) drop.style.display = 'flex';
-    const inp = document.getElementById('eklePdfInput');
-    if (inp) inp.value = '';
-    document.getElementById('invoiceForm').reset();
-    document.getElementById('lineItemsBody').innerHTML = '';
-}
 
 function exitEkleView() {
     document.body.classList.remove('view-ekle');
@@ -515,7 +400,7 @@ async function saveInvoiceToDatabase(e) {
             alert(result.message || "Fatura başarıyla güncellendi.");
             clearStockCaches();
             closeInvoiceModal();
-            await refreshData(true);
+            await initInvoiceView(true);
             return;
         } catch (err) {
             console.error("Güncelleme Hatası:", err.message);
@@ -581,7 +466,7 @@ async function saveInvoiceToDatabase(e) {
         alert(result.message);
         clearStockCaches();
         closeInvoiceModal();
-        refreshData(true);
+        initInvoiceView(true);
     } catch (err) {
         console.error("Kayıt Hatası:", err.message);
         if (err.code === '23505') {
@@ -604,7 +489,7 @@ async function deleteInvoice(id) {
         alert("✅ Fatura başarıyla silindi!");
 
         closeInvoiceDetailModal();
-        refreshData(true);
+        initInvoiceView(true);
     } catch (err) {
         console.error("Silme hatası:", err);
         alert("Fatura silinirken bir ağ hatası oluştu.");

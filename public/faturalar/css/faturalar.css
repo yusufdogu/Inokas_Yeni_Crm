@@ -289,4 +289,92 @@
 
 .fat-kpi-delta--up   { color: var(--fat-green); }
 .fat-kpi-delta--down { color: var(--fat-red);   }
+
+
+/* ─── Pagination ─────────────────────────────────────────────────────────── */
+#fatPagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 16px;
+  background: var(--fat-bg2);
+  border-top: 0.5px solid var(--fat-border);
+  flex-shrink: 0;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.fat-pag-info {
+  font-size: 12px;
+  color: var(--fat-ink3);
+  font-family: var(--fat-font-data);
+}
+
+.fat-pag-pages {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.fat-pag-btn {
+  height: 28px;
+  min-width: 28px;
+  padding: 0 6px;
+  border: 0.5px solid var(--fat-border2);
+  border-radius: 6px;
+  background: var(--fat-bg);
+  color: var(--fat-ink2);
+  font-size: 12px;
+  font-family: var(--fat-font-data);
+  cursor: pointer;
+  transition: background 0.1s;
+}
+
+.fat-pag-btn:hover:not(:disabled) {
+  background: var(--fat-bg3);
+}
+
+.fat-pag-btn--active {
+  background: var(--fat-dark);
+  color: var(--fat-bg);
+  border-color: var(--fat-dark);
+  font-weight: 600;
+}
+
+.fat-pag-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.fat-pag-dots {
+  font-size: 12px;
+  color: var(--fat-ink4);
+  padding: 0 4px;
+}
+
+.fat-pag-limit {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.fat-pag-label {
+  font-size: 12px;
+  color: var(--fat-ink3);
+}
+
+.fat-pag-select {
+  height: 28px;
+  padding: 0 8px;
+  border: 0.5px solid var(--fat-border2);
+  border-radius: 6px;
+  background: var(--fat-bg);
+  color: var(--fat-ink);
+  font-size: 12px;
+  font-family: var(--fat-font-ui);
+  cursor: pointer;
+  outline: none;
+}
+
+
 @keyframes fat-spin { to { transform: rotate(360deg); } }

@@ -1,15 +1,13 @@
 // stok/urunler.js — Ürünler page
-
-let brandOptions            = [];
-let productCategoryOptions  = [];
-let internalCategoryOptions = [];
+let brandOptions            = [];//to store brands we define here
+let productCategoryOptions  = [];//to store category options in filters
+let internalCategoryOptions = [];//
 let _categoryTemplates      = [];
 let _attrValues             = {};
 let _attrTemplate           = null;
 let _attrFilters            = {};
 let _attrTagFilters         = {};
 
-let _internalOnlySkus  = new Set();
 let _internalCatOptions = [];
 let _editingId         = null;
 let _isAddMode         = false;
@@ -22,9 +20,6 @@ let _categoryFilter;
 let _productNameFilter;
 let _currencyFilter;
 
-let _maliyetMin = 0;
-let _maliyetMax = 0;
-
 // quick-filter chip state
 let _filterInStock  = true;   // default ON — depoda
 let _filterRisk     = false;
@@ -34,48 +29,26 @@ let _filterDmo      = false;
 let _uhSort = { col: null, dir: 'desc' };
 let _uhCompanyFilter;
 
-
-// summary data for KPIs (stock_usd per sku)
-let _summaryByCode = {};
-
-
 let _urPage     = 0;
 let _urPageSize = 100;
 let _urFiltered = [];
 
 // ─── INIT ─────────────────────────────────────────────────────────────────────
 async function initUrunler() {
-  document.getElementById('uhFilterDirection')?.addEventListener('change', applyUhFilters);
-  document.getElementById('uhFilterDateStart')?.addEventListener('change', applyUhFilters);
-  document.getElementById('uhFilterDateEnd')?.addEventListener('change',   applyUhFilters);
   await Promise.all([loadProducts(), loadCategoryOptions(), loadCategoryTemplates()]);
   initFilters();
+  renderUrunlerKpis();
+  applyUrunlerFilters();
 }
 
 // ─── DATA ─────────────────────────────────────────────────────────────────────
 async function loadProducts() {
   try {
-    const [productsRes, summaryRes] = await Promise.all([
-      fetch('/api/products'),
-      fetch('/api/stocks/summary'),
+    const [productsRes] = await Promise.all([
+      fetch('/api/products')
     ]);
     if (!productsRes.ok) throw new Error();
     allProducts = await productsRes.json();
-
-    if (summaryRes.ok) {
-      const summary = await summaryRes.json();
-      _internalOnlySkus = new Set((summary.internal_only_skus || []).map(s => String(s).trim()));
-      allProducts = allProducts.filter(p => !_internalOnlySkus.has(String(p.product_code || '').trim()));
-
-      _summaryByCode = {};
-      (summary.data || []).forEach(r => {
-        if (r.sku) _summaryByCode[String(r.sku).trim()] = r;
-      });
-    }
-
-    initPriceRange();
-    renderUrunlerKpis();
-    applyUrunlerFilters();
   } catch(e) {
     console.error('Ürünler yüklenemedi', e.message);
   }
@@ -106,35 +79,8 @@ async function loadCategoryOptions() {
   } catch { }
 }
 
-// ─── PRICE RANGE ──────────────────────────────────────────────────────────────
-function initPriceRange() {
-  const max = Math.ceil(
-    Math.max(...allProducts.map(p => Number(p.maliyet_usd || 0)), 0) / 100
-  ) * 100;
-  _maliyetMin = 0;
-  _maliyetMax = max || 1000;
-  const minEl = document.getElementById('maliyetMin');
-  const maxEl = document.getElementById('maliyetMax');
-  if (minEl) { minEl.min = 0; minEl.max = _maliyetMax; minEl.value = 0; }
-  if (maxEl) { maxEl.min = 0; maxEl.max = _maliyetMax; maxEl.value = _maliyetMax; }
-  updateMaliyetLabel();
-}
 
-function updateMaliyetRange() {
-  const minEl = document.getElementById('maliyetMin');
-  const maxEl = document.getElementById('maliyetMax');
-  _maliyetMin = Number(minEl?.value || 0);
-  _maliyetMax = Number(maxEl?.value || 0);
-  if (_maliyetMin > _maliyetMax) [_maliyetMin, _maliyetMax] = [_maliyetMax, _maliyetMin];
-  updateMaliyetLabel();
-  applyUrunlerFilters();
-}
 
-function updateMaliyetLabel() {
-  const label = document.getElementById('maliyetRangeLabel');
-  if (!label) return;
-  label.textContent = `${fmtUsd(_maliyetMin)} — ${fmtUsd(_maliyetMax)}`;
-}
 
 // ─── FILTERS ──────────────────────────────────────────────────────────────────
 function initFilters() {
@@ -208,7 +154,7 @@ function initFilters() {
     getOptions: () => [...new Set(
       allProducts.map(p => String(p.last_purchase_currency || '').trim()).filter(Boolean)
     )].sort(),
-    onChange: () => { updateUrAdvancedBadge(); applyUrunlerFilters(); },
+    onChange: () => { applyUrunlerFilters(); },
   });
 
   _syncChipUI();
@@ -247,7 +193,6 @@ function applyUrunlerFilters() {
   const brands       = _brandFilter?.getSelected()       || [];
   const categories   = _categoryFilter?.getSelected()    || [];
   const currencies   = _currencyFilter?.getSelected()    || [];
-  const sliderMax    = Number(document.getElementById('maliyetMax')?.max || 0);
 
   const LOW_STOCK = 10;
 
@@ -262,10 +207,6 @@ function applyUrunlerFilters() {
     if (_filterInStock && !(stock > 0))                    return false;
     if (_filterRisk   && !(stock > 0 && stock < LOW_STOCK)) return false;
     if (_filterDead   && !(stock > 0 && Number(p.shipped_total || 0) === 0)) return false;
-
-    const maliyet = Number(p.maliyet_usd || 0);
-    if (_maliyetMin > 0        && maliyet < _maliyetMin) return false;
-    if (_maliyetMax < sliderMax && maliyet > _maliyetMax) return false;
 
     return true;
   });
@@ -308,12 +249,11 @@ function applyUrunlerFilters() {
       return _urunSort.dir === 'desc' ? bVal - aVal : aVal - bVal;
     });
   }
-  // was: renderUrunlerTable(filtered); renderUrunlerKpis(filtered); updateUrAdvancedBadge();
+
   _urFiltered = filtered;
   _urPage     = 0;
   renderUrunlerTable(_urFiltered);
   renderUrunlerKpis(_urFiltered);
-  updateUrAdvancedBadge();
 }
 
 function _clearUrunlerFilters() {
@@ -326,8 +266,6 @@ function _clearUrunlerFilters() {
   _filterRisk    = false;
   _filterDead    = false;
   _syncChipUI();
-  initPriceRange();
-  updateUrAdvancedBadge();
   applyUrunlerFilters();
 }
 
@@ -343,18 +281,6 @@ function _toggleUrunlerAdvanced() {
   }
 }
 
-function updateUrAdvancedBadge() {
-  const badge = document.getElementById('urAdvancedFiltersBadge');
-  if (!badge) return;
-  const sliderMax = Number(document.getElementById('maliyetMax')?.max || 0);
-  const hasActive =
-    (_currencyFilter?.getSelected().length || 0) > 0 ||
-    _maliyetMin > 0 ||
-    _maliyetMax < sliderMax ||
-    Object.keys(_attrFilters).length > 0 ||
-    !!document.getElementById('filterMissingAttrs')?.checked;
-  badge.style.display = hasActive ? 'inline-block' : 'none';
-}
 
 // ─── KPIs ─────────────────────────────────────────────────────────────────────
 function renderUrunlerKpis(subset) {
@@ -366,7 +292,7 @@ function renderUrunlerKpis(subset) {
   let totalTL  = 0;
   let totalUSD = 0;
 
-  allProducts.forEach(r => {
+  inStock.forEach(r => {
     const stock       = Number(r.stock_on_hand || 0);
     const avgTL       = Number(r.avg_purchase_price_tl || 0);
     const lastCur     = (r.last_purchase_currency || '').toUpperCase().trim();
@@ -386,8 +312,7 @@ function renderUrunlerKpis(subset) {
     return s > 0 && s < LOW_STOCK;
   }).length;
   const deadCount  = src.filter(p =>
-    Number(p.stock_on_hand || 0) > 0 && Number(p.shipped_total || 0) === 0
-  ).length;
+    Number(p.stock_on_hand || 0) > 0).length;
 
   const setEl = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
 
@@ -779,8 +704,12 @@ async function openUrunModal(productId, sku) {
 }
 
 function renderUrunHareketleriInModal(movements) {
-  const totalIn   = movements.filter(m => m.direction === 'INCOMING').reduce((s, m) => s + Number(m.quantity || 0), 0);
-  const totalOut  = movements.filter(m => m.direction === 'OUTGOING').reduce((s, m) => s + Number(m.quantity || 0), 0);
+  window._uhAllMovements = movements;
+  _uhSort = { col: 'date', dir: 'desc' };
+
+  // KPIs
+  const totalIn  = movements.filter(m => m.direction === 'INCOMING').reduce((s, m) => s + Number(m.quantity || 0), 0);
+  const totalOut = movements.filter(m => m.direction === 'OUTGOING').reduce((s, m) => s + Number(m.quantity || 0), 0);
   const companies = new Set(movements.map(m => m.company_name).filter(Boolean)).size;
 
   const el = id => document.getElementById(id);
@@ -790,10 +719,27 @@ function renderUrunHareketleriInModal(movements) {
   if (el('statCompanies')) el('statCompanies').textContent = companies.toString();
   if (el('statTotal'))     el('statTotal').textContent     = movements.length.toString();
 
-  window._uhAllMovements = movements;
+  // Reset inputs
+  const dirSel = el('uhFilterDirection');
+  const ds     = el('uhFilterDateStart');
+  const de     = el('uhFilterDateEnd');
+  if (dirSel) dirSel.value = '';
+  if (ds)     ds.value     = '';
+  if (de)     de.value     = '';
 
-  _uhSort = { col: 'date', dir: 'desc' };
+  // Wire listeners once — guard with a flag on the element
+  [
+    { id: 'uhFilterDirection', fn: applyUhFilters },
+    { id: 'uhFilterDateStart', fn: applyUhFilters },
+    { id: 'uhFilterDateEnd',   fn: applyUhFilters },
+  ].forEach(({ id, fn }) => {
+    const node = el(id);
+    if (!node || node._uhListenerAttached) return;
+    node.addEventListener('change', fn);
+    node._uhListenerAttached = true;
+  });
 
+  // Company tag filter — recreated each time so options match this product
   _uhCompanyFilter = createTagFilter({
     wrapId:     'uhCompanyTagsWrap',
     inputId:    'uhCompanyTagInput',
@@ -802,14 +748,6 @@ function renderUrunHareketleriInModal(movements) {
     onChange:   () => applyUhFilters(),
   });
 
-  const dirSel = document.getElementById('uhFilterDirection');
-  if (dirSel) dirSel.value = '';
-  const ds = document.getElementById('uhFilterDateStart');
-  const de = document.getElementById('uhFilterDateEnd');
-  if (ds) ds.value = '';
-  if (de) de.value = '';
-
-  if (typeof initUhFilters === 'function') initUhFilters(movements);
   applyUhFilters();
 }
 
@@ -1004,7 +942,6 @@ function onAttrFilterChange() {
     if (inp.value.trim()) _attrFilters[inp.dataset.attrId] = inp.value.trim();
   });
   applyUrunlerFilters();
-  updateUrAdvancedBadge();
 }
 
 // ─── DİNAMİK KATEGORİ ÖZELLİKLERİ ───────────────────────────────────────────

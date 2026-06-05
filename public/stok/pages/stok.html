@@ -14,6 +14,7 @@
   <link rel="stylesheet" href="/stok/css/kategori-yonetimi.css">
   <link rel="stylesheet" href="/stok/css/stok-base.css">
   <link rel="stylesheet" href="/stok/css/stok.css">
+  <link rel="stylesheet" href="/stok/css/backorder.css">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
   <script src="/shared/auth-interceptor.js"></script>
 </head>
@@ -178,95 +179,222 @@
 
       </div>
 
-      <!-- Backorder panel -->
+      <!-- ── Backorder panel — replace lines 182–269 in stok.html ─────────────────── -->
+      <!-- ── Backorder panel — replace lines 182–269 in stok.html ─────────────────── -->
       <div id="panelBackorder" class="stk-panel" style="display:none;">
 
+        <!-- Filter bar -->
         <div class="stk-filter-bar">
           <div class="stk-filter-row">
-            <div class="filter-tags-wrap" id="boCompanyTagsWrap" onclick="document.getElementById('boCompanyTagInput').focus()" style="flex:2;">
-              <div id="boCompanyTags" class="filter-tags"></div>
-              <input type="text" id="boCompanyTagInput" class="filter-tags-input" placeholder="Firma ekle...">
-              <div id="boCompanyDropdown" class="filter-dropdown"></div>
-            </div>
-            <div class="filter-tags-wrap" id="boProductTagsWrap" onclick="document.getElementById('boProductTagInput').focus()" style="flex:2;">
-              <div id="boProductTags" class="filter-tags"></div>
-              <input type="text" id="boProductTagInput" class="filter-tags-input" placeholder="Ürün / SKU ekle...">
-              <div id="boProductDropdown" class="filter-dropdown"></div>
-            </div>
-            <label class="stk-toggle-label">
-              <input type="checkbox" id="showCompleted">
-              <span style="font-size:12px; color:var(--stk-ink3);">Teslim edilenleri göster</span>
-            </label>
-            <button class="stk-filter-clear" onclick="clearBoFilters()" title="Temizle">
-              <i class="ti ti-trash" style="font-size:13px;"></i>
-            </button>
-          </div>
-        </div>
 
-        <div class="stk-kpi-grid" style="grid-template-columns:repeat(3,1fr);">
-          <div class="stk-kpi"><p class="stk-kpi-label">Bekleyen Kalem</p><p class="stk-kpi-value stk-kpi--amber" id="kpi-pending">—</p></div>
-          <div class="stk-kpi"><p class="stk-kpi-label">Bekleyen Miktar</p><p class="stk-kpi-value stk-kpi--red" id="kpi-qty">—</p></div>
-          <div class="stk-kpi"><p class="stk-kpi-label">Teslim Edilen</p><p class="stk-kpi-value stk-kpi--green" id="kpi-received">—</p></div>
-        </div>
+            <input type="text" id="boSearch" class="stk-filter-input" placeholder="PO no, firma, ürün ara...">
 
-        <div class="stk-content">
-          <div class="stk-bo-form-wrap">
-            <details class="stk-bo-details">
-              <summary class="stk-bo-summary">
-                <i class="ti ti-plus"></i> Yeni Backorder Girişi
-              </summary>
-              <div class="stk-bo-body">
-                <div class="stk-bo-grid">
-                  <div class="stk-bo-field">
-                    <label>Firma VKN / TCKN <span class="req">*</span></label>
-                    <input type="text" id="poCompanyVkn" placeholder="VKN veya TCKN">
-                  </div>
-                  <div class="stk-bo-field">
-                    <label>Firma Adı</label>
-                    <input type="text" id="poCompanyName" placeholder="Otomatik dolar" readonly>
-                  </div>
-                </div>
-                <div class="stk-bo-lines-wrap">
-                  <table class="stk-tbl stk-bo-lines-table">
-                    <thead>
-                      <tr>
-                        <th>SKU / Ürün Kodu</th><th>Ürün Adı</th><th>Marka</th><th>Kategori</th>
-                        <th>Miktar</th><th>Birim Fiyat</th><th>Döviz</th><th>Toplam</th><th></th>
-                      </tr>
-                    </thead>
-                    <tbody id="poLinesBody"></tbody>
-                  </table>
-                  <button type="button" class="stk-add-line-btn" onclick="addPoLine()">
-                    <i class="ti ti-plus"></i> Satır Ekle
+            <div class="stk-bo-date-wrap" id="boDateWrap">
+              <button class="stk-bo-date-btn" id="boDateBtn" onclick="boTogglePicker()">
+                <i class="ti ti-calendar" style="font-size:13px;" aria-hidden="true"></i>
+                <span id="boDateBtnLabel">Tarih aralığı seç</span>
+              </button>
+              <div class="stk-bo-datepicker" id="boDatePicker">
+                <div class="stk-bo-dp-header">
+                  <button class="stk-bo-dp-nav" onclick="boChangeMonth(-1)" aria-label="Önceki ay">
+                    <i class="ti ti-chevron-left" style="font-size:11px;" aria-hidden="true"></i>
+                  </button>
+                  <span class="stk-bo-dp-month" id="boДpMonth"></span>
+                  <button class="stk-bo-dp-nav" onclick="boChangeMonth(1)" aria-label="Sonraki ay">
+                    <i class="ti ti-chevron-right" style="font-size:11px;" aria-hidden="true"></i>
                   </button>
                 </div>
-                <div class="stk-bo-footer">
-                  <span id="poFormMsg" class="stk-msg"></span>
-                  <button type="button" class="stk-btn-primary" onclick="submitPoForm()">
-                    <i class="ti ti-device-floppy"></i> Kaydet
-                  </button>
+                <div class="stk-bo-dp-grid" id="boДpGrid"></div>
+                <div class="stk-bo-dp-footer">
+                  <button class="stk-bo-dp-clear" onclick="boClearDates()">Temizle</button>
+                  <button class="stk-bo-dp-apply" onclick="boApplyDates()">Uygula</button>
                 </div>
               </div>
-            </details>
+            </div>
+
+            <div class="stk-bo-chips">
+              <button class="stk-chip stk-chip--active" id="boChipPending"  onclick="boSetStatus('pending')">Bekleyenler</button>
+              <button class="stk-chip" id="boChipDone" onclick="boSetStatus('done')">Tamamlananlar</button>
+            </div>
+
+            <button class="stk-filter-clear" onclick="_clearBoFilters()" title="Temizle" aria-label="Filtreleri temizle">
+              <i class="ti ti-trash" style="font-size:13px;" aria-hidden="true"></i>
+            </button>
+
+            <button class="stk-btn-primary" onclick="openBoFormModal()">
+              <i class="ti ti-plus" style="font-size:13px;" aria-hidden="true"></i> Yeni Sipariş
+            </button>
+
+          </div>
+        </div>
+
+        <!-- KPI strip -->
+        <div class="stk-kpi-grid stk-kpi-grid--bo">
+          <div class="stk-kpi stk-kpi--hero">
+            <p class="stk-kpi-label">Bekleyen Değer</p>
+            <p class="stk-kpi-value" id="kpi-bo-val">—</p>
+            <p class="stk-kpi-sub" id="kpi-bo-val-sub"></p>
+          </div>
+          <div class="stk-kpi">
+            <p class="stk-kpi-label">Bekleyen Sipariş</p>
+            <p class="stk-kpi-value stk-kpi--amber" id="kpi-pending">—</p>
+          </div>
+          <div class="stk-kpi">
+            <p class="stk-kpi-label">Bekleyen Kalem</p>
+            <p class="stk-kpi-value stk-kpi--amber" id="kpi-pending-lines">—</p>
+          </div>
+          <div class="stk-kpi">
+            <p class="stk-kpi-label">Bekleyen Miktar</p>
+            <p class="stk-kpi-value stk-kpi--red" id="kpi-qty">—</p>
+          </div>
+          <div class="stk-kpi">
+            <p class="stk-kpi-label">Teslim Edilen</p>
+            <p class="stk-kpi-value stk-kpi--green" id="kpi-received">—</p>
+          </div>
+        </div>
+
+        <!-- Table header -->
+        <div class="stk-bo-tbl-hdr">
+          <span>PO No</span>
+          <span>Tarih</span>
+          <span>Firma</span>
+          <span style="text-align:right;">Kalem</span>
+          <span style="text-align:right;">Değer</span>
+          <span style="text-align:right;">Durum</span>
+        </div>
+
+        <!-- Order rows -->
+        <div class="stk-tbl-wrap">
+          <div id="poList"></div>
+          <div id="poEmpty" class="stk-empty">Bekleyen sipariş bulunamadı.</div>
+        </div>
+
+      </div>
+      <!-- ── END Backorder panel ────────────────────────────────────────────────────── -->
+
+
+      <!-- ── Backorder detail modal ────────────────────────────────────────────────── -->
+      <div id="boDetailModal" class="stk-modal-overlay" style="display:none;" onclick="if(event.target===this) closeBoDetailModal()">
+        <div class="stk-modal-box stk-modal-box--large">
+
+          <div class="stk-urun-modal-header">
+            <div class="stk-urun-modal-avatar" id="boModalAvatar">—</div>
+            <div class="stk-urun-modal-title-wrap">
+              <h2 class="stk-urun-modal-title" id="boModalTitle">—</h2>
+              <div class="stk-urun-modal-sub" id="boModalSub"></div>
+            </div>
+            <button class="stk-modal-close" onclick="closeBoDetailModal()" aria-label="Kapat">✕</button>
           </div>
 
+          <!-- KPIs -->
+          <div class="stk-uh-stats">
+            <div class="stk-uh-stat">
+              <span class="stk-uh-stat-label">Toplam Kalem</span>
+              <span class="stk-uh-stat-value" id="boStatLines">—</span>
+            </div>
+            <div class="stk-uh-stat">
+              <span class="stk-uh-stat-label">Sipariş Değeri</span>
+              <span class="stk-uh-stat-value" id="boStatVal">—</span>
+            </div>
+            <div class="stk-uh-stat">
+              <span class="stk-uh-stat-label">Kalan Miktar</span>
+              <span class="stk-uh-stat-value stk-kpi--amber" id="boStatRem">—</span>
+            </div>
+            <div class="stk-uh-stat">
+              <span class="stk-uh-stat-label">Teslim Edilen</span>
+              <span class="stk-uh-stat-value stk-kpi--green" id="boStatRcv">—</span>
+            </div>
+          </div>
+
+          <!-- Lines table -->
           <div class="stk-tbl-wrap">
             <table class="stk-tbl">
               <thead>
                 <tr>
-                  <th>Sipariş-No</th><th>Tarih</th><th>Firma</th><th>Ürün</th><th>SKU</th>
-                  <th class="text-right">Sipariş</th><th class="text-right">Birim Fiyat</th>
-                  <th>Döviz</th><th class="text-right">Toplam</th>
-                  <th class="text-right">Teslim</th><th class="text-right">Kalan</th><th>İşlem</th>
+                  <th style="width:30%;">Ürün</th>
+                  <th style="width:13%;">SKU</th>
+                  <th style="width:9%; text-align:right;">Sipariş</th>
+                  <th style="width:9%; text-align:right;">Teslim</th>
+                  <th style="width:9%; text-align:right;">Kalan</th>
+                  <th style="width:10%; text-align:right;">Birim Fiyat</th>
+                  <th style="width:8%; text-align:right;">Sipariş</th>
+                  <th style="width:7%;">İşlem</th>
                 </tr>
               </thead>
-              <tbody id="poTableBody"></tbody>
+              <tbody id="boDetailLines"></tbody>
             </table>
-            <div id="poEmpty" class="stk-empty">Bekleyen sipariş bulunamadı.</div>
+            <div id="boDetailEmpty" class="stk-empty">Kalem bulunamadı.</div>
           </div>
-        </div>
 
+        </div>
       </div>
+      <!-- ── END Backorder detail modal ─────────────────────────────────────────────── -->
+
+
+      <!-- ── Backorder form modal ───────────────────────────────────────────────────── -->
+      <div id="boFormModal" class="stk-modal-overlay" style="display:none;" onclick="if(event.target===this) closeBoFormModal()">
+        <div class="stk-modal-box" style="max-width:860px; width:92vw;">
+
+          <div class="stk-modal-header">
+            <h2 class="stk-modal-title">Yeni Sipariş</h2>
+            <button class="stk-modal-close" onclick="closeBoFormModal()" aria-label="Kapat">✕</button>
+          </div>
+
+          <div class="stk-modal-body">
+
+            <div class="stk-modal-section">
+              <div class="stk-modal-section-title">Firma Bilgileri</div>
+              <div class="stk-modal-grid">
+                <div class="stk-modal-field">
+                  <label>Firma VKN / TCKN <span class="req">*</span></label>
+                  <input type="text" id="poCompanyVkn" placeholder="VKN veya TCKN">
+                </div>
+                <div class="stk-modal-field">
+                  <label>Firma Adı</label>
+                  <input type="text" id="poCompanyName" placeholder="Otomatik dolar" readonly class="stk-readonly">
+                </div>
+              </div>
+            </div>
+
+            <div class="stk-modal-section">
+              <div class="stk-modal-section-title">Sipariş Kalemleri</div>
+              <div class="stk-bo-lines-wrap">
+                <table class="stk-tbl stk-bo-lines-table">
+                  <thead>
+                    <tr>
+                      <th>SKU / Ürün Kodu</th>
+                      <th>Ürün Adı</th>
+                      <th>Marka</th>
+                      <th>Kategori</th>
+                      <th>Miktar</th>
+                      <th>Birim Fiyat</th>
+                      <th>Döviz</th>
+                      <th>Toplam</th>
+                      <th></th>
+                    </tr>
+                  </thead>
+                  <tbody id="poLinesBody"></tbody>
+                </table>
+                <button type="button" class="stk-add-line-btn" onclick="addPoLine()">
+                  <i class="ti ti-plus" aria-hidden="true"></i> Satır Ekle
+                </button>
+              </div>
+            </div>
+
+          </div>
+
+          <div class="stk-modal-footer">
+            <span id="poFormMsg" class="stk-msg"></span>
+            <button class="stk-btn-secondary" onclick="closeBoFormModal()">İptal</button>
+            <button class="stk-btn-primary" onclick="submitPoForm()">
+              <i class="ti ti-device-floppy" aria-hidden="true"></i> Kaydet
+            </button>
+          </div>
+
+        </div>
+      </div>
+      <!-- ── END Backorder form modal ───────────────────────────────────────────────── -->
+
 
       <!-- Kategori Yönetimi panel -->
       <div id="panelKategori" class="stk-panel" style="display:none;">

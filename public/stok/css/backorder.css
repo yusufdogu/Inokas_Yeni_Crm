@@ -1,0 +1,251 @@
+/* ── Backorder ──────────────────────────────────────────────────────────────── */
+
+/* Filter bar extras */
+.stk-filter-input {
+  height: 32px;
+  padding: 0 10px;
+  border: 0.5px solid var(--stk-border2);
+  border-radius: var(--stk-r);
+  font-size: 12px;
+  font-family: var(--stk-font-ui);
+  color: var(--stk-ink);
+  background: #fff;
+  outline: none;
+  flex: 1;
+  min-width: 160px;
+  transition: border-color 0.15s;
+}
+.stk-filter-input:focus { border-color: var(--stk-ink); }
+
+.stk-bo-chips { display: flex; gap: 4px; flex-shrink: 0; }
+
+/* Date picker button */
+.stk-bo-date-wrap { position: relative; flex-shrink: 0; }
+
+.stk-bo-date-btn {
+  height: 32px;
+  padding: 0 10px;
+  border: 0.5px solid var(--stk-border2);
+  border-radius: var(--stk-r);
+  background: #fff;
+  font-size: 12px;
+  font-family: var(--stk-font-ui);
+  color: var(--stk-ink4);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+  transition: border-color 0.15s, color 0.15s;
+}
+.stk-bo-date-btn.has-val { color: var(--stk-ink); border-color: var(--stk-ink); }
+.stk-bo-date-btn:hover { border-color: var(--stk-ink3); }
+
+/* Date picker dropdown */
+.stk-bo-datepicker {
+  display: none;
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  background: #fff;
+  border: 0.5px solid var(--stk-border2);
+  border-radius: var(--stk-r-lg);
+  padding: 12px;
+  z-index: 200;
+  min-width: 260px;
+  box-shadow: 0 8px 24px rgba(14,13,11,0.1);
+}
+.stk-bo-datepicker.open { display: block; }
+
+.stk-bo-dp-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.stk-bo-dp-nav {
+  width: 26px;
+  height: 26px;
+  border: 0.5px solid var(--stk-border);
+  border-radius: var(--stk-r);
+  background: transparent;
+  color: var(--stk-ink3);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.12s;
+}
+.stk-bo-dp-nav:hover { background: var(--stk-bg2); }
+
+.stk-bo-dp-month {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--stk-ink);
+}
+
+.stk-bo-dp-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 2px;
+}
+
+.stk-bo-dp-day-hdr {
+  font-size: 10px;
+  color: var(--stk-ink4);
+  text-align: center;
+  padding: 3px 0;
+  font-weight: 500;
+  font-family: var(--stk-font-data);
+}
+
+.stk-bo-dp-day {
+  width: 100%;
+  height: 28px;
+  border: none;
+  border-radius: var(--stk-r);
+  background: transparent;
+  font-size: 12px;
+  color: var(--stk-ink);
+  cursor: pointer;
+  font-family: var(--stk-font-ui);
+  transition: background 0.1s;
+}
+.stk-bo-dp-day:hover:not(:disabled) { background: var(--stk-bg2); }
+.stk-bo-dp-day--other { color: var(--stk-ink4); opacity: 0.4; cursor: default; }
+.stk-bo-dp-day--range { background: var(--stk-bg2); border-radius: 0; }
+.stk-bo-dp-day--start,
+.stk-bo-dp-day--end   { background: var(--stk-ink); color: rgba(245,242,236,0.9); border-radius: var(--stk-r); }
+
+.stk-bo-dp-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 0.5px solid var(--stk-border);
+}
+
+.stk-bo-dp-clear {
+  font-size: 12px;
+  color: var(--stk-ink3);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 4px 8px;
+  font-family: var(--stk-font-ui);
+}
+.stk-bo-dp-apply {
+  font-size: 12px;
+  font-weight: 500;
+  background: var(--stk-ink);
+  color: rgba(245,242,236,0.9);
+  border: none;
+  border-radius: var(--stk-r);
+  padding: 5px 14px;
+  cursor: pointer;
+  font-family: var(--stk-font-ui);
+  transition: background 0.12s;
+}
+.stk-bo-dp-apply:hover { background: var(--stk-ink2); }
+
+/* KPI grid */
+.stk-kpi-grid--bo {
+  display: grid;
+  grid-template-columns: 1.7fr 1fr 1fr 1fr 1fr;
+  border-bottom: 0.5px solid var(--stk-border);
+  flex-shrink: 0;
+}
+.stk-kpi-grid--bo .stk-kpi {
+  padding: 10px 14px;
+  border-right: 0.5px solid var(--stk-border);
+}
+.stk-kpi-grid--bo .stk-kpi:last-child { border-right: none; }
+
+/* Table header */
+.stk-bo-tbl-hdr {
+  display: grid;
+  grid-template-columns: 130px 90px 1fr 70px 120px 100px;
+  gap: 10px;
+  padding: 7px 14px;
+  background: var(--stk-bg2);
+  border-bottom: 0.5px solid var(--stk-border);
+  flex-shrink: 0;
+}
+.stk-bo-tbl-hdr span {
+  font-size: 10px;
+  color: var(--stk-ink4);
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-family: var(--stk-font-data);
+}
+
+/* Order rows */
+.stk-bo-row {
+  display: grid;
+  grid-template-columns: 130px 90px 1fr 70px 120px 100px;
+  gap: 10px;
+  align-items: center;
+  padding: 11px 14px;
+  border-bottom: 0.5px solid var(--stk-border);
+  cursor: pointer;
+  transition: background 0.1s;
+}
+.stk-bo-row:hover { background: var(--stk-bg2); }
+
+.stk-bo-po-no  { font-size: 12px; font-weight: 500; color: var(--stk-ink);  font-family: var(--stk-font-data); }
+.stk-bo-date   { font-size: 11px; color: var(--stk-ink4); font-family: var(--stk-font-data); }
+.stk-bo-company { font-size: 12px; font-weight: 500; color: var(--stk-ink2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.stk-bo-count  { font-size: 11px; color: var(--stk-ink4); font-family: var(--stk-font-data); text-align: right; }
+.stk-bo-val    { font-size: 12px; font-family: var(--stk-font-data); font-weight: 500; color: var(--stk-ink); text-align: right; }
+.stk-bo-status { text-align: right; }
+
+/* Status badges */
+.stk-bo-badge {
+  font-size: 10px;
+  font-weight: 500;
+  padding: 2px 8px;
+  border-radius: 99px;
+  white-space: nowrap;
+  display: inline-block;
+}
+.stk-bo-badge--pending { background: var(--stk-amber-bg); color: var(--stk-amber); border: 0.5px solid rgba(154,99,24,0.2); }
+.stk-bo-badge--partial { background: rgba(26,90,150,0.08); color: #1a5a96;         border: 0.5px solid rgba(26,90,150,0.2); }
+.stk-bo-badge--done    { background: var(--stk-green-bg);  color: var(--stk-green); border: 0.5px solid rgba(26,107,71,0.2); }
+
+/* Progress bar */
+.stk-bo-progress {
+  width: 80px;
+  height: 4px;
+  background: var(--stk-bg3);
+  border-radius: 99px;
+  overflow: hidden;
+}
+.stk-bo-progress-fill {
+  height: 4px;
+  border-radius: 99px;
+  background: var(--stk-green);
+  transition: width 0.3s;
+}
+
+/* Action button */
+.stk-bo-action-btn {
+  width: 28px;
+  height: 28px;
+  border: 0.5px solid var(--stk-border2);
+  border-radius: var(--stk-r);
+  background: transparent;
+  color: var(--stk-ink4);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.12s, color 0.12s, border-color 0.12s;
+}
+.stk-bo-action-btn:hover {
+  background: var(--stk-red-bg);
+  color: var(--stk-red);
+  border-color: var(--stk-red);
+}

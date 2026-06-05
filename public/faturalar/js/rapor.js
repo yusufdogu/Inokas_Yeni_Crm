@@ -500,7 +500,7 @@ function renderRaporOfisPage() {
             const amountTry = isTRY ? tutar : 0;
             const amountUsd = isTRY ? 0 : tutar;
             const comp = inv.companies?.name || 'Bilinmeyen';
-            const cat = item.internal_category || 'diğer';
+            const cat = item.item_subcategory || 'diğer';
 
             const prev = productMap.get(key) || {
                 code, name, cat, inQty: 0, inTry: 0, inUsd: 0,

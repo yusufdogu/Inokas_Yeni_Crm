@@ -123,7 +123,7 @@ function populateCategoryFilter() {
     const cats = new Set();
     ofisIciCache.forEach(inv =>
         (inv.invoice_items || []).forEach(it => {
-            if (it.is_internal && it.internal_category) cats.add(it.internal_category);
+            if (it.is_internal && it.item_subcategory) cats.add(it.item_subcategory);
         })
     );
     [...cats].sort((a, b) => a.localeCompare(b, 'tr')).forEach(cat => {
@@ -156,7 +156,7 @@ function renderOfisIciList() {
         const internalItems = (inv.invoice_items || []).filter(it => it.is_internal);
         const internalTotal = internalItems.reduce((sum, it) => sum + (parseFloat(it.total_price_cur) || 0), 0);
         const internalQty   = internalItems.reduce((sum, it) => sum + (parseFloat(it.quantity) || 0), 0);
-        const cats          = [...new Set(internalItems.map(it => it.internal_category).filter(Boolean))];
+        const cats          = [...new Set(internalItems.map(it => it.item_subcategory).filter(Boolean))];
         const catBadges     = cats.map(c => '<span class="ofis-cat-badge">' + c + '</span>').join('');
 
         return '<tr class="fat-row" onclick="window.location.href=\'/faturalar/pages/fatura-detay.html?id=' + inv.id + '&from=ofis-ici\'" style="cursor:pointer;">' +
@@ -209,7 +209,7 @@ function renderOfisKpiFromCache(list) {
         (inv.invoice_items || []).filter(it => it.is_internal).forEach(it => {
             const lineTotal = parseFloat(it.total_price_cur) || 0;
             if (isUSD) usdTotal += lineTotal; else tryTotal += lineTotal;
-            const cat = it.internal_category || 'diğer';
+            const cat = it.item_subcategory || 'diğer';
             catMap[cat] = (catMap[cat] || 0) + (parseFloat(it.quantity) || 1);
         });
     });

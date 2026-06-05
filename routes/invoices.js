@@ -91,11 +91,11 @@ async function syncInvoiceItemInternalMeta(supabase, invoiceId, payloadItems, te
     if (!rowId) continue;
     const src = items[i] || {};
     const isInternal = src.is_internal === true;
-    const categoryRaw = String(src.internal_category || '').trim();
+    const categoryRaw = String(src.item_subcategory || '').trim();
     const internalCategory = isInternal && categoryRaw ? categoryRaw : null;
 
     const { error: updErr } = await supabase
-      .from('invoice_items').update({ is_internal: isInternal, internal_category: internalCategory }).eq('id', rowId);
+      .from('invoice_items').update({ is_internal: isInternal, item_subcategory: internalCategory }).eq('id', rowId);
     if (updErr) throw updErr;
 
     if (!isInternal) {
@@ -895,7 +895,7 @@ router.get('/ofis-ici', async (req, res) => {
     const totalsOnly = req.query.totals === 'true';
 
     let itemQuery = supabase.from('invoice_items').select('invoice_id').eq('is_internal', true);
-    if (category) itemQuery = itemQuery.eq('internal_category', category);
+    if (category) itemQuery = itemQuery.eq('item_subcategory', category);
     const { data: items, error: itemsErr } = await itemQuery;
     if (itemsErr) throw itemsErr;
     const invoiceIds = [...new Set((items || []).map(it => it.invoice_id).filter(Boolean))];
@@ -932,7 +932,7 @@ router.get('/ofis-ici', async (req, res) => {
         (inv.invoice_items || []).filter(it => it.is_internal).forEach(it => {
           const lineTotal = parseFloat(it.total_price_cur) || 0;
           if (isUSD) usdTotal += lineTotal; else tryTotal += lineTotal;
-          const cat = it.internal_category || 'diğer';
+          const cat = it.item_subcategory || 'diğer';
           catMap[cat] = (catMap[cat] || 0) + (parseFloat(it.quantity) || 1);
         });
       });
@@ -1256,9 +1256,9 @@ router.post('/items/normalize-sku', async (req, res) => {
 router.get('/ofis-ici-categories', async (req, res) => {
   try {
     const supabase = req.app.get('supabase');
-    const { data, error } = await supabase.from('invoice_items').select('internal_category').eq('is_internal', true).not('internal_category', 'is', null).neq('internal_category', '');
+    const { data, error } = await supabase.from('invoice_items').select('item_subcategory').eq('is_internal', true).not('item_subcategory', 'is', null).neq('item_subcategory', '');
     if (error) throw error;
-    const cats = [...new Set((data || []).map(r => r.internal_category).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'tr'));
+    const cats = [...new Set((data || []).map(r => r.item_subcategory).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'tr'));
     res.json(cats);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -1269,10 +1269,10 @@ router.get('/ofis-ici-categories', async (req, res) => {
 router.get('/internal-categories', async (req, res) => {
   try {
     const supabase = req.app.get('supabase');
-    const { data, error } = await supabase.from('invoice_items').select('internal_category').eq('is_internal', true).not('internal_category', 'is', null).neq('internal_category', '');
+    const { data, error } = await supabase.from('invoice_items').select('item_subcategory').eq('is_internal', true).not('item_subcategory', 'is', null).neq('item_subcategory', '');
     if (error) throw error;
     const countMap = {};
-    (data || []).forEach(r => { const c = r.internal_category; if (c) countMap[c] = (countMap[c] || 0) + 1; });
+    (data || []).forEach(r => { const c = r.item_subcategory; if (c) countMap[c] = (countMap[c] || 0) + 1; });
     res.json(Object.entries(countMap).map(([name, count]) => ({ name, count })).sort((a, b) => a.name.localeCompare(b.name, 'tr')));
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -1285,7 +1285,7 @@ router.put('/internal-categories/rename', async (req, res) => {
     const supabase = req.app.get('supabase');
     const { from, to } = req.body;
     if (!from || !to) return res.status(400).json({ error: 'from ve to zorunlu.' });
-    const { error } = await supabase.from('invoice_items').update({ internal_category: to }).eq('internal_category', from);
+    const { error } = await supabase.from('invoice_items').update({ item_subcategory: to }).eq('item_subcategory', from);
     if (error) throw error;
     res.json({ ok: true });
   } catch (err) {
@@ -1298,7 +1298,7 @@ router.delete('/internal-categories/:name', async (req, res) => {
   try {
     const supabase = req.app.get('supabase');
     const name = decodeURIComponent(req.params.name);
-    const { error } = await supabase.from('invoice_items').update({ internal_category: null }).eq('internal_category', name);
+    const { error } = await supabase.from('invoice_items').update({ item_subcategory: null }).eq('item_subcategory', name);
     if (error) throw error;
     res.json({ ok: true });
   } catch (err) {
@@ -1360,22 +1360,22 @@ router.put('/:id/items/batch-category', async (req, res) => {
     const productIdByItemId = new Map((itemRows || []).map(r => [r.id, r.product_id]));
 
     const errors = [];
-    await Promise.all(assignments.map(async ({ item_id, internal_category }) => {
+    await Promise.all(assignments.map(async ({ item_id, item_subcategory }) => {
       if (!item_id) return;
 
       const { error: itemErr } = await supabase
         .from('invoice_items')
-        .update({ internal_category: internal_category || null, is_internal: !!internal_category })
+        .update({ item_subcategory: item_subcategory || null, is_internal: !!item_subcategory })
         .eq('id', item_id)
         .eq('invoice_id', req.params.id);
       if (itemErr) { errors.push({ item_id, error: itemErr.message }); return; }
 
       // Also sync to products.category so the product is categorized going forward
       const productId = productIdByItemId.get(item_id);
-      if (productId && internal_category) {
+      if (productId && item_subcategory) {
         await supabase
           .from('products')
-          .update({ category: internal_category })
+          .update({ category: item_subcategory })
           .eq('id', productId);
       }
     }));

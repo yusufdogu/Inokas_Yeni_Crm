@@ -92,10 +92,10 @@ router.get('/category-map', async (req, res) => {
         .or('is_hidden.is.null,is_hidden.eq.false')
         .not('product_code', 'is', null),
       supabase.from('invoice_items')
-        .select('internal_category')
+        .select('item_subcategory')
         .eq('is_internal', true)
-        .not('internal_category', 'is', null)
-        .neq('internal_category', ''),
+        .not('item_subcategory', 'is', null)
+        .neq('item_subcategory', ''),
     ]);
 
     if (error) throw error;
@@ -110,7 +110,7 @@ router.get('/category-map', async (req, res) => {
 
     const categories           = [...new Set(rows.filter(r => !r.is_internal).map(r => r.category).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'tr'));
     const internalFromProducts = rows.filter(r => r.is_internal).map(r => r.category).filter(Boolean);
-    const internalFromInvoices = (invData || []).map(r => String(r.internal_category || '').trim()).filter(Boolean);
+    const internalFromInvoices = (invData || []).map(r => String(r.item_subcategory || '').trim()).filter(Boolean);
     const internal_categories  = [...new Set([...internalFromProducts, ...internalFromInvoices])].sort((a, b) => a.localeCompare(b, 'tr'));
     const brands               = [...new Set(rows.filter(r => !r.is_internal).map(r => r.brand).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'tr'));
     const models               = [...new Set(rows.filter(r => !r.is_internal).map(r => r.model).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'tr'));

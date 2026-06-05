@@ -112,7 +112,7 @@ CREATE TABLE public.invoice_items (
   created_at timestamp with time zone DEFAULT now(),
   product_id uuid,
   purchase_order_item_id uuid,
-  internal_category text,
+  item_subcategory text,
   line_id integer,
   line_note text,
   manufacturer_code text,

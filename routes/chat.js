@@ -92,7 +92,7 @@ invoice_items (fatura kalemleri):
   tax_amount_cur: KDV tutarı
   currency: kalem para birimi
   is_internal: true = ofis içi gider kalemi
-  internal_category: ofis içi kategori (teknoloji, araç & yakıt, elektrik & doğalgaz, iletişim, yemek & mutfak, güvenlik, diğer)
+  item_subcategory: ofis içi kategori (teknoloji, araç & yakıt, elektrik & doğalgaz, iletişim, yemek & mutfak, güvenlik, diğer)
   purchase_order_item_id → purchase_order_items (backorder bağlantısı)
   NOT: Ürün brand/category/model için products tablosuna product_code ile join yap
 

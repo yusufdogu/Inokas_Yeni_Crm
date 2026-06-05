@@ -257,7 +257,7 @@ async function syncGidenInvoices(startDate, tenantId, creds) {
 }
 
 // ─── Daily re-check ───────────────────────────────────────────────────────────
-async function recheckPendingGelenInvoices(tenantId, creds) {
+/*async function recheckPendingGelenInvoices(tenantId, creds) {
   console.log(`\n🔄 [${tenantId}] Re-checking pending Gelen invoices...`);
   const { data: pendingInvoices, error } = await supabase
     .from('invoices').select('id, invoice_no, efatura_uuid, gib_status_code')
@@ -278,9 +278,9 @@ async function recheckPendingGelenInvoices(tenantId, creds) {
     } catch (err) { console.error(`❌ Re-check error for ${inv.invoice_no}:`, err.message); }
   }
   console.log('✨ Gelen re-check finished.');
-}
+}*/
 
-async function recheckGidenReplyStatus(tenantId, creds) {
+/*async function recheckGidenReplyStatus(tenantId, creds) {
   console.log(`\n🔄 [${tenantId}] Re-checking Giden reply statuses...`);
   const { data: waitingInvoices, error } = await supabase
     .from('invoices').select('id, invoice_no')
@@ -300,7 +300,7 @@ async function recheckGidenReplyStatus(tenantId, creds) {
     } catch (err) { console.error(`❌ Re-check error for ${inv.invoice_no}:`, err.message); }
   }
   console.log('✨ Giden reply re-check finished.');
-}
+}*/
 
 // ─── Main entry points — loop through ALL tenants ─────────────────────────────
 async function runSync() {
@@ -342,8 +342,8 @@ async function runDailyRecheck() {
     if (!creds) { console.warn(`⚠️ Tenant "${tenantName}" has no Logo credentials — skipping recheck.`); continue; }
 
     try {
-      await recheckPendingGelenInvoices(tenantId, creds);
-      await recheckGidenReplyStatus(tenantId, creds);
+      //await recheckPendingGelenInvoices(tenantId, creds);
+      //await recheckGidenReplyStatus(tenantId, creds);
     } catch (err) {
       console.error(`❌ Recheck failed for tenant "${tenantName}":`, err.message);
     }
@@ -355,6 +355,6 @@ module.exports = {
   runDailyRecheck,
   syncGelenInvoices,
   syncGidenInvoices,
-  recheckPendingGelenInvoices,
-  recheckGidenReplyStatus,
+  //recheckPendingGelenInvoices,
+  //recheckGidenReplyStatus,
 };

@@ -1,20 +1,15 @@
 // ubl-parser.js
 const AdmZip = require('adm-zip');
-const { DOMParser } = require('@xmldom/xmldom');
 
-const ns = {
-    cbc: 'urn:oasis:names:specification:ubl:schema:xsd:CommonBasicComponents-2',
-    cac: 'urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2',
-};
-
-const parser = new DOMParser();
-
-// ─── helpers ────────────────────────────────────────────────────────────────
-
-function getVal(node, localName) {
-    const el = node.getElementsByTagNameNS(ns.cbc, localName)[0];
-    return el ? el.textContent.trim() : '';
-}
+const { XMLParser } = require('fast-xml-parser');
+const parser = new XMLParser({
+    ignoreAttributes: false,
+    attributeNamePrefix: '@_',
+    removeNSPrefix: true,
+    isArray: (name) =>
+        ['InvoiceLine', 'Note', 'AdditionalDocumentReference',
+         'PartyIdentification', 'TaxSubtotal', 'TaxTotal'].includes(name)
+});
 
 function sanitizeSkuCandidate(v) {
     if (!v) return '';
@@ -56,15 +51,18 @@ function pickSkuFromTextAgainstDb(text) {
 
 function parseProductCodeForSku(itemNode, viewKey, unresolvedWarnings) {
     if (!itemNode) return '';
-    const manufacturer = itemNode.getElementsByTagNameNS(ns.cac, 'ManufacturersItemIdentification')[0]
-        ?.getElementsByTagNameNS(ns.cbc, 'ID')[0]?.textContent;
-    const seller = itemNode.getElementsByTagNameNS(ns.cac, 'SellersItemIdentification')[0]
-        ?.getElementsByTagNameNS(ns.cbc, 'ID')[0]?.textContent;
-    const standard = itemNode.getElementsByTagNameNS(ns.cac, 'StandardItemIdentification')[0]
-        ?.getElementsByTagNameNS(ns.cbc, 'ID')[0]?.textContent;
-    const name = itemNode.getElementsByTagNameNS(ns.cbc, 'Name')[0]?.textContent;
-    const description = itemNode.getElementsByTagNameNS(ns.cbc, 'Description')[0]?.textContent;
-    const keyword = itemNode.getElementsByTagNameNS(ns.cbc, 'Keyword')[0]?.textContent;
+
+    const getRawId = (node) => {
+        const id = node?.ID;
+        return String(id?.['#text'] ?? id ?? '').trim();
+    };
+
+    const manufacturer = getRawId(itemNode.ManufacturersItemIdentification);
+    const seller       = getRawId(itemNode.SellersItemIdentification);
+    const standard     = getRawId(itemNode.StandardItemIdentification);
+    const name         = String(itemNode.Name        ?? '').trim();
+    const description  = String(itemNode.Description ?? '').trim();
+    const keyword      = String(itemNode.Keyword     ?? '').trim();
 
     const t = sanitizeSkuCandidate;
 
@@ -100,32 +98,20 @@ function parseProductCodeForSku(itemNode, viewKey, unresolvedWarnings) {
     }
     return rawFallback;
 }
+function parseDueDateFromInvoice(inv) {
+    const dueDate = String(inv.PaymentMeans?.PaymentDueDate ?? '').trim();
+    if (dueDate) return dueDate;
 
-function parseDueDateFromInvoice(xml) {
-    // PaymentMeans > PaymentDueDate
-    const paymentMeans = xml.getElementsByTagNameNS(ns.cac, 'PaymentMeans')[0];
-    if (paymentMeans) {
-        const dueDate = paymentMeans.getElementsByTagNameNS(ns.cbc, 'PaymentDueDate')[0]?.textContent?.trim();
-        if (dueDate) return dueDate;
-    }
-    // PaymentTerms > Note (some suppliers put it here as text)
-    const paymentTerms = xml.getElementsByTagNameNS(ns.cac, 'PaymentTerms')[0];
-    if (paymentTerms) {
-        const note = paymentTerms.getElementsByTagNameNS(ns.cbc, 'Note')[0]?.textContent?.trim();
-        // Only return if it looks like an actual date (YYYY-MM-DD)
-        if (note && /^\d{4}-\d{2}-\d{2}$/.test(note)) return note;
-        // Otherwise save it as payment_terms_note, not as a date
-    }
+    const note = String(inv.PaymentTerms?.Note ?? '').trim();
+    if (note && /^\d{4}-\d{2}-\d{2}$/.test(note)) return note;
+
+    // fallback: PaymentTerms may also carry PaymentDueDate directly
+    const termsDueDate = String(inv.PaymentTerms?.PaymentDueDate ?? '').trim();
+    if (termsDueDate) return termsDueDate;
+
     return null;
 }
 
-function mapProfileIdToFormInvoiceType(profileId) {
-    if (!profileId) return null;
-    if (profileId.includes('TICARIFATURA')) return 'TICARIFATURA';
-    if (profileId.includes('EARSIVFATURA')) return 'EARSIVFATURA';
-    if (profileId.includes('IHRACAT')) return 'IHRACAT';
-    return profileId; // fallback: store raw value
-}
 
 // ─── main export ────────────────────────────────────────────────────────────
 
@@ -137,7 +123,7 @@ function parseUblFromBase64(base64Content, viewKey = 'gelen') {
         if (!xmlEntry) { console.warn('⚠️ No XML entry in zip'); return null; }
 
         const xmlText = xmlEntry.getData().toString('utf8');
-        const xml = parser.parseFromString(xmlText, 'application/xml');
+        const xml = parser.parse(xmlText);
 
         return buildInvoicePayload(xml, viewKey);
     } catch (err) {
@@ -147,29 +133,23 @@ function parseUblFromBase64(base64Content, viewKey = 'gelen') {
 }
 
 function buildInvoicePayload(xml, viewKey) {
-    const f_no = getVal(xml, 'ID');
-    const f_date = getVal(xml, 'IssueDate');
-    const profileId = getVal(xml, 'ProfileID');
-    const invoiceTypeCode = getVal(xml, 'InvoiceTypeCode');
-    const formInvoiceType = mapProfileIdToFormInvoiceType(profileId);
-    const f_due_date = parseDueDateFromInvoice(xml);
+    const inv = xml.Invoice;
+    const f_no = inv.ID || '';
+    const f_date = inv.IssueDate || '';
+    const profileId = inv.ProfileID || '';
+    const f_due_date = parseDueDateFromInvoice(inv);
 
-    const supplierWrapper = xml.getElementsByTagNameNS(ns.cac, 'AccountingSupplierParty')[0]
-        ?.getElementsByTagNameNS(ns.cac, 'Party')[0];
-    const customerWrapper = xml.getElementsByTagNameNS(ns.cac, 'AccountingCustomerParty')[0]
-        ?.getElementsByTagNameNS(ns.cac, 'Party')[0];
+    const supplierWrapper = inv.AccountingSupplierParty?.Party;
+    const customerWrapper = inv.AccountingCustomerParty?.Party;
 
     if (!supplierWrapper || !customerWrapper) throw new Error("Supplier or customer party missing in UBL");
 
-    // VKN extractor
     const getVkn = (partyNode) => {
-        const ids = partyNode.getElementsByTagNameNS(ns.cac, 'PartyIdentification');
-        for (let i = 0; i < ids.length; i++) {
-            const idEl = ids[i].getElementsByTagNameNS(ns.cbc, 'ID')[0];
-            const scheme = idEl?.getAttribute('schemeID');
-            if (scheme === 'VKN' || scheme === 'TCKN') return idEl.textContent.trim();
-        }
-        return '';
+        const ids = [].concat(partyNode.PartyIdentification || []);
+        const match = ids.find(p =>
+            p.ID?.['@_schemeID'] === 'VKN' || p.ID?.['@_schemeID'] === 'TCKN'
+        );
+        return String(match?.ID?.['#text'] ?? '').trim();
     };
 
     const supplierVKN = getVkn(supplierWrapper);
@@ -178,105 +158,95 @@ function buildInvoicePayload(xml, viewKey) {
     const vkn = viewKey === 'gelen' ? supplierVKN : customerVKN;
 
     // Company name — org name or person fallback
-    const rawOrgName = party.getElementsByTagNameNS(ns.cac, 'PartyName')[0]
-        ?.getElementsByTagNameNS(ns.cbc, 'Name')[0]?.textContent ||
-        party.getElementsByTagNameNS(ns.cbc, 'RegistrationName')[0]?.textContent || '';
-    const personNode = party.getElementsByTagNameNS(ns.cac, 'Person')[0];
-    const firstN = personNode?.getElementsByTagNameNS(ns.cbc, 'FirstName')[0]?.textContent?.trim() || '';
-    const lastN = personNode?.getElementsByTagNameNS(ns.cbc, 'FamilyName')[0]?.textContent?.trim() || '';
+    const rawOrgName = String(party.PartyName?.Name ?? party.RegistrationName ?? '').trim();
+    const firstN = String(party.Person?.FirstName ?? '').trim();
+    const lastN  = String(party.Person?.FamilyName ?? '').trim();
     const fromPerson = [firstN, lastN].filter(Boolean).join(' ');
-    const firmaAdi = rawOrgName.trim() || fromPerson || 'Bilinmeyen Firma';
+    const firmaAdi = rawOrgName || fromPerson || 'Bilinmeyen Firma';
 
     // Address
-    const addrNode = party.getElementsByTagNameNS(ns.cac, 'PostalAddress')[0];
-    const street = addrNode?.getElementsByTagNameNS(ns.cbc, 'StreetName')[0]?.textContent || '';
-    const bldg = addrNode?.getElementsByTagNameNS(ns.cbc, 'BuildingNumber')[0]?.textContent || '';
-    const citySub = addrNode?.getElementsByTagNameNS(ns.cbc, 'CitySubdivisionName')[0]?.textContent || '';
-    const city = addrNode?.getElementsByTagNameNS(ns.cbc, 'CityName')[0]?.textContent || '';
+    const addrNode = party.PostalAddress;
+    const street  = String(addrNode?.StreetName ?? '').trim();
+    const bldg    = String(addrNode?.BuildingNumber ?? '').trim();
+    const citySub = String(addrNode?.CitySubdivisionName ?? '').trim();
+    const city    = String(addrNode?.CityName ?? '').trim();
     const fullAddress = `${street} No:${bldg} ${citySub} / ${city}`.trim();
 
     // Contact
-    const contactNode = party.getElementsByTagNameNS(ns.cac, 'Contact')[0];
-    const phone = contactNode?.getElementsByTagNameNS(ns.cbc, 'Telephone')[0]?.textContent || '';
-    const email = contactNode?.getElementsByTagNameNS(ns.cbc, 'ElectronicMail')[0]?.textContent || '';
-    const website = contactNode?.getElementsByTagNameNS(ns.cbc, 'WebsiteURI')[0]?.textContent || '';
+    const contactNode = party.Contact;
+    const phone   = String(contactNode?.Telephone ?? '').trim();
+    const email   = String(contactNode?.ElectronicMail ?? '').trim();
+    const website = String(party.WebsiteURI ?? '').trim();
 
-    // Tax office
-    const taxOffice = party.getElementsByTagNameNS(ns.cac, 'PartyTaxScheme')[0]
-        ?.getElementsByTagNameNS(ns.cac, 'TaxScheme')[0]
-        ?.getElementsByTagNameNS(ns.cbc, 'Name')[0]
-        ?.textContent?.trim() || '';
+    const taxOffice = String(party.PartyTaxScheme?.TaxScheme?.Name ?? '').trim();
 
     // Financials
-    const monetaryTotal = xml.getElementsByTagNameNS(ns.cac, 'LegalMonetaryTotal')[0];
+    const monetaryTotal = inv.LegalMonetaryTotal;
     if (!monetaryTotal) throw new Error("LegalMonetaryTotal not found in UBL");
 
-    const taxTotalNode = xml.getElementsByTagNameNS(ns.cac, 'TaxTotal')[0];
-    const currencyNode = monetaryTotal.getElementsByTagNameNS(ns.cbc, 'PayableAmount')[0];
-    const payableCurrencyId = currencyNode?.getAttribute('currencyID') || 'TRY';
+    const taxTotalNode = [].concat(inv.TaxTotal || [])[0];
+    const payableCurrencyId = monetaryTotal.PayableAmount?.['@_currencyID'] || 'TRY';
 
-    const exchangeRateNode = xml.getElementsByTagNameNS(ns.cac, 'PricingExchangeRate')[0];
-    const sourceFromRate = exchangeRateNode?.getElementsByTagNameNS(ns.cbc, 'SourceCurrencyCode')[0]?.textContent?.trim() || '';
-    const targetFromRate = exchangeRateNode?.getElementsByTagNameNS(ns.cbc, 'TargetCurrencyCode')[0]?.textContent?.trim() || '';
-    const kurRaw = exchangeRateNode?.getElementsByTagNameNS(ns.cbc, 'CalculationRate')[0]?.textContent || '';
+    const exchangeRateNode = inv.PricingExchangeRate;
+    const sourceFromRate = String(exchangeRateNode?.SourceCurrencyCode ?? '').trim();
+    const targetFromRate = String(exchangeRateNode?.TargetCurrencyCode ?? '').trim();
+    const kurRaw = String(exchangeRateNode?.CalculationRate ?? '');
     const calculationRate = (() => { const r = parseFloat(kurRaw); return Number.isFinite(r) && r > 0 ? r : 1; })();
 
     const baseIso = (sourceFromRate || payableCurrencyId || 'TRY').toUpperCase();
     const targetIso = (targetFromRate || 'TRY').toUpperCase();
     const currencyUi = baseIso === 'TL' ? 'TRY' : baseIso;
 
-    const netCur = parseFloat(getVal(monetaryTotal, 'TaxExclusiveAmount')) || 0;
-    const payableCur = parseFloat(getVal(monetaryTotal, 'PayableAmount')) || 0;
-    const taxInclusiveRaw = getVal(monetaryTotal, 'TaxInclusiveAmount');
-    let taxCur = taxTotalNode ? parseFloat(getVal(taxTotalNode, 'TaxAmount') || '0') : NaN;
+    const getAmt = (node, field) => {
+        const v = node?.[field];
+        return parseFloat(v?.['#text'] ?? v ?? 0) || 0;
+    };
+
+    const netCur      = getAmt(monetaryTotal, 'TaxExclusiveAmount');
+    const payableCur  = getAmt(monetaryTotal, 'PayableAmount');
+    const taxInclusiveRaw = monetaryTotal.TaxInclusiveAmount;
+    let taxCur = taxTotalNode ? getAmt(taxTotalNode, 'TaxAmount') : NaN;
     if (!Number.isFinite(taxCur)) taxCur = payableCur - netCur;
-    let taxInclusiveCur = taxInclusiveRaw !== '' ? parseFloat(taxInclusiveRaw) : (netCur + taxCur);
+    let taxInclusiveCur = taxInclusiveRaw != null
+        ? parseFloat(taxInclusiveRaw?.['#text'] ?? taxInclusiveRaw)
+        : (netCur + taxCur);
     if (!Number.isFinite(taxInclusiveCur)) taxInclusiveCur = netCur + taxCur;
 
-    // Payment
-    const paymentMeans = xml.getElementsByTagNameNS(ns.cac, 'PaymentMeans')[0];
-
-    const paymentTermsNote = xml.getElementsByTagNameNS(ns.cac, 'PaymentTerms')[0]
-        ?.getElementsByTagNameNS(ns.cbc, 'Note')[0]?.textContent?.trim() || null;
-    // TL conversions
-    const netTl = netCur * calculationRate;
-    const taxTl = taxCur * calculationRate;
-    const payableTl = payableCur * calculationRate;
-
-    // Notes
-    const noteNodes = xml.getElementsByTagNameNS(ns.cbc, 'Note');
-    const notesArray = Array.from(noteNodes).map(n => n.textContent.trim()).filter(n => n.length > 0);
+    const notesArray = [].concat(inv.Note || [])
+        .map(n => String(n).trim())
+        .filter(n => n.length > 0);
 
 
-    // Line items
-    const lines = xml.getElementsByTagNameNS(ns.cac, 'InvoiceLine');
+    const lines = [].concat(inv.InvoiceLine || []);
     const items = [];
     const unresolvedSkuWarnings = [];
 
-    Array.from(lines).forEach(line => {
-        const itemNode = line.getElementsByTagNameNS(ns.cac, 'Item')[0];
-        const name = itemNode.getElementsByTagNameNS(ns.cbc, 'Description')[0]?.textContent
-            || itemNode.getElementsByTagNameNS(ns.cbc, 'Name')[0]?.textContent
-            || 'İsimsiz Ürün';
+    lines.forEach(line => {
+        const itemNode = line.Item;
+
+        const name = String(itemNode?.Description ?? itemNode?.Name ?? 'İsimsiz Ürün').trim();
+
         const sku = parseProductCodeForSku(itemNode, viewKey, unresolvedSkuWarnings);
-        const qty = parseFloat(getVal(line, 'InvoicedQuantity')) || 0;
-        const priceNode = line.getElementsByTagNameNS(ns.cac, 'Price')[0];
-        const price = parseFloat(priceNode?.getElementsByTagNameNS(ns.cbc, 'PriceAmount')[0]?.textContent) || 0;
-        const lineTotal = parseFloat(getVal(line, 'LineExtensionAmount')) || (qty * price);
-        const taxSubtotal = line.getElementsByTagNameNS(ns.cac, 'TaxTotal')[0]
-            ?.getElementsByTagNameNS(ns.cac, 'TaxSubtotal')[0];
-        const taxRate = taxSubtotal
-            ? parseInt(taxSubtotal.getElementsByTagNameNS(ns.cbc, 'Percent')[0]?.textContent) || 20
-            : 20;
 
-        const unitCode = line.getElementsByTagNameNS(ns.cbc, 'InvoicedQuantity')[0]
-            ?.getAttribute('unitCode') || 'ADET';
-        const brandName = itemNode.getElementsByTagNameNS(ns.cbc, 'BrandName')[0]?.textContent?.trim() || null;
-        const manufacturerCode = itemNode.getElementsByTagNameNS(ns.cac, 'ManufacturersItemIdentification')[0]
-            ?.getElementsByTagNameNS(ns.cbc, 'ID')[0]?.textContent?.trim() || null;
-        const lineNote = line.getElementsByTagNameNS(ns.cbc, 'Note')[0]?.textContent?.trim() || null;
-        const lineId = parseInt(line.getElementsByTagNameNS(ns.cbc, 'ID')[0]?.textContent) || null;
+        const qtyField = line.InvoicedQuantity;
+        const qty      = parseFloat(qtyField?.['#text'] ?? qtyField ?? 0) || 0;
+        const unitCode = String(qtyField?.['@_unitCode'] ?? 'ADET');
 
+        const price     = parseFloat(line.Price?.PriceAmount?.['#text'] ?? line.Price?.PriceAmount ?? 0) || 0;
+
+        const lineTotalField = line.LineExtensionAmount;
+        const lineTotal = parseFloat(lineTotalField?.['#text'] ?? lineTotalField ?? 0) || (qty * price);
+
+        const taxSubtotal = [].concat(line.TaxTotal?.[0]?.TaxSubtotal || line.TaxTotal?.TaxSubtotal || [])[0];
+        const taxRate = parseInt(taxSubtotal?.Percent ?? 20) || 20;
+
+        const brandName        = String(itemNode?.BrandName ?? '').trim() || null;
+        const manufacturerCode = String(itemNode?.ManufacturersItemIdentification?.ID ?? '').trim() || null;
+
+        const lineNoteField = line.Note;
+        const lineNote = lineNoteField != null ? String(lineNoteField).trim() || null : null;
+
+        const lineId = parseInt(line.ID) || null;
 
         items.push({
             line_id: lineId,
@@ -291,7 +261,7 @@ function buildInvoicePayload(xml, viewKey) {
             tax_rate: taxRate,
             currency: currencyUi,
             line_note: lineNote,
-            internal_category: null,
+            item_subcategory: null,
         });
     });
 
@@ -301,8 +271,8 @@ function buildInvoicePayload(xml, viewKey) {
             name: firmaAdi,
             tax_office: taxOffice,
             address: fullAddress,
-            city: addrNode?.getElementsByTagNameNS(ns.cbc, 'CityName')[0]?.textContent?.trim() || null,
-            postal_code: addrNode?.getElementsByTagNameNS(ns.cbc, 'PostalZone')[0]?.textContent?.trim() || null,
+            city: String(addrNode?.CityName ?? '').trim() || null,
+            postal_code: String(addrNode?.PostalZone ?? '').trim() || null,
             phone,
             email,
             website,
@@ -311,12 +281,12 @@ function buildInvoicePayload(xml, viewKey) {
             is_active: true,
         },
         invoice: {
-            efatura_uuid: xml.getElementsByTagNameNS(ns.cbc, 'UUID')[0]?.textContent?.trim(),
+            efatura_uuid: String(inv.UUID ?? '').trim(),
             invoice_no: f_no,
             direction: viewKey === 'gelen' ? 'INCOMING' : 'OUTGOING',
             invoice_date: f_date,
             due_date: f_due_date || null,
-            invoice_type: formInvoiceType,
+            invoice_type: profileId,
             currency: currencyUi,
             base_currency: baseIso,
             target_currency: targetIso,

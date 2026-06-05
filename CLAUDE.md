@@ -136,7 +136,7 @@ Do not use `import`/`export`. All functions must be global scope.
 
 `detail.js` → `renderDetailTabContent`: bilgiler and ürünler tabs open directly via `enterBilgilerEdit` / `enterUrunlerEdit` — read-only mode (renderBilgilerView / renderUrunlerView) is bypassed.
 
-Ürünler edit (`enterUrunlerEdit`): each row shows a category `<select>`. In-house rows use `INTERNAL_CATEGORY_OPTIONS` (static list); others use `productCategoryOptionList` (from DB). Selecting "+ yeni kategori ekle" shows an inline input (✓/✕ buttons).
+Ürünler edit (`enterUrunlerEdit`): each row shows a category `<select>`. In-house rows use `item_subcategory_OPTIONS` (static list); others use `productCategoryOptionList` (from DB). Selecting "+ yeni kategori ekle" shows an inline input (✓/✕ buttons).
 
 #### Stok JS Modules (`public/stok/js/`)
 
@@ -165,7 +165,7 @@ The server validates direction via `INOKAS_VKN`:
 
 ### Services (Legacy / Manual Sync)
 
-`services/sync-service.js` and `services/logo-api.js` were used for bulk historical sync from the Logo e-invoice API. They are not invoked by the main server; `services/runSync.js` is a standalone script run manually.
+`services/sync-service.js` and `services/logo-api.js` were used for bulk historical sync from the Logo e-invoice API. They are not invoked by the main server; `services/test-invoice-extraction.js` is a standalone script run manually.
 
 `services/ubl-parser.js` decodes base64-encoded ZIP archives (from Logo API) containing UBL XML files.
 

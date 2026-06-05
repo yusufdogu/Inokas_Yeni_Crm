@@ -644,7 +644,7 @@ async function renderUrunlerView(id, body, inv) {
         const code = String(it.product_code || it.sku || '').trim();
         const name = String(it.product_name || '').trim();
         const cat = isInt
-            ? (it.internal_category || '—')
+            ? (it.item_subcategory || '—')
             : (it.category || productCategoryByCodeMap?.get(normalizeProductCodeForMatch(code)) || '—');
         const brand = it.brand_name || it.brand || '';
         const model = it.model || '';
@@ -813,7 +813,7 @@ function enterUrunlerEdit(id) {
         const isInt = !!it.is_internal;
         const code = String(it.product_code || it.sku || '').trim();
         const curCat = isInt
-            ? (it.internal_category || '')
+            ? (it.item_subcategory || '')
             : (it.category || productCategoryByCodeMap?.get(normalizeProductCodeForMatch(code)) || '');
         const curBrand = it.brand_name || it.brand || '';
         const curModel = it.model || '';
@@ -960,7 +960,7 @@ async function saveUrunlerEdit(id) {
                 brand_name: brandVal || null,
                 model: modelVal || null,
                 product_category: isInternal ? null : (catVal || null),  // ← for syncInvoiceItemInternalMeta
-                internal_category: isInternal ? (catVal || null) : (orig.internal_category ?? null),
+                item_subcategory: isInternal ? (catVal || null) : (orig.item_subcategory ?? null),
             });
         }
     });
@@ -1099,7 +1099,7 @@ function enterBatchCategoryMode(id, allItems) {
 
     // Seed pending state from current values
     _batchCatState[id] = {};
-    internalItems.forEach(it => { _batchCatState[id][it.id] = it.internal_category || ''; });
+    internalItems.forEach(it => { _batchCatState[id][it.id] = it.item_subcategory || ''; });
 
     function buildRows() {
         return internalItems.map(it => {
@@ -1205,7 +1205,7 @@ async function saveBatchCategoryAssignments(id) {
 
     const assignments = Object.entries(state)
         .filter(([, cat]) => cat)
-        .map(([item_id, internal_category]) => ({ item_id, internal_category }));
+        .map(([item_id, item_subcategory]) => ({ item_id, item_subcategory }));
 
     if (!assignments.length) { alert('Kaydedilecek kategori atama bulunamadı.'); return; }
 
@@ -1226,7 +1226,7 @@ async function saveBatchCategoryAssignments(id) {
         if (inv?.invoice_items) {
             inv.invoice_items.forEach(it => {
                 if (state[it.id] !== undefined) {
-                    it.internal_category = state[it.id] || null;
+                    it.item_subcategory = state[it.id] || null;
                     it.is_internal = !!state[it.id];
                 }
             });

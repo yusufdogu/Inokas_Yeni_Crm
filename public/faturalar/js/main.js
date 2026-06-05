@@ -355,7 +355,7 @@ async function saveInvoiceToDatabase(e) {
                 total_price_cur: lineTotal,
                 currency: formCurrency,
                 is_internal: isInternal,
-                internal_category: isInternal ? rowCategoryVal : null,
+                item_subcategory: isInternal ? rowCategoryVal : null,
                 product_category: !isInternal ? (rowCategoryVal || null) : null,
                 purchase_order_item_id: poItemId
             };

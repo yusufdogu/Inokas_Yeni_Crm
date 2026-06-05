@@ -198,12 +198,15 @@ function _findInvAndBody(id) {
     return { inv, body };
 }
 
-function renderBilgilerView(id) {
-    const { inv, body } = _findInvAndBody(id);
+async function renderBilgilerView(id) {
+    const {inv, body} = _findInvAndBody(id);
     if (!inv || !body) return;
 
     const currLabel = invDisplayCurrencyLabel(inv);
-    const fmtN = n => (parseFloat(n) || 0).toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    const fmtN = n => (parseFloat(n) || 0).toLocaleString('tr-TR', {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2
+    });
     const kurText = invCalculationRate(inv) !== 1 ? `1 ${currLabel} = ${invCalculationRate(inv).toLocaleString('tr-TR')} TL` : '—';
 
     const card = (label, value, opts = {}) => {
@@ -224,7 +227,7 @@ function renderBilgilerView(id) {
 
         ${section('Fatura Bilgileri')}
         <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
-            ${card('Fatura No', inv.invoice_no, { accent: true })}
+            ${card('Fatura No', inv.invoice_no, {accent: true})}
             ${card('Fatura Türü', inv.invoice_type)}
             ${card('Tarih', inv.invoice_date)}
             ${card('Vade Tarihi', inv.due_date || '—')}
@@ -248,8 +251,8 @@ function renderBilgilerView(id) {
             ${card('Vergi Dairesi', inv.companies?.tax_office)}
             ${card('Telefon', inv.companies?.phone)}
             ${card('E-posta', inv.companies?.email)}
-            ${card('Web Sitesi', inv.companies?.website, { full: true })}
-            ${card('Adres', inv.companies?.address, { full: true })}
+            ${card('Web Sitesi', inv.companies?.website, {full: true})}
+            ${card('Adres', inv.companies?.address, {full: true})}
         </div>
 
         ${inv.notes ? `${section('Notlar')}<div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:12px 14px; font-size:12px; color:#475569; white-space:pre-wrap; line-height:1.5;">${String(inv.notes).replace(/</g, '&lt;')}</div>` : ''}
@@ -455,7 +458,7 @@ async function saveBilgilerEdit(id) {
         renderBilgilerView(id);
         const bekIdx = bekleyenCache.findIndex(i => i.id === id);
         if (bekIdx >= 0) bekleyenCache[bekIdx] = inv;
-        refreshData(true);
+        //refreshData(true);
     } catch (e) {
         alert('Hata: ' + e.message);
         if (btn) { btn.disabled = false; btn.textContent = 'Kaydet'; }
@@ -997,7 +1000,7 @@ async function saveUrunlerEdit(id) {
             await loadInvoice(id);
         } else {
             switchFatDetailTab(id, 'urunler');
-            if (typeof refreshData === 'function') refreshData(true);
+            //if (typeof refreshData === 'function') refreshData(true);
         }
     } catch (e) {
         alert('Hata: ' + e.message);
@@ -1005,23 +1008,6 @@ async function saveUrunlerEdit(id) {
     }
 }
 
-// ─── Eski detay tab (geriye uyumluluk) ───────────────────────────────────────
-
-function switchDetailTab(n) {
-    const btn1 = document.getElementById('detailTabBtn1');
-    const btn2 = document.getElementById('detailTabBtn2');
-    const tab1 = document.getElementById('detailTab1');
-    const tab2 = document.getElementById('detailTab2');
-    if (!btn1 || !btn2 || !tab1 || !tab2) return;
-
-    lastActiveDetailTab = n;
-    btn1.classList.toggle('active', n === 1);
-    btn2.classList.toggle('active', n === 2);
-    tab1.style.display = n === 1 ? 'flex' : 'none';
-    tab2.style.display = n === 2 ? 'block' : 'none';
-
-    if (n === 1) loadPdfTab();
-}
 
 async function loadPdfTab() {
     const inv = currentDetailInvId ? (allInvoicesCache || []).find(i => i.id === currentDetailInvId) : null;

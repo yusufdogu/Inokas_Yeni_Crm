@@ -11,6 +11,25 @@ const parser = new XMLParser({
          'PartyIdentification', 'TaxSubtotal', 'TaxTotal'].includes(name)
 });
 
+// ─── main export ────────────────────────────────────────────────────────────
+
+function parseUblFromBase64(base64Content, viewKey = 'gelen') {
+    try {
+        const zipBuffer = Buffer.from(base64Content, 'base64');
+        const zip = new AdmZip(zipBuffer);
+        const xmlEntry = zip.getEntries().find(e => e.entryName.endsWith('.xml'));
+        if (!xmlEntry) { console.warn('⚠️ No XML entry in zip'); return null; }
+
+        const xmlText = xmlEntry.getData().toString('utf8');
+        const xml = parser.parse(xmlText);
+
+        return buildInvoicePayload(xml, viewKey);
+    } catch (err) {
+        console.error('Parser Error:', err.message);
+        return null;
+    }
+}
+
 function sanitizeSkuCandidate(v) {
     if (!v) return '';
     const cleaned = v.trim().replace(/\s+/g, ' ');
@@ -115,22 +134,6 @@ function parseDueDateFromInvoice(inv) {
 
 // ─── main export ────────────────────────────────────────────────────────────
 
-function parseUblFromBase64(base64Content, viewKey = 'gelen') {
-    try {
-        const zipBuffer = Buffer.from(base64Content, 'base64');
-        const zip = new AdmZip(zipBuffer);
-        const xmlEntry = zip.getEntries().find(e => e.entryName.endsWith('.xml'));
-        if (!xmlEntry) { console.warn('⚠️ No XML entry in zip'); return null; }
-
-        const xmlText = xmlEntry.getData().toString('utf8');
-        const xml = parser.parse(xmlText);
-
-        return buildInvoicePayload(xml, viewKey);
-    } catch (err) {
-        console.error('Parser Error:', err.message);
-        return null;
-    }
-}
 
 function buildInvoicePayload(xml, viewKey) {
     const inv = xml.Invoice;
@@ -193,6 +196,8 @@ function buildInvoicePayload(xml, viewKey) {
     const kurRaw = String(exchangeRateNode?.CalculationRate ?? '');
     const calculationRate = (() => { const r = parseFloat(kurRaw); return Number.isFinite(r) && r > 0 ? r : 1; })();
 
+
+
     const baseIso = (sourceFromRate || payableCurrencyId || 'TRY').toUpperCase();
     const targetIso = (targetFromRate || 'TRY').toUpperCase();
     const currencyUi = baseIso === 'TL' ? 'TRY' : baseIso;
@@ -211,6 +216,12 @@ function buildInvoicePayload(xml, viewKey) {
         ? parseFloat(taxInclusiveRaw?.['#text'] ?? taxInclusiveRaw)
         : (netCur + taxCur);
     if (!Number.isFinite(taxInclusiveCur)) taxInclusiveCur = netCur + taxCur;
+
+    // TL conversions
+    const netTl     = netCur * calculationRate;
+    const taxTl     = taxCur * calculationRate;
+    const payableTl = payableCur * calculationRate;
+
 
     const notesArray = [].concat(inv.Note || [])
         .map(n => String(n).trim())
@@ -305,5 +316,4 @@ function buildInvoicePayload(xml, viewKey) {
         _kurXml: kurRaw,
     };
 }
-
 module.exports = { parseUblFromBase64, setProductCodeLookup };

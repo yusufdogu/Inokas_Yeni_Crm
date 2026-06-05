@@ -2,10 +2,6 @@
 // Shared logic for bekleyen-gelen.html, bekleyen-giden.html, fatura-yukle.html
 // Direction controlled by window._BEK_DIR ('INCOMING' | 'OUTGOING')
 
-// ─── INIT ─────────────────────────────────────────────────────────────────────
-async function initBekleyen() {
-    await loadBekleyenInvoices();
-}
 
 // ─── DATA ─────────────────────────────────────────────────────────────────────
 async function loadBekleyenInvoices() {
@@ -99,26 +95,6 @@ function _hideDetail() {
     if (empty) empty.style.display   = 'flex';
 }
 
-// ─── APPROVE ─────────────────────────────────────────────────────────────────
-async function importPendingInvoice(rawId) {
-    const id  = String(rawId);
-    const inv = bekleyenCache.find(i => String(i.id) === id);
-    const label = inv?.invoice_no || id;
-    if (!confirm(`"${label}" faturasını sisteme aktarmak istiyor musunuz?`)) return;
-
-    try {
-        const res  = await fetch(`/api/invoices/${encodeURIComponent(id)}/approve`, { method: 'PUT' });
-        const data = await res.json().catch(() => ({}));
-        if (!res.ok) throw new Error(data.error || 'HTTP ' + res.status);
-
-        const isIncoming = String(inv?.direction || '').toUpperCase() === 'INCOMING';
-        window.location.href = isIncoming
-            ? '/faturalar/pages/gelen-faturalar.html'
-            : '/faturalar/pages/giden-faturalar.html';
-    } catch (e) {
-        alert('Aktarım hatası: ' + e.message);
-    }
-}
 
 // ─── BULK UPLOAD ──────────────────────────────────────────────────────────────
 function bulkEscapeHtml(s) {

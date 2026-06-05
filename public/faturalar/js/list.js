@@ -380,30 +380,7 @@ function changeLimit(newLimit) {
   initInvoiceView(false);
 }
 
-async function refreshFilterOptions() {
-  try {
-    const params = new URLSearchParams();
-    if (currentView === 'gelen') params.set('direction', 'INCOMING');
-    if (currentView === 'giden') params.set('direction', 'OUTGOING');
 
-    const res = await fetch(`/api/invoices/filter-options?${params.toString()}`);
-    const data = await res.json();
-
-    window._fatFilterOptions = {
-      companies:     data.companies     || [],
-      brands:        data.brands        || [],
-      products:      data.products      || [],
-      categories:    data.categories    || [],
-      currencies:    data.currencies    || [],
-      relationships: data.relationships || [],   // ← new
-    };
-
-    populateCurrencySelect(); // ← add this
-
-  } catch (err) {
-    console.error('refreshFilterOptions hatası:', err.message);
-  }
-}
 
 function populateCurrencySelect() {
   const sel = document.getElementById('filterCurrency');

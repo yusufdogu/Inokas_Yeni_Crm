@@ -85,12 +85,13 @@ async function initInvoiceView(useCache = false) {
     _totalPages      = json.total_pages || 1;
     _currentPage     = json.page        || 1;
 
+    // in initInvoiceView, replace the render block with:
     if (allInvoicesCache && hasInteracted()) {
       _lastListInvoices = allInvoicesCache;
       saveFilterState();
-      if (activeTabKey === 'list') {
+      if (activeTabKey === 'list' && typeof renderListView === 'function') {
         renderListView(allInvoicesCache);
-        hideLoadingOverlay();
+        if (typeof hideLoadingOverlay === 'function') hideLoadingOverlay();
       }
     }
 
@@ -235,5 +236,219 @@ async function ensureProductCategoryLookupLoaded(force = false) {
     await productCategoryPromise;
   } finally {
     productCategoryPromise = null;
+  }
+}
+
+
+async function deleteInvoice(id) {
+  if (!confirm("⚠️ Bu faturayı ve içerisindeki tüm ürünleri silmek istediğinize emin misiniz?\nBu işlem geri alınamaz!")) return;
+
+  try {
+    const response = await fetch(`/api/invoices/${id}`, { method: 'DELETE' });
+
+    // log raw response first
+    const text = await response.text();
+    console.log('DELETE response status:', response.status);
+    console.log('DELETE response body:', text);
+
+    if (!response.ok) throw new Error(`Silinemedi: ${response.status} — ${text}`);
+
+    // in deleteInvoice, replace initInvoiceView(true) with:
+    alert("✅ Fatura başarıyla silindi!");
+    if (typeof goBack === 'function') goBack();        // detail page — go back to list
+    else if (typeof initInvoiceView === 'function') initInvoiceView(true); // list page
+  } catch (err) {
+    console.error("Silme hatası:", err.message);
+    alert("Fatura silinirken bir hata oluştu: " + err.message);
+  }
+}
+
+async function saveInvoiceToDatabase(e) {
+    e.preventDefault();
+    if (isInvoiceSaveInFlight) {
+        alert("Kaydetme işlemi devam ediyor, lütfen bekleyin.");
+        return;
+    }
+    const invoiceId = document.getElementById('f_id')?.value;
+    const fin = readInvoiceFinancialsFromForm();
+    const formCurrency = document.getElementById('f_currency')?.value?.trim() || 'TL';
+
+    const lineRows = document.querySelectorAll('#lineItemsBody tr');
+    let itemsFromForm = [];
+    try {
+        itemsFromForm = Array.from(lineRows).map((row) => {
+            const cells = row.querySelectorAll('td');
+            const productName = row.querySelector('td:first-child input[type="text"]')?.value?.trim() || cells[0]?.innerText?.trim() || 'İsimsiz Ürün';
+            const qtyInput = row.querySelector('input[type="number"]');
+            const numberInputs = row.querySelectorAll('input[type="number"]');
+            const qty = parseFloat(qtyInput?.value || cells[2]?.innerText || 0) || 0;
+            const unitPrice = parseFloat(numberInputs[1]?.value || cells[3]?.innerText || 0) || 0;
+            const lineTotal = qty * unitPrice;
+            const taxRate = parseFloat(row.querySelector('.tax-rate-val')?.value || cells[5]?.innerText || 0) || 0;
+            const internalToggle = row.querySelector('.internal-toggle');
+            const isInternal = internalToggle ? !!internalToggle.checked : false;
+            const rowCategoryVal = row.querySelector('.line-category-select')?.value?.trim() || '';
+            const skuVal = row.querySelector('.line-sku-val')?.value?.trim() || '';
+            const poItemId = row.querySelector('.po-item-id-val')?.value || null;
+            if (isInternal && !rowCategoryVal) {
+                throw new Error(`Ofis içi ürünlerde kategori zorunlu: ${productName}`);
+            }
+            return {
+                product_name: productName,
+                product_code: skuVal || null,
+                quantity: qty,
+                unit_code: 'ADET',
+                unit_price_cur: unitPrice,
+                tax_rate: taxRate,
+                total_price_cur: lineTotal,
+                currency: formCurrency,
+                is_internal: isInternal,
+                item_subcategory: isInternal ? rowCategoryVal : null,
+                product_category: !isInternal ? (rowCategoryVal || null) : null,
+                purchase_order_item_id: poItemId
+            };
+        }).filter(item => item.product_name && item.quantity > 0);
+    } catch (mapErr) {
+        alert(mapErr.message || 'Ürün satırları doğrulanamadı.');
+        return;
+    }
+
+    if (invoiceId) {
+        const updatePayload = {
+            update_stock: document.getElementById('f_update_stock')?.checked !== false,
+            invoice: {
+                due_date: document.getElementById('f_due_date')?.value || null,
+                notes: document.getElementById('f_notes')?.value || '',
+                invoice_type: document.getElementById('f_type')?.value || 'Ticari',
+                invoice_no: document.getElementById('f_no')?.value || '',
+                invoice_date: document.getElementById('f_date')?.value || null,
+                ...fin
+            },
+            company: {
+                vkn_tckn: document.getElementById('f_vkn')?.value?.trim() || '',
+                name: document.getElementById('f_firma')?.value?.trim() || '',
+                tax_office: document.getElementById('f_tax_office')?.value?.trim() || '',
+                phone: document.getElementById('f_phone')?.value?.trim() || '',
+                email: document.getElementById('f_email')?.value?.trim() || '',
+                website: document.getElementById('f_website')?.value?.trim() || '',
+                address: document.getElementById('f_address')?.value?.trim() || ''
+            },
+            items: itemsFromForm
+        };
+
+        try {
+            isInvoiceSaveInFlight = true;
+            const response = await fetch(`/api/invoices/${invoiceId}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(updatePayload)
+            });
+            const result = await response.json();
+            if (!response.ok) throw new Error(result.error || "Güncelleme hatası");
+            alert(result.message || "Fatura başarıyla güncellendi.");
+            clearStockCaches();
+            closeInvoiceModal();
+            await initInvoiceView(true);
+            return;
+        } catch (err) {
+            console.error("Güncelleme Hatası:", err.message);
+            alert("Hata oluştu: " + err.message);
+            return;
+        } finally {
+            isInvoiceSaveInFlight = false;
+        }
+    }
+
+    if (!currentParsedData) {
+        alert("Lütfen önce bir XML yükleyin!");
+        return;
+    }
+
+    const itemsToSave = itemsFromForm;
+
+    const companyFromUi = {
+        vkn_tckn: document.getElementById('f_vkn')?.value?.trim() || '',
+        name: document.getElementById('f_firma')?.value?.trim() || '',
+        tax_office: document.getElementById('f_tax_office')?.value?.trim() || '',
+        phone: document.getElementById('f_phone')?.value?.trim() || '',
+        email: document.getElementById('f_email')?.value?.trim() || '',
+        website: document.getElementById('f_website')?.value?.trim() || '',
+        address: document.getElementById('f_address')?.value?.trim() || ''
+    };
+
+    const invoiceFromUi = {
+        ...fin,
+        invoice_no: document.getElementById('f_no')?.value || '',
+        invoice_type: document.getElementById('f_type')?.value || 'Ticari',
+        invoice_date: document.getElementById('f_date')?.value || null,
+        due_date: document.getElementById('f_due_date')?.value || null,
+        status: 'unpaid',
+        paid_amount: 0,
+        paid_amount_cur: 0,
+        notes: document.getElementById('f_notes')?.value || ''
+    };
+
+    const payload = {
+        submit_view: currentView,
+        parsed_view: currentParsedData.parsed_view || null,
+        update_stock: document.getElementById('f_update_stock')?.checked !== false,
+        company: { ...(currentParsedData.company || {}), ...companyFromUi },
+        invoice: { ...currentParsedData.invoice, ...invoiceFromUi },
+        xml_context: currentParsedData.xml_context || null,
+        items: itemsToSave
+    };
+
+    try {
+        isInvoiceSaveInFlight = true;
+        const response = await fetch('/api/save-invoice', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        const result = await response.json();
+        if (!response.ok) {
+            const errorObj = new Error(result.error || "Sunucu hatası");
+            errorObj.code = result.errorCode;
+            throw errorObj;
+        }
+        alert(result.message);
+        clearStockCaches();
+        closeInvoiceModal();
+        await initInvoiceView(true);
+    } catch (err) {
+        console.error("Kayıt Hatası:", err.message);
+        if (err.code === '23505') {
+            alert("⚠️ BU FATURA DAHA ÖNCE YÜKLENMİŞ!\nSistemde aynı faturadan zaten bulunduğu için tekrar kaydedilemez.");
+        } else {
+            alert("Hata oluştu: " + err.message);
+        }
+    } finally {
+        isInvoiceSaveInFlight = false;
+    }
+}
+
+// api.js — refreshFilterOptions just fetches and stores, nothing else
+async function refreshFilterOptions() {
+  try {
+    const params = new URLSearchParams();
+    if (currentView === 'gelen') params.set('direction', 'INCOMING');
+    if (currentView === 'giden') params.set('direction', 'OUTGOING');
+
+    const res  = await fetch(`/api/invoices/filter-options?${params.toString()}`);
+    const data = await res.json();
+
+    window._fatFilterOptions = {
+      companies:     data.companies     || [],
+      brands:        data.brands        || [],
+      products:      data.products      || [],
+      categories:    data.categories    || [],
+      currencies:    data.currencies    || [],
+      relationships: data.relationships || [],
+    };
+
+    // only call UI functions if they exist (not on detail page)
+    if (typeof populateCurrencySelect === 'function') populateCurrencySelect();
+  } catch (err) {
+    console.error('refreshFilterOptions hatası:', err.message);
   }
 }

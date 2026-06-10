@@ -127,11 +127,7 @@
         <span class="sb-label">Fatura Yükle</span>
       </a>
 
-      <a href="/faturalar/pages/rapor.html"
-         class="sb-child${path.includes('rapor') ? ' active' : ''}">
-        <i class="ti ti-chart-bar"></i>
-        <span class="sb-label">Rapor</span>
-      </a>
+      
 
     </div>
 

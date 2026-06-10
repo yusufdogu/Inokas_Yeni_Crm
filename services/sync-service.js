@@ -37,7 +37,7 @@ async function loadTenantCredentials(tenantId) {
 async function loadActiveTenantsWithLogo() {
   const { data, error } = await supabase
     .from('tenant_integrations')
-    .select('tenant_id, tenants(name, slug)')
+    .select('tenant_id, tenants(name)')
     .eq('provider', 'logo')
     .eq('is_active', true);
 

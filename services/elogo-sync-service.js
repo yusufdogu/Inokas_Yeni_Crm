@@ -47,7 +47,7 @@ async function loadActiveElogoTenants() {
   const tenantIds = data.map(r => r.tenant_id);
   const { data: tenants } = await supabase
     .from('tenants')
-    .select('id, name, slug')
+    .select('id, name')
     .in('id', tenantIds);
 
   const tenantMap = Object.fromEntries((tenants || []).map(t => [t.id, t]));

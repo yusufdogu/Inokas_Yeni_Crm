@@ -3,458 +3,723 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Kumanda — Kayıt Ol</title>
-<link href="https://fonts.googleapis.com/css2?family=Geist+Mono:wght@400;500;600&family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+<title>Kumanda — Kurulum</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.x/dist/tabler-icons.min.css">
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 :root{
-  --bg-base:#060912;--bg-surface:#0a0e1a;--bg-card:#0f1424;--bg-elevated:#161d35;
-  --accent:#4f46e5;--accent-hover:#4338ca;--accent-light:#a5b4fc;
-  --text-primary:#f1f5f9;--text-secondary:#94a3b8;--text-tertiary:#475569;
-  --border-subtle:rgba(255,255,255,0.05);--border-default:rgba(255,255,255,0.09);
-  --border-accent:rgba(99,102,241,0.5);
-  --success-text:#34d399;--danger-text:#f87171;
-  --font-ui:'Plus Jakarta Sans',sans-serif;--font-data:'Geist Mono',monospace;
-  --radius-md:8px;--radius-lg:12px;
-  --dur-base:220ms;--ease-spring:cubic-bezier(0.34,1.2,0.64,1);
+  --bg:#f5f2ec;--bg2:#ede9e0;--bg3:#e4dfd4;
+  --ink: #080a0c;--ink2:#3a3832;--ink3:#6e6a62;--ink4:#a8a39a;
+  --accent:#1a4a8a;--accent-hover:#153d73;--accent-light:#3a6ab0;
+  --border:rgba(14,13,11,.1);--border2:rgba(14,13,11,.2);--border-accent:rgba(26,74,138,.35);
+  --success:#1a6b47;--success-bg:rgba(26,107,71,.09);
+  --danger:#b83232;--danger-bg:rgba(184,50,50,.08);
+  --warning:#9a6318;--warning-bg:rgba(154,99,24,.09);
+  --font-ui:'DM Sans',sans-serif;--font-data:'DM Mono',monospace;
+  --radius-md:8px;--radius-lg:12px;--radius-xl:16px;
+  --dur:220ms;--spring:cubic-bezier(0.34,1.2,0.64,1);
 }
-html,body{height:100%;font-family:var(--font-ui);background:var(--bg-base);color:var(--text-primary)}
+html,body{height:100%;font-family:var(--font-ui);background:var(--bg);color:var(--ink)}
 body{overflow-x:hidden}
 
-#top-bar{position:fixed;top:0;left:0;height:3px;width:0;background:linear-gradient(90deg,#4f46e5,#818cf8);z-index:200;border-radius:0 2px 2px 0;transition:width 1.5s cubic-bezier(0.1,0,0.3,1)}
 
+/* SHELL */
 .shell{display:flex;min-height:100vh}
 
-/* ── LEFT ── */
-.left{width:520px;flex-shrink:0;display:flex;flex-direction:column;padding:28px 56px 48px;position:relative;background:var(--bg-base);border-right:0.5px solid var(--border-subtle)}
-.left-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:40px}
-.logo{display:flex;align-items:center;gap:10px;text-decoration:none}
-.logo-mark{width:30px;height:30px;background:var(--accent);border-radius:7px;display:flex;align-items:center;justify-content:center}
-.logo-mark i{font-size:15px;color:#fff}
-.logo-text{font-size:14px;font-weight:800;color:var(--text-primary);letter-spacing:.02em}
-.back-link{font-size:12px;color:var(--text-tertiary);text-decoration:none;display:flex;align-items:center;gap:4px;transition:color var(--dur-base) ease}
-.back-link:hover{color:var(--text-secondary)}
 
-/* ── STEPS ── */
+/* LEFT */
+.left{width:100%;flex-shrink:0;display:flex;align-items:center;flex-direction:column;padding:28px 56px 48px;background:var(--bg);border-right:0.5px solid var(--border2);overflow-y:auto}
+
+
+/* STEPS */
 .steps{display:flex;align-items:center;gap:0;margin-bottom:36px}
-.step{display:flex;align-items:center;gap:8px}
-.step-circle{width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;transition:all var(--dur-base) ease;flex-shrink:0}
-.step-circle.done{background:var(--accent);color:#fff}
-.step-circle.active{background:var(--accent);color:#fff;box-shadow:0 0 0 3px rgba(99,102,241,0.2)}
-.step-circle.pending{background:var(--bg-elevated);color:var(--text-tertiary);border:0.5px solid var(--border-default)}
-.step-label{font-size:11px;font-weight:600;color:var(--text-tertiary);transition:color var(--dur-base) ease}
-.step-label.active{color:var(--text-primary)}
-.step-line{flex:1;height:0.5px;background:var(--border-subtle);margin:0 12px;min-width:20px}
-.step-line.done{background:var(--accent);opacity:.4}
+.step{display:flex;align-items:center;gap:50px}
+.step-circle{width:40px;height:40px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;transition:all var(--dur) ease;flex-shrink:0}
+.step-circle.active{background:var(--ink);color:var(--bg);box-shadow:0 0 0 3px rgba(14,13,11,0.12)}
+.step-circle.pending{background:var(--bg3);color:var(--ink4);border:0.5px solid var(--border2)}
+.step-label{font-size:11px;font-weight:600;color:var(--ink4)}
+.step-label.active{color:var(--ink)}
+.step-line{flex:1;height:0.5px;background:var(--border);margin:0 12px;min-width:24px;transition:background .4s ease}
 
-/* ── FORM ── */
+/* HEADINGS */
 .form-eyebrow{font-size:11px;font-weight:700;letter-spacing:.08em;color:var(--accent-light);text-transform:uppercase;margin-bottom:10px}
-.form-title{font-size:26px;font-weight:900;letter-spacing:-.02em;line-height:1.15;margin-bottom:6px;color:var(--text-primary)}
-.form-sub{font-size:13px;color:var(--text-secondary);margin-bottom:28px;line-height:1.6}
+.form-title{font-size:26px;font-weight:900;letter-spacing:-.02em;line-height:1.15;margin-bottom:6px;color:var(--ink)}
+.form-sub{font-size:13px;color:var(--ink3);margin-bottom:28px;line-height:1.6}
 
+/* FIELDS */
+.section-label{font-size:10px;font-weight:700;letter-spacing:.08em;color:var(--ink4);text-transform:uppercase;margin-bottom:10px}
 .field{display:flex;flex-direction:column;gap:5px;margin-bottom:14px}
-.field label{font-size:11px;font-weight:700;color:var(--text-tertiary);letter-spacing:.05em;text-transform:uppercase}
+.field label{font-size:11px;font-weight:700;color:var(--ink3);letter-spacing:.05em;text-transform:uppercase}
 .field-wrap{position:relative}
-.field-wrap i.fi{position:absolute;left:13px;top:50%;transform:translateY(-50%);font-size:15px;color:var(--text-tertiary);transition:color var(--dur-base) ease;pointer-events:none}
-.field-wrap input{
-  width:100%;background:var(--bg-card);
-  border:0.5px solid var(--border-default);
-  border-radius:var(--radius-md);
-  padding:11px 14px 11px 38px;
-  font-size:13px;font-family:var(--font-ui);
-  color:var(--text-primary);outline:none;
-  transition:border-color var(--dur-base) ease,box-shadow var(--dur-base) ease,background var(--dur-base) ease;
-}
-.field-wrap input::placeholder{color:#334155}
-.field-wrap input:hover{border-color:rgba(255,255,255,0.16)}
-.field-wrap input:focus{border-color:var(--border-accent);box-shadow:0 0 0 3px rgba(99,102,241,0.12);background:var(--bg-elevated)}
+.field-wrap i.fi{position:absolute;left:13px;top:50%;transform:translateY(-50%);font-size:15px;color:var(--ink4);transition:color var(--dur) ease;pointer-events:none}
+.field-wrap input{width:100%;background:#fff;border:0.5px solid var(--border2);border-radius:var(--radius-md);padding:11px 14px 11px 38px;font-size:13px;font-family:var(--font-ui);color:var(--ink);outline:none;transition:border-color var(--dur) ease,box-shadow var(--dur) ease,background var(--dur) ease}
+.field-wrap input::placeholder{color:var(--ink4)}
+.field-wrap input:hover{border-color:rgba(14,13,11,.3)}
+.field-wrap input:focus{border-color:var(--border-accent);box-shadow:0 0 0 3px rgba(26,74,138,.08);background:#fff}
 .field-wrap:focus-within i.fi{color:var(--accent-light)}
-.field-wrap input.error{border-color:rgba(239,68,68,0.5);box-shadow:0 0 0 3px rgba(239,68,68,0.08)}
-.field-wrap input.valid{border-color:rgba(16,185,129,0.4)}
-.field-hint{font-size:11px;color:var(--text-tertiary);margin-top:3px}
-.pw-toggle{position:absolute;right:12px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:var(--text-tertiary);font-size:15px;padding:2px;transition:color var(--dur-base) ease}
-.pw-toggle:hover{color:var(--text-secondary)}
-.field-row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.field-wrap input.error{border-color:rgba(184,50,50,.4);box-shadow:0 0 0 3px rgba(184,50,50,.07)}
+.field-hint{font-size:11px;color:var(--ink4);margin-top:3px}
 
-/* ── PASSWORD STRENGTH ── */
-.pw-strength{margin-top:6px}
-.pw-bars{display:flex;gap:3px;margin-bottom:4px}
-.pw-bar{flex:1;height:3px;border-radius:2px;background:rgba(255,255,255,0.06);transition:background .3s ease}
-.pw-label{font-size:10px;color:var(--text-tertiary);transition:color .3s ease}
+/* TEXTAREA */
+.field-wrap textarea{width:100%;background:#fff;border:0.5px solid var(--border2);border-radius:var(--radius-md);padding:12px 14px;font-size:13px;font-family:var(--font-ui);color:var(--ink);outline:none;transition:border-color var(--dur) ease,box-shadow var(--dur) ease;resize:vertical;min-height:90px;line-height:1.6}
+.field-wrap textarea::placeholder{color:var(--ink4)}
+.field-wrap textarea:hover{border-color:rgba(14,13,11,.3)}
+.field-wrap textarea:focus{border-color:var(--border-accent);box-shadow:0 0 0 3px rgba(26,74,138,.08)}
 
-/* ── ALERT ── */
-.alert{display:none;align-items:center;gap:8px;padding:10px 14px;border-radius:var(--radius-md);font-size:12px;margin-bottom:14px;border:0.5px solid rgba(239,68,68,0.25);background:rgba(239,68,68,0.08);color:var(--danger-text)}
+/* CATEGORY TILES */
+.cat-grid{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-top:10px;margin-bottom:6px}
+.cat-tile{display:flex;align-items:center;gap:10px;padding:10px 13px;border-radius:var(--radius-md);border:0.5px solid var(--border2);background:#fff;cursor:pointer;transition:all var(--dur) ease;user-select:none}
+.cat-tile:hover{border-color:rgba(14,13,11,.3);background:var(--bg2)}
+.cat-tile.selected{border:1.5px solid var(--ink);background:var(--bg2)}
+.cat-icon{width:28px;height:28px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0;transition:background var(--dur) ease}
+.cat-label{font-size:12px;font-weight:600;color:var(--ink3);transition:color var(--dur) ease;line-height:1.3}
+.cat-tile.selected .cat-label{color:var(--ink)}
+.cat-tile.selected .cat-icon{background:rgba(14,13,11,.07)!important}
+
+/* CHANNEL / SOURCING PILLS */
+.pill-row{display:flex;flex-wrap:wrap;gap:7px;margin-top:8px}
+.pill{display:inline-flex;align-items:center;gap:6px;padding:8px 14px;border-radius:20px;border:0.5px solid var(--border2);background:#fff;cursor:pointer;font-size:12px;font-weight:600;color:var(--ink3);transition:all var(--dur) ease;user-select:none}
+.pill:hover{border-color:rgba(14,13,11,.3);color:var(--ink);background:var(--bg2)}
+.pill.selected{border:1.5px solid var(--ink);background:var(--bg2);color:var(--ink)}
+.pill i{font-size:13px}
+
+/* DIVIDER */
+.divider{height:0.5px;background:var(--border);margin:20px 0}
+
+/* ALERT */
+.alert{display:none;align-items:center;gap:8px;padding:10px 14px;border-radius:var(--radius-md);font-size:12px;margin-bottom:14px;border:0.5px solid rgba(184,50,50,.25);background:var(--danger-bg);color:var(--danger)}
 .alert.show{display:flex}
 .alert i{font-size:15px;flex-shrink:0}
 
-/* ── PANELS ── */
-.panel{display:none}
-.panel.active{display:block}
-
-/* ── BUTTON ── */
-.btn-row{display:flex;gap:10px;margin-top:6px}
-.btn-submit{
-  flex:1;padding:12px;border-radius:var(--radius-md);
-  background:var(--accent);color:#fff;
-  font-size:13px;font-weight:700;font-family:var(--font-ui);
-  border:none;cursor:pointer;
-  display:flex;align-items:center;justify-content:center;gap:8px;
-  transition:background var(--dur-base) ease,transform 180ms var(--ease-spring),box-shadow var(--dur-base) ease;
-}
-.btn-submit:hover{background:var(--accent-hover);transform:translateY(-1px);box-shadow:0 6px 20px rgba(79,70,229,0.35)}
-.btn-submit:active{transform:scale(0.98);transition:all 80ms ease}
-.btn-submit.loading{opacity:.8;cursor:wait;transform:none;box-shadow:none}
-.btn-submit.success{background:#059669}
-.btn-back{padding:12px 16px;border-radius:var(--radius-md);background:transparent;color:var(--text-secondary);font-size:13px;font-weight:600;font-family:var(--font-ui);border:0.5px solid var(--border-default);cursor:pointer;transition:all var(--dur-base) ease}
-.btn-back:hover{color:var(--text-primary);border-color:var(--border-strong);background:rgba(255,255,255,0.03)}
+/* BUTTONS */
+.btn-row{display:flex;gap:8px;align-items:center;margin-top:20px}
+.btn-primary{display:inline-flex;align-items:center;justify-content:center;gap:7px;padding:11px 20px;border-radius:var(--radius-md);background:var(--ink);color:var(--bg);font-size:13px;font-weight:700;font-family:var(--font-ui);border:none;cursor:pointer;transition:opacity var(--dur) ease,transform 180ms var(--spring),box-shadow var(--dur) ease}
+.btn-primary:hover{opacity:.82;transform:translateY(-1px);box-shadow:0 6px 20px rgba(14,13,11,.15)}
+.btn-primary:active{transform:scale(0.97);transition:all 80ms ease}
+.btn-primary.loading{opacity:.6;cursor:wait;transform:none;box-shadow:none}
+.btn-primary.flex-1{flex:1}
+.btn-secondary{display:inline-flex;align-items:center;gap:6px;padding:11px 16px;border-radius:var(--radius-md);background:transparent;color:var(--ink3);font-size:13px;font-weight:600;font-family:var(--font-ui);border:0.5px solid var(--border2);cursor:pointer;transition:all var(--dur) ease}
+.btn-secondary:hover{color:var(--ink);border-color:rgba(14,13,11,.35);background:var(--bg2)}
 
 @keyframes spin{to{transform:rotate(360deg)}}
-.spinner{width:15px;height:15px;border:2px solid rgba(255,255,255,0.2);border-top-color:#fff;border-radius:50%;animation:spin .7s linear infinite;flex-shrink:0}
+.spinner{width:14px;height:14px;border:2px solid rgba(245,242,236,.3);border-top-color:var(--bg);border-radius:50%;animation:spin .7s linear infinite;flex-shrink:0}
 
-.form-link{font-size:12px;color:var(--text-secondary);text-align:center;margin-top:20px}
-.form-link a{color:var(--accent-light);text-decoration:none;font-weight:600;transition:color var(--dur-base) ease}
-.form-link a:hover{color:#c7d2fe}
 
-/* ── RIGHT ── */
-.right{flex:1;background:var(--bg-surface);position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;overflow:hidden;gap:28px}
-.right-grid{position:absolute;inset:0;background-image:linear-gradient(rgba(99,102,241,0.04) 1px,transparent 1px),linear-gradient(90deg,rgba(99,102,241,0.04) 1px,transparent 1px);background-size:48px 48px;mask-image:radial-gradient(ellipse at center,black 20%,transparent 75%)}
-.right-glow{position:absolute;top:40%;left:50%;transform:translate(-50%,-50%);width:500px;height:400px;background:radial-gradient(ellipse,rgba(79,70,229,0.1) 0%,transparent 70%);pointer-events:none}
-
-/* ── FEATURE LIST ── */
-.features{position:relative;z-index:1;display:flex;flex-direction:column;gap:14px;max-width:300px}
-.feat-item{display:flex;align-items:flex-start;gap:12px}
-.feat-icon{width:34px;height:34px;border-radius:8px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
-.feat-icon i{font-size:17px}
-.feat-content{}
-.feat-title{font-size:13px;font-weight:700;color:var(--text-primary);margin-bottom:2px}
-.feat-desc{font-size:11px;color:var(--text-tertiary);line-height:1.5}
-
-/* ── MINI PROGRESS ── */
-.right-title{position:relative;z-index:1;text-align:center}
-.rt-badge{display:inline-flex;align-items:center;gap:6px;background:rgba(99,102,241,0.1);border:0.5px solid rgba(99,102,241,0.2);border-radius:20px;padding:4px 12px;font-size:11px;font-weight:600;color:var(--accent-light);margin-bottom:12px}
-.rt-text{font-size:18px;font-weight:800;color:var(--text-primary);letter-spacing:-.01em;line-height:1.3}
-
-/* ── ANIMATIONS ── */
+/* ANIMATIONS */
 @keyframes fade-up{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:translateY(0)}}
-@keyframes panel-in{from{opacity:0;transform:translateX(12px)}to{opacity:1;transform:translateX(0)}}
 .anim{opacity:0;animation:fade-up .5s ease forwards}
 .d1{animation-delay:.05s}.d2{animation-delay:.12s}.d3{animation-delay:.2s}
 .d4{animation-delay:.28s}.d5{animation-delay:.36s}.d6{animation-delay:.44s}
-.panel.active{animation:panel-in .3s ease forwards}
+.d7{animation-delay:.52s}.d8{animation-delay:.6s}
+
+/* STEP PANELS */
+.step-panel{display:none}
+.step-panel.active{display:block}
+
+/* VKN hint */
+.vkn-hint{font-size:11px;color:var(--ink4);margin-top:3px;font-family:var(--font-data)}
+
+.nav-inner{
+  width:10%;display:flex;justify-content:start;
+  position:fixed;top:0;left:0;right:0;z-index:100;
+  height:62px;padding:0 40px;
+  background:rgba(245,242,236,.92);backdrop-filter:blur(16px);
+  border-bottom:0.5px solid var(--border);
+}
+.nav-logo{display:flex;align-items:center;gap:10px;text-decoration:none}
+.nav-logo-mark{
+  width:32px;height:32px;background:var(--ink);
+  border-radius:8px;display:flex;align-items:center;justify-content:center;
+}
+.nav-logo-mark i{font-size:16px;color:var(--accent-inv)}
+.nav-logo-text{
+  font-family:var(--font-data);font-size:15px;
+  font-weight:500;color:var(--ink);letter-spacing:.06em;
+}
 </style>
 </head>
 <body>
 
-<div id="top-bar"></div>
 
 <div class="shell">
 
+  <div class="nav-inner">
+    <a href="/" class="nav-logo">
+      <div class="nav-logo-mark"><i class="ti ti-bolt" aria-hidden="true"></i></div>
+      <span class="nav-logo-text">KUMANDA</span>
+    </a>
+  </div>
+
   <!-- LEFT -->
   <div class="left">
-    <div class="left-top">
-      <a href="/" class="logo">
-        <div class="logo-mark"><i class="ti ti-bolt"></i></div>
-        <span class="logo-text">KUMANDA</span>
-      </a>
-      <a href="/" class="back-link"><i class="ti ti-arrow-left" style="font-size:13px"></i> Ana sayfa</a>
-    </div>
 
     <!-- STEPS -->
     <div class="steps anim d1">
       <div class="step">
-        <div class="step-circle active" id="step1-circle">1</div>
-        <span class="step-label active" id="step1-label">Firma bilgileri</span>
+        <div class="step-circle active" id="sc1">1</div>
+        <span class="step-label active" id="sl1">Bilgiler</span>
       </div>
       <div class="step-line" id="line1"></div>
       <div class="step">
-        <div class="step-circle pending" id="step2-circle">2</div>
-        <span class="step-label" id="step2-label">Hesap bilgileri</span>
+        <div class="step-circle pending" id="sc2">2</div>
+        <span class="step-label" id="sl2">İşletme</span>
       </div>
       <div class="step-line" id="line2"></div>
       <div class="step">
-        <div class="step-circle pending" id="step3-circle"><i class="ti ti-check" style="font-size:11px"></i></div>
-        <span class="step-label" id="step3-label">Hazır</span>
+        <div class="step-circle pending" id="sc3">3</div>
+        <span class="step-label" id="sl3">Entegrasyon</span>
       </div>
     </div>
 
-    <div id="alertBox" class="alert anim d2"><i class="ti ti-alert-circle"></i><span id="alertText"></span></div>
+    <!-- STEP 1: Basic Info -->
+    <div class="step-panel active" id="panel1">
+      <h2 class="form-title anim d3">Şirket Bilgileriniz</h2>
+      <p class="form-sub anim d4">Hesabınızı oluşturmak için temel bilgileri girin. Bunlar fatura ve raporlarınızda kullanılacak.</p>
 
-    <!-- PANEL 1: FIRMA -->
-    <div class="panel active" id="panel1">
-      <div class="form-eyebrow anim d2">Adım 1 / 2</div>
-      <h2 class="form-title anim d3">Firmanızı<br>tanıtalım</h2>
-      <p class="form-sub anim d4">Firma adı ve iletişim bilgilerinizi girin.</p>
+      <div id="alert1" class="alert anim d4"><i class="ti ti-alert-circle"></i><span id="alert1Text"></span></div>
 
-      <div class="field anim d4">
+
+      <div class="field anim d5">
         <label>Şirket Adı</label>
         <div class="field-wrap">
-          <input type="text" id="companyName" placeholder="İnokas Bilişim Ltd. Şti." autocomplete="organization">
           <i class="ti ti-building fi"></i>
+          <input type="text" id="companyName" placeholder="İnokas Bilgi Sistemleri Ltd. Şti.">
         </div>
       </div>
 
-      <div class="field-row anim d5">
-        <div class="field">
-          <label>Ad</label>
-          <div class="field-wrap">
-            <input type="text" id="firstName" placeholder="Erdem" autocomplete="given-name">
-            <i class="ti ti-user fi"></i>
-          </div>
-        </div>
-        <div class="field">
-          <label>Soyad</label>
-          <div class="field-wrap">
-            <input type="text" id="lastName" placeholder="Gökalp" autocomplete="family-name">
-            <i class="ti ti-user fi"></i>
-          </div>
-        </div>
-      </div>
-
-      <div class="btn-row anim d6">
-        <button class="btn-submit" onclick="goToStep2()">
-          <span>Devam Et</span>
-          <i class="ti ti-arrow-right"></i>
-        </button>
-      </div>
-
-      <div class="form-link anim d6">Zaten hesabınız var mı? <a href="/auth/login.html">Giriş yapın</a></div>
-    </div>
-
-    <!-- PANEL 2: HESAP -->
-    <div class="panel" id="panel2">
-      <div class="form-eyebrow">Adım 2 / 2</div>
-      <h2 class="form-title">Hesap<br>bilgileriniz</h2>
-      <p class="form-sub">Giriş için kullanacağınız e-posta ve şifrenizi belirleyin.</p>
-
-      <div class="field">
-        <label>E-posta</label>
+      <div class="field anim d5">
+        <label>Vergi Kimlik No (VKN)</label>
         <div class="field-wrap">
-          <input type="email" id="email" placeholder="ornek@firma.com" autocomplete="email">
+          <i class="ti ti-id fi"></i>
+          <input type="text" id="vkn"  maxlength="10" style="font-family:var(--font-data);font-size:12px">
+        </div>
+        <div class="vkn-hint">10 haneli vergi kimlik numaranız</div>
+      </div>
+
+      <div class="field anim d6">
+        <label>E-posta Adresi</label>
+        <div class="field-wrap">
           <i class="ti ti-mail fi"></i>
+          <input type="email" id="email" placeholder="info@sirket.com">
         </div>
       </div>
 
-      <div class="field">
+      <div class="field anim d6">
         <label>Şifre</label>
         <div class="field-wrap">
-          <input type="password" id="password" placeholder="••••••••" autocomplete="new-password" oninput="checkStrength(this.value)">
-          <i class="ti ti-lock fi"></i>
-          <button class="pw-toggle" onclick="togglePw('password','eye1')" type="button" aria-label="Şifreyi göster">
-            <i class="ti ti-eye" id="eye1"></i>
-          </button>
-        </div>
-        <div class="pw-strength">
-          <div class="pw-bars">
-            <div class="pw-bar" id="bar1"></div>
-            <div class="pw-bar" id="bar2"></div>
-            <div class="pw-bar" id="bar3"></div>
-            <div class="pw-bar" id="bar4"></div>
-          </div>
-          <div class="pw-label" id="pw-label">En az 8 karakter</div>
+          <i class="ti ti-password fi"></i>
+          <input type="password" id="password" placeholder="***">
         </div>
       </div>
-
-      <div class="field">
+      <div class="field anim d6">
         <label>Şifre Tekrar</label>
         <div class="field-wrap">
-          <input type="password" id="passwordConfirm" placeholder="••••••••" autocomplete="new-password">
+          <i class="ti ti-password fi"></i>
+          <input type="password" id="password-repeat" placeholder="***">
+        </div>
+      </div>
+
+      <div class="btn-row anim d7">
+        <button class="btn-secondary" onclick="window.location.href='../landing.html'">
+          <i class="ti ti-arrow-left"></i>Ana Sayfa
+        </button>
+
+        <button class="btn-primary flex-1" id="step1Btn" onclick="goStep2()">
+          <span id="step1BtnText">Devam Et</span>
+          <i class="ti ti-arrow-right" id="step1BtnIcon"></i>
+        </button>
+      </div>
+
+
+
+    </div>
+
+    <!-- STEP 2: Business Profile -->
+    <div class="step-panel" id="panel2">
+      <h2 class="form-title anim d3">İşletmenizi<br>tanıyalım</h2>
+      <p class="form-sub anim d4">Bu bilgiler, faturalarınızı otomatik sınıflandırmak için kullanılır. Ne kadar detaylı olursa o kadar doğru çalışır.</p>
+
+      <div id="alert2" class="alert anim d4"><i class="ti ti-alert-circle"></i><span id="alert2Text"></span></div>
+
+      <!-- Q1: What do you sell -->
+      <div class="field anim d5">
+        <label>Ne satıyorsunuz?</label>
+        <div class="field-wrap">
+          <textarea id="businessSummary" placeholder="Ör: Epson yazıcı, tarayıcı ve sarf malzemeleri (mürekkep, toner, kartuş) satıyoruz. Ayrıca laptop ve BT donanımı tedariki yapıyoruz."></textarea>
+        </div>
+        <div class="field-hint">Sattığınız ürün veya hizmetleri kısaca anlatın</div>
+      </div>
+
+      <!-- Category tiles -->
+      <div class="section-label anim d5" style="margin-top:4px">Ana Kategori <span style="color:var(--text-tertiary);font-weight:400;text-transform:none;font-size:10px">(birden fazla seçebilirsiniz)</span></div>
+      <div class="cat-grid anim d5">
+        <div class="cat-tile" data-cat="Elektronik & Bilişim" onclick="toggleCat(this)">
+          <div class="cat-icon" style="background:rgba(26,74,138,0.08)"><i class="ti ti-device-laptop" style="color:#1a4a8a"></i></div>
+          <span class="cat-label">Elektronik & Bilişim</span>
+        </div>
+        <div class="cat-tile" data-cat="Gıda & İçecek" onclick="toggleCat(this)">
+          <div class="cat-icon" style="background:rgba(26,107,71,0.09)"><i class="ti ti-salad" style="color:#1a6b47"></i></div>
+          <span class="cat-label">Gıda & İçecek</span>
+        </div>
+        <div class="cat-tile" data-cat="Tekstil & Giyim" onclick="toggleCat(this)">
+          <div class="cat-icon" style="background:rgba(154,99,24,0.09)"><i class="ti ti-shirt" style="color:#9a6318"></i></div>
+          <span class="cat-label">Tekstil & Giyim</span>
+        </div>
+        <div class="cat-tile" data-cat="İnşaat & Yapı" onclick="toggleCat(this)">
+          <div class="cat-icon" style="background:rgba(154,80,24,0.09)"><i class="ti ti-building-factory" style="color:#9a5018"></i></div>
+          <span class="cat-label">İnşaat & Yapı</span>
+        </div>
+        <div class="cat-tile" data-cat="Makine & Ekipman" onclick="toggleCat(this)">
+          <div class="cat-icon" style="background:rgba(14,13,11,0.06)"><i class="ti ti-settings" style="color:#6e6a62"></i></div>
+          <span class="cat-label">Makine & Ekipman</span>
+        </div>
+        <div class="cat-tile" data-cat="Medikal & Sağlık" onclick="toggleCat(this)">
+          <div class="cat-icon" style="background:rgba(184,50,50,0.08)"><i class="ti ti-heart-rate-monitor" style="color:#b83232"></i></div>
+          <span class="cat-label">Medikal & Sağlık</span>
+        </div>
+        <div class="cat-tile" data-cat="Hizmet" onclick="toggleCat(this)">
+          <div class="cat-icon" style="background:rgba(100,80,180,0.08)"><i class="ti ti-briefcase" style="color:#6450b4"></i></div>
+          <span class="cat-label">Hizmet</span>
+        </div>
+        <div class="cat-tile" data-cat="Diğer" onclick="toggleCat(this)">
+          <div class="cat-icon" style="background:rgba(14,13,11,0.06)"><i class="ti ti-dots" style="color:#a8a39a"></i></div>
+          <span class="cat-label">Diğer</span>
+        </div>
+      </div>
+
+      <div class="divider anim d6"></div>
+
+      <!-- Q2: Sales channel -->
+      <div class="section-label anim d6">Kime satıyorsunuz?</div>
+      <div class="pill-row anim d6">
+        <div class="pill" data-group="channel" data-val="B2B" onclick="togglePill(this)">
+          <i class="ti ti-building"></i> Diğer firmalara (B2B)
+        </div>
+        <div class="pill" data-group="channel" data-val="B2C" onclick="togglePill(this)">
+          <i class="ti ti-user"></i> Son tüketiciye (B2C)
+        </div>
+        <div class="pill" data-group="channel" data-val="Kamu" onclick="togglePill(this)">
+          <i class="ti ti-school"></i> Kamu kurumlarına
+        </div>
+      </div>
+
+      <div class="divider anim d7"></div>
+
+      <!-- Q3: Sourcing -->
+      <div class="section-label anim d7">Ürünlerinizi nereden temin ediyorsunuz?</div>
+      <div class="pill-row anim d7">
+        <div class="pill" data-group="sourcing" data-val="domestic" onclick="togglePill(this)">
+          <i class="ti ti-map-pin"></i> Yurt içi tedarikçi
+        </div>
+        <div class="pill" data-group="sourcing" data-val="import" onclick="togglePill(this)">
+          <i class="ti ti-world"></i> İthalat
+        </div>
+        <div class="pill" data-group="sourcing" data-val="manufacturing" onclick="togglePill(this)">
+          <i class="ti ti-tool"></i> Kendi üretimimiz
+        </div>
+      </div>
+
+      <div class="btn-row anim d8">
+        <button class="btn-secondary" onclick="showStep(1)">
+          <i class="ti ti-arrow-left"></i> Geri
+        </button>
+        <button class="btn-primary flex-1" id="step2Btn" onclick="goStep3()">
+          <span id="step2BtnText">Devam Et</span>
+          <i class="ti ti-arrow-right" id="step2BtnIcon"></i>
+        </button>
+      </div>
+    </div>
+
+    <!-- STEP 3: Integration -->
+    <div class="step-panel" id="panel3">
+      <h2 class="form-title anim d3">E-Fatura<br>entegrasyonu</h2>
+      <p class="form-sub anim d4">Servis sağlayıcınızı seçin ve bilgilerinizi girin. Faturalarınız otomatik senkronize edilmeye başlar.</p>
+
+      <div id="alert3" class="alert anim d4"><i class="ti ti-alert-circle"></i><span id="alert3Text"></span></div>
+
+      <!-- PROVIDER GRID -->
+      <div class="section-label anim d4">Servis Sağlayıcı</div>
+      <div class="provider-grid anim d5" style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:24px">
+        <div class="cat-tile selected" id="providerLogo" onclick="selectProvider('logo')" style="min-height:64px">
+          <div class="cat-icon" style="background:rgba(26,74,138,0.08)"><i class="ti ti-cloud" style="color:#1a4a8a"></i></div>
+          <div>
+            <div style="font-size:13px;font-weight:700;color:var(--text-primary)">Logo (İşbaşı)</div>
+          </div>
+        </div>
+        <div class="cat-tile" id="providerElogo" onclick="selectProvider('elogo')" style="min-height:64px">
+          <div class="cat-icon" style="background:rgba(100,80,180,0.08)"><i class="ti ti-database" style="color:#6450b4"></i></div>
+          <div>
+            <div style="font-size:13px;font-weight:700;color:var(--text-primary)">eLogo</div>
+          </div>
+        </div>
+
+      <!-- Logo REST -->
+      <div id="logoRestFields" class="anim d6">
+        <div class="field">
+          <label>API Base URL</label>
+          <div class="field-wrap">
+            <i class="ti ti-link fi"></i>
+            <input type="url" id="baseUrl" placeholder="https://efatura.logo.com.tr">
+          </div>
+
+          <label>API Key</label>
+          <div class="field-wrap">
+            <i class="ti ti-key fi"></i>
+            <input type="text" id="apiKey" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" style="font-family:var(--font-data);font-size:12px">
+          </div>
+        </div>
+      </div>
+
+      <!-- SOAP -->
+      <div id="elogoFields" style="display:none" class="anim d6">
+        <div class="field">
+          <label>Servis URL</label>
+          <div class="field-wrap">
+            <i class="ti ti-link fi"></i>
+            <input type="url" id="serviceUrl" placeholder="https://pb.elogo.com.tr/PostBoxService.svc">
+          </div>
+        </div>
+      </div>
+
+      <!-- Common -->
+      <div class="field anim d6">
+        <label>Kullanıcı Adı</label>
+        <div class="field-wrap">
+          <i class="ti ti-user fi"></i>
+          <input type="text" id="intUsername" placeholder="kullanici@sirket.com" autocomplete="off">
+        </div>
+        <label>Şifre</label>
+        <div class="field-wrap">
           <i class="ti ti-lock fi"></i>
-          <button class="pw-toggle" onclick="togglePw('passwordConfirm','eye2')" type="button" aria-label="Şifreyi göster">
-            <i class="ti ti-eye" id="eye2"></i>
+          <input type="password" id="intPassword" placeholder="••••••••" autocomplete="new-password">
+          <button style="position:absolute;right:12px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:var(--text-tertiary);font-size:15px;padding:2px" onclick="togglePw()" type="button">
+            <i class="ti ti-eye" id="pw-eye"></i>
           </button>
         </div>
       </div>
 
-      <div class="btn-row">
-        <button class="btn-back" onclick="goToStep1()"><i class="ti ti-arrow-left" style="font-size:14px"></i></button>
-        <button class="btn-submit" id="signupBtn" onclick="handleSignup()">
-          <i class="ti ti-rocket" id="btn-icon"></i>
-          <span id="btn-text">Hesap Oluştur</span>
+      <!-- Test result -->
+      <div id="testResult" style="display:none;align-items:center;gap:10px;padding:12px 14px;border-radius:var(--radius-md);font-size:12px;margin-bottom:14px;border:0.5px solid var(--border-default)">
+        <i class="ti ti-circle-check" style="font-size:16px;flex-shrink:0"></i>
+        <span id="testResultText"></span>
+      </div>
+
+      <div class="btn-row anim d8">
+        <button class="btn-secondary" onclick="goStep2()">
+          <i class="ti ti-arrow-left"></i> Geri
+        </button>
+        <button class="btn-primary flex-1" id="testBtn" onclick="testConnection()">
+          <i class="ti ti-plug" id="test-icon"></i>
+          <span id="test-text">Bağlantıyı Test Et</span>
+        </button>
+        <button class="btn-primary flex-1" id="saveBtn" onclick="saveIntegration()" style="display:none;background:#1a6b47">
+          <i class="ti ti-check" id="save-icon"></i>
+          <span id="save-text">Kaydet ve Başlat</span>
         </button>
       </div>
     </div>
 
   </div>
 
-  <!-- RIGHT -->
-  <div class="right">
-    <div class="right-grid"></div>
-    <div class="right-glow"></div>
-
-    <div class="right-title">
-      <div class="rt-badge"><i class="ti ti-sparkles"></i> 14 gün ücretsiz</div>
-      <div class="rt-text">Birkaç dakika içinde<br>hazır olun</div>
-    </div>
-
-    <div class="features">
-      <div class="feat-item">
-        <div class="feat-icon" style="background:rgba(99,102,241,0.1)"><i class="ti ti-plug" style="color:#a5b4fc"></i></div>
-        <div class="feat-content">
-          <div class="feat-title">Kolay entegrasyon</div>
-          <div class="feat-desc">eLogo, Logo ve İşbaşı ile tek tıkla bağlanın. Teknik bilgi gerekmez.</div>
-        </div>
-      </div>
-      <div class="feat-item">
-        <div class="feat-icon" style="background:rgba(16,185,129,0.1)"><i class="ti ti-refresh" style="color:#34d399"></i></div>
-        <div class="feat-content">
-          <div class="feat-title">Otomatik senkronizasyon</div>
-          <div class="feat-desc">Faturalarınız her 10 dakikada bir otomatik güncellenir.</div>
-        </div>
-      </div>
-      <div class="feat-item">
-        <div class="feat-icon" style="background:rgba(139,92,246,0.1)"><i class="ti ti-brain" style="color:#c4b5fd"></i></div>
-        <div class="feat-content">
-          <div class="feat-title">AI Asistan</div>
-          <div class="feat-desc">Türkçe sorular sorun, verilerinizden anında içgörüler alın.</div>
-        </div>
-      </div>
-      <div class="feat-item">
-        <div class="feat-icon" style="background:rgba(245,158,11,0.1)"><i class="ti ti-shield-check" style="color:#fbbf24"></i></div>
-        <div class="feat-content">
-          <div class="feat-title">Güvenli & izole</div>
-          <div class="feat-desc">Verileriniz şifreli saklanır. Her firma tamamen izole çalışır.</div>
-        </div>
-      </div>
-    </div>
-  </div>
 
 </div>
 
 <script>
-if(sessionStorage.getItem('inokas_token')) window.location.href='/chat';
-document.addEventListener('keydown',e=>{ if(e.key==='Enter'){ const p1=document.getElementById('panel1'); if(p1.classList.contains('active')) goToStep2(); else handleSignup(); } });
+// ── STATE ──────────────────────────────────────────────
+const state = {
+  step: 1,
+  companyName: '',
+  vkn: '',
+  email: '',
+  password:'',
+  businessSummary: '',
+  businessCategories: [],
+  salesChannel: [],
+  sourcingType: [],
+  intProvider: 'logo',
+  intTested: false,
+};
 
-window.addEventListener('load',()=>{
-  const bar=document.getElementById('top-bar');
-  bar.style.width='35%';
-  setTimeout(()=>{bar.style.opacity='0';bar.style.transition='opacity .3s ease';},600);
+
+// ── INIT ───────────────────────────────────────────────
+window.addEventListener('load', () => {
+
 });
 
-function togglePw(inputId,eyeId){
-  const inp=document.getElementById(inputId);
-  const eye=document.getElementById(eyeId);
-  const show=inp.type==='password';
-  inp.type=show?'text':'password';
-  eye.className=show?'ti ti-eye-off':'ti ti-eye';
-}
+// ── STEP NAVIGATION ────────────────────────────────────
+function showStep(n) {
+  state.step = n;
+  document.querySelectorAll('.step-panel').forEach(p => p.classList.remove('active'));
+  document.getElementById('panel' + n).classList.add('active');
 
-function checkStrength(val){
-  const bars=[document.getElementById('bar1'),document.getElementById('bar2'),document.getElementById('bar3'),document.getElementById('bar4')];
-  const label=document.getElementById('pw-label');
-  const colors=['#ef4444','#f59e0b','#3b82f6','#10b981'];
-  const labels=['Çok zayıf','Zayıf','İyi','Güçlü'];
-  let score=0;
-  if(val.length>=8) score++;
-  if(/[A-Z]/.test(val)) score++;
-  if(/[0-9]/.test(val)) score++;
-  if(/[^A-Za-z0-9]/.test(val)) score++;
-  bars.forEach((b,i)=>{
-    b.style.background=i<score?colors[Math.max(0,score-1)]:'rgba(255,255,255,0.06)';
+  // Animate panel in
+  const panel = document.getElementById('panel' + n);
+  panel.querySelectorAll('.anim').forEach(el => {
+    el.style.animation = 'none';
+    el.offsetHeight; // reflow
+    el.style.animation = '';
   });
-  label.textContent=val.length===0?'En az 8 karakter':labels[Math.max(0,score-1)];
-  label.style.color=val.length===0?'var(--text-tertiary)':colors[Math.max(0,score-1)];
+
+  updateStepUI(n);
 }
 
-function updateSteps(step){
-  const circles=['step1-circle','step2-circle','step3-circle'];
-  const labels=['step1-label','step2-label','step3-label'];
-  const lines=['line1','line2'];
-  circles.forEach((id,i)=>{
-    const el=document.getElementById(id);
-    if(i<step-1){ el.className='step-circle done'; el.innerHTML='<i class="ti ti-check" style="font-size:11px"></i>'; }
-    else if(i===step-1){ el.className='step-circle active'; el.innerHTML=i===2?'<i class="ti ti-check" style="font-size:11px"></i>':String(i+1); }
-    else{ el.className='step-circle pending'; el.innerHTML=i===2?'<i class="ti ti-check" style="font-size:11px"></i>':String(i+1); }
-  });
-  labels.forEach((id,i)=>{
-    const el=document.getElementById(id);
-    el.className='step-label'+(i===step-1?' active':'');
-  });
-  lines.forEach((id,i)=>{
-    document.getElementById(id).className='step-line'+(i<step-1?' done':'');
-  });
-}
 
-function showError(msg){
-  const box=document.getElementById('alertBox');
-  document.getElementById('alertText').textContent=msg;
-  box.classList.add('show');
-}
-function hideError(){ document.getElementById('alertBox').classList.remove('show'); }
-
-function goToStep2(){
-  const company=document.getElementById('companyName').value.trim();
-  const first=document.getElementById('firstName').value.trim();
-  const last=document.getElementById('lastName').value.trim();
-  hideError();
-  if(!company) return showError('Şirket adı zorunlu.');
-  if(!first||!last) return showError('Ad ve soyad zorunlu.');
-  document.getElementById('panel1').classList.remove('active');
-  document.getElementById('panel2').classList.add('active');
-  updateSteps(2);
-  document.getElementById('email').focus();
-}
-
-function goToStep1(){
-  hideError();
-  document.getElementById('panel2').classList.remove('active');
-  document.getElementById('panel1').classList.add('active');
-  updateSteps(1);
-}
-
-async function handleSignup(){
-  const companyName=document.getElementById('companyName').value.trim();
-  const firstName=document.getElementById('firstName').value.trim();
-  const lastName=document.getElementById('lastName').value.trim();
-  const email=document.getElementById('email').value.trim().toLowerCase();
-  const password=document.getElementById('password').value;
-  const passwordConfirm=document.getElementById('passwordConfirm').value;
-  const btn=document.getElementById('signupBtn');
-  const icon=document.getElementById('btn-icon');
-  const text=document.getElementById('btn-text');
-  hideError();
-
-  if(!email||!email.includes('@')) return showError('Geçerli bir e-posta girin.');
-  if(!password) return showError('Şifre zorunlu.');
-  if(password.length<8) return showError('Şifre en az 8 karakter olmalı.');
-  if(password!==passwordConfirm) return showError('Şifreler eşleşmiyor.');
-
-  btn.classList.add('loading');
-  icon.className='spinner';
-  text.textContent='Hesap oluşturuluyor...';
-
-  try{
-    const res=await fetch('/api/auth/signup',{
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({company_name:companyName,first_name:firstName,last_name:lastName,email,password})
-    });
-    const data=await res.json();
-    if(!res.ok) throw new Error(data?.error||'Kayıt başarısız.');
-
-    sessionStorage.setItem('inokas_token',data.token);
-    sessionStorage.setItem('onboarding_complete','false');
-
-    btn.classList.remove('loading');
-    btn.classList.add('success');
-    icon.className='ti ti-check';
-    text.textContent='Hesap oluşturuldu!';
-    updateSteps(3);
-
-    const bar=document.getElementById('top-bar');
-    bar.style.opacity='1';
-    bar.style.transition='width 1.5s cubic-bezier(0.1,0,0.3,1)';
-    bar.style.width='100%';
-
-    setTimeout(()=>window.location.replace('/auth/onboarding.html'),800);
-
-  } catch(err){
-    showError(err.message);
-    btn.classList.remove('loading');
-    icon.className='ti ti-rocket';
-    text.textContent='Hesap Oluştur';
+function updateStepUI(n) {
+  for (let i = n+1; i <= 3; i++) {
+    const circle = document.getElementById('sc' + i);
+    const label = document.getElementById('sl' + i);
+    circle.className = 'step-circle ' + 'pending' ;
+    label.className = 'step-label' + 'pending' ;
+  }
+  for (let j = 1; j <= n; j++) {
+    const circle = document.getElementById('sc' + j);
+    const label = document.getElementById('sl' + j);
+    circle.className = 'step-circle ' + 'active' ;
+    label.className = 'step-label' + 'active' ;
   }
 }
+
+// ── STEP 1 → 2 ─────────────────────────────────────────
+async function goStep2() {
+  const name = document.getElementById('companyName').value.trim();
+  const vkn = document.getElementById('vkn').value.trim();
+  const email = document.getElementById('email').value.trim();
+  const password = document.getElementById('password').value.trim();
+  const passwordRepeat = document.getElementById('password-repeat').value.trim();
+
+  if (!name) return showAlert(1, 'Şirket adı zorunlu.');
+  if (!vkn || !/^\d{10}$/.test(vkn)) return showAlert(1, 'Geçerli bir 10 haneli VKN giriniz.');
+  if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return showAlert(1, 'Geçerli bir e-posta adresi giriniz.');
+  if (!password) return showAlert(1, 'Şifre Giriniz')
+  if (password.length < 8) return showAlert(1, 'En az 8 haneli bir şifre giriniz')
+  if (!passwordRepeat) return showAlert(1, 'Şifre Giriniz')
+  if (password !== passwordRepeat) return showAlert(1, 'Şifreler Uyuşmuyor')
+
+  const tenant = {
+    vkn: vkn,
+    email: email,
+  };
+
+  try {
+    const response = await fetch('/api/auth/signup', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json', 'x-auth-token': sessionStorage.getItem('kumanda_token') || ''},
+      body: JSON.stringify(tenant)
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      showAlert(1, data.error);
+      return;                  // ← stop here
+    }
+
+  }catch (e){
+    showAlert(1, 'Bağlantı hatası: ' + e.message);
+  }
+
+
+  hideAlert(1);
+  state.companyName = name;
+  state.vkn = vkn;
+  state.email = email;
+  state.password = password
+  showStep(2);
+}
+
+// ── STEP 2 → 3 ─────────────────────────────────────────
+async function goStep3() {
+  const summary = document.getElementById('businessSummary').value.trim();
+  const categories = state.businessCategories;
+  const channels = state.salesChannel;
+  const sourcing = state.sourcingType;
+
+  if (!summary) return showAlert(2, 'Lütfen ne sattığınızı kısaca anlatın.');
+  if (categories.length === 0) return showAlert(2, 'En az bir kategori seçmelisiniz.');
+  if (channels.length === 0) return showAlert(2, 'Kime sattığınızı belirtmelisiniz.');
+  if (sourcing.length === 0) return showAlert(2, 'Temin yönteminizi seçmelisiniz.');
+
+  hideAlert(2);
+  state.businessSummary = summary;
+
+  showStep(3);
+}
+
+// ── STEP 3 → BACK ──────────────────────────────────────
+
+// ── CATEGORY TILES ─────────────────────────────────────
+function toggleCat(el) {
+  const val = el.dataset.cat;
+  el.classList.toggle('selected');
+  if (el.classList.contains('selected')) {
+    if (!state.businessCategories.includes(val)) state.businessCategories.push(val);
+  } else {
+    state.businessCategories = state.businessCategories.filter(c => c !== val);
+  }
+}
+
+// ── PILLS ──────────────────────────────────────────────
+function togglePill(el) {
+  const group = el.dataset.group;
+  const val = el.dataset.val;
+  el.classList.toggle('selected');
+  const arr = group === 'channel' ? state.salesChannel : state.sourcingType;
+  if (el.classList.contains('selected')) {
+    if (!arr.includes(val)) arr.push(val);
+  } else {
+    const idx = arr.indexOf(val);
+    if (idx > -1) arr.splice(idx, 1);
+  }
+}
+
+// ── PERPLEXITY BACKGROUND CALL ─────────────────────────
+async function saveBusinessSummary() {
+  const payload = {
+    tenant_vkn: state.vkn,
+    business_summary: state.businessSummary,
+    business_categories: state.businessCategories,
+    sales_channel: state.salesChannel,
+    sourcing_type: state.sourcingType,
+  };
+
+  try {
+    await fetch('/api/auth/businessInfo', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-auth-token': sessionStorage.getItem('kumanda_token') || '',
+      },
+      body: JSON.stringify(payload),
+    });
+    // Fire and forget — we don't wait or handle the response here
+  } catch (e) {
+    // Silent fail — user is not affected
+    console.warn('Background analysis failed:', e.message);
+  }
+}
+
+// ── INTEGRATION STEP ───────────────────────────────────
+function selectProvider(p) {
+  state.intProvider = p;
+  state.intTested = false;
+  ['logo', 'elogo', 'isbasi'].forEach(id => {
+    document.getElementById('provider' + id.charAt(0).toUpperCase() + id.slice(1))?.classList.remove('selected');
+  });
+  document.getElementById('provider' + p.charAt(0).toUpperCase() + p.slice(1))?.classList.add('selected');
+
+
+  const isLogo = p === 'logo';
+  const isSoap = p === 'elogo' || p === 'isbasi';
+  document.getElementById('logoRestFields').style.display = isLogo ? '' : 'none';
+  document.getElementById('elogoFields').style.display = isSoap ? '' : 'none';
+  if (isSoap) {
+    const su = document.getElementById('serviceUrl');
+    if (!su.value) su.value = 'https://pb.elogo.com.tr/PostBoxService.svc';
+  }
+  document.getElementById('testResult').style.display = 'none';
+  document.getElementById('saveBtn').style.display = 'none';
+  document.getElementById('testBtn').style.display = 'flex';
+}
+
+function buildIntPayload() {
+  const username = document.getElementById('intUsername').value.trim();
+  const password = document.getElementById('intPassword').value;
+  if (state.intProvider === 'logo') return { provider: 'logo', base_url: document.getElementById('baseUrl').value.trim(), api_key: document.getElementById('apiKey').value.trim(), username, password };
+  return { provider: state.intProvider, service_url: document.getElementById('serviceUrl').value.trim(), username, password };
+}
+
+function validateIntPayload(p) {
+  if (state.intProvider === 'logo') { if (!p.base_url) return 'API Base URL zorunlu.'; if (!p.api_key) return 'API Key zorunlu.'; }
+  else { if (!p.service_url) return 'Servis URL zorunlu.'; }
+  if (!p.username) return 'Kullanıcı adı zorunlu.';
+  if (!p.password) return 'Şifre zorunlu.';
+  return null;
+}
+
+function togglePw() {
+  const inp = document.getElementById('intPassword');
+  const eye = document.getElementById('pw-eye');
+  const show = inp.type === 'password';
+  inp.type = show ? 'text' : 'password';
+  eye.className = show ? 'ti ti-eye-off' : 'ti ti-eye';
+}
+
+async function testConnection() {
+  const payload = buildIntPayload();
+  const err = validateIntPayload(payload);
+  if (err) return showAlert(3, err);
+  hideAlert(3);
+
+  const icon = document.getElementById('test-icon');
+  const text = document.getElementById('test-text');
+  const btn = document.getElementById('testBtn');
+  icon.className = 'spinner';
+  text.textContent = 'Test ediliyor...';
+  btn.classList.add('loading');
+
+  try {
+    const res = await fetch('/api/integrations/test', { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-auth-token': sessionStorage.getItem('kumanda_token') || '' }, body: JSON.stringify(payload) });
+    const data = await res.json();
+    const resultEl = document.getElementById('testResult');
+    if (res.ok && data.success) {
+      resultEl.style.cssText = 'display:flex;align-items:center;gap:10px;padding:12px 14px;border-radius:8px;font-size:12px;margin-bottom:14px;border:0.5px solid rgba(26,107,71,0.25);background:rgba(26,107,71,0.08);color:#1a6b47';
+      resultEl.innerHTML = '<i class="ti ti-circle-check" style="font-size:16px;flex-shrink:0"></i><span>Bağlantı başarılı! Devam edebilirsiniz.</span>';
+      state.intTested = true;
+      document.getElementById('saveBtn').style.display = 'flex';
+      document.getElementById('testBtn').style.display = 'none';
+    } else {
+      resultEl.style.cssText = 'display:flex;align-items:center;gap:10px;padding:12px 14px;border-radius:8px;font-size:12px;margin-bottom:14px;border:0.5px solid rgba(184,50,50,0.25);background:rgba(184,50,50,0.08);color:#b83232';
+      resultEl.innerHTML = '<i class="ti ti-alert-circle" style="font-size:16px;flex-shrink:0"></i><span>' + (data.error || 'Bağlantı başarısız.') + '</span>';
+    }
+  } catch (e) {
+    showAlert(3, 'Sunucu hatası: ' + e.message);
+  } finally {
+    icon.className = 'ti ti-plug';
+    text.textContent = 'Bağlantıyı Test Et';
+    btn.classList.remove('loading');
+  }
+}
+
+async function saveIntegration() {
+  const payload = buildIntPayload();
+  const icon = document.getElementById('save-icon');
+  const text = document.getElementById('save-text');
+  const btn = document.getElementById('saveBtn');
+  icon.className = 'spinner';
+  text.textContent = 'Kaydediliyor...';
+  btn.classList.add('loading');
+
+  try {
+    const res = await fetch('/api/integrations', { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-auth-token': sessionStorage.getItem('kumanda_token') || '' }, body: JSON.stringify(payload) });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Kayıt başarısız.');
+
+    icon.className = 'ti ti-check';
+    text.textContent = 'Kaydedildi! Yönlendiriliyor...';
+
+
+    setTimeout(() => window.location.replace('/dashboard'), 900);
+  } catch (e) {
+    showAlert(3, e.message);
+    icon.className = 'ti ti-check';
+    text.textContent = 'Kaydet ve Başlat';
+    btn.classList.remove('loading');
+  }
+}
+
+// ── ALERTS ─────────────────────────────────────────────
+function showAlert(step, msg) {
+  const el = document.getElementById('alert' + step);
+  document.getElementById('alert' + step + 'Text').textContent = msg;
+  el.classList.add('show');
+}
+
+function hideAlert(step) {
+  document.getElementById('alert' + step)?.classList.remove('show');
+}
+
+
 </script>
 </body>
 </html>

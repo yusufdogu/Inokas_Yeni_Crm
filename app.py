@@ -128,7 +128,6 @@ def extract_data(pdf_file):
 
     return results
 
-
 def scrape_dmo_product(url, session):
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
@@ -186,7 +185,6 @@ def scrape_dmo_product(url, session):
 
     except Exception as e:
         return {"price": None, "specs": {}, "error": str(e)}
-
 
 @app.route("/parse-pdf", methods=["POST"])
 def parse_pdf():
@@ -413,7 +411,6 @@ def scrape_dmo_prices():
 
     return jsonify(results)
 
-
 @app.route("/debug-dmo", methods=["GET"])
 def debug_dmo():
     dmo_code = request.args.get("code", "105818")
@@ -457,16 +454,14 @@ def debug_dmo():
         "page_title": soup.title.get_text() if soup.title else None,
     })
 
+
+
+
+
+
+
 # ── RUN ──────────────────────────────────────────────────────────────────────
 
 if __name__ == "__main__":
     # host='0.0.0.0' ensures it listens on all available network interfaces within the container
     app.run(host='0.0.0.0', port=5000, debug=False, use_reloader=False)
-
-
-
-
-
-
-
-

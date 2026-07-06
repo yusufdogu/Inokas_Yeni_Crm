@@ -1,0 +1,551 @@
+/* ─── AI side panel ──────────────────────────────────────────────────────── */
+/* Add this to faturalar.css. Replace any existing .ai-* rules with these.   */
+
+.fat-ai-side {
+  width: 20%;
+  min-width: 320px;
+  border-left: 1px solid var(--fat-border);
+  background: var(--fat-bg);
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* On genel tab, give it a bit more space */
+.fat-ai-side--wide {
+  width: 30%;
+}
+
+/* ── Header ── */
+.ai-side-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--fat-border);
+  flex-shrink: 0;
+}
+
+.ai-side-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--fat-ink);
+}
+
+.ai-side-title i {
+  font-size: 16px;
+  color: var(--fat-ink2);
+}
+
+.ai-side-btn {
+  width: 24px;
+  height: 24px;
+  border-radius: 5px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--fat-ink4);
+  font-size: 14px;
+  transition: background 0.1s, color 0.1s;
+}
+
+.ai-side-btn:hover {
+  background: var(--fat-bg2);
+  color: var(--fat-ink2);
+}
+
+/* ── Activity feed ── */
+.ai-feed {
+  border-bottom: 1px solid var(--fat-border);
+  background: var(--fat-bg2);
+  flex-shrink: 0;
+}
+
+.ai-feed-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 9px 14px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.ai-feed-header:hover {
+  background: var(--fat-bg3);
+}
+
+.ai-feed-label {
+  font-size: 10px;
+  color: var(--fat-ink3);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-weight: 600;
+}
+
+.ai-feed-toggle {
+  font-size: 14px;
+  color: var(--fat-ink4);
+  transition: transform 0.2s;
+}
+
+.ai-feed.collapsed .ai-feed-toggle {
+  transform: rotate(-90deg);
+}
+
+.ai-feed.collapsed .ai-feed-cards {
+  display: none;
+}
+
+.ai-feed-cards {
+  display: flex;
+  flex-direction: column;
+  padding: 0 10px 10px;
+  gap: 6px;
+}
+
+.ai-feed-card {
+  background: var(--fat-bg);
+  border: 1px solid var(--fat-border);
+  border-radius: 7px;
+  padding: 8px 10px;
+  cursor: pointer;
+  transition: border-color 0.1s;
+}
+
+.ai-feed-card:hover {
+  border-color: var(--fat-border2);
+}
+
+.ai-feed-card-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 9px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 5px;
+}
+
+.ai-feed-card-tag i {
+  font-size: 10px;
+}
+
+.ai-feed-card-tag--pending { color: var(--fat-red); }
+.ai-feed-card-tag--giden   { color: var(--fat-green); }
+.ai-feed-card-tag--gelen   { color: var(--fat-amber); }
+
+.ai-feed-card-row1,
+.ai-feed-card-row2 {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.ai-feed-card-row1 {
+  margin-bottom: 3px;
+}
+
+.ai-feed-card-no {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--fat-ink);
+  font-family: var(--fat-font-data);
+  white-space: nowrap;
+}
+
+.ai-feed-card-company {
+  font-size: 11px;
+  color: var(--fat-ink3);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: right;
+  flex: 1;
+  min-width: 0;
+}
+
+.ai-feed-card-amount {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--fat-ink);
+  font-family: var(--fat-font-data);
+}
+
+.ai-feed-card-date {
+  font-size: 10px;
+  color: var(--fat-ink4);
+  font-family: var(--fat-font-data);
+}
+
+/* ── Messages ── */
+.ai-messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-height: 0;
+}
+
+.ai-msg {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  max-width: 90%;
+}
+
+.ai-msg.user {
+  align-self: flex-end;
+  align-items: flex-end;
+}
+
+.ai-msg.assistant {
+  align-self: flex-start;
+}
+
+.ai-msg-bubble {
+  font-size: 12px;
+  line-height: 1.45;
+  padding: 8px 12px;
+  border-radius: 12px;
+}
+
+.ai-msg.user .ai-msg-bubble {
+  background: var(--fat-dark);
+  color: #fff;
+  border-bottom-right-radius: 4px;
+}
+
+.ai-msg.assistant .ai-msg-bubble {
+  background: var(--fat-bg2);
+  color: var(--fat-ink);
+  border-bottom-left-radius: 4px;
+}
+
+.ai-msg-meta {
+  font-size: 10px;
+  color: var(--fat-ink4);
+  padding: 0 4px;
+}
+
+
+.ai-quick-chip {
+  font-size: 11px;
+  font-family: var(--fat-font-ui);
+  padding: 5px 10px;
+  background: var(--fat-bg2);
+  border: 1px solid var(--fat-border);
+  border-radius: 14px;
+  color: var(--fat-ink3);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.1s, color 0.1s;
+}
+
+.ai-quick-chip:hover {
+  background: var(--fat-bg3);
+  color: var(--fat-ink2);
+}
+
+/* ── Input ── */
+.ai-input-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border-top: 1px solid var(--fat-border);
+  flex-shrink: 0;
+}
+
+.ai-input {
+  flex: 1;
+  font-family: var(--fat-font-ui);
+  font-size: 12px;
+  padding: 8px 12px;
+  background: var(--fat-bg2);
+  border: 1px solid var(--fat-border);
+  border-radius: 8px;
+  color: var(--fat-ink);
+  outline: none;
+}
+
+.ai-input:focus {
+  border-color: var(--fat-border2);
+}
+
+.ai-input::placeholder {
+  color: var(--fat-ink4);
+}
+
+.ai-send {
+  width: 30px;
+  height: 30px;
+  background: var(--fat-dark);
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.1s;
+}
+
+.ai-send:hover {
+  background: var(--fat-dark2);
+}
+
+.ai-send i {
+  font-size: 14px;
+}
+
+.ai-msg-bubble--streaming {
+  min-width: 36px;
+  min-height: 16px;
+}
+
+.ai-msg-bubble--streaming::after {
+  content: '•••';
+  letter-spacing: 2px;
+  font-weight: 700;
+  animation: ai-typing 1.2s infinite;
+  opacity: 0.5;
+}
+
+@keyframes ai-typing {
+  0%, 100% { opacity: 0.3; }
+  50%      { opacity: 1; }
+}
+
+
+.ai-msg-bubble p {
+    margin: 0;
+}
+
+.ai-msg-bubble p + p {
+    margin-top: 8px;
+}
+
+.ai-msg-bubble strong {
+    font-weight: 600;
+    color: var(--fat-ink);
+}
+
+.ai-msg.user .ai-msg-bubble strong {
+    color: #fff;
+}
+
+.ai-msg-bubble ul,
+.ai-msg-bubble ol {
+    margin: 6px 0;
+    padding-left: 20px;
+}
+
+.ai-msg-bubble li {
+    margin: 2px 0;
+}
+
+.ai-msg-bubble li::marker {
+    color: var(--fat-ink4);
+}
+
+.ai-msg-bubble code {
+    font-family: var(--fat-font-data);
+    font-size: 11px;
+    padding: 1px 5px;
+    background: var(--fat-bg3);
+    border-radius: 3px;
+    color: var(--fat-ink);
+}
+
+.ai-msg.user .ai-msg-bubble code {
+    background: rgba(255,255,255,0.15);
+    color: #fff;
+}
+
+.ai-msg-bubble pre {
+    background: var(--fat-bg2);
+    border: 1px solid var(--fat-border);
+    border-radius: 6px;
+    padding: 8px 10px;
+    overflow-x: auto;
+    margin: 6px 0;
+}
+
+.ai-msg-bubble pre code {
+    background: none;
+    padding: 0;
+    font-size: 11px;
+}
+
+.ai-msg-bubble h1,
+.ai-msg-bubble h2,
+.ai-msg-bubble h3,
+.ai-msg-bubble h4 {
+    font-size: 13px;
+    font-weight: 600;
+    margin: 8px 0 4px;
+    color: var(--fat-ink);
+}
+
+.ai-msg-bubble blockquote {
+    border-left: 3px solid var(--fat-border);
+    padding-left: 10px;
+    margin: 6px 0;
+    color: var(--fat-ink3);
+    font-style: italic;
+}
+
+.ai-msg-bubble table {
+    border-collapse: collapse;
+    margin: 8px 0;
+    font-size: 11px;
+    width: 100%;
+}
+
+.ai-msg-bubble th,
+.ai-msg-bubble td {
+    border: 1px solid var(--fat-border);
+    padding: 4px 8px;
+    text-align: left;
+}
+
+.ai-msg-bubble th {
+    background: var(--fat-bg2);
+    font-weight: 600;
+}
+
+/* ─── AI quick prompts / suggestions ─────────────────────────────────────── */
+
+.ai-quick-prompts {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    padding: 8px 12px 4px;
+}
+
+.ai-quick-prompt {
+    padding: 5px 10px;
+    background: var(--fat-bg);
+    border: 1px solid var(--fat-border);
+    border-radius: 12px;
+    color: var(--fat-ink2);
+    font-family: var(--fat-font);
+    font-size: 11px;
+    line-height: 1.3;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background 0.12s, border-color 0.12s, color 0.12s;
+}
+
+.ai-quick-prompt:hover {
+    background: var(--fat-bg2);
+    border-color: var(--fat-border2);
+    color: var(--fat-ink);
+}
+
+.ai-quick-prompt:active {
+    transform: translateY(1px);
+}
+
+/* Small icon before the text, if you want one */
+.ai-quick-prompt::before {
+    content: '';
+    display: inline-block;
+    width: 4px;
+    height: 4px;
+    background: var(--fat-ink4);
+    border-radius: 50%;
+    flex-shrink: 0;
+    transition: background 0.12s;
+}
+
+.ai-quick-prompt:hover::before {
+    background: var(--fat-green);
+}
+
+/* Optional — subtle fade-in when suggestions swap */
+.ai-quick-prompts .ai-quick-prompt {
+    animation: ai-suggestion-in 0.2s ease-out;
+}
+
+@keyframes ai-suggestion-in {
+    from { opacity: 0; transform: translateY(2px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+.ai-quick-wrap {
+    display: flex;
+    flex-direction: column;
+    border-top: 1px solid var(--fat-border);
+}
+
+.ai-quick-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 12px 4px;
+}
+
+.ai-quick-header-label {
+    font-family: var(--fat-font);
+    font-size: 10px;
+    color: var(--fat-ink4);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    font-weight: 600;
+}
+
+.ai-quick-header-btn {
+    width: 20px;
+    height: 20px;
+    padding: 0;
+    background: transparent;
+    border: 1px solid var(--fat-border);
+    border-radius: 4px;
+    color: var(--fat-ink3);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.12s, color 0.12s;
+}
+
+.ai-quick-header-btn:hover {
+    background: var(--fat-bg2);
+    color: var(--fat-ink);
+}
+
+.ai-quick-header-btn i {
+    font-size: 11px;
+    transition: transform 0.2s ease;
+}
+
+.ai-quick-wrap--collapsed .ai-quick-header-btn i {
+    transform: rotate(-90deg);
+}
+
+.ai-quick-prompts {
+    max-height: 600px;
+    overflow: hidden;
+    opacity: 1;
+    transition: max-height 0.25s ease, opacity 0.2s ease, padding 0.2s ease;
+}
+
+.ai-quick-wrap--collapsed .ai-quick-prompts {
+    max-height: 0;
+    padding-top: 0;
+    padding-bottom: 0;
+    opacity: 0;
+    pointer-events: none;
+}

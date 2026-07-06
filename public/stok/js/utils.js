@@ -50,6 +50,16 @@ function getSoldQtyLastDaysBySku(allMovements, sku, days) {
   }, 0);
 }
 
+function _normalizeForSearch(str) {
+    return String(str || '')
+        .toLowerCase()
+        .replace(/[ıİI]/g, 'i')
+        .replace(/[şŞ]/g, 's')
+        .replace(/[çÇ]/g, 'c')
+        .replace(/[ğĞ]/g, 'g')
+        .replace(/[üÜ]/g, 'u')
+        .replace(/[öÖ]/g, 'o');
+}
 // ─── Tag-input multi-select helper ───────────────────────────────────────────
 // Used by hareketler and urunler for company/product tag filters
 function createTagFilter({ wrapId, inputId, dropdownId, placeholder, getOptions, onChange }) {
@@ -81,10 +91,12 @@ function createTagFilter({ wrapId, inputId, dropdownId, placeholder, getOptions,
   function renderDropdown(query) {
     console.log('renderDropdown called', { query, opts: getOptions(), selected });
 
+    const normalizedQuery = _normalizeForSearch(query);
     const opts = getOptions().filter(o =>
-      !selected.includes(o) &&
-      (!query || o.toLocaleLowerCase('tr-TR').includes(query.toLocaleLowerCase('tr-TR')))
+        !selected.includes(o) &&
+        (!query || _normalizeForSearch(o).includes(normalizedQuery))
     );
+
     const list = dropdown.querySelector('.filter-dropdown-list') || (() => {
       const ul = document.createElement('ul');
       ul.className = 'filter-dropdown-list';

@@ -7,7 +7,7 @@ const Anthropic = require('@anthropic-ai/sdk');
 const twilio    = require('twilio');
 
 const client       = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-const twilioClient = twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN);
+const twilioClient = twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_login_auth_token);
 
 const conversations    = new Map();
 const CONVERSATION_TTL = 30 * 60 * 1000;

@@ -1,29 +1,19 @@
 // Backend API iletişim katmanı
 // Sadece fetch çağrıları ve veri cache'leme — DOM'a dokunmaz.
-
-
-async function ensureBulkTenantVkn() {
-    if (bulkTenantVkn) return bulkTenantVkn;
-
-    const token = sessionStorage.getItem('inokas_token');
-    let r;
-    try {
-        r = await fetch('/api/tenant-vkn', {
-          headers: { 'x-auth-token': sessionStorage.getItem('inokas_token') }
-        });
-    } catch (e) {
-        throw new Error('Tenant VKN alınamadı. Sunucu bağlantısını kontrol edin.');
-    }
-    if (!r.ok) {
-        const j = await r.json().catch(() => ({}));
-        throw new Error(j.error || 'Tenant VKN alınamadı.');
-    }
-    const j = await r.json();
-    bulkTenantVkn = String(j.vkn || '').trim();
-    if (!bulkTenantVkn) throw new Error('Firma VKN bilgisi girilmemiş. Lütfen ayarlardan VKN ekleyin.');
-    return bulkTenantVkn;
-}
-// ─── Ana veri yükleme ─────────────────────────────────────────────────────────
+window._fatFilterOptions = {
+  invoiceNumbers: [],
+  companies: [],
+  brands: [],
+  products: [],
+  categories: [],
+  models: [],
+};
+// ─── Brand / Model cache ──────────────────────────────────────────────────────
+let _brandOptions = [];          // ['ASUS', 'EPSON', 'HP', ...]
+let _modelsByBrand = new Map();   // Map { 'HP' => ['HP LaserJet Pro', ...] }
+let _brandModelFetchedAt = 0;
+let _brandModelPromise = null;
+const BRAND_MODEL_TTL_MS = 5 * 60 * 1000;
 
 // ─── Pagination state ─────────────────────────────────────────────────────
 let _currentPage = 1;
@@ -31,13 +21,17 @@ let _totalPages = 1;
 let _totalCount = 0;
 let _pageLimit = 10;
 
+
+window._fatFilterOptions.firstInvoiceYear = 2022; // or wherever you set _fatFilterOptions
+
+// ─── Ana veri yükleme ─────────────────────────────────────────────────────────
 async function initInvoiceView(useCache = false) {
   if (!window._filterOptionsLoaded || window._lastFilterView !== currentView) {
     window._lastFilterView = currentView;
     window._filterOptionsLoaded = true;
     await refreshFilterOptions();
-    await refreshKpiSummary();
   }
+  await refreshKpiSummary();
 
   if (useCache && allInvoicesCache?.length > 0) {
     _lastListInvoices = allInvoicesCache;
@@ -62,9 +56,12 @@ async function initInvoiceView(useCache = false) {
     const f = window._fatActiveFilters || {};
     if (f.dateStart)       params.set('date_start',  f.dateStart);
     if (f.dateEnd)         params.set('date_end',     f.dateEnd);
+    if (f.priceMin != null) params.set('price_min', f.priceMin);
+    if (f.priceMax != null) params.set('price_max', f.priceMax);
     if (f.currency)        params.set('currency',     f.currency);
     if (f.status)          params.set('status',       f.status);
     if (f.search)          params.set('search',       f.search);
+    if (f.invoiceNumbers?.length) params.set('invoice_numbers', f.invoiceNumbers.join(','));
     if (f.companies?.length)  params.set('companies',  f.companies.join(','));
     if (f.brands?.length)     params.set('brands',     f.brands.join(','));
     if (f.categories?.length) params.set('categories', f.categories.join(','));
@@ -72,9 +69,9 @@ async function initInvoiceView(useCache = false) {
     if (f.models?.length)     params.set('models',     f.models.join(','));
 
     if (fatListSort?.col) {
-      const colMap = { company: 'company_name', total: 'total', date: 'invoice_date' };
-      params.set('sort_by', colMap[fatListSort.col] || 'invoice_date');
-      params.set('sort_dir', fatListSort.dir || 'desc');
+      const colMap = { invoice_no: 'invoice_no', company: 'company_name', total: 'total', date: 'invoice_date' };
+      params.set('sort_by', colMap[fatListSort.col]);
+      params.set('sort_dir', fatListSort.dir );
     }
 
     const res  = await fetch(`${apiUrl}?${params.toString()}`);
@@ -86,7 +83,7 @@ async function initInvoiceView(useCache = false) {
     _currentPage     = json.page        || 1;
 
     // in initInvoiceView, replace the render block with:
-    if (allInvoicesCache && hasInteracted()) {
+    if (allInvoicesCache ) {
       _lastListInvoices = allInvoicesCache;
       saveFilterState();
       if (activeTabKey === 'list' && typeof renderListView === 'function') {
@@ -94,7 +91,6 @@ async function initInvoiceView(useCache = false) {
         if (typeof hideLoadingOverlay === 'function') hideLoadingOverlay();
       }
     }
-
     renderPagination();
 
   } catch (err) {
@@ -102,20 +98,36 @@ async function initInvoiceView(useCache = false) {
   }
 }
 
-window._fatFilterOptions = {
-  companies: [],
-  brands: [],
-  products: [],
-  categories: [],
-  models: [],
-};
 
-// ─── Brand / Model cache ──────────────────────────────────────────────────────
-let _brandOptions = [];          // ['ASUS', 'EPSON', 'HP', ...]
-let _modelsByBrand = new Map();   // Map { 'HP' => ['HP LaserJet Pro', ...] }
-let _brandModelFetchedAt = 0;
-let _brandModelPromise = null;
-const BRAND_MODEL_TTL_MS = 5 * 60 * 1000;
+// api.js — refreshFilterOptions just fetches and stores, nothing else
+async function refreshFilterOptions() {
+  try {
+    console.log('[filterOptions] fetching for view:', currentView);
+
+    const params = new URLSearchParams();
+    if (currentView === 'gelen') params.set('direction', 'INCOMING');
+    if (currentView === 'giden') params.set('direction', 'OUTGOING');
+
+    const res  = await fetch(`/api/invoices/filter-options?${params.toString()}`);
+    const data = await res.json();
+    console.log('[filterOptions] response:', data);
+    window._fatFilterOptions = {
+      invoiceNumbers: data.invoiceNumbers || [],
+      companies:     data.companies     || [],
+      brands:        data.brands        || [],
+      products:      data.products      || [],
+      categories:    data.categories    || [],
+      currencies:    data.currencies    || [],
+      relationships: data.relationships || [],
+    };
+
+    // only call UI functions if they exist (not on detail page)
+    if (typeof populateCurrencySelect === 'function') populateCurrencySelect();
+  } catch (err) {
+    console.error('refreshFilterOptions hatası:', err.message);
+  }
+}
+
 
 async function ensureBrandModelLoaded(force = false) {
   const now = Date.now();
@@ -151,36 +163,6 @@ async function ensureBrandModelLoaded(force = false) {
   try { await _brandModelPromise; }
   finally { _brandModelPromise = null; }
 }
-
-// ─── Save new category to a product by SKU ───────────────────────────────────
-async function saveNewCategoryToProduct(sku, category) {
-  if (!sku || !category) return;
-  try {
-    const res = await fetch(`/api/products/by-code?code=${encodeURIComponent(sku)}`);
-    if (!res.ok) return; // product not found, skip silently
-    const product = await res.json();
-    if (!product?.id) return;
-
-    await fetch(`/api/products/${product.id}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ category })
-    });
-
-    // Update local cache
-    if (!productCategoryOptionList.includes(category)) {
-      productCategoryOptionList.push(category);
-      productCategoryOptionList.sort((a, b) => a.localeCompare(b, 'tr'));
-    }
-    const normalSku = normalizeProductCodeForMatch(sku);
-    if (normalSku) productCategoryByCodeMap.set(normalSku, category);
-  } catch (e) {
-    console.warn('Kategori kaydedilemedi:', e.message);
-  }
-}
-
-// ─── Ürün kodu / kategori cache ───────────────────────────────────────────────
-
 async function ensureProductCodeLookupSetLoaded(force = false) {
   const now = Date.now();
   const fresh = productCodeLookupSet && (now - productCodeLookupFetchedAt) < PRODUCT_CODE_CACHE_TTL_MS;
@@ -207,7 +189,6 @@ async function ensureProductCodeLookupSetLoaded(force = false) {
     productCodeLookupPromise = null;
   }
 }
-
 async function ensureProductCategoryLookupLoaded(force = false) {
   const now = Date.now();
   const fresh = productCategoryOptionList.length > 0 && (now - productCategoryFetchedAt) < PRODUCT_CODE_CACHE_TTL_MS;
@@ -240,28 +221,32 @@ async function ensureProductCategoryLookupLoaded(force = false) {
 }
 
 
-async function deleteInvoice(id) {
-  if (!confirm("⚠️ Bu faturayı ve içerisindeki tüm ürünleri silmek istediğinize emin misiniz?\nBu işlem geri alınamaz!")) return;
-
+async function saveNewCategoryToProduct(sku, category) {
+  if (!sku || !category) return;
   try {
-    const response = await fetch(`/api/invoices/${id}`, { method: 'DELETE' });
+    const res = await fetch(`/api/products/by-code?code=${encodeURIComponent(sku)}`);
+    if (!res.ok) return; // product not found, skip silently
+    const product = await res.json();
+    if (!product?.id) return;
 
-    // log raw response first
-    const text = await response.text();
-    console.log('DELETE response status:', response.status);
-    console.log('DELETE response body:', text);
+    await fetch(`/api/products/${product.id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ category })
+    });
 
-    if (!response.ok) throw new Error(`Silinemedi: ${response.status} — ${text}`);
-
-    // in deleteInvoice, replace initInvoiceView(true) with:
-    alert("✅ Fatura başarıyla silindi!");
-    if (typeof goBack === 'function') goBack();        // detail page — go back to list
-    else if (typeof initInvoiceView === 'function') initInvoiceView(true); // list page
-  } catch (err) {
-    console.error("Silme hatası:", err.message);
-    alert("Fatura silinirken bir hata oluştu: " + err.message);
+    // Update local cache
+    if (!productCategoryOptionList.includes(category)) {
+      productCategoryOptionList.push(category);
+      productCategoryOptionList.sort((a, b) => a.localeCompare(b, 'tr'));
+    }
+    const normalSku = normalizeProductCodeForMatch(sku);
+    if (normalSku) productCategoryByCodeMap.set(normalSku, category);
+  } catch (e) {
+    console.warn('Kategori kaydedilemedi:', e.message);
   }
 }
+
 
 async function saveInvoiceToDatabase(e) {
     e.preventDefault();
@@ -426,29 +411,26 @@ async function saveInvoiceToDatabase(e) {
         isInvoiceSaveInFlight = false;
     }
 }
+async function deleteInvoice(id) {
+  if (!confirm("⚠️ Bu faturayı ve içerisindeki tüm ürünleri silmek istediğinize emin misiniz?\nBu işlem geri alınamaz!")) return;
 
-// api.js — refreshFilterOptions just fetches and stores, nothing else
-async function refreshFilterOptions() {
   try {
-    const params = new URLSearchParams();
-    if (currentView === 'gelen') params.set('direction', 'INCOMING');
-    if (currentView === 'giden') params.set('direction', 'OUTGOING');
+    const response = await fetch(`/api/invoices/${id}`, { method: 'DELETE' });
 
-    const res  = await fetch(`/api/invoices/filter-options?${params.toString()}`);
-    const data = await res.json();
+    // log raw response first
+    const text = await response.text();
+    console.log('DELETE response status:', response.status);
+    console.log('DELETE response body:', text);
 
-    window._fatFilterOptions = {
-      companies:     data.companies     || [],
-      brands:        data.brands        || [],
-      products:      data.products      || [],
-      categories:    data.categories    || [],
-      currencies:    data.currencies    || [],
-      relationships: data.relationships || [],
-    };
+    if (!response.ok) throw new Error(`Silinemedi: ${response.status} — ${text}`);
 
-    // only call UI functions if they exist (not on detail page)
-    if (typeof populateCurrencySelect === 'function') populateCurrencySelect();
+    // in deleteInvoice, replace initInvoiceView(true) with:
+    alert("✅ Fatura başarıyla silindi!");
+    if (typeof goBack === 'function') goBack();        // detail page — go back to list
+    else if (typeof initInvoiceView === 'function') initInvoiceView(true); // list page
   } catch (err) {
-    console.error('refreshFilterOptions hatası:', err.message);
+    console.error("Silme hatası:", err.message);
+    alert("Fatura silinirken bir hata oluştu: " + err.message);
   }
 }
+

@@ -169,8 +169,6 @@ async function handleBulkFilePick(ev) {
     const files = Array.from(ev.target.files || []);
     if (!files.length) return;
 
-    try { await ensureBulkTenantVkn(); }
-    catch (e) { alert(e.message); return; }
 
     try { await ensureProductCodeLookupSetLoaded(false); }
     catch (e) { console.warn('Ürün kod seti alınamadı:', e?.message || e); }

@@ -11,8 +11,8 @@
   --card:      #ffffff;
   --ink: #080a0c;
   --ink2:      #3a3832;
-  --ink3:      #6e6a62;
-  --ink4:      #a8a39a;
+  --ink3: #080a0c;
+  --ink4: #0e0d0b;
   --border:    rgba(14,13,11,0.1);
   --border2:   rgba(14,13,11,0.2);
   --green:     #1a6b47;
@@ -48,51 +48,13 @@ body {
 }
 
 /* ─── Page layout ────────────────────────────────────────────────────────── */
-.fatura-page {
-  display: flex;
-  flex-direction: column;
-  flex: 1;
-  overflow: hidden;
-}
 
-/* ─── Page header ────────────────────────────────────────────────────────── */
-.fat-page-header {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 10px 20px;
-  background: var(--dark);
-  border-bottom: 0.5px solid rgba(245,242,236,0.08);
-  flex-shrink: 0;
-}
 
-.fat-page-title {
-  margin: 0;
-  font-size: 15px;
-  font-weight: 500;
-  color: rgba(245,242,236,0.9);
-  font-family: var(--font-ui);
-}
 
 /* ─── Filter bar ─────────────────────────────────────────────────────────── */
-.fatura-topbar {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  padding: 10px 16px;
-  background: var(--bg2);
-  border-bottom: 0.5px solid var(--border);
-  flex-shrink: 0;
-  position: relative;
-  z-index: 50;
-}
 
-.fatura-filter-row {
-  display: flex;
-  gap: 8px;
-  align-items: flex-start;
-  flex-wrap: wrap;
-}
+
+
 
 .fatura-filter-date {
   height: 32px;
@@ -111,6 +73,7 @@ body {
 
 .fatura-filter-select {
   height: 32px;
+  min-width: 25%;
   padding: 0 8px;
   border: 0.5px solid var(--border2);
   border-radius: var(--r);
@@ -145,31 +108,8 @@ body {
 
 .filter-date-sep { color: var(--ink4); font-size: 12px; }
 
-/* clear button */
-.filter-btn-clear {
-  height: 32px;
-  width: 32px;
-  border: 0.5px solid var(--border2);
-  border-radius: var(--r);
-  background: var(--card);
-  color: var(--ink3);
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  transition: background 0.15s, color 0.15s;
-}
 
-.filter-btn-clear:hover { background: var(--red-bg); color: var(--red); border-color: var(--red); }
 
-/* ─── Tab system ─────────────────────────────────────────────────────────── */
-.fat-area {
-  display: flex;
-  flex-direction: column;
-  flex: 1;
-  overflow: hidden;
-}
 
 .fat-tabbar {
   display: flex;
@@ -266,7 +206,7 @@ body {
 
 .fat-tbl thead th {
   padding: 13px 20px;
-  font-size: 12px;
+  font-size: 15px;
   font-weight: 500;
   color: var(--ink3);
   background: var(--bg2);
@@ -302,9 +242,23 @@ body {
   vertical-align: middle;
 }
 
-.fat-tbl-no    { font-weight: 400; color: var(--ink4); font-size: 13px; font-family: var(--font-data); }
-.fat-tbl-date  { color: var(--ink4); font-size: 13px; font-family: var(--font-data); }
-.fat-tbl-amount{ font-weight: 500; font-size: 15px; text-align: right; font-family: var(--font-data); color: var(--ink); }
+.fat-tbl-no    { font-weight: 400; color: var(--ink4); font-size: 20px; font-family: var(--font-data); }
+.fat-tbl-date  { color: var(--ink4); font-size: 20px; font-family: var(--font-data); }
+.fat-tbl-amount{ font-weight: 400; color: var(--ink); font-size: 20px; text-align: right; font-family: var(--font-data);  }
+
+
+.fat-th-col-icon {
+    font-size: 20px;
+    color: var(--fat-ink4);
+    margin-right: 4px;
+    vertical-align: middle;
+    position: relative;
+    top: -1px;
+}
+
+.fat-th--active .fat-th-col-icon {
+    color: var(--fat-ink2);
+}
 
 /* ─── Detail tabs ────────────────────────────────────────────────────────── */
 .fat-dtab-bar {

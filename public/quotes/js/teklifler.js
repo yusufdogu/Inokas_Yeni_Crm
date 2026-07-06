@@ -103,7 +103,7 @@ async function openPdf(id) {
   toast.style.cssText = 'position:fixed;bottom:24px;right:24px;background:#1e293b;color:#fff;padding:12px 20px; border - radius: 10px; font - size: 13px; font - weight: 600; z - index: 9999; ';
   document.body.appendChild(toast);
   try {
-    const token = sessionStorage.getItem('inokas_token');
+    const token = sessionStorage.getItem('login_auth_token');
     const res = await fetch(`/api/quotes/${encodeURIComponent(id)}/pdf`, { headers: { 'x-auth-token': token } });
     const blob = await res.blob();
     const url = URL.createObjectURL(blob);
@@ -152,7 +152,7 @@ async function sendMail() {
 
   try {
     // 1. PDF indir
-    const token = sessionStorage.getItem('inokas_token');
+    const token = sessionStorage.getItem('login_auth_token');
     const res = await fetch(`/api/quotes/${encodeURIComponent(_activeMailId)}/pdf`, {
       headers: { 'x-auth-token': token }
     });

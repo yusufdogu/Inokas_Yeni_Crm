@@ -2,12 +2,12 @@
 *{box-sizing:border-box;margin:0;padding:0}
 :root{
   --bg:#f5f2ec;
-  --bg2:#ede9e0;
+  --bg2: #ffffff;
   --bg3:#e4dfd4;
   --ink:#0e0d0b;
   --ink2:#3a3832;
-  --ink3:#6e6a62;
-  --ink4:#a8a39a;
+  --ink3: #000000;
+  --ink4: #0e0d0b;
   --accent-inv:#f5f2ec;
   --green:#1a6b47;
   --green-bg:rgba(26,107,71,.09);

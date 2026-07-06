@@ -6,8 +6,6 @@ const router = express.Router();
 const { generateAndUploadPdf } = require('../services/pdf-service');
 
 
-
-
 // ── Case-insensitive filter helpers ───────────────────────────────────────────
 
 async function resolveCompanyIds(supabase, tenantId, names) {
@@ -158,6 +156,270 @@ async function recalcOrderStatus(supabase, touchedOrderIds) {
     await supabase.from('purchase_orders').update({ status: nextStatus }).eq('id', orderId);
   }
 }
+// ─── SHARED HELPER — used by both the /kpi-summary route AND the chat tool ───
+async function fetchKpiSummary(supabase, tenantId, opts = {}) {
+    const {
+        direction,
+        pending          = false,
+        dateStart        = null,
+        dateEnd          = null,
+        currency         = null,
+        priceMin         = null,
+        priceMax         = null,
+        companies        = null,
+        brands           = null,
+        categories       = null,
+        products         = null,
+        invoiceNumbers   = null,
+    } = opts;
+
+    const emptyRes = {
+        totals: { total_count: 0, company_count: 0, try_total: 0, try_count: 0, usd_total: 0, usd_count: 0, eur_total: 0, eur_count: 0 }
+    };
+    const hasItemFilter = !!(brands?.length || categories?.length || products?.length);
+
+    // ── Step 1: resolve filter IDs ──────────────────────────────────────────
+    let brandFilteredIds = null;
+    if (brands?.length) {
+        const { data: brandItems } = await supabase
+            .from('invoice_items').select('invoice_id').in('brand_name', brands);
+        brandFilteredIds = [...new Set((brandItems || []).map(r => r.invoice_id).filter(Boolean))];
+        if (!brandFilteredIds.length) return emptyRes;
+    }
+
+    let categoryFilteredIds = null;
+    if (categories?.length) {
+        const { data: catProducts } = await supabase
+            .from('products').select('product_code').in('category', categories).eq('tenant_id', tenantId);
+        const catCodes = (catProducts || []).map(r => r.product_code).filter(Boolean);
+        if (!catCodes.length) return emptyRes;
+        const { data: catItems } = await supabase
+            .from('invoice_items').select('invoice_id').in('product_code', catCodes);
+        categoryFilteredIds = [...new Set((catItems || []).map(r => r.invoice_id).filter(Boolean))];
+        if (!categoryFilteredIds.length) return emptyRes;
+    }
+
+    let productFilteredIds = null;
+    if (products?.length) {
+        const { data: prodItems } = await supabase
+            .from('invoice_items').select('invoice_id').in('product_name', products);
+        productFilteredIds = [...new Set((prodItems || []).map(r => r.invoice_id).filter(Boolean))];
+        if (!productFilteredIds.length) return emptyRes;
+    }
+
+    // ── Step 2: company filter ──────────────────────────────────────────────
+    let companyIds = null;
+    if (companies?.length) {
+        const { data: matchedCompanies } = await supabase
+            .from('companies').select('id').in('name', companies).eq('tenant_id', tenantId);
+        companyIds = (matchedCompanies || []).map(c => c.id);
+        if (!companyIds.length) return emptyRes;
+    }
+
+    // ── Step 3: excluded ids ────────────────────────────────────────────────
+    const { data: excluded } = await supabase
+        .from('fully_internal_invoice_ids').select('invoice_id');
+    const excludeIds = (excluded || []).map(r => r.invoice_id);
+
+    // ── Step 4: build query ─────────────────────────────────────────────────
+    let q = supabase
+        .from('invoices')
+        .select('id, company_id, base_currency, payable_amount_tl, payable_amount_cur')
+        .eq('tenant_id', tenantId)
+        .or('approval_status.neq.pending,approval_status.is.null');
+
+    if (pending) {
+        q = supabase.from('invoices')
+            .select('id, base_currency, payable_amount_tl, payable_amount_cur')
+            .eq('tenant_id', tenantId).eq('approval_status', 'pending');
+    }
+
+    if (direction)                    q = q.eq('direction', direction);
+    if (currency)                     q = q.eq('base_currency', currency);
+    if (dateStart)                    q = q.gte('invoice_date', dateStart);
+    if (dateEnd)                      q = q.lte('invoice_date', dateEnd);
+    if (priceMin != null)             q = q.gte('payable_amount_tl', priceMin);
+    if (priceMax != null)             q = q.lte('payable_amount_tl', priceMax);
+    if (companyIds?.length)           q = q.in('company_id', companyIds);
+    if (invoiceNumbers?.length)       q = q.in('invoice_no', invoiceNumbers);
+    if (excludeIds.length)            q = q.not('id', 'in', `(${excludeIds.join(',')})`);
+
+    // Combine item filter IDs into a single .in() call (URL-length safe)
+    let combinedIds = null;
+    if (brandFilteredIds !== null) combinedIds = brandFilteredIds;
+    if (categoryFilteredIds !== null) {
+        combinedIds = combinedIds ? combinedIds.filter(id => categoryFilteredIds.includes(id)) : categoryFilteredIds;
+    }
+    if (productFilteredIds !== null) {
+        combinedIds = combinedIds ? combinedIds.filter(id => productFilteredIds.includes(id)) : productFilteredIds;
+    }
+    if (combinedIds !== null) q = q.in('id', combinedIds);
+
+    const { data: invoiceRows, error } = await q;
+    if (error) throw error;
+    if (!invoiceRows?.length) return emptyRes;
+
+    // ── Step 5: aggregate ───────────────────────────────────────────────────
+    if (!hasItemFilter) {
+        let try_total = 0, try_count = 0, usd_total = 0, usd_count = 0, eur_total = 0, eur_count = 0, total_count = 0;
+        invoiceRows.forEach(r => {
+            total_count++;
+            const cur = (r.base_currency || 'TRY').toUpperCase();
+            if (cur === 'USD')                      { usd_total += parseFloat(r.payable_amount_cur) || 0; usd_count++; }
+            else if (cur === 'TRY' || cur === 'TL') { try_total += parseFloat(r.payable_amount_tl)  || 0; try_count++; }
+            else if (cur === 'EUR')                 { eur_total += parseFloat(r.payable_amount_cur) || 0; eur_count++; }
+        });
+        const company_count = new Set(invoiceRows.map(r => r.company_id).filter(Boolean)).size;
+        return { totals: { total_count, company_count, try_total, try_count, usd_total, usd_count, eur_total, eur_count } };
+    }
+
+    // Item filter path — aggregate from items, derive counts from distinct invoices
+    const validInvoiceIds = invoiceRows.map(r => r.id);
+    const { data: itemRows } = await supabase
+        .from('invoice_items')
+        .select('invoice_id, currency, total_price_cur, product_code, brand_name, product_name, is_internal')
+        .eq('is_internal', false)
+        .in('invoice_id', validInvoiceIds);
+
+    let matchingItems = itemRows || [];
+    if (brandFilteredIds)    matchingItems = matchingItems.filter(r => brands.includes(r.brand_name));
+    if (categoryFilteredIds) matchingItems = matchingItems.filter(r => categoryFilteredIds.includes(r.invoice_id));
+    if (productFilteredIds)  matchingItems = matchingItems.filter(r => products.includes(r.product_name));
+
+    if (!matchingItems.length) return emptyRes;
+
+    const matchingInvoiceIds = new Set(matchingItems.map(r => r.invoice_id));
+    const matchingInvoices   = invoiceRows.filter(r => matchingInvoiceIds.has(r.id));
+    const company_count      = new Set(matchingInvoices.map(r => r.company_id).filter(Boolean)).size;
+    const total_count        = matchingInvoiceIds.size;
+
+    let try_total = 0, try_count = 0, usd_total = 0, usd_count = 0, eur_total = 0, eur_count = 0;
+    matchingItems.forEach(r => {
+        const cur = (r.currency || 'TRY').toUpperCase();
+        if (cur === 'USD')                      { usd_total += parseFloat(r.total_price_cur) || 0; usd_count++; }
+        else if (cur === 'TRY' || cur === 'TL') { try_total += parseFloat(r.total_price_cur) || 0; try_count++; }
+        else if (cur === 'EUR')                 { eur_total += parseFloat(r.total_price_cur) || 0; eur_count++; }
+    });
+
+    return { totals: { total_count, company_count, try_total, try_count, usd_total, usd_count, eur_total, eur_count } };
+}
+
+async function fetchInvoiceList(supabase, tenantId, opts = {}) {
+    const {
+        direction,
+        dateStart          = null,
+        dateEnd            = null,
+        currency           = null,
+        priceMin           = null,
+        priceMax           = null,
+        companies          = null,
+        brands             = null,
+        categories         = null,
+        products           = null,
+        invoiceNumbers     = null,
+        sortBy             = 'date',
+        sortDir            = 'desc',
+        limit              = 10,
+    } = opts;
+
+    const cappedLimit = Math.min(Math.max(limit, 1), 20);
+
+    // ── Step 1: resolve filter IDs (same pattern as fetchKpiSummary) ────────
+    let brandFilteredIds = null;
+    if (brands?.length) {
+        const { data: brandItems } = await supabase
+            .from('invoice_items').select('invoice_id').in('brand_name', brands);
+        brandFilteredIds = [...new Set((brandItems || []).map(r => r.invoice_id).filter(Boolean))];
+        if (!brandFilteredIds.length) return [];
+    }
+
+    let categoryFilteredIds = null;
+    if (categories?.length) {
+        const { data: catProducts } = await supabase
+            .from('products').select('product_code').in('category', categories).eq('tenant_id', tenantId);
+        const catCodes = (catProducts || []).map(r => r.product_code).filter(Boolean);
+        if (!catCodes.length) return [];
+        const { data: catItems } = await supabase
+            .from('invoice_items').select('invoice_id').in('product_code', catCodes);
+        categoryFilteredIds = [...new Set((catItems || []).map(r => r.invoice_id).filter(Boolean))];
+        if (!categoryFilteredIds.length) return [];
+    }
+
+    let productFilteredIds = null;
+    if (products?.length) {
+        const { data: prodItems } = await supabase
+            .from('invoice_items').select('invoice_id').in('product_name', products);
+        productFilteredIds = [...new Set((prodItems || []).map(r => r.invoice_id).filter(Boolean))];
+        if (!productFilteredIds.length) return [];
+    }
+
+    let companyIds = null;
+    if (companies?.length) {
+        const { data: matchedCompanies } = await supabase
+            .from('companies').select('id').in('name', companies).eq('tenant_id', tenantId);
+        companyIds = (matchedCompanies || []).map(c => c.id);
+        if (!companyIds.length) return [];
+    }
+
+    // ── Step 2: excluded IDs ────────────────────────────────────────────────
+    const { data: excluded } = await supabase
+        .from('fully_internal_invoice_ids').select('invoice_id');
+    const excludeIds = (excluded || []).map(r => r.invoice_id);
+
+    // ── Step 3: sort column resolution ──────────────────────────────────────
+    const sortColMap = {
+        date:       'invoice_date',
+        amount:     'payable_amount_tl',
+        company:    'company_name',       // requires the invoices_with_company view
+        invoice_no: 'invoice_no',
+    };
+    const sortCol     = sortColMap[sortBy] || 'invoice_date';
+    const sourceTable = sortCol === 'company_name' ? 'invoices_with_company' : 'invoices';
+
+    // ── Step 4: build query ─────────────────────────────────────────────────
+    let q = supabase
+        .from(sourceTable)
+        .select('id, invoice_no, invoice_date, payable_amount_tl, payable_amount_cur, base_currency, companies(name)')
+        .or(`tenant_id.eq.${tenantId},tenant_id.is.null`)
+        .or('approval_status.neq.pending,approval_status.is.null');
+
+    if (direction)              q = q.eq('direction', direction);
+    if (currency)               q = q.eq('base_currency', currency);
+    if (dateStart)              q = q.gte('invoice_date', dateStart);
+    if (dateEnd)                q = q.lte('invoice_date', dateEnd);
+    if (priceMin != null)       q = q.gte('payable_amount_tl', priceMin);
+    if (priceMax != null)       q = q.lte('payable_amount_tl', priceMax);
+    if (invoiceNumbers?.length) q = q.in('invoice_no', invoiceNumbers);
+    if (companyIds?.length)     q = q.in('company_id', companyIds);
+    if (excludeIds.length)      q = q.not('id', 'in', `(${excludeIds.join(',')})`);
+
+    // Combine item filter IDs into single .in() call (URL-length safe)
+    let combinedIds = null;
+    if (brandFilteredIds !== null) combinedIds = brandFilteredIds;
+    if (categoryFilteredIds !== null) {
+        combinedIds = combinedIds ? combinedIds.filter(id => categoryFilteredIds.includes(id)) : categoryFilteredIds;
+    }
+    if (productFilteredIds !== null) {
+        combinedIds = combinedIds ? combinedIds.filter(id => productFilteredIds.includes(id)) : productFilteredIds;
+    }
+    if (combinedIds !== null) q = q.in('id', combinedIds);
+
+    // Sort + limit
+    q = q.order(sortCol, { ascending: sortDir === 'asc' }).limit(cappedLimit);
+
+    const { data, error } = await q;
+    if (error) throw error;
+
+    // ── Step 5: trim to essentials for Claude ───────────────────────────────
+    return (data || []).map(row => ({
+        invoice_no: row.invoice_no,
+        company:    row.companies?.name || row.company_name || 'Bilinmeyen',
+        date:       row.invoice_date,
+        amount_tl:  parseFloat(row.payable_amount_tl)  || 0,
+        amount_cur: parseFloat(row.payable_amount_cur) || 0,
+        currency:   row.base_currency || 'TRY',
+    }));
+}
 
 // GET /api/invoices
 router.get('/', async (req, res) => {
@@ -170,7 +432,10 @@ router.get('/', async (req, res) => {
     const currency = req.query.currency;
     const dateStart = req.query.date_start;
     const dateEnd = req.query.date_end;
+    const priceMin = req.query.price_min ? parseFloat(req.query.price_min) : null;
+    const priceMax = req.query.price_max ? parseFloat(req.query.price_max) : null;
     const search = req.query.search;
+    const invoiceNumbers = req.query.invoice_numbers ? req.query.invoice_numbers.split(',').map(s => s.trim()).filter(Boolean) : [];
     const companies = req.query.companies ? req.query.companies.split(',').map(s => s.trim()).filter(Boolean) : [];
     const brands = req.query.brands ? req.query.brands.split(',').map(s => s.trim()).filter(Boolean) : [];
     const categories = req.query.categories ? req.query.categories.split(',').map(s => s.trim()).filter(Boolean) : [];
@@ -178,10 +443,18 @@ router.get('/', async (req, res) => {
     const limit = Math.min(100, Math.max(1, parseInt(req.query.limit) || 10));
     const from = (page - 1) * limit;
     const to = from + limit - 1;
-    const allowedSortCols = { invoice_date: 'invoice_date', company_name: 'company_name', total: 'payable_amount_tl' };
-    const sortBy = allowedSortCols[req.query.sort_by] || 'invoice_date';
+    const allowedSortCols = {
+        invoice_date:  'invoice_date',
+        company_name:  'company_name',   // ← matches the view column
+        total:         'payable_amount_tl',
+        invoice_no:    'invoice_no',
+    };
+
+    const sortBy  = allowedSortCols[req.query.sort_by] || 'invoice_date';   // ← default
     const sortDir = req.query.sort_dir === 'asc' ? 'asc' : 'desc';
 
+    const sourceTable = (sortBy === 'company_name') ? 'invoices_with_company' : 'invoices';
+    const sortCol     = (sortBy === 'company_name') ? 'company_name' : sortBy;
 
 
     let companyIds = [];
@@ -216,24 +489,14 @@ router.get('/', async (req, res) => {
       if (!productFilteredIds.length) return res.json({ data: [], total: 0, page, limit, total_pages: 0 });
     }
 
-    const models = req.query.models ? req.query.models.split(',').map(s => s.trim()).filter(Boolean) : [];
-    let modelFilteredIds = null;
-    if (models.length) {
-      const { data: modelProducts } = await supabase.from('products').select('product_code').in('model', models).eq('tenant_id', tenantId);
-      const modelCodes = (modelProducts || []).map(r => r.product_code).filter(Boolean);
-      if (!modelCodes.length) return res.json({ data: [], total: 0, page, limit, total_pages: 0 });
-      const { data: modelItems } = await supabase.from('invoice_items').select('invoice_id').in('product_code', modelCodes);
-      modelFilteredIds = [...new Set((modelItems || []).map(r => r.invoice_id).filter(Boolean))];
-      if (!modelFilteredIds.length) return res.json({ data: [], total: 0, page, limit, total_pages: 0 });
-    }
 
-    // Önce query'yi tanımla
     let query = supabase
-      .from('invoices')
+      .from(sourceTable)                                              // ← changed
       .select('*, companies(*), invoice_items(*)', { count: 'exact' })
       .or(`tenant_id.eq.${tenantId},tenant_id.is.null`)
       .or('approval_status.neq.pending,approval_status.is.null')
-      .order(sortBy, { ascending: sortDir === 'asc' });
+      .order(sortCol, { ascending: sortDir === 'asc' });
+
 
     // Sonra excluded'ı çek ve query'ye ekle
     const { data: excluded } = await supabase
@@ -249,14 +512,30 @@ router.get('/', async (req, res) => {
     if (currency) query = query.eq('base_currency', currency);
     if (dateStart) query = query.gte('invoice_date', dateStart);
     if (dateEnd) query = query.lte('invoice_date', dateEnd);
+    if (priceMin != null) query = query.gte('payable_amount_tl', priceMin);
+    if (priceMax != null) query = query.lte('payable_amount_tl', priceMax);
     if (search) query = query.or(`invoice_no.ilike.%${search}%`);
+    if (invoiceNumbers.length) query = query.in('invoice_no', invoiceNumbers);
     if (companyId) query = query.eq('company_id', companyId);
     if (companyIds?.length) query = query.in('company_id', companyIds);
-    if (brandFilteredIds) query = query.in('id', brandFilteredIds);
-    if (categoryFilteredIds) query = query.in('id', categoryFilteredIds);
-    if (productFilteredIds) query = query.in('id', productFilteredIds);
-    if (modelFilteredIds) query = query.in('id', modelFilteredIds);
 
+    let combinedIds = null;
+    if (brandFilteredIds !== null) {
+        combinedIds = brandFilteredIds;
+    }
+    if (categoryFilteredIds !== null) {
+        combinedIds = combinedIds
+            ? combinedIds.filter(id => categoryFilteredIds.includes(id))
+            : categoryFilteredIds;
+    }
+    if (productFilteredIds !== null) {
+        combinedIds = combinedIds
+            ? combinedIds.filter(id => productFilteredIds.includes(id))
+            : productFilteredIds;
+    }
+
+    // Single .in() call with the intersection
+    if (combinedIds !== null) query = query.in('id', combinedIds);
     query = query.range(from, to);
 
     const { data, error, count } = await query;
@@ -267,6 +546,115 @@ router.get('/', async (req, res) => {
     res.json({ data: data || [], total: count || 0, page, limit, total_pages: Math.ceil((count || 0) / limit) });
   } catch (err) {
     console.error('Fatura Çekme Hatası:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.get('/filter-options', async (req, res) => {
+  try {
+    const supabase = req.app.get('supabase');
+    const tenantId = req.tenantId;
+    const direction = req.query.direction;
+
+    //because we don't have invoice based internal-noninternal seperation we do it from invoiceitems
+    // Small exclude list — negation is URL-safe
+    const { data: excluded } = await supabase
+      .from('fully_internal_invoice_ids')
+      .select('invoice_id');
+    const excludeIds = (excluded || []).map(r => r.invoice_id);
+
+    let invQuery = supabase
+      .from('invoices')
+      .select('id, invoice_no, base_currency, companies(name)')
+      .eq('tenant_id', tenantId)
+      .or('approval_status.neq.pending,approval_status.is.null');
+
+    if (excludeIds.length) invQuery = invQuery.not('id', 'in', `(${excludeIds.join(',')})`);
+
+    if (direction) invQuery = invQuery.eq('direction', direction);
+
+    const { data: invRows } = await invQuery;
+
+
+    const companies = [...new Set((invRows || []).map(r => r.companies?.name).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'tr'));
+    const currencies = [...new Set((invRows || []).map(r => r.base_currency).filter(Boolean))].sort();
+    const invoiceNumbers = [...new Set((invRows || []).map(r => r.invoice_no).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'tr'));   // ← add
+
+    const invoiceNoMap = {};
+    (invRows || []).forEach(r => {
+        if (r.id && r.invoice_no) invoiceNoMap[r.id] = r.invoice_no;
+    });
+    // FIX 1: build invoiceCompanyMap from invRows
+    const invoiceCompanyMap = {};
+    (invRows || []).forEach(r => {
+      if (r.id && r.companies?.name) invoiceCompanyMap[r.id] = r.companies.name;
+    });
+
+    // Fetch ALL non-internal items (no huge .in())
+    let itemQuery = supabase
+      .from('invoice_items')
+      .select('invoice_id, brand_name, product_name, product_code')
+      .eq('is_internal', false);
+
+    const { data: allItems } = await itemQuery;
+
+    // If direction filter is active, keep only items whose invoice matches
+    let itemRows = allItems || [];
+    if (direction) {
+      const directionInvoiceIds = new Set((invRows || []).map(r => r.id).filter(Boolean));
+      itemRows = itemRows.filter(r => directionInvoiceIds.has(r.invoice_id));
+    }
+
+    const products  = [...new Set((itemRows || []).map(r => r.product_name).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'tr'));
+    const productCodes = [...new Set((itemRows || []).map(r => r.product_code).filter(Boolean))];
+
+    // FIX 3: initialize to [] so they're never undefined
+    let categories    = [];
+    let relationships = [];
+    let brands              = [];
+
+    if (productCodes.length) {
+      const { data: productRows } = await supabase
+        .from('products')
+        .select('product_code, category,brand, model')
+        .eq('tenant_id', tenantId)
+        .eq('is_internal', false)
+        .in('product_code', productCodes)
+        .not('category', 'is', null);
+
+      categories = [...new Set((productRows || []).map(r => r.category).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'tr'));
+      brands    = [...new Set((productRows || []).map(r => r.brand).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'tr'));
+
+      const productCodeMeta = {};
+      (productRows || []).forEach(r => {
+        productCodeMeta[r.product_code] = { category: r.category, model: r.model, brand: r.brand };
+      });
+
+      // FIX 4: deduplicate relationships
+      const seen = new Set();
+      relationships = (itemRows || [])
+        .filter(r => r.product_code && productCodeMeta[r.product_code])
+        .reduce((acc, r) => {
+          const key = `${r.invoice_id}|${r.brand_name}|${r.product_name}|${productCodeMeta[r.product_code].category}`;
+          if (!seen.has(key)) {
+            seen.add(key);
+            acc.push({
+              invoiceNo: r.invoice_id ? (invoiceNoMap[r.invoice_id] || null) : null,
+              company:  invoiceCompanyMap[r.invoice_id] || null,
+              brand:    productCodeMeta[r.product_code].brand   || null,
+              product:  r.product_name || null,
+              category: productCodeMeta[r.product_code].category,
+              model:    productCodeMeta[r.product_code].model || null,
+            });
+          }
+          return acc;
+        }, []);
+    }
+
+    res.json({ companies, brands, products, categories, currencies, invoiceNumbers, relationships });
+
+  } catch (err) {
+    console.error('filter-options hatası:', err.message);
     res.status(500).json({ error: err.message });
   }
 });
@@ -344,151 +732,165 @@ router.get('/totals', async (req, res) => {
 });
 
 
-
-router.get('/kpi-summary', async (req, res) => {
+// GET /api/invoices/price-histogram
+router.get('/price-histogram', async (req, res) => {
   try {
     const supabase = req.app.get('supabase');
     const tenantId = req.tenantId;
-    const { direction, pending, date_start, date_end,
-            companies, brands, categories, products } = req.query;
+    const direction = req.query.direction;
+    const BIN_COUNT = 10;
 
-    const emptyRes = { totals: { total_count: 0, try_total: 0, try_count: 0, usd_total: 0, usd_count: 0, eur_total: 0, eur_count: 0 } };
-    const hasItemFilter = !!(brands || categories || products);
 
-    // ── Step 1: resolve filter IDs (mirrors invoice list route) ──────────
-    let brandFilteredIds = null;
-    if (brands) {
-      const brandList = brands.split(',').map(s => s.trim()).filter(Boolean);
-      const { data: brandItems } = await supabase
-        .from('invoice_items')
-        .select('invoice_id')
-        .in('brand_name', brandList);
-      brandFilteredIds = [...new Set((brandItems || []).map(r => r.invoice_id).filter(Boolean))];
-      if (!brandFilteredIds.length) return res.json(emptyRes);
+
+    // Build query — only fetch payable_amount_tl
+    let query = supabase
+      .from('invoices')
+      .select('payable_amount_tl')
+      .or(`tenant_id.eq.${tenantId},tenant_id.is.null`)
+      .or('approval_status.neq.pending,approval_status.is.null')
+      .not('payable_amount_tl', 'is', null);
+
+    if (direction) query = query.eq('direction', direction);
+
+    const { data, error } = await query;
+    if (error) throw error;
+
+    const amounts = (data || []).map(r => parseFloat(r.payable_amount_tl)).filter(n => !isNaN(n) && n > 0);
+
+    if (!amounts.length) {
+      return res.json({ min: 0, max: 0, bins: [] });
     }
 
-    let categoryFilteredIds = null;
-    if (categories) {
-      const categoryList = categories.split(',').map(s => s.trim()).filter(Boolean);
-      const { data: catProducts } = await supabase
-        .from('products')
-        .select('product_code')
-        .in('category', categoryList)
-        .eq('tenant_id', tenantId);
-      const catCodes = (catProducts || []).map(r => r.product_code).filter(Boolean);
-      if (!catCodes.length) return res.json(emptyRes);
-      const { data: catItems } = await supabase
-        .from('invoice_items')
-        .select('invoice_id')
-        .in('product_code', catCodes);
-      categoryFilteredIds = [...new Set((catItems || []).map(r => r.invoice_id).filter(Boolean))];
-      if (!categoryFilteredIds.length) return res.json(emptyRes);
-    }
+    const min = Math.min(...amounts);
+    const max = Math.max(...amounts);
+    const range = max - min || 1;
+    const binWidth = range / BIN_COUNT;
 
-    let productFilteredIds = null;
-    if (products) {
-      const productList = products.split(',').map(s => decodeURIComponent(s.trim())).filter(Boolean);
-      const { data: prodItems } = await supabase
-        .from('invoice_items')
-        .select('invoice_id')
-        .in('product_name', productList);
-      productFilteredIds = [...new Set((prodItems || []).map(r => r.invoice_id).filter(Boolean))];
-      if (!productFilteredIds.length) return res.json(emptyRes);
-    }
+    const bins = Array.from({ length: BIN_COUNT }, (_, i) => ({
+      rangeStart: Math.round(min + i * binWidth),
+      rangeEnd:   Math.round(min + (i + 1) * binWidth),
+      count: 0,
+    }));
 
-    // ── Step 2: company filter ────────────────────────────────────────────
-    let companyIds = null;
-    if (companies) {
-      const companyList = companies.split(',').map(s => s.trim()).filter(Boolean);
-      const { data: matchedCompanies } = await supabase
-        .from('companies')
-        .select('id')
-        .in('name', companyList)
-        .eq('tenant_id', tenantId);
-      companyIds = (matchedCompanies || []).map(c => c.id);
-      if (!companyIds.length) return res.json(emptyRes);
-    }
+    amounts.forEach(a => {
+      let idx = Math.floor((a - min) / binWidth);
+      if (idx >= BIN_COUNT) idx = BIN_COUNT - 1;
+      bins[idx].count++;
+    });
 
-    // ── Step 3: get excluded (fully internal) invoice ids ─────────────────
+    res.json({ min: Math.round(min), max: Math.round(max), bins });
+  } catch (err) {
+    console.error('price-histogram hatası:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.get('/kpi-summary', async (req, res) => {
+    try {
+        const opts = {
+            direction:      req.query.direction,
+            pending:        req.query.pending === 'true',
+            dateStart:      req.query.date_start,
+            dateEnd:        req.query.date_end,
+            currency:       req.query.currency,
+            priceMin:       req.query.price_min ? parseFloat(req.query.price_min) : null,
+            priceMax:       req.query.price_max ? parseFloat(req.query.price_max) : null,
+            companies:      req.query.companies?.split(',').map(s => s.trim()).filter(Boolean),
+            brands:         req.query.brands?.split(',').map(s => s.trim()).filter(Boolean),
+            categories:     req.query.categories?.split(',').map(s => s.trim()).filter(Boolean),
+            products:       req.query.products?.split(',').map(s => decodeURIComponent(s.trim())).filter(Boolean),
+            invoiceNumbers: req.query.invoice_numbers?.split(',').map(s => s.trim()).filter(Boolean),
+        };
+        const result = await fetchKpiSummary(req.app.get('supabase'), req.tenantId, opts);
+        res.json(result);
+    } catch (err) {
+        console.error('kpi-summary hatası:', err.message);
+        res.status(500).json({ error: err.message });
+    }
+});
+router.get('/kpi-deltas', async (req, res) => {
+  try {
+    const supabase = req.app.get('supabase');
+    const tenantId = req.tenantId;
+    const direction = req.query.direction;
+
+    // Compute date windows
+    const iso = d => d.toISOString().slice(0, 10);
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+
+    const daysAgo = n => {
+      const d = new Date(today);
+      d.setDate(today.getDate() - n);
+      return d;
+    };
+
+    const currentStart  = daysAgo(30);
+    const currentEnd    = today;
+    const previousStart = daysAgo(60);
+    const previousEnd   = daysAgo(30);
+
+    // Fetch exclude list once (fully-internal invoices)
     const { data: excluded } = await supabase
       .from('fully_internal_invoice_ids')
       .select('invoice_id');
     const excludeIds = (excluded || []).map(r => r.invoice_id);
 
-    // ── Step 4: build invoice query ───────────────────────────────────────
-    let q = supabase
-      .from('invoices')
-      .select('id, base_currency, payable_amount_tl, payable_amount_cur')
-      .eq('tenant_id', tenantId)
-      .or('approval_status.neq.pending,approval_status.is.null');
+    // Helper — fetch a window and reduce to totals
+    async function _fetchWindow(startDate, endDateExclusive) {
+      let q = supabase
+        .from('invoices')
+        .select('company_id, base_currency, payable_amount_tl, payable_amount_cur')
+        .eq('tenant_id', tenantId)
+        .or('approval_status.neq.pending,approval_status.is.null')
+        .gte('invoice_date', iso(startDate))
+        .lt('invoice_date', iso(endDateExclusive));
 
-    if (pending === 'true') q = supabase.from('invoices').select('id, base_currency, payable_amount_tl, payable_amount_cur').eq('tenant_id', tenantId).eq('approval_status', 'pending');
-    if (direction)          q = q.eq('direction', direction);
-    if (req.query.currency) q = q.eq('base_currency', req.query.currency);
-    if (date_start)         q = q.gte('invoice_date', date_start);
-    if (date_end)           q = q.lte('invoice_date', date_end);
-    if (companyIds)         q = q.in('company_id', companyIds);
-    if (excludeIds.length)  q = q.not('id', 'in', `(${excludeIds.join(',')})`);
-    if (brandFilteredIds)   q = q.in('id', brandFilteredIds);
-    if (categoryFilteredIds)q = q.in('id', categoryFilteredIds);
-    if (productFilteredIds) q = q.in('id', productFilteredIds);
+      if (direction) q = q.eq('direction', direction);
+      if (excludeIds.length) q = q.not('id', 'in', `(${excludeIds.join(',')})`);
 
-    const { data: invoiceRows, error } = await q;
-    if (error) throw error;
-    if (!invoiceRows?.length) return res.json(emptyRes);
+      const { data, error } = await q;
+      if (error) return { count: 0, company_count: 0, try_total: 0, usd_total: 0, eur_total: 0 };
 
-    // ── Step 5: aggregate ─────────────────────────────────────────────────
-    if (!hasItemFilter) {
-      // No item filter → aggregate invoice totals
-      let try_total = 0, try_count = 0, usd_total = 0, usd_count = 0, eur_total = 0, eur_count = 0, total_count = 0;
-      invoiceRows.forEach(r => {
+      const totals = { count: 0, try_total: 0, usd_total: 0, eur_total: 0, companies: new Set() };
+
+      (data || []).forEach(r => {
+        totals.count++;
+        if (r.company_id) totals.companies.add(r.company_id);
+
         const cur = (r.base_currency || 'TRY').toUpperCase();
-        total_count++;
-        if (cur === 'USD')                      { usd_total += parseFloat(r.payable_amount_cur) || 0; usd_count++; }
-        else if (cur === 'TRY' || cur === 'TL') { try_total += parseFloat(r.payable_amount_tl)  || 0; try_count++; }
-        else if (cur === 'EUR')                 { eur_total += parseFloat(r.payable_amount_cur) || 0; eur_count++; }
+        if (cur === 'USD')                      totals.usd_total += parseFloat(r.payable_amount_cur) || 0;
+        else if (cur === 'TRY' || cur === 'TL') totals.try_total += parseFloat(r.payable_amount_tl)  || 0;
+        else if (cur === 'EUR')                 totals.eur_total += parseFloat(r.payable_amount_cur) || 0;
       });
-      return res.json({ totals: { total_count, try_total, try_count, usd_total, usd_count, eur_total, eur_count } });
+
+      return {
+        count:         totals.count,
+        company_count: totals.companies.size,
+        try_total:     totals.try_total,
+        usd_total:     totals.usd_total,
+        eur_total:     totals.eur_total,
+      };
     }
 
-    // Item filter active → fetch matching items and aggregate
-    const validInvoiceIds = invoiceRows.map(r => r.id);
-    let itemQ = supabase
-      .from('invoice_items')
-      .select('invoice_id, currency, total_price_cur, product_code, brand_name, product_name, is_internal')
-      .eq('is_internal', false)
-      .in('invoice_id', validInvoiceIds.slice(0, 1000));
+    // Fetch both windows in parallel
+    const [current, previous] = await Promise.all([
+      _fetchWindow(currentStart,  currentEnd),
+      _fetchWindow(previousStart, previousEnd),
+    ]);
 
-    const { data: itemRows } = await itemQ;
-    let matchingItems = itemRows || [];
-
-    if (brandFilteredIds) {
-      const brandList = brands.split(',').map(s => s.trim()).filter(Boolean);
-      matchingItems = matchingItems.filter(r => brandList.includes(r.brand_name));
-    }
-    if (categoryFilteredIds) {
-      matchingItems = matchingItems.filter(r => categoryFilteredIds.includes(r.invoice_id));
-    }
-    if (productFilteredIds) {
-      const productList = products.split(',').map(s => decodeURIComponent(s.trim())).filter(Boolean);
-      matchingItems = matchingItems.filter(r => productList.includes(r.product_name));
-    }
-
-    if (!matchingItems.length) return res.json(emptyRes);
-
-    let try_total = 0, try_count = 0, usd_total = 0, usd_count = 0, eur_total = 0, eur_count = 0, total_count = 0;
-    matchingItems.forEach(r => {
-      const cur = (r.currency || 'TRY').toUpperCase();
-      total_count++;
-      if (cur === 'USD')                      { usd_total += parseFloat(r.total_price_cur) || 0; usd_count++; }
-      else if (cur === 'TRY' || cur === 'TL') { try_total += parseFloat(r.total_price_cur) || 0; try_count++; }
-      else if (cur === 'EUR')                 { eur_total += parseFloat(r.total_price_cur) || 0; eur_count++; }
+    res.json({
+      current,
+      previous,
+      window: {
+        current_start:  iso(currentStart),
+        current_end:    iso(currentEnd),
+        previous_start: iso(previousStart),
+        previous_end:   iso(previousEnd),
+      },
     });
 
-    res.json({ totals: { total_count, try_total, try_count, usd_total, usd_count, eur_total, eur_count } });
-
   } catch (err) {
-    console.error('kpi-summary hatası:', err.message);
+    console.error('kpi-deltas hatası:', err.message);
     res.status(500).json({ error: err.message });
   }
 });
@@ -497,7 +899,7 @@ router.get('/cashflow-series', async (req, res) => {
   try {
     const supabase  = req.app.get('supabase');
     const tenantId  = req.tenantId;
-    const { direction, date_start, date_end } = req.query;
+    const { direction, date_start, date_end, bucket = 'month' } = req.query;
 
     // get excluded invoice ids
     const { data: excluded } = await supabase
@@ -519,11 +921,28 @@ router.get('/cashflow-series', async (req, res) => {
     const { data: rows, error } = await q;
     if (error) throw error;
 
+    // Bucket key generator based on requested grain
+    const keyOf = d => {
+      if (bucket === 'day') {
+        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      }
+      if (bucket === 'week') {
+        // Monday-start week — return ISO date of the Monday
+        const day = d.getDay() || 7;   // Sun=0 → 7
+        const monday = new Date(d);
+        monday.setHours(0, 0, 0, 0);
+        monday.setDate(d.getDate() - (day - 1));
+        return `${monday.getFullYear()}-${String(monday.getMonth() + 1).padStart(2, '0')}-${String(monday.getDate()).padStart(2, '0')}`;
+      }
+      // default: month
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+    };
+
     const buckets = {};
     (rows || []).forEach(r => {
       if (!r.invoice_date) return;
       const d = new Date(r.invoice_date);
-      const k = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      const k = keyOf(d);
       if (!buckets[k]) buckets[k] = { period: k, try_total: 0, usd_total: 0, eur_total: 0 };
       const cur = (r.base_currency || 'TRY').toUpperCase();
       if (cur === 'USD')                      buckets[k].usd_total += parseFloat(r.payable_amount_cur) || 0;
@@ -532,7 +951,7 @@ router.get('/cashflow-series', async (req, res) => {
     });
 
     const series = Object.values(buckets).sort((a, b) => a.period.localeCompare(b.period));
-    res.json({ series });
+    res.json({ series, bucket });
 
   } catch (err) {
     console.error('cashflow-series hatası:', err.message);
@@ -551,20 +970,20 @@ router.get('/top-companies', async (req, res) => {
     const dateEnd    = req.query.date_end;
 
     // Exclude fully-internal invoices
-    const { data: niItems } = await supabase
-      .from('invoice_items')
-      .select('invoice_id')
-      .eq('is_internal', false);
-    const nonInternalIds = [...new Set((niItems || []).map(r => r.invoice_id).filter(Boolean))];
-    if (!nonInternalIds.length) return res.json([]);
+    // Fetch the small "fully internal" exclude list
+    const { data: excluded } = await supabase
+      .from('fully_internal_invoice_ids')
+      .select('invoice_id');
+    const excludeIds = (excluded || []).map(r => r.invoice_id);
 
     // Fetch invoices with company name, direction, amounts
     let query = supabase
       .from('invoices')
       .select('direction, base_currency, payable_amount_tl, payable_amount_cur, calculation_rate, companies(name)')
       .eq('tenant_id', tenantId)
-      .or('approval_status.neq.pending,approval_status.is.null')
-      .in('id', nonInternalIds);
+      .or('approval_status.neq.pending,approval_status.is.null');
+
+    if (excludeIds.length) query = query.not('id', 'in', `(${excludeIds.join(',')})`);
 
     if (direction)  query = query.eq('direction', direction);
     if (dateStart)  query = query.gte('invoice_date', dateStart);
@@ -599,6 +1018,99 @@ router.get('/top-companies', async (req, res) => {
     res.json(limit ? result.slice(0, limit) : result);
   } catch (err) {
     console.error('top-companies hatası:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.get('/company-cadence', async (req, res) => {
+  try {
+    const supabase  = req.app.get('supabase');
+    const tenantId  = req.tenantId;
+    const direction = req.query.direction;
+
+    const monthsParam = parseInt(req.query.months) || 6;
+    const months      = Math.min(Math.max(monthsParam, 2), 12);
+
+    // Compute date window — first day of the earliest month we care about
+    const now         = new Date(); now.setHours(0, 0, 0, 0);
+    const windowStart = new Date(now.getFullYear(), now.getMonth() - (months - 1), 1);
+    const iso         = d => d.toISOString().slice(0, 10);
+
+    // Exclude fully-internal invoices (same pattern as other routes)
+    const { data: excluded } = await supabase
+      .from('fully_internal_invoice_ids')
+      .select('invoice_id');
+    const excludeIds = (excluded || []).map(r => r.invoice_id);
+
+    // Fetch invoices in window
+    let q = supabase
+      .from('invoices')
+      .select('invoice_date, companies(name)')
+      .eq('tenant_id', tenantId)
+      .or('approval_status.neq.pending,approval_status.is.null')
+      .gte('invoice_date', iso(windowStart))
+      .not('invoice_date', 'is', null);
+
+    if (direction)         q = q.eq('direction', direction);
+    if (excludeIds.length) q = q.not('id', 'in', `(${excludeIds.join(',')})`);
+
+    const { data: rows, error } = await q;
+    if (error) throw error;
+
+    // Group by company → per-month count + last invoice date
+    const map = new Map();
+
+    (rows || []).forEach(r => {
+      const name = r.companies?.name;
+      if (!name || !r.invoice_date) return;
+
+      const d = new Date(r.invoice_date);
+      const monthKey = `${d.getFullYear()}-${d.getMonth()}`;
+
+      if (!map.has(name)) {
+        map.set(name, { name, monthCounts: new Map(), lastDate: null });
+      }
+      const entry = map.get(name);
+      entry.monthCounts.set(monthKey, (entry.monthCounts.get(monthKey) || 0) + 1);
+
+      if (!entry.lastDate || d > new Date(entry.lastDate)) {
+        entry.lastDate = r.invoice_date;
+      }
+    });
+
+    // Build the expected month list (chronological, oldest → newest)
+    const monthsExpected = [];
+    for (let i = months - 1; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      monthsExpected.push({ year: d.getFullYear(), month: d.getMonth() });
+    }
+
+    // Format the response — for each company, fill in counts for every expected month
+    // (missing months → count: 0)
+    const companies = [];
+    for (const [name, entry] of map.entries()) {
+      const monthsArr = monthsExpected.map(m => ({
+        year:  m.year,
+        month: m.month,
+        count: entry.monthCounts.get(`${m.year}-${m.month}`) || 0,
+      }));
+
+      // Lightweight backend filter: only include companies with at least
+      // 2 months of activity in the window (skip one-time customers)
+      const activeMonths = monthsArr.filter(m => m.count > 0).length;
+      if (activeMonths < 2) continue;
+
+      companies.push({
+        name,
+        months:            monthsArr,
+        last_invoice_date: entry.lastDate,
+      });
+    }
+
+    res.json({ companies });
+
+  } catch (err) {
+    console.error('company-cadence hatası:', err.message);
     res.status(500).json({ error: err.message });
   }
 });
@@ -709,107 +1221,6 @@ router.get('/trend', async (req, res) => {
 
   } catch (err) {
     console.error('Trend hatası:', err.message);
-    res.status(500).json({ error: err.message });
-  }
-});
-
-router.get('/filter-options', async (req, res) => {
-  try {
-    const supabase = req.app.get('supabase');
-    const tenantId = req.tenantId;
-    const direction = req.query.direction;
-
-    const { data: niItems } = await supabase
-      .from('invoice_items')
-      .select('invoice_id')
-      .eq('is_internal', false);
-
-    const nonInternalIds = [...new Set((niItems || []).map(r => r.invoice_id).filter(Boolean))];
-    if (!nonInternalIds.length) {
-      return res.json({ companies: [], brands: [], products: [], categories: [], models: [], currencies: [], relationships: [] });
-    }
-
-    let invQuery = supabase
-      .from('invoices')
-      .select('id, base_currency, companies(name)')
-      .eq('tenant_id', tenantId)
-      .or('approval_status.neq.pending,approval_status.is.null')
-      .in('id', nonInternalIds.slice(0, 1000));
-
-    if (direction) invQuery = invQuery.eq('direction', direction);
-    const { data: invRows } = await invQuery;
-
-    const companies = [...new Set((invRows || []).map(r => r.companies?.name).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'tr'));
-    const currencies = [...new Set((invRows || []).map(r => r.base_currency).filter(Boolean))].sort();
-
-    // FIX 1: build invoiceCompanyMap from invRows
-    const invoiceCompanyMap = {};
-    (invRows || []).forEach(r => {
-      if (r.id && r.companies?.name) invoiceCompanyMap[r.id] = r.companies.name;
-    });
-
-    const directionFilteredIds = direction ? (invRows || []).map(r => r.id).filter(Boolean) : nonInternalIds;
-    if (!directionFilteredIds.length) {
-      return res.json({ companies, brands: [], products: [], categories: [], models: [], currencies, relationships: [] });
-    }
-
-    // FIX 2: include invoice_id in select
-    const { data: itemRows } = await supabase
-      .from('invoice_items')
-      .select('invoice_id, brand_name, product_name, product_code')
-      .eq('is_internal', false)
-      .in('invoice_id', directionFilteredIds.slice(0, 1000));
-
-    const products  = [...new Set((itemRows || []).map(r => r.product_name).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'tr'));
-    const productCodes = [...new Set((itemRows || []).map(r => r.product_code).filter(Boolean))];
-
-    // FIX 3: initialize to [] so they're never undefined
-    let categories    = [];
-    let models        = [];
-    let relationships = [];
-    let brands              = [];
-
-    if (productCodes.length) {
-      const { data: productRows } = await supabase
-        .from('products')
-        .select('product_code, category,brand, model')
-        .eq('tenant_id', tenantId)
-        .eq('is_internal', false)
-        .in('product_code', productCodes.slice(0, 1000))
-        .not('category', 'is', null);
-
-      categories = [...new Set((productRows || []).map(r => r.category).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'tr'));
-      models     = [...new Set((productRows || []).map(r => r.model).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'tr'));
-      brands    = [...new Set((productRows || []).map(r => r.brand).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'tr'));
-
-      const productCodeMeta = {};
-      (productRows || []).forEach(r => {
-        productCodeMeta[r.product_code] = { category: r.category, model: r.model, brand: r.brand };
-      });
-
-      // FIX 4: deduplicate relationships
-      const seen = new Set();
-      relationships = (itemRows || [])
-        .filter(r => r.product_code && productCodeMeta[r.product_code])
-        .reduce((acc, r) => {
-          const key = `${r.invoice_id}|${r.brand_name}|${r.product_name}|${productCodeMeta[r.product_code].category}`;
-          if (!seen.has(key)) {
-            seen.add(key);
-            acc.push({
-              company:  invoiceCompanyMap[r.invoice_id] || null,
-              brand:    productCodeMeta[r.product_code].brand   || null,
-              product:  r.product_name || null,
-              category: productCodeMeta[r.product_code].category,
-              model:    productCodeMeta[r.product_code].model || null,
-            });
-          }
-          return acc;
-        }, []);
-    }
-
-    res.json({ companies, brands, products, categories, models, currencies, relationships });
-  } catch (err) {
-    console.error('filter-options hatası:', err.message);
     res.status(500).json({ error: err.message });
   }
 });
@@ -1389,3 +1800,5 @@ router.put('/:id/items/batch-category', async (req, res) => {
 });
 
 module.exports = router;
+module.exports.fetchKpiSummary = fetchKpiSummary;   // ← add this line
+module.exports.fetchInvoiceList = fetchInvoiceList;

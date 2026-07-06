@@ -31,13 +31,12 @@ app.set('supabase', supabase);
 // ─── Tenant Middleware ────────────────────────────────────────────────────────
 app.use(require('./middleware/tenant'));
 
-console.log('INOKAS_VKN:', process.env.INOKAS_VKN ? 'yüklendi ✓' : 'TANIMSIZ');
-
 // ─── API Routes ───────────────────────────────────────────────────────────────
 app.use('/api/auth',                require('./routes/auth'));
 app.use('/api/invoices',            require('./routes/invoices'));
 app.use('/api/save-invoice',        require('./routes/invoices'));
 app.use('/api/invoice-items',       require('./routes/invoices'));
+app.use('/api/chat', require('./routes/fatura-chat'));
 app.use('/api/settings', require('./routes/settings'));
 app.use('/api/tenant-vkn', require('./routes/settings'));
 app.use('/api/products',            require('./routes/products'));
@@ -125,7 +124,7 @@ cron.schedule('40 12 * * *', () => {
 });
 
 // Every 5 minutes — invoice sync
-cron.schedule('*/5 * * * *', async () => {
+cron.schedule('*/120 * * * *', async () => {
   console.log('Cron: Invoice sync starting...');
   try { await runSync(); }
   catch (err) { console.error('Cron: Invoice sync failed:', err.message); }
@@ -134,7 +133,7 @@ cron.schedule('*/5 * * * *', async () => {
 const { runElogoSync, runElogoDailyRecheck } = require('./services/elogo-sync-service');
 
 // In your existing 10-minute cron:
-cron.schedule('*/10 * * * *', async () => {
+cron.schedule('*/60 * * * *', async () => {
   await runElogoSync();   // eLogo SOAP
 });
 

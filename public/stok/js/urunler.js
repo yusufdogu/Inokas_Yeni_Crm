@@ -1,4 +1,9 @@
 // stok/urunler.js — Ürünler page
+
+// allProducts is an implicit global on this page (assigned in loadProducts).
+// Declare it explicitly so it doesn't depend on non-strict-mode leakage.
+if (typeof allProducts === 'undefined') { var allProducts = []; }
+
 let brandOptions            = [];//to store brands we define here
 let productCategoryOptions  = [];//to store category options in filters
 let internalCategoryOptions = [];//
@@ -15,6 +20,7 @@ let _isInternalMode    = false;
 let _urunSort          = { col: null, dir: 'desc' };
 let _advancedOpen      = false;
 
+let _skuFilter;
 let _brandFilter;
 let _categoryFilter;
 let _productNameFilter;
@@ -22,9 +28,15 @@ let _currencyFilter;
 
 // quick-filter chip state
 let _filterInStock  = true;   // default ON — depoda
-let _filterRisk     = false;
-let _filterDead     = false;
-let _filterDmo      = false;
+
+// ─── Adet / Stok değeri aralık filtreleri ──────────────────────────────────────
+let _qtyMin = 0,  _qtyMax = Infinity;   // active quantity range
+let _valMin = 0,  _valMax = Infinity;   // active stock-value range
+let _qtyCap = 500;                      // slider ceiling (derived from data)
+let _valCap = 5000000;                  // slider ceiling (derived from data)
+let _rangesReady = false;               // guards slider re-init
+
+const _CUR_SYM = { TRY: '₺', TL: '₺', USD: '$', EUR: '€' };
 
 let _uhSort = { col: null, dir: 'desc' };
 let _uhCompanyFilter;
@@ -33,12 +45,18 @@ let _urPage     = 0;
 let _urPageSize = 100;
 let _urFiltered = [];
 
+let _stockTabs = [];   // recently-clicked SKUs (activity strip)
+const _STOCK_TABS_KEY = 'inokas_urunler_tabs_v1';
+
 // ─── INIT ─────────────────────────────────────────────────────────────────────
 async function initUrunler() {
   await Promise.all([loadProducts(), loadCategoryOptions(), loadCategoryTemplates()]);
   initFilters();
+  _setupUrunRanges();
   renderUrunlerKpis();
   applyUrunlerFilters();
+  _loadStockTabs();
+
 }
 
 // ─── DATA ─────────────────────────────────────────────────────────────────────
@@ -79,70 +97,115 @@ async function loadCategoryOptions() {
   } catch { }
 }
 
+// ─── RECENTLY-CLICKED PRODUCT STRIP ────────────────────────────────────────────
+function _loadStockTabs() {
+  try {
+    const raw = sessionStorage.getItem(_STOCK_TABS_KEY);
+    _stockTabs = raw ? JSON.parse(raw) : [];
+  } catch { _stockTabs = []; }
+  _renderStockTabs();
+}
+
+function _saveStockTabs() {
+  try { sessionStorage.setItem(_STOCK_TABS_KEY, JSON.stringify(_stockTabs)); } catch {}
+}
+
+// Append a SKU. If already present, move it to the end (most-recent last).
+function pushStockTab(sku) {
+  sku = String(sku || '').trim();
+  if (!sku) return;
+  _stockTabs = _stockTabs.filter(s => s !== sku);
+  _stockTabs.push(sku);
+  _saveStockTabs();
+  _renderStockTabs();
+  // keep the newest chip in view
+  const scroll = document.getElementById('stockTabsScroll');
+  if (scroll) scroll.scrollLeft = scroll.scrollWidth;
+}
+
+function removeStockTab(sku) {
+  _stockTabs = _stockTabs.filter(s => s !== String(sku || '').trim());
+  _saveStockTabs();
+  _renderStockTabs();
+}
+
+// Re-open the modal for a SKU (chip click).
+function openProductBySku(sku) {
+  sku = String(sku || '').trim();
+  const p = allProducts.find(x => String(x.product_code || '').trim() === sku);
+  if (p) openUrunModal(p.id, p.product_code);
+}
+
+function _renderStockTabs() {
+  const bar    = document.getElementById('stockTabBar');
+  const scroll = document.getElementById('stockTabsScroll');
+  if (!scroll) return;
+
+  scroll.innerHTML = _stockTabs.map(sku => `
+    <div class="stock-tab" onclick="openProductBySku('${esc(sku)}')" title="${esc(sku)}">
+      <span class="stock-tab-sku">${esc(sku)}</span>
+      <span class="stock-tab-close" onclick="event.stopPropagation(); removeStockTab('${esc(sku)}')">×</span>
+    </div>
+  `).join('');
+
+  bar?.classList.toggle('has-tabs', _stockTabs.length > 0);
+}
+
 
 // ─── FILTERS ──────────────────────────────────────────────────────────────────
+// Products passing every tag filter EXCEPT the one named — used to build each
+// filter's option list so the dropdowns narrow one another (SKU included).
+function _urunCrossFiltered(except) {
+  const skus       = except === 'sku'   ? [] : (_skuFilter?.getSelected()         || []);
+  const names      = except === 'name'  ? [] : (_productNameFilter?.getSelected() || []);
+  const brands     = except === 'brand' ? [] : (_brandFilter?.getSelected()       || []);
+  const categories = except === 'cat'   ? [] : (_categoryFilter?.getSelected()    || []);
+  return allProducts.filter(p => {
+    if (skus.length       && !skus.includes(String(p.product_code || '').trim()))       return false;
+    if (names.length      && !names.includes(String(p.product_name || '').trim()))      return false;
+    if (brands.length     && !brands.includes(String(p.brand || '').trim()))            return false;
+    if (categories.length && !categories.includes(String(p.category || '').trim()))     return false;
+    return true;
+  });
+}
+
+function _urunOpts(except, field) {
+  return [...new Set(
+    _urunCrossFiltered(except).map(p => String(p[field] || '').trim()).filter(Boolean)
+  )].sort((a, b) => a.localeCompare(b, 'tr'));
+}
+
 function initFilters() {
+  _skuFilter = createTagFilter({
+    wrapId:     'urSkuTagsWrap',
+    inputId:    'urSkuTagInput',
+    dropdownId: 'urSkuDropdown',
+    getOptions: () => _urunOpts('sku', 'product_code'),
+    onChange:   () => applyUrunlerFilters(),
+  });
+
   _productNameFilter = createTagFilter({
     wrapId:     'urProductNameTagsWrap',
     inputId:    'urProductNameTagInput',
     dropdownId: 'urProductNameDropdown',
-    getOptions: () => {
-      const brands     = _brandFilter?.getSelected()    || [];
-      const categories = _categoryFilter?.getSelected() || [];
-      return [...new Set(
-        allProducts
-          .filter(p => {
-            if (brands.length     && !brands.includes(String(p.brand || '').trim()))     return false;
-            if (categories.length && !categories.includes(String(p.category || '').trim())) return false;
-            return true;
-          })
-          .map(p => String(p.product_name || '').trim())
-          .filter(Boolean)
-      )].sort((a, b) => a.localeCompare(b, 'tr'));
-    },
-    onChange: () => applyUrunlerFilters(),
+    getOptions: () => _urunOpts('name', 'product_name'),
+    onChange:   () => applyUrunlerFilters(),
   });
 
   _brandFilter = createTagFilter({
     wrapId:     'urBrandTagsWrap',
     inputId:    'urBrandTagInput',
     dropdownId: 'urBrandDropdown',
-    getOptions: () => {
-      const names      = _productNameFilter?.getSelected() || [];
-      const categories = _categoryFilter?.getSelected()    || [];
-      return [...new Set(
-        allProducts
-          .filter(p => {
-            if (names.length      && !names.includes(String(p.product_name || '').trim()))      return false;
-            if (categories.length && !categories.includes(String(p.category || '').trim())) return false;
-            return true;
-          })
-          .map(p => String(p.brand || '').trim())
-          .filter(Boolean)
-      )].sort((a, b) => a.localeCompare(b, 'tr'));
-    },
-    onChange: () => applyUrunlerFilters(),
+    getOptions: () => _urunOpts('brand', 'brand'),
+    onChange:   () => applyUrunlerFilters(),
   });
 
   _categoryFilter = createTagFilter({
     wrapId:     'urCategoryTagsWrap',
     inputId:    'urCategoryTagInput',
     dropdownId: 'urCategoryDropdown',
-    getOptions: () => {
-      const names  = _productNameFilter?.getSelected() || [];
-      const brands = _brandFilter?.getSelected()       || [];
-      return [...new Set(
-        allProducts
-          .filter(p => {
-            if (names.length  && !names.includes(String(p.product_name || '').trim()))  return false;
-            if (brands.length && !brands.includes(String(p.brand || '').trim())) return false;
-            return true;
-          })
-          .map(p => String(p.category || '').trim())
-          .filter(Boolean)
-      )].sort((a, b) => a.localeCompare(b, 'tr'));
-    },
-    onChange: () => { applyUrunlerFilters(); onCategoryFilterChange(); },
+    getOptions: () => _urunOpts('cat', 'category'),
+    onChange:   () => { applyUrunlerFilters(); onCategoryFilterChange(); },
   });
 
   _currencyFilter = createTagFilter({
@@ -152,59 +215,90 @@ function initFilters() {
     getOptions: () => [...new Set(
       allProducts.map(p => String(p.last_purchase_currency || '').trim()).filter(Boolean)
     )].sort(),
-    onChange: () => { applyUrunlerFilters(); },
+    onChange: () => { _onCurrencyChange(); applyUrunlerFilters(); },
   });
 
   _syncChipUI();
 }
 // ─── CHIP TOGGLES ─────────────────────────────────────────────────────────────
 function toggleChip(chip) {
-  if (chip === 'inStock')  _filterInStock = !_filterInStock;
-  if (chip === 'dmo')      _filterDmo     = !_filterDmo;
-  if (chip === 'risk') {
-    _filterRisk = !_filterRisk;
-    if (_filterRisk) _filterDead = false;
-  }
-  if (chip === 'dead') {
-    _filterDead = !_filterDead;
-    if (_filterDead) _filterRisk = false;
-  }
+  if (chip === 'inStock') _filterInStock = !_filterInStock;
   _syncChipUI();
   applyUrunlerFilters();
 }
 
 function _syncChipUI() {
-  const chips = {
-    'chipInStock': _filterInStock,
-    'chipDmo':     _filterDmo,
-    'chipRisk':    _filterRisk,
-    'chipDead':    _filterDead,
-  };
-  Object.entries(chips).forEach(([id, on]) => {
-    document.getElementById(id)?.classList.toggle('stk-chip--active', on);
-  });
+  document.getElementById('chipInStock')?.classList.toggle('stk-chip--active', _filterInStock);
+}
+
+// ─── ADVANCED PANEL TOGGLE ────────────────────────────────────────────────────
+// Shares the _advancedOpen flag with the dynamic category-attribute code, which
+// opens this same panel when a single category is selected.
+function toggleUrunAdvanced() {
+  _advancedOpen = !_advancedOpen;
+  document.getElementById('urAdvancedFiltersPanel')?.classList.toggle('open', _advancedOpen);
+  document.getElementById('urAdvancedFiltersBtn')?.classList.toggle('open', _advancedOpen);
 }
 
 // ─── APPLY FILTERS ────────────────────────────────────────────────────────────
+// Per-item stock value.
+//  - targetCur set (single currency selected): value in THAT currency, or null
+//    when the item's currency doesn't match (so it's excluded from the range).
+//  - targetCur null (TL basis): TL value; uses avg_purchase_price_tl for TRY
+//    items, else converts via last_purchase_rate, falling back to avg TL.
+function _itemStockValue(p, targetCur) {
+  const stock = Number(p.stock_on_hand || 0);
+  if (stock <= 0) return 0;
+  const cur = (p.last_purchase_currency || '').toUpperCase().trim();
+
+  if (targetCur) {
+    if (cur !== targetCur) return null;
+    return stock * Number(p.last_purchase_price_cur || 0);
+  }
+
+  if (cur === 'TRY' || cur === 'TL') return stock * Number(p.avg_purchase_price_tl || 0);
+  const rate = Number(p.last_purchase_rate || 0);
+  if (rate > 0 && Number(p.last_purchase_price_cur || 0) > 0) {
+    return stock * Number(p.last_purchase_price_cur) * rate;
+  }
+  return stock * Number(p.avg_purchase_price_tl || 0);
+}
+
 function applyUrunlerFilters() {
+  const skus         = _skuFilter?.getSelected()         || [];
   const productNames = _productNameFilter?.getSelected() || [];
   const brands       = _brandFilter?.getSelected()       || [];
   const categories   = _categoryFilter?.getSelected()    || [];
   const currencies   = _currencyFilter?.getSelected()    || [];
 
-  const LOW_STOCK = 10;
+  // Value range basis: the selected currency when exactly one is chosen, else TL.
+  const valueBasis = currencies.length === 1 ? currencies[0].toUpperCase().trim() : null;
+  const valActive  = _valMin > 0 || Number.isFinite(_valMax);
+  const qtyActive  = _qtyMin > 0 || Number.isFinite(_qtyMax);
 
   let filtered = allProducts.filter(p => {
     const stock = Number(p.stock_on_hand || 0);
 
+    if (skus.length         && !skus.includes(String(p.product_code || '').trim())) return false;
     if (productNames.length && !productNames.includes(String(p.product_name || '').trim())) return false;
     if (brands.length     && !brands.includes(String(p.brand || '').trim()))     return false;
     if (categories.length && !categories.includes(String(p.category || '').trim())) return false;
     if (currencies.length && !currencies.includes(String(p.last_purchase_currency || '').trim())) return false;
-    if (_filterDmo    && !String(p.dmo_code || '').trim()) return false;
-    if (_filterInStock && !(stock > 0))                    return false;
-    if (_filterRisk   && !(stock > 0 && stock < LOW_STOCK)) return false;
-    if (_filterDead   && !(stock > 0 && Number(p.shipped_total || 0) === 0)) return false;
+    if (_filterInStock && !(stock > 0)) return false;
+
+    // Adet aralığı
+    if (qtyActive) {
+      if (stock < _qtyMin) return false;
+      if (stock > _qtyMax) return false;      // _qtyMax = Infinity when no upper bound
+    }
+
+    // Stok değeri aralığı
+    if (valActive) {
+      const v = _itemStockValue(p, valueBasis);
+      if (v === null) return false;                     // wrong currency for the basis
+      if (v < _valMin) return false;
+      if (v > _valMax) return false;          // _valMax = Infinity when no upper bound
+    }
 
     return true;
   });
@@ -241,8 +335,9 @@ function applyUrunlerFilters() {
         aVal = Number(a.last_purchase_price_cur || 0);
         bVal = Number(b.last_purchase_price_cur || 0);
       } else if (_urunSort.col === 'total_stock_price') {
-        aVal = Number(a.avg_purchase_price_tl || 0) * Number(a.stock_on_hand || 0);
-        bVal = Number(b.avg_purchase_price_tl || 0) * Number(b.stock_on_hand || 0);
+        // TL-equivalent so mixed-currency rows order meaningfully
+        aVal = _itemStockValue(a, null) || 0;
+        bVal = _itemStockValue(b, null) || 0;
       }
       return _urunSort.dir === 'desc' ? bVal - aVal : aVal - bVal;
     });
@@ -255,59 +350,271 @@ function applyUrunlerFilters() {
 }
 
 function _clearUrunlerFilters() {
+  _skuFilter?.clear();
   _productNameFilter?.clear();
   _brandFilter?.clear();
   _categoryFilter?.clear();
   _currencyFilter?.clear();
   _filterInStock = true;
-  _filterDmo     = false;
-  _filterRisk    = false;
-  _filterDead    = false;
   _syncChipUI();
+  _onCurrencyChange();      // reset value-slider symbol/scale to TL
+  _resetUrunRanges();       // sliders back to full span
   applyUrunlerFilters();
 }
 
 
 // ─── KPIs ─────────────────────────────────────────────────────────────────────
+// Three SEPARATE currency totals (each currency summed in its own unit).
 function renderUrunlerKpis(subset) {
-  const src      = subset || allProducts;
-  const LOW_STOCK = 10;
+  const src     = subset || allProducts;
+  const inStock = src.filter(p => Number(p.stock_on_hand || 0) > 0);
 
-  const inStock  = src.filter(p => Number(p.stock_on_hand || 0) > 0);
-
-  let totalTL  = 0;
-  let totalUSD = 0;
+  let totalTL = 0, totalEUR = 0, totalUSD = 0;
 
   inStock.forEach(r => {
-    const stock       = Number(r.stock_on_hand || 0);
-    const avgTL       = Number(r.avg_purchase_price_tl || 0);
-    const lastCur     = (r.last_purchase_currency || '').toUpperCase().trim();
+    const stock   = Number(r.stock_on_hand || 0);
+    const avgTL   = Number(r.avg_purchase_price_tl || 0);
+    const unitCur = Number(r.last_purchase_price_cur || 0);
+    const lastCur = (r.last_purchase_currency || '').toUpperCase().trim();
+    if (stock <= 0) return;
 
-    if (Math.floor(stock) > 0) {
-      if ((lastCur === 'TRY' || lastCur === 'TL') && avgTL > 0) {
-        totalTL+=stock * r.avg_purchase_price_tl
-      } else if (lastCur === 'USD' && r.last_purchase_price_cur >0) {
-        totalUSD += stock * r.last_purchase_price_cur;
-      }
+    if ((lastCur === 'TRY' || lastCur === 'TL') && avgTL > 0) {
+      totalTL += stock * avgTL;
+    } else if (lastCur === 'EUR' && unitCur > 0) {
+      totalEUR += stock * unitCur;
+    } else if (lastCur === 'USD' && unitCur > 0) {
+      totalUSD += stock * unitCur;
     }
   });
 
   const categories = new Set(src.map(p => String(p.category || '').trim()).filter(Boolean));
-  const riskCount  = src.filter(p => {
-    const s = Number(p.stock_on_hand || 0);
-    return s > 0 && s < LOW_STOCK;
-  }).length;
-  const deadCount  = src.filter(p =>
-    Number(p.stock_on_hand || 0) > 0).length;
+  const totalQty   = src.reduce((s, p) => s + Number(p.stock_on_hand || 0), 0);
 
   const setEl = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
 
   setEl('kpi-stock-tl',  '₺' + Math.round(totalTL).toLocaleString('tr-TR'));
+  setEl('kpi-stock-eur', '€' + Math.round(totalEUR).toLocaleString('tr-TR'));
   setEl('kpi-stock-usd', '$' + Math.round(totalUSD).toLocaleString('tr-TR'));
-  setEl('kpi-total-ur',  inStock.length.toLocaleString('tr-TR'));
+  setEl('kpi-total-ur',  src.length.toLocaleString('tr-TR'));
   setEl('kpi-categories', String(categories.size));
-  setEl('kpi-risk',  riskCount > 0 ? String(riskCount) : '—');
-  setEl('kpi-dead',  deadCount > 0 ? String(deadCount) : '—');
+  setEl('kpi-total-qty', Math.round(totalQty).toLocaleString('tr-TR'));
+}
+
+// ─── ADET / STOK DEĞERİ ARALIK FİLTRELERİ (pill + popover) ─────────────────────
+// Sliders removed. Each range is a pill button opening a popover with preset
+// chips + En az / En çok text inputs. The active state (_qtyMin/Max, _valMin/Max,
+// _valCap) and applyUrunlerFilters are unchanged from the slider version.
+
+// Called once from initUrunler → derives value ceiling and paints initial labels.
+function _setupUrunRanges() {
+  if (_rangesReady) return;
+
+  let maxQty = 0, maxVal = 0;
+  allProducts.forEach(p => {
+    const s = Number(p.stock_on_hand || 0);
+    if (s > maxQty) maxQty = s;
+    const v = _itemStockValue(p, null) || 0;
+    if (v > maxVal) maxVal = v;
+  });
+  _qtyCap = Math.max(1, Math.ceil(maxQty));
+  _valCap = Math.max(1, Math.ceil(maxVal));
+  _qtyMin = 0; _qtyMax = Infinity;
+  _valMin = 0; _valMax = Infinity;
+
+  _syncQtyPill();
+  _syncValPill();
+
+  // Close any open popover on outside click / Escape.
+  document.addEventListener('click', _closeAllRangePops);
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') _closeAllRangePops(); });
+
+  _rangesReady = true;
+}
+
+// ── parse / format helpers ────────────────────────────────────────────────────
+// Accepts "10K", "1.5M", "50 000", "50.000" → number; blank → null.
+function _parseAmount(raw) {
+  let s = String(raw == null ? '' : raw).trim().toLocaleLowerCase('tr');
+  if (!s) return null;
+  let mult = 1;
+  if (s.endsWith('k')) { mult = 1000;    s = s.slice(0, -1); }
+  else if (s.endsWith('m')) { mult = 1000000; s = s.slice(0, -1); }
+  s = s.replace(/\s/g, '').replace(/\./g, '').replace(',', '.'); // tr thousands/decimals
+  const n = parseFloat(s);
+  if (!Number.isFinite(n)) return null;
+  return Math.max(0, Math.round(n * mult));
+}
+
+// ── popover open/close ─────────────────────────────────────────────────────────
+function _closeAllRangePops() {
+  ['urQtyPop', 'urValPop'].forEach(id => document.getElementById(id)?.classList.remove('open', 'align-right'));
+  ['urQtyPillWrap', 'urValPillWrap'].forEach(id => document.getElementById(id)?.classList.remove('open'));
+}
+
+function _openRangePop(popId, wrapId) {
+  const pop  = document.getElementById(popId);
+  const wrap = document.getElementById(wrapId);
+  if (!pop || !wrap) return;
+  const isOpen = pop.classList.contains('open');
+  _closeAllRangePops();
+  if (isOpen) return;                       // second click on same pill = close
+  // Flip alignment if the popover would overflow the viewport's right edge.
+  const rect = wrap.getBoundingClientRect();
+  if (rect.left + 240 > window.innerWidth - 12) pop.classList.add('align-right');
+  pop.classList.add('open');
+  wrap.classList.add('open');
+}
+
+function toggleQtyPop(e) { if (e) e.stopPropagation(); _openRangePop('urQtyPop', 'urQtyPillWrap'); _fillQtyInputs(); }
+function toggleValPop(e) { if (e) e.stopPropagation(); _openRangePop('urValPop', 'urValPillWrap'); _fillValInputs(); }
+
+// ── ADET ───────────────────────────────────────────────────────────────────────
+function _fillQtyInputs() {
+  const mn = document.getElementById('urQtyMinInput');
+  const mx = document.getElementById('urQtyMaxInput');
+  if (mn) mn.value = _qtyMin > 0 ? String(_qtyMin) : '';
+  if (mx) mx.value = Number.isFinite(_qtyMax) ? String(_qtyMax) : '';
+}
+
+function setQtyBucket(btn, lo, hi) {
+  _qtyMin = Number(lo) || 0;
+  _qtyMax = (hi == null) ? Infinity : Number(hi);
+  _markPreset(btn);
+  _fillQtyInputs();
+  _syncQtyPill();
+  applyUrunlerFilters();
+}
+
+function onQtyInputChange() {
+  const lo = _parseAmount(document.getElementById('urQtyMinInput')?.value);
+  const hi = _parseAmount(document.getElementById('urQtyMaxInput')?.value);
+  _qtyMin = lo == null ? 0 : lo;
+  _qtyMax = hi == null ? Infinity : hi;
+  _clearPresetHighlight('urQtyPop');
+  _syncQtyPill();
+  applyUrunlerFilters();
+}
+
+function clearQtyRange() {
+  _qtyMin = 0; _qtyMax = Infinity;
+  _fillQtyInputs();
+  _clearPresetHighlight('urQtyPop');
+  _syncQtyPill();
+  _closeAllRangePops();
+  applyUrunlerFilters();
+}
+
+function _syncQtyPill() {
+  const active = _qtyMin > 0 || Number.isFinite(_qtyMax);
+  const label  = document.getElementById('urQtyPillLabel');
+  const clear  = document.getElementById('urQtyPillClear');
+  const pill   = document.getElementById('urQtyPill');
+  if (label) {
+    label.textContent = active
+      ? 'Adet: ' + _qtyMin.toLocaleString('tr-TR') + '–' + (Number.isFinite(_qtyMax) ? _qtyMax.toLocaleString('tr-TR') : '∞')
+      : 'Adet aralığı';
+  }
+  if (clear) clear.style.display = active ? '' : 'none';
+  if (pill)  pill.classList.toggle('active', active);
+}
+
+// ── STOK DEĞERİ ─────────────────────────────────────────────────────────────────
+function _valSym() {
+  const currencies = _currencyFilter?.getSelected() || [];
+  const basis = currencies.length === 1 ? currencies[0].toUpperCase().trim() : null;
+  return _CUR_SYM[basis] || '₺';
+}
+
+function _fillValInputs() {
+  const mn = document.getElementById('urValMinInput');
+  const mx = document.getElementById('urValMaxInput');
+  if (mn) mn.value = _valMin > 0 ? String(_valMin) : '';
+  if (mx) mx.value = Number.isFinite(_valMax) ? String(_valMax) : '';
+}
+
+function setValBucket(btn, lo, hi) {
+  _valMin = Number(lo) || 0;
+  _valMax = (hi == null) ? Infinity : Number(hi);
+  _markPreset(btn);
+  _fillValInputs();
+  _syncValPill();
+  applyUrunlerFilters();
+}
+
+function onValInputChange() {
+  const lo = _parseAmount(document.getElementById('urValMinInput')?.value);
+  const hi = _parseAmount(document.getElementById('urValMaxInput')?.value);
+  _valMin = lo == null ? 0 : lo;
+  _valMax = hi == null ? Infinity : hi;
+  _clearPresetHighlight('urValPop');
+  _syncValPill();
+  applyUrunlerFilters();
+}
+
+function clearValRange() {
+  _valMin = 0; _valMax = Infinity;
+  _fillValInputs();
+  _clearPresetHighlight('urValPop');
+  _syncValPill();
+  _closeAllRangePops();
+  applyUrunlerFilters();
+}
+
+function _syncValPill() {
+  const active = _valMin > 0 || Number.isFinite(_valMax);
+  const sym    = _valSym();
+  const label  = document.getElementById('urValPillLabel');
+  const clear  = document.getElementById('urValPillClear');
+  const pill   = document.getElementById('urValPill');
+  if (label) {
+    label.innerHTML = active
+      ? 'Değer: ' + _fmtMoneyShort(_valMin) + '–' + (Number.isFinite(_valMax) ? _fmtMoneyShort(_valMax) : '∞') + ' ' + sym
+      : 'Stok değeri (<span id="urValCurSym">' + sym + '</span>)';
+  }
+  if (clear) clear.style.display = active ? '' : 'none';
+  if (pill)  pill.classList.toggle('active', active);
+}
+
+// ── preset chip highlight ────────────────────────────────────────────────────
+function _markPreset(btn) {
+  if (!btn) return;
+  const row = btn.closest('.filter-presets');
+  row?.querySelectorAll('.filter-preset-chip').forEach(c => c.classList.toggle('active', c === btn));
+}
+function _clearPresetHighlight(popId) {
+  document.getElementById(popId)?.querySelectorAll('.filter-preset-chip').forEach(c => c.classList.remove('active'));
+}
+
+// Reset both ranges (used by _clearUrunlerFilters).
+function _resetUrunRanges() {
+  _qtyMin = 0; _qtyMax = Infinity;
+  _valMin = 0; _valMax = Infinity;
+  _fillQtyInputs(); _fillValInputs();
+  _clearPresetHighlight('urQtyPop'); _clearPresetHighlight('urValPop');
+  _syncQtyPill(); _syncValPill();
+}
+
+// Currency selection changed → refresh the value ceiling + pill symbol.
+// (Value filter basis itself is handled in applyUrunlerFilters.)
+function _onCurrencyChange() {
+  const currencies = _currencyFilter?.getSelected() || [];
+  const basis = currencies.length === 1 ? currencies[0].toUpperCase().trim() : null;
+
+  let maxVal = 0;
+  allProducts.forEach(p => {
+    const v = _itemStockValue(p, basis);
+    if (v != null && v > maxVal) maxVal = v;
+  });
+  _valCap = Math.max(1, Math.ceil(maxVal));
+
+  _syncValPill();   // repaints label + updates the ₺/$/€ symbol from the selection
+}
+
+function _fmtMoneyShort(n) {
+  n = Number(n || 0);
+  if (n >= 1000000) return (n / 1000000).toFixed(n % 1000000 ? 1 : 0) + 'M';
+  if (n >= 1000)    return Math.round(n / 1000) + 'K';
+  return String(Math.round(n));
 }
 
 // ─── SORT ─────────────────────────────────────────────────────────────────────
@@ -361,9 +668,6 @@ function renderUrunlerTable(filtered) {
     const stock       = Number(p.stock_on_hand || 0);
     const avgTL       = Number(p.avg_purchase_price_tl || 0);
     const lastCur     = (p.last_purchase_currency || '').toUpperCase().trim();
-    const lastPrice   = p.last_purchase_price_cur != null
-      ? `${Number(p.last_purchase_price_cur).toLocaleString('tr-TR', { minimumFractionDigits: 2 })} ${lastCur}`
-      : '—';
 
     let totalStock = '—';
     if (Math.floor(stock) > 0) {
@@ -379,18 +683,16 @@ function renderUrunlerTable(filtered) {
 
     const tr = document.createElement('tr');
     tr.className = 'clickable';
-    tr.onclick   = () => openUrunModal(p.id, p.product_code);
+    tr.onclick   = () => { pushStockTab(p.product_code); openUrunModal(p.id, p.product_code); };
     tr.innerHTML = `
       <td style="font-weight:600;">${esc(p.product_name || '—')}${missingBadge}</td>
       <td><span class="badge-sku">${esc(p.product_code || '—')}</span></td>
-      <td>${p.brand    ? `<span class="pill-brand">${esc(p.brand)}</span>`       : '—'}</td>
       <td>${p.category ? `<span class="pill-category">${esc(p.category)}</span>` : '—'}</td>
       <td style="text-align:right; font-family:'DM Mono',monospace; font-size:12px;">
         ${stock > 0
           ? `<span style="color:#166534; font-weight:700;">${Math.floor(stock).toLocaleString('tr-TR')}</span>`
           : `<span style="color:#94a3b8;">0</span>`}
       </td>
-      <td class="text-right price-cell">${lastPrice}</td>
       <td class="text-right total-stock-price-cell">${totalStock}</td>`;
     body.appendChild(tr);
   });

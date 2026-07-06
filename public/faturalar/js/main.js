@@ -1,32 +1,19 @@
-// ─── FATURALAR — MAIN ────────────────────────────────────────────────────────
-// State       → faturalar/state.js
-// List view   → faturalar/list.js
-// Detail view → faturalar/detail.js
-// XML parsing → faturalar/xml.js
-// API calls   → faturalar/api.js
-// Utilities   → faturalar/utils.js
-
 // --- INITIALIZATION ---
 document.addEventListener('DOMContentLoaded', async () => {
     // ← SET currentView FIRST before anything else
-    const initHash = location.hash.slice(1);
-    if (initHash === 'giden' || window._FAT_INITIAL_VIEW === 'giden') currentView = 'giden';
-    else currentView = 'gelen';
-
-
-    const cachedIsPending = sessionStorage.getItem('inokas_cache_is_pending') === 'true';
-    const nowIsPending = !!window._FAT_PENDING;
-    if (cachedIsPending !== nowIsPending) {
-        sessionStorage.removeItem(INVOICE_CACHE_KEY);
-    }
-    sessionStorage.setItem('inokas_cache_is_pending', String(nowIsPending));
-
     setupEventListeners();
     bindModalOutsideClose();
-    restoreFilterState();
+    restoreFilterState(currentView);
     initFatFilters();
 
-    loadInternalCategoryOptions();
+    try {
+        const saved = sessionStorage.getItem('invoice_tabs');
+        if (saved) _invoiceTabList = JSON.parse(saved);
+    } catch(e) {}
+
+    renderInvoiceTabBar();
+
+    //loadInternalCategoryOptions();
 
     showAllState.gelen = true;
     showAllState.giden = true;
@@ -34,25 +21,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     interactedState.giden = true;
 
     updateActionButtonsTheme();
-    if (window._FAT_INITIAL_VIEW !== 'genel') {
-        // call restoreAndApply() instead of restoreTagFilters()
-        await initInvoiceView(false);
-        await restoreAndApply();
-    }
 
-    if (initHash === 'ekle') enterEkleView();
-
-    window.addEventListener('hashchange', () => {
-        const h = location.hash.slice(1);
-        closeFatDetailPage();
-        if (h === 'ekle') {
-            enterEkleView();
-        } else {
-            if (document.body.classList.contains('view-ekle')) exitEkleView();
-            if (h === 'giden') switchView('giden');
-            else switchView('gelen');
-        }
-    });
 
     const invoiceForm = document.getElementById('invoiceForm');
     if (invoiceForm) {
@@ -67,7 +36,6 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (btn) btn.innerText = 'Tümünü Göster';
         }
         saveFilterState();
-        renderCurrentView();
         refreshKpiSummary()
     };
 
@@ -92,6 +60,18 @@ function bindModalOutsideClose() {
     bindOne('invoiceDetailModal', closeInvoiceDetailModal);
 }
 
+// in main.js, wrap restoreTagFilters
+async function restoreAndApply() {
+    window._restoringFilters = true;
+    restoreTagFilters();
+    window._restoringFilters = false;
+    // Now manually sync _fatActiveFilters from restored tag state
+    applyFiltersAndFetch();
+}
+
+
+
+// We should create another file called fatura-yukle.js for below functions
 function setupEventListeners() {
     const xmlInput = document.getElementById('xmlInput');
     if (xmlInput) xmlInput.addEventListener('change', handleFileUpload);
@@ -107,16 +87,7 @@ function setupEventListeners() {
         });
     }
 }
-// in main.js, wrap restoreTagFilters
-async function restoreAndApply() {
-    window._restoringFilters = true;
-    restoreTagFilters();
-    window._restoringFilters = false;
-    // Now manually sync _fatActiveFilters from restored tag state
-    applyFiltersAndFetch();
-}
 
-// --- MODAL CONTROLS ---
 function openInvoiceModal() {
     document.getElementById('invoiceForm').reset();
     document.getElementById('f_id').value = '';
@@ -134,26 +105,6 @@ function openInvoiceModal() {
     document.getElementById('unlockWarningBox').style.display = 'none';
     document.getElementById('invoiceModal').style.display = 'flex';
 }
-
-
-function unlockInvoiceForm() {
-    const lockedInputs = document.querySelectorAll('.locked-input');
-    lockedInputs.forEach(el => {
-        el.removeAttribute('readonly');
-        if (el.tagName === 'SELECT') el.removeAttribute('disabled');
-        el.style.backgroundColor = '#ffffff';
-        const label = el.parentElement.querySelector('label');
-        if (label) {
-            let icon = label.querySelector('.dynamic-lock-icon');
-            if (icon) {
-                icon.innerText = '🔓';
-                icon.title = "Kilit açıldı, dikkatli düzenleyin!";
-            }
-        }
-    });
-    document.getElementById('unlockWarningBox').style.display = 'none';
-}
-
 function closeInvoiceModal() {
     if (document.body.classList.contains('view-ekle')) {
         exitEkleView();
@@ -173,7 +124,6 @@ function closeInvoiceModal() {
         <div id="xmlDataSummary" class="xml-data-view" style="display:none;"></div>`;
     setupEventListeners();
 }
-
 function enterEkleView() {
     openInvoiceModal();
     document.body.classList.add('view-ekle');
@@ -199,8 +149,6 @@ function enterEkleView() {
         if (eklePdfInput) eklePdfInput.addEventListener('change', handleFileUpload);
     }
 }
-
-
 function exitEkleView() {
     document.body.classList.remove('view-ekle');
     document.getElementById('invoiceModal').style.display = 'none';
@@ -216,7 +164,6 @@ function exitEkleView() {
         <div id="xmlDataSummary" class="xml-data-view" style="display:none;"></div>`;
     setupEventListeners();
 }
-
 // --- XML PARSING ENGINE ---
 async function handleFileUpload(e) {
     const file = e.target.files[0];
@@ -225,7 +172,7 @@ async function handleFileUpload(e) {
         try {
             await ensureProductCodeLookupSetLoaded(false);
         } catch (err) {
-            console.warn('Ürün kod seti yüklenemedi, fallback sınırlı çalışacak:', err?.message || err);
+            console.warn('Ürü kod seti yüklenemedi, fallback sınırlı çalışacak:', err?.message || err);
         }
     }
 
@@ -252,7 +199,6 @@ async function handleFileUpload(e) {
     };
     reader.readAsText(file);
 }
-
 function applyParsedPayloadToForm(pack) {
     const inv = pack.invoice;
     const co = pack.company;
@@ -295,7 +241,6 @@ function applyParsedPayloadToForm(pack) {
         );
     });
 }
-
 function parseUBL(xml) {
     try {
         const pack = buildInvoicePayloadFromXml(xml, currentView);
@@ -312,52 +257,6 @@ function parseUBL(xml) {
         } else {
             alert("XML dosyası ayrıştırılamadı. Lütfen geçerli bir UBL-TR dosyası seçin.");
         }
-    }
-}
-
-
-
-
-async function fetchTCMBKur() {
-    const kurInput = document.getElementById('f_kur');
-    const currency = document.getElementById('f_currency').value;
-
-    if (currency === 'TL' || currency === 'TRY') {
-        kurInput.value = 1.0000;
-        alert("TL için kur her zaman 1'dir.");
-        return;
-    }
-
-    kurInput.placeholder = "Yükleniyor...";
-
-    try {
-        const response = await fetch(`https://api.allorigins.win/raw?url=${encodeURIComponent('https://www.tcmb.gov.tr/kurlar/today.xml')}`);
-        if (!response.ok) throw new Error("Ağ hatası");
-
-        const str = await response.text();
-        const xmlDoc = new window.DOMParser().parseFromString(str, "text/xml");
-        const currencies = xmlDoc.getElementsByTagName("Currency");
-        let found = false;
-
-        for (let i = 0; i < currencies.length; i++) {
-            if (currencies[i].getAttribute("CurrencyCode") === currency) {
-                const forexSelling = currencies[i].getElementsByTagName("ForexSelling")[0]?.textContent;
-                if (forexSelling) {
-                    kurInput.value = parseFloat(forexSelling).toFixed(4);
-                    found = true;
-                    break;
-                }
-            }
-        }
-
-        if (!found) {
-            alert(currency + " kuru TCMB listesinde bulunamadı.");
-            kurInput.placeholder = "0.0000";
-        }
-    } catch (err) {
-        console.error('TCMB Kur çekme hatası:', err);
-        alert("TCMB verisi alınırken ağ hatası oluştu. Lütfen manuel giriniz.");
-        kurInput.placeholder = "0.0000";
     }
 }
 
@@ -561,7 +460,6 @@ async function fetchPendingOrdersForCompany(companyVknOrId) {
         updateAllRowsWithPendingOrders();
         return;
     }
-
     try {
         const res = await fetch(`/api/purchase-orders/pending-by-vkn?vkn=${encodeURIComponent(companyVknOrId)}`);
         if (res.ok) {
@@ -723,34 +621,3 @@ function resetXmlStrip() {
 }
 
 
-window.approveDetailInvoice = async function(id) {
-    const btn = document.querySelector(`[onclick="approveDetailInvoice('${id}')"]`);
-    if (btn) { btn.disabled = true; btn.textContent = 'Aktarılıyor...'; }
-
-    try {
-        const res = await fetch(`/api/invoices/${id}/approve`, { method: 'PUT' });
-        if (!res.ok) {
-            const d = await res.json().catch(() => ({}));
-            throw new Error(d?.error || 'Onay başarısız');
-        }
-
-        // Redirect back to the correct bekleyen page — it will refresh automatically
-        const isIn = String(_detayInv?.direction || '').toUpperCase() === 'INCOMING';
-        window.location.href = isIn
-            ? '/faturalar/pages/bekleyen-gelen.html'
-            : '/faturalar/pages/bekleyen-giden.html';
-
-    } catch (err) {
-        alert(`Hata: ${err.message}`);
-        if (btn) { btn.disabled = false; btn.textContent = 'Aktar'; }
-    }
-};
-
-async function rejectDetailInvoice(id) {
-    if(!confirm("Faturayı tamamen silmek (reddetmek) istiyor musunuz?")) return;
-    try {
-        const res = await fetch('/api/invoices/' + id, { method: 'DELETE' });
-        if(!res.ok) throw new Error("Sil HTTP " + res.status);
-        closeFatDetailPage();
-    } catch (e) { alert("Hata: " + e.message); }
-}

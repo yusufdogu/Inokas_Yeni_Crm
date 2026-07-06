@@ -3,10 +3,10 @@
 <head>
   <meta charset="UTF-8">
   <script>
-    if (!sessionStorage.getItem('inokas_token')) {
+    if (!sessionStorage.getItem('login_auth_token')) {
       window.location.replace('/auth/login.html');
     } else {
-      window.location.replace('/faturalar/pages/gelen-faturalar.html');
+      window.location.replace('/faturalar/pages/faturalar.html');
     }
   </script>
 </head>

@@ -1,114 +1,160 @@
 // ─── FATURALAR — LİSTE GÖRÜNÜMÜ ───────────────────────────────────────────────
 // Fatura listesi, tab bar, KPI bar, filtreler, session cache yönetimi
-
-// ─── Tag filter instances ──────────────────────────────────────────────────────
-let _fatCompanyFilter;
-let _fatProductFilter;
-let _fatCategoryFilter;
-let _fatBrandFilter;
-
-let _fatPriceMin = 0;
-let _fatPriceMax = 10000000;
-let _fatAdvancedOpen = false;
-
-// ─── Shared tag-filter onChange ───────────────────────────────────────────────
-function _onTagFilterChange(advanced = false) {
-    setInteracted(true);
-    if (isShowAll()) {
-        setShowAll(false);
-        const btn = document.getElementById('btnToggleShowAll');
-        if (btn) btn.innerText = 'Tümünü Göster';
+const _fatCalCtx = {
+    selStart: null,
+    selEnd: null,
+    viewMonth:  { year: new Date().getFullYear(), month: new Date().getMonth() },
+    viewMonth2: { year: new Date().getFullYear(), month: new Date().getMonth() },
+    cal1Id: 'filterCal1',
+    cal2Id: 'filterCal2',
+    pickHandler: 'pickFilterDay',
+    calChangeHandler: '_onFilterCalChange',
+    firstYear: 2020,
+    onRangeComplete: (start, end) => {
+        _setFilterDateInputs(start, end);
+        document.querySelectorAll('#datePop .filter-preset-chip').forEach(c => c.classList.remove('active'));
+        _fatDatePreset = 'custom';
+        applyFiltersAndFetch();
     }
-    saveFilterState();
-    applyFiltersAndFetch();
+};
+window._fatCalCtx = _fatCalCtx;
+
+// Thin wrappers — keep old function names for HTML onclick compatibility
+function buildFilterCals()                  { buildCals(_fatCalCtx); }
+function _onFilterCalChange(idx, t, v)      { onCalChange(_fatCalCtx, idx, t, v); }
+function pickFilterDay(y, m, d)             { pickCalDay(_fatCalCtx, y, m, d); }
+
+function renderListView(invoices) {
+    const content = document.getElementById('fatContent');
+    if (!content) return;
+
+    if (!invoices || invoices.length === 0) {
+        content.innerHTML = `<div style="flex:1; display:flex; align-items:center; justify-content:center; color:#94a3b8; font-size:14px; font-weight:500;">
+            Fatura bulunamadı. Filtreleri değiştirin.
+        </div>`;
+        return;
+    }
+
+
+    const thHtml = (col, label, extraStyle = '') => {
+        // In bekleyen mode → static, non-clickable header
+        if (window._FAT_PENDING) {
+            return `<th style="${extraStyle}">
+                <span class="fat-th-inner">${label}</span>
+            </th>`;
+        }
+
+        const isActive = fatListSort.col === col;
+        const iconCls  = isActive
+            ? (fatListSort.dir === 'desc' ? 'ti-arrow-up' : 'ti-arrow-down')
+            : 'ti-arrows-sort';
+        const iconColor = isActive ? '' : 'opacity:0.35;';
+        return `<th class="${isActive ? 'fat-th--active' : ''}" style="${extraStyle}; cursor:pointer;" onclick="setFatListSort('${col}')">
+            <span class="fat-th-inner">
+                ${label}
+                <i class="ti ${iconCls} fat-th-icon" style="${iconColor}"></i>
+            </span>
+        </th>`;
+    };
+
+    _fatDetailList = invoices;
+
+    const rows = invoices.map(inv => {
+        const total = formatMoneyDisplay(inv, invNonInternalPayableAmountSrc(inv));
+        const comp = (inv.companies?.name || 'Bilinmeyen').replace(/</g, '&lt;');
+        const no = (inv.invoice_no || '-').replace(/</g, '&lt;');
+        saveFilterState();
+        return `<tr onclick="openFatDetailPage('${inv.id}')">
+            <td><span class="fat-tbl-no">${no}</span></td>
+            <td>${comp}</td>
+            <td class="fat-tbl-date">${inv.invoice_date || '-'}</td>
+            <td <span class="fat-tbl-amount">${total}</span></td>
+        </tr>`;
+    }).join('');
+
+    content.innerHTML = `<div class="fat-list-view">
+        <div class="fat-tbl-wrap">
+            <table class="fat-tbl" style="table-layout:fixed; width:100%;">
+                <thead><tr>
+                    ${thHtml('invoice_no',      '<i class="ti ti-hash fat-th-col-icon"></i> FATURA NO', 'width:180px;')}
+                    ${thHtml('company', '<i class="ti ti-building fat-th-col-icon"></i> FİRMA',  'width:45%;')}
+                    ${thHtml('date',    '<i class="ti ti-calendar fat-th-col-icon"></i> TARİH', 'width:120px;')}
+                    ${thHtml('total',   '<i class="ti ti-currency-lira fat-th-col-icon"></i> TOPLAM', 'text-align:right; width:160px;')}
+                </tr></thead>
+                <tbody>${rows}</tbody>
+            </table>
+        </div>
+    </div>`;
 }
 
+// ─── Tam ekran detay sayfası ──────────────────────────────────────────────────
 
-// ─── Init tag filters (called from main.js after DOMContentLoaded) ────────────
-function initFatFilters() {
-  _fatCompanyFilter = createTagFilter({
-    wrapId: 'companyTagsWrap', inputId: 'companyTagInput', dropdownId: 'companyDropdown',
-    getOptions: () => _getDependentOptions('company'),
-    onChange: () => _onTagFilterChange(false),
-  });
+function openFatDetailPage(id) {
+    const inv = _lastListInvoices.find(i => i.id === id);
+    if (inv) {
+        const invoiceNo  = inv.invoice_no || id;
+        const direction  = currentView; // 'giden' | 'gelen'
+        const alreadyOpen = _invoiceTabList.find(t => t.id === id);
+        if (!alreadyOpen) {
+            _invoiceTabList.push({ id, invoiceNo, direction });
+            renderInvoiceTabBar();
+        }
+    }
+    try {
+        sessionStorage.setItem('invoice_tabs', JSON.stringify(_invoiceTabList));
+    } catch(e) {}
 
-  _fatBrandFilter = createTagFilter({
-    wrapId: 'brandTagsWrap', inputId: 'brandTagInput', dropdownId: 'brandDropdown',
-    getOptions: () => _getDependentOptions('brand'),
-    onChange: () => _onTagFilterChange(true),
-  });
-
-  _fatCategoryFilter = createTagFilter({
-    wrapId: 'categoryTagsWrap', inputId: 'categoryTagInput', dropdownId: 'categoryDropdown',
-    getOptions: () => _getDependentOptions('category'),
-    onChange: () => _onTagFilterChange(true),
-  });
-
-  _fatProductFilter = createTagFilter({
-    wrapId: 'productTagsWrap', inputId: 'productTagInput', dropdownId: 'productDropdown',
-    getOptions: () => _getDependentOptions('product'),
-    onChange: () => _onTagFilterChange(true),
-  });
+    let from = '';
+    if (window._FAT_PENDING) {
+        from = (currentView === 'giden') ? 'bekleyen-giden' : 'bekleyen-gelen';
+    }
+    const fromParam = from ? `&from=${from}` : '';
+    window.location.href = `/faturalar/pages/fatura-detay.html?id=${encodeURIComponent(id)}${fromParam}`;
 }
 
-function _getDependentOptions(field) {
-  const rels = window._fatFilterOptions?.relationships || [];
+function renderInvoiceTabBar() {
+    const bar    = document.getElementById('invoiceTabBar');
+    const scroll = document.getElementById('invoiceTabsScroll');
+    if (!bar || !scroll) return;
 
-  const selectedCompanies  = _fatCompanyFilter?.getSelected()  || [];
-  const selectedBrands     = _fatBrandFilter?.getSelected()    || [];
-  const selectedCategories = _fatCategoryFilter?.getSelected() || [];
-  const selectedProducts   = _fatProductFilter?.getSelected()  || [];
+    // Hide on genel and bekleyen tabs
+    if (_activeMainTab === 'genel' || _activeMainTab === 'bekleyen') {
+        bar.style.display = 'none';
+        return;
+    }
 
-  // Build sibling selections — everything except the field being queried
-  const hasConstraints =
-    (field !== 'company'  && selectedCompanies.length)  ||
-    (field !== 'brand'    && selectedBrands.length)     ||
-    (field !== 'category' && selectedCategories.length) ||
-    (field !== 'product'  && selectedProducts.length);
+    bar.style.display = 'flex';
 
-  const allKey = { company: 'companies', brand: 'brands', category: 'categories', product: 'products' }[field];
-  const all = window._fatFilterOptions?.[allKey] || [];
+    // Only show tabs matching current direction
+    const visible = _invoiceTabList.filter(t => t.direction === currentView);
 
-  if (!hasConstraints) return all;
-
-  const matched = new Set(
-    rels
-      .filter(r =>
-        (field === 'company'  || !selectedCompanies.length  || selectedCompanies.includes(r.company))   &&
-        (field === 'brand'    || !selectedBrands.length     || selectedBrands.includes(r.brand))         &&
-        (field === 'category' || !selectedCategories.length || selectedCategories.includes(r.category))  &&
-        (field === 'product'  || !selectedProducts.length   || selectedProducts.includes(r.product))
-      )
-      .map(r => r[field])
-      .filter(Boolean)
-  );
-
-  return all.filter(o => matched.has(o));
+    if (visible.length === 0) {
+        scroll.innerHTML = '<span class="invoice-tab-empty">Faturalar açıldıkça burada listelenir</span>';
+    } else {
+        scroll.innerHTML = visible.map(tab => {
+            const arrowIcon = tab.direction === 'giden' ? 'ti-arrow-up' : 'ti-arrow-down';
+            const arrowCls  = tab.direction === 'giden' ? 'giden' : 'gelen';
+            return `<div class="invoice-tab" onclick="openFatDetailPage('${tab.id}')">
+                <i class="ti ${arrowIcon} invoice-tab-arrow ${arrowCls}"></i>
+                <span class="invoice-tab-no">${tab.invoiceNo}</span>
+                <span class="invoice-tab-close" onclick="event.stopPropagation(); closeInvoiceTab('${tab.id}')">×</span>
+            </div>`;
+        }).join('');
+    }
 }
 
-function clearAllFilters() {
-    _fatCompanyFilter?.clear();
-    _fatProductFilter?.clear();
-    _fatCategoryFilter?.clear();
-    _fatBrandFilter?.clear();
+function setFatListSort(col) {
+    if (window._FAT_PENDING) return;   // no sorting in bekleyen mode
 
-    const ids = ['filterDateStart', 'filterDateEnd', 'filterStatus', 'filterCurrency', 'mainSearch'];
-    ids.forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
-
-    const minEl = document.getElementById('priceMin');
-    const maxEl = document.getElementById('priceMax');
-    if (minEl) { _fatPriceMin = 0; minEl.value = 0; }
-    if (maxEl) { _fatPriceMax = Number(maxEl.max || 10000000); maxEl.value = maxEl.max; }
-
-    const label = document.getElementById('priceRangeLabel');
-    if (label) label.textContent = '0 — ∞';
-
-    saveFilterState();
-    applyFiltersAndFetch();
+    fatListSort = {
+        col,
+        dir: fatListSort.col === col
+            ? (fatListSort.dir === 'asc' ? 'desc' : 'asc')
+            : (col === 'company' || col === 'no' ? 'asc' : 'desc')
+    };
+    _currentPage = 1;
+    initInvoiceView(false);
 }
-
-// ─── Session cache ────────────────────────────────────────────────────────────
-
 
 function readInvoiceFinancialsFromForm() {
     const fCur = document.getElementById('f_currency')?.value?.trim() || 'TL';
@@ -134,25 +180,6 @@ function readInvoiceFinancialsFromForm() {
     };
 }
 
-async function applyFiltersAndFetch() {
-  window._fatActiveFilters = {
-    dateStart:  document.getElementById('filterDateStart')?.value  || '',
-    dateEnd:    document.getElementById('filterDateEnd')?.value    || '',
-    currency:   document.getElementById('filterCurrency')?.value   || '',
-    companies:  _fatCompanyFilter?.getSelected()  || [],
-    brands:     _fatBrandFilter?.getSelected()    || [],
-    categories: _fatCategoryFilter?.getSelected() || [],
-    products:   _fatProductFilter?.getSelected()  || [],
-  };
-  saveFilterState();
-  _currentPage = 1;
-
-  // Run both in parallel, don't block one on the other
-  await Promise.all([
-    refreshKpiSummary(),
-    initInvoiceView(false),
-  ]);
-}
 
 
 function renderPagination() {
@@ -205,6 +232,7 @@ function renderPagination() {
 
   addBtn('<i class="ti ti-chevron-right"></i>', _currentPage + 1, false, _currentPage >= _totalPages);
 }
+
 function getPageRange(current, total) {
     if (total <= 7) return Array.from({ length: total }, (_, i) => i + 1);
     if (current <= 4) return [1, 2, 3, 4, 5, '...', total];
@@ -212,23 +240,6 @@ function getPageRange(current, total) {
     return [1, '...', current - 1, current, current + 1, '...', total];
 }
 
-
-// ─── Tab bar ──────────────────────────────────────────────────────────────────
-
-function renderTabBar() {
-    const bar = document.getElementById('fatTabBar');
-    if (!bar) return;
-
-    let html = `<button class="fat-tab${activeTabKey === 'list' ? ' fat-tab--active' : ''}" onclick="switchFatTab('list')">FATURALAR</button>`;
-    openInvoiceTabs.forEach(t => {
-        const isActive = activeTabKey === t.id;
-        html += `<button class="fat-tab${isActive ? ' fat-tab--active' : ''}" onclick="switchFatTab('${t.id}')">
-            ${t.invoiceNo}
-            <span class="fat-tab-close" onclick="event.stopPropagation(); closeInvoiceTab('${t.id}')">✕</span>
-        </button>`;
-    });
-    bar.innerHTML = html;
-}
 
 function switchFatTab(view) {
     currentView = view;
@@ -238,134 +249,14 @@ function switchFatTab(view) {
 }
 
 
-function closeInvoiceTab(id) {
-    openInvoiceTabs = openInvoiceTabs.filter(t => t.id !== id);
-    delete activeDetailTab[id];
-    delete _detailPdfLoaded[id];
-    delete _detailXmlCache[id];
-    if (activeTabKey === id) activeTabKey = 'list';
-    renderTabBar();
-    renderFatContent();
-}
-
 // ─── İçerik render ────────────────────────────────────────────────────────────
 
-function renderFatContent() {
-    const content = document.getElementById('fatContent');
-    if (!content) return;
-    if (activeTabKey === 'list') renderListView(_lastListInvoices);
-    else renderDetailView(activeTabKey);
-}
-
-function setFatListSort(col) {
-    fatListSort = {
-        col,
-        dir: fatListSort.col === col ? (fatListSort.dir === 'asc' ? 'desc' : 'asc') : (col === 'company' ? 'asc' : 'desc')
-    };
-    _currentPage = 1;
-    initInvoiceView(false);
-}
-
-function renderListView(invoices) {
-    const content = document.getElementById('fatContent');
-    if (!content) return;
-
-    if (!invoices || invoices.length === 0) {
-        content.innerHTML = `<div style="flex:1; display:flex; align-items:center; justify-content:center; color:#94a3b8; font-size:14px; font-weight:500;">
-            Fatura bulunamadı. Filtreleri değiştirin.
-        </div>`;
-        return;
-    }
-
-    const sorted = [...invoices].sort((a, b) => {
-        let fa, fb;
-        if (fatListSort.col === 'company') {
-            fa = (a.companies?.name || '').toLocaleLowerCase('tr-TR');
-            fb = (b.companies?.name || '').toLocaleLowerCase('tr-TR');
-            const cmp = fa.localeCompare(fb, 'tr');
-            return fatListSort.dir === 'asc' ? cmp : -cmp;
-        } else if (fatListSort.col === 'total') {
-            fa = invPayableAmountSrc(a) * (invBaseCurrencyIso(a) !== 'TRY' ? invCalculationRate(a) : 1);
-            fb = invPayableAmountSrc(b) * (invBaseCurrencyIso(b) !== 'TRY' ? invCalculationRate(b) : 1);
-        } else {
-            fa = a.invoice_date || '';
-            fb = b.invoice_date || '';
-        }
-        return fatListSort.dir === 'asc' ? (fa < fb ? -1 : fa > fb ? 1 : 0) : (fa > fb ? -1 : fa < fb ? 1 : 0);
-    });
-
-    const thHtml = (col, label, extraStyle = '') => {
-        const isActive = fatListSort.col === col;
-        const arrow = isActive ? `<span class="fat-th-arrow">${fatListSort.dir === 'asc' ? '↑' : '↓'}</span>` : '';
-        return `<th class="${isActive ? 'fat-th--active' : ''}" style="${extraStyle}" onclick="setFatListSort('${col}')">${label}${arrow}</th>`;
-    };
-
-    _fatDetailList = sorted;
-
-    const rows = sorted.map(inv => {
-        const total = formatMoneyDisplay(inv, invNonInternalPayableAmountSrc(inv));
-        const comp = (inv.companies?.name || 'Bilinmeyen').replace(/</g, '&lt;');
-        const no = (inv.invoice_no || '-').replace(/</g, '&lt;');
-        saveFilterState();
-        return `<tr onclick="openFatDetailPage('${inv.id}')">
-            <td><span class="fat-tbl-no">${no}</span></td>
-            <td>${comp}</td>
-            <td class="fat-tbl-date">${inv.invoice_date || '-'}</td>
-            <td class="fat-tbl-amount">${total}</td>
-        </tr>`;
-    }).join('');
-
-    content.innerHTML = `<div class="fat-list-view">
-        <div class="fat-tbl-wrap">
-            <table class="fat-tbl" style="table-layout:fixed; width:100%;">
-                <thead><tr>
-                    <th style="width:180px;">FATURA NO</th>
-                    ${thHtml('company', 'FİRMA', 'width:45%;')}
-                    ${thHtml('date', 'TARİH', 'width:120px;')}
-                    ${thHtml('total', 'TOPLAM', 'text-align:right; width:160px;')}
-                </tr></thead>
-                <tbody>${rows}</tbody>
-            </table>
-        </div>
-    </div>`;
-}
-
-// ─── Tam ekran detay sayfası ──────────────────────────────────────────────────
-
-function openFatDetailPage(id) {
-    let from = '';
-    if (window._FAT_PENDING) {
-        from = (currentView === 'giden') ? 'bekleyen-giden' : 'bekleyen-gelen';
-    }
-    const fromParam = from ? `&from=${from}` : '';
-    window.location.href = `/faturalar/pages/fatura-detay.html?id=${encodeURIComponent(id)}${fromParam}`;
-}
 
 
-
-// ─── Sekme geçiş ve tema ──────────────────────────────────────────────────────
-
-function switchView(view) {
-    if (currentView === view) return;
-
-    openInvoiceTabs = [];
-    activeTabKey = 'list';
-    _detailXmlCache = {};
-    _detailPdfLoaded = {};
-
-    currentView = view;
-    updateActionButtonsTheme();
-
-    const _togBtn = document.getElementById('btnToggleShowAll');
-    if (_togBtn) _togBtn.innerText = isShowAll() ? 'Tümünü Gizle' : 'Tümünü Göster';
-
-    applyFiltersAndFetch();
-}
 
 function updateActionButtonsTheme() {
     document.body.setAttribute('data-view', currentView);
 }
-
 
 function goToPage(page) {
   if (page < 1 || page > _totalPages) return;
@@ -379,9 +270,6 @@ function changeLimit(newLimit) {
   _currentPage = 1;
   initInvoiceView(false);
 }
-
-
-
 function populateCurrencySelect() {
   const sel = document.getElementById('filterCurrency');
   if (!sel) return;
@@ -396,4 +284,183 @@ function populateCurrencySelect() {
     sel.appendChild(opt);
   });
 }
+
+
+
+// ─── Filter popovers ──────────────────────────────────────────────────────────
+
+function initFilterPopovers() {
+    document.addEventListener('click', function(e) {
+        if (!e.target.closest('.filter-pill-wrap')) {
+            document.querySelectorAll('.filter-popover').forEach(p => p.classList.remove('open'));
+            document.querySelectorAll('.filter-pill').forEach(p => p.classList.remove('open'));
+        }
+    });
+}
+
+
+
+function toggleAdvancedFilters() {
+    const panel  = document.getElementById('filterAdvPanel');
+    const toggle = document.getElementById('filterAdvToggle');
+    if (!panel || !toggle) return;
+    _fatAdvancedOpen = !_fatAdvancedOpen;
+    panel.classList.toggle('open', _fatAdvancedOpen);
+    toggle.classList.toggle('open', _fatAdvancedOpen);
+}
+
+
+
+function updateAdvancedBadge() {
+    const count =
+        (_fatProductFilter?.getSelected().length  || 0) +
+        (_fatBrandFilter?.getSelected().length    || 0) +
+        (_fatCategoryFilter?.getSelected().length || 0) +
+        (document.getElementById('filterCurrency')?.value ? 1 : 0);
+
+    const badge = document.getElementById('filterAdvBadge');
+    if (!badge) return;
+    badge.textContent = count;
+    badge.style.display = count > 0 ? 'inline-flex' : 'none';
+}
+
+// ─── Date picker ──────────────────────────────────────────────────────────────
+
+
+function setDatePreset(el, type) {
+    // If this preset is already active, deactivate it
+    if (el.classList.contains('active')) {
+        el.classList.remove('active');
+        _fatDatePreset = '';
+        _fatCalCtx.selStart = null;              // ← changed
+        _fatCalCtx.selEnd   = null;              // ← changed
+
+        const dsEl = document.getElementById('filterDateStart');
+        const deEl = document.getElementById('filterDateEnd');
+        if (dsEl) dsEl.value = '';
+        if (deEl) deEl.value = '';
+
+        const disp = document.getElementById('dateDisplay');
+        if (disp) disp.textContent = 'Tüm zamanlar';
+
+        document.getElementById('datePill')?.classList.remove('active');
+        buildFilterCals();
+        applyFiltersAndFetch();
+        return;
+    }
+
+    document.querySelectorAll('#datePop .filter-preset-chip').forEach(c => c.classList.remove('active'));
+    el.classList.add('active');
+    _fatDatePreset = type;
+
+    if (type === 'custom') {
+        _fatCalCtx.selStart = null;              // ← changed
+        _fatCalCtx.selEnd   = null;              // ← changed
+        buildFilterCals();
+        const disp = document.getElementById('dateDisplay');
+        if (disp) disp.textContent = 'Tarih seç';
+        document.getElementById('datePill')?.classList.remove('active');
+        return;
+    }
+
+    const today = new Date(); today.setHours(0,0,0,0);
+    let start = new Date(today);
+
+    if (type === 'day') {
+        // start = today
+    }
+    else if (type === 'week') {
+        const dow = today.getDay() || 7;
+        start = new Date(today);
+        start.setDate(today.getDate() - (dow - 1));
+    }
+    else if (type === 'month') {
+        start = new Date(today.getFullYear(), today.getMonth(), 1);
+    }
+    else if (type === 'q') {
+        start = new Date(today.getFullYear(), today.getMonth() - 3, today.getDate());
+    }
+    else if (type === 'year') {
+        start = new Date(today.getFullYear(), 0, 1);
+    }
+
+    _fatCalCtx.selStart = start;                 // ← changed
+    _fatCalCtx.selEnd   = today;                 // ← changed
+    buildFilterCals();
+    _setFilterDateInputs(start, today);
+    applyFiltersAndFetch();
+}
+function _setFilterDateInputs(start, end) {
+    const fmt = dt => dt.toISOString().slice(0, 10);
+    const dsEl = document.getElementById('filterDateStart');
+    const deEl = document.getElementById('filterDateEnd');
+    if (dsEl) dsEl.value = fmt(start);
+    if (deEl) deEl.value = fmt(end);
+
+    const label = _fatDatePreset === 'month' ? 'Bu ay'
+                : _fatDatePreset === 'q'     ? 'Son 3 ay'
+                : _fatDatePreset === 'year'  ? 'Bu yıl'
+                : `${start.toLocaleDateString('tr-TR',{day:'numeric',month:'short'})} – ${end.toLocaleDateString('tr-TR',{day:'numeric',month:'short'})}`;
+
+    const disp = document.getElementById('dateDisplay');
+    if (disp) disp.textContent = label;
+    document.getElementById('datePill')?.classList.add('active');
+}
+
+
+
+function closeInvoiceTab(id) {
+    _invoiceTabList = _invoiceTabList.filter(t => t.id !== id);
+    try {
+        sessionStorage.setItem('invoice_tabs', JSON.stringify(_invoiceTabList));
+    } catch(e) {}
+    renderInvoiceTabBar();
+}
+
+
+
+// ─── KPI sparkline (mock for now) ────────────────────────────────────────────
+
+function _generateMockSparklineData(days = 90) {
+    const points = [];
+    let value = 8;
+    for (let i = 0; i < days; i++) {
+        // gentle upward trend + noise
+        value += (Math.random() - 0.4) * 3;
+        value = Math.max(1, value);
+        points.push(value);
+    }
+    return points;
+}
+
+function renderKpiSparkline(svgId, days = 90) {
+    const svg = document.getElementById(svgId);
+    if (!svg) return;
+
+    // Read height from viewBox so it works for both 20px and 14px sparklines
+    const viewBox = svg.getAttribute('viewBox') || '0 0 200 20';
+    const [, , w, h] = viewBox.split(' ').map(Number);
+
+    const data = _generateMockSparklineData(days);
+    const max = Math.max(...data);
+    const min = Math.min(...data);
+    const range = (max - min) || 1;
+
+    const points = data.map((v, i) => {
+        const x = (i / (data.length - 1)) * w;
+        const y = h - ((v - min) / range) * (h - 2) - 1;
+        return [x, y];
+    });
+
+    const line = points.map((p, i) => `${i === 0 ? 'M' : 'L'}${p[0].toFixed(1)},${p[1].toFixed(1)}`).join(' ');
+    const area = `${line} L${w},${h} L0,${h} Z`;
+
+    svg.innerHTML = `
+        <path d="${area}" fill="var(--fat-green-bg)"/>
+        <path d="${line}" stroke="var(--fat-green)" stroke-width="1.5" fill="none"
+              stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke"/>
+    `;
+}
+
+
 

@@ -5,20 +5,37 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Faturalar — İnokas CRM</title>
   <script>
-    if (!sessionStorage.getItem('inokas_token')) window.location.href = '/auth/login.html';
+    if (!sessionStorage.getItem('login_auth_token')) window.location.href = '/auth/login.html';
     // Set initial view before modules load — main.js reads this on DOMContentLoaded
-    window._FAT_INITIAL_VIEW = 'gelen';
     window._FAT_PENDING      = false;
   </script>
   <link href="https://fonts.googleapis.com/css2?family=Geist+Mono:wght@400;600&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.x/dist/tabler-icons.min.css">
   <link rel="stylesheet" href="/shared/sidebar.css">
+  <link rel="stylesheet" href="/faturalar/css/aichat.css">
+  <link rel="stylesheet" href="/faturalar/css/ai-insights.css">
   <link rel="stylesheet" href="/shared/shared-filters.css?v=2">
   <link rel="stylesheet" href="/faturalar/css/gelen-giden.css?v=1">
+  <link rel="stylesheet" href="/faturalar/css/genel-bakis.css">
   <link rel="stylesheet" href="/faturalar/css/faturalar.css?v=1">
-  <script src="/shared/auth-interceptor.js"></script>
+  <script src="/shared/auth-interceptor.js" defer></script>
   <script src="/shared/sidebar.js" defer></script>
+  <script src="/faturalar/js/genel-bakis.js?v=1" defer></script>
+  <script src="/faturalar/js/date-filter.js?v=1" defer></script>
+  <script src="/faturalar/js/fatura-ai.js" defer></script>
+  <script src="/faturalar/js/insights.js" defer></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <!-- ─── JS modules (same order as gelen-faturalar.html) ─────────────────── -->
+  <script src="/faturalar/js/utils.js?v=1" defer></script>
+  <script src="/faturalar/js/api.js?v=20260521-sort" defer></script>
+  <script src="/faturalar/js/state.js?v=20260511-detailpage" defer></script>
+  <script src="/faturalar/js/list.js?v=20260518-tag-filter-fix" defer></script>
+  <script src="/faturalar/js/detail.js?v=20260521-batch-is-internal" defer></script>
+  <script src="/faturalar/js/main.js?v=20260511-bek-pdf-fix" defer></script>
+  <script src="/faturalar/js/faturalar.js" defer></script>
 </head>
+
 <body>
   <div class="app-shell">
     <div id="sidebar-container"></div>
@@ -50,312 +67,551 @@
       </div>
       <!-- ─── END Header ───────────────────────────────────────────────── -->
 
-      <!-- ─── Filter bar ───────────────────────────────────────────────── -->
-      <div class="fatura-topbar" id="fatFilterBar">
+      <!-- ─── Below header: main content + AI side panel ──────────────── -->
+      <div class="fat-below-header">
 
-        <!-- Row 1: Firma, Ürün İsmi, Tarih -->
-        <div class="fatura-filter-row">
+        <!-- Main area (left) — wraps all existing content -->
+        <div class="fat-main-area">
 
-          <div class="filter-tags-wrap" id="companyTagsWrap"
-            onclick="document.getElementById('companyTagInput').focus()" >
-            <div id="companyTags" class="filter-tags"></div>
-            <input type="text" id="companyTagInput" class="filter-tags-input" placeholder="Firma ekle...">
-            <div id="companyDropdown" class="filter-dropdown"></div>
+          <!-- ─── Filter bar ───────────────────────────────────────────── -->
+          <div class="fatura-topbar" id="fatFilterBar">
+
+            <!-- Row 1: Fatura No, Firma, Tarih, Tutar -->
+            <div class="fatura-filter-row">
+
+              <div class="filter-tags-wrap" id="invoiceNoTagsWrap"
+                onclick="document.getElementById('invoiceNoTagInput')?.focus()">
+                <div id="invoiceNoTags" class="filter-tags"></div>
+                <input type="text" id="invoiceNoTagInput" class="filter-tags-input" placeholder="Fatura No...">
+                <div id="invoiceNoDropdown" class="filter-dropdown"></div>
+              </div>
+
+              <div class="filter-tags-wrap" id="companyTagsWrap"
+                onclick="document.getElementById('companyTagInput').focus()">
+                <div id="companyTags" class="filter-tags"></div>
+                <input type="text" id="companyTagInput" class="filter-tags-input" placeholder="Firma ekle...">
+                <div id="companyDropdown" class="filter-dropdown"></div>
+              </div>
+
+              <!-- Tarih pill -->
+              <div class="filter-pill-wrap" id="datePillWrap">
+                <div class="filter-pill" id="datePill" onclick="toggleFilterPop('datePop', 'datePill')">
+                  <i class="ti ti-calendar"></i>
+                  <div class="filter-pill-text">
+                    <span class="filter-pill-value" id="dateDisplay">Tüm zamanlar</span>
+                  </div>
+                  <i class="ti ti-chevron-down filter-pill-caret"></i>
+                </div>
+
+                <div class="filter-popover" id="datePop" onclick="event.stopPropagation()">
+                  <div class="filter-presets">
+                    <button class="filter-preset-chip" onclick="setDatePreset(this,'day')">Bugün</button>
+                    <button class="filter-preset-chip" onclick="setDatePreset(this,'week')">Bu hafta</button>
+                    <button class="filter-preset-chip" onclick="setDatePreset(this,'month')">Bu ay</button>
+                    <button class="filter-preset-chip" onclick="setDatePreset(this,'q')">Son 3 ay</button>
+                    <button class="filter-preset-chip" onclick="setDatePreset(this,'year')">Bu yıl</button>
+                  </div>
+                  <div class="filter-cal-wrap">
+                    <div class="filter-cal" id="filterCal1"></div>
+                    <div class="filter-cal-divider"></div>
+                    <div class="filter-cal" id="filterCal2"></div>
+                  </div>
+                  <!-- Hidden inputs consumed by applyFiltersAndFetch() -->
+                  <input type="hidden" id="filterDateStart">
+                  <input type="hidden" id="filterDateEnd">
+                </div>
+              </div>
+
+              <!-- Tutar pill -->
+              <div class="filter-pill-wrap" id="pricePillWrap">
+                <div class="filter-pill" id="pricePill" onclick="toggleFilterPop('pricePop', 'pricePill')">
+                  <i class="ti ti-currency-lira"></i>
+                  <div class="filter-pill-text">
+                    <span class="filter-pill-value" id="priceDisplay">Tüm tutarlar</span>
+                  </div>
+                  <i class="ti ti-chevron-down filter-pill-caret"></i>
+                </div>
+
+                <div class="filter-popover" id="pricePop" onclick="event.stopPropagation()">
+                  <div class="filter-presets">
+                    <button class="filter-preset-chip" onclick="setFilterPriceBucket(this,0,10000)">0–10K</button>
+                    <button class="filter-preset-chip" onclick="setFilterPriceBucket(this,10000,50000)">10–50K</button>
+                    <button class="filter-preset-chip" onclick="setFilterPriceBucket(this,50000,null)">50K+</button>
+                  </div>
+
+                  <div class="filter-price-inputs">
+                    <div class="filter-price-group">
+                      <label>En az</label>
+                      <input type="text" id="filterMinPrice"  oninput="onPriceInputChange()">
+                    </div>
+                    <span class="filter-price-sep">–</span>
+                    <div class="filter-price-group">
+                      <label>En çok</label>
+                      <input type="text" id="filterMaxPrice"  oninput="onPriceInputChange()">
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+            </div>
+
+            <div class="filter-advanced-toggle">
+              <!-- Gelişmiş toggle -->
+              <button class="filter-adv-toggle" id="filterAdvToggle" onclick="toggleAdvancedFilters()">
+                <i class="ti ti-adjustments-horizontal"></i>
+                Gelişmiş
+                <span class="filter-adv-badge" id="filterAdvBadge" style="display:none;">0</span>
+                <i class="ti ti-chevron-down filter-adv-caret"></i>
+              </button>
+              <button class="filter-btn-clear" onclick="clearAllFilters()" title="Temizle">
+                <i class="ti ti-trash" style="font-size:14px;"></i>
+              </button>
+            </div>
+
+            <!-- Row 2: Advanced filters (hidden by default) -->
+            <div class="fatura-filter-row fatura-filter-row--adv" id="filterAdvPanel" >
+
+              <div class="filter-tags-wrap" id="productTagsWrap"
+                onclick="document.getElementById('productTagInput').focus()">
+                <div id="productTags" class="filter-tags"></div>
+                <input type="text" id="productTagInput" class="filter-tags-input" placeholder="Ürün ismi ekle...">
+                <div id="productDropdown" class="filter-dropdown"></div>
+              </div>
+
+              <div class="filter-tags-wrap" id="brandTagsWrap"
+                onclick="document.getElementById('brandTagInput').focus()">
+                <div id="brandTags" class="filter-tags"></div>
+                <input type="text" id="brandTagInput" class="filter-tags-input" placeholder="Marka ekle...">
+                <div id="brandDropdown" class="filter-dropdown"></div>
+              </div>
+
+              <div class="filter-tags-wrap" id="categoryTagsWrap"
+                onclick="document.getElementById('categoryTagInput').focus()">
+                <div id="categoryTags" class="filter-tags"></div>
+                <input type="text" id="categoryTagInput" class="filter-tags-input" placeholder="Kategori ekle...">
+                <div id="categoryDropdown" class="filter-dropdown"></div>
+              </div>
+
+              <select id="filterCurrency" onchange="applyFiltersAndFetch()" class="fatura-filter-select">
+                <option value="">Tüm Dövizler</option>
+              </select>
+
+            </div>
+          </div>
+          <!-- ─── END Filter bar ───────────────────────────────────────── -->
+
+          <!-- ─── KPI Bar ──────────────────────────────────────────────── -->
+          <div class="fat-kpi-bar" id="fatKpiBar" style="display:none;">
+            <!-- Fatura Adedi -->
+            <div class="fat-kpi-card-basic">
+              <span class="fat-kpi-label">Fatura Adedi</span>
+              <div class="fat-kpi-value-row">
+                <span class="fat-kpi-value" id="kpiCount">—</span>
+                <span class="kpi-delta" id="kpiCountDelta"></span>
+              </div>
+            </div>
+
+            <!-- Firma Adedi -->
+            <div class="fat-kpi-card-basic">
+              <span class="fat-kpi-label">Firma Adedi</span>
+              <div class="fat-kpi-value-row">
+                <span class="fat-kpi-value" id="kpiCompanyCount">—</span>
+                <span class="kpi-delta" id="kpiCompanyCountDelta"></span>
+              </div>
+            </div>
+
+            <!-- Toplam Tutar — 3 currencies with per-cell deltas -->
+            <div class="fat-kpi-card fat-kpi-card--total">
+              <span class="fat-kpi-label">Toplam Tutar</span>
+              <div class="fat-kpi-currencies">
+                <div class="fat-kpi-currency-cell">
+                  <div class="fat-kpi-currency-row">
+                    <span class="fat-kpi-currency-amount" id="kpiTryTotal">—</span>
+                    <span class="kpi-delta kpi-delta--sm" id="kpiTryTotalDelta"></span>
+                  </div>
+                </div>
+                <div class="fat-kpi-currency-cell">
+                  <div class="fat-kpi-currency-row">
+                    <span class="fat-kpi-currency-amount" id="kpiUsdTotal">—</span>
+                    <span class="kpi-delta kpi-delta--sm" id="kpiUsdTotalDelta"></span>
+                  </div>
+                </div>
+                <div class="fat-kpi-currency-cell">
+                  <div class="fat-kpi-currency-row">
+                    <span class="fat-kpi-currency-amount" id="kpiEurTotal">—</span>
+                    <span class="kpi-delta kpi-delta--sm" id="kpiEurTotalDelta"></span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+          </div>
+          <!-- ─── END KPI Bar ──────────────────────────────────────────── -->
+
+          <!-- ─── Invoice tab bar ──────────────────────────────────────── -->
+          <div class="invoice-tab-bar" id="invoiceTabBar">
+            <span class="invoice-tab-bar-label">Faturalar</span>
+            <div class="invoice-tab-divider" ></div>
+            <div class="invoice-tabs-scroll" id="invoiceTabsScroll"></div>
+            <span class="invoice-tab-empty" id="invoiceTabsEmpty"></span>
           </div>
 
-          <div class="filter-tags-wrap" id="productTagsWrap"
-            onclick="document.getElementById('productTagInput').focus()" >
-            <div id="productTags" class="filter-tags"></div>
-            <input type="text" id="productTagInput" class="filter-tags-input" placeholder="Ürün ismi ekle...">
-            <div id="productDropdown" class="filter-dropdown"></div>
-          </div>
+          <!-- ─── Main content area ────────────────────────────────────── -->
+          <div class="fat-area" id="fatArea">
 
-          <div class="filter-tags-wrap" id="brandTagsWrap"
-            onclick="document.getElementById('brandTagInput').focus()" >
-            <div id="brandTags" class="filter-tags"></div>
-            <input type="text" id="brandTagInput" class="filter-tags-input" placeholder="Marka ekle...">
-            <div id="brandDropdown" class="filter-dropdown"></div>
-          </div>
+            <!-- Bekleyenler sub-tab bar -->
+            <div class="fat-sub-tabbar" id="fatSubTabBar" style="display:none;">
+              <button class="fat-sub-tab fat-sub-tab--active" id="subTabBekGiden" onclick="switchBekleyenTab('giden')">
+                <i class="ti ti-arrow-up" style="font-size:15px; color:#6e6a62;" aria-hidden="true"></i>
+                Giden
+                <span class="fat-sub-badge" id="subTabBekGidenCount"></span>
+              </button>
+              <button class="fat-sub-tab" id="subTabBekGelen" onclick="switchBekleyenTab('gelen')">
+                <i class="ti ti-arrow-down" style="font-size:15px; color:#9a6318;" aria-hidden="true"></i>
+                Gelen
+                <span class="fat-sub-badge" id="subTabBekGelenCount"></span>
+              </button>
+            </div>
 
-          <div class="filter-tags-wrap" id="categoryTagsWrap"
-            onclick="document.getElementById('categoryTagInput').focus()">
-            <div id="categoryTags" class="filter-tags"></div>
-            <input type="text" id="categoryTagInput" class="filter-tags-input" placeholder="Kategori ekle...">
-            <div id="categoryDropdown" class="filter-dropdown"></div>
-          </div>
-          <select id="filterCurrency" onchange="applyFiltersAndFetch()" class="fatura-filter-select">
-            <option value="">Tüm Dövizler</option>
-          </select>
+            <!-- Genel Bakış panel — loads as iframe to isolate chat JS -->
+            <div id="panelGenel" class="fat-panel" style="display:none;">
+              <div class="gb-layout">
 
-          <div style="display:flex; align-items:center; gap:4px; flex-shrink:0;">
-            <input type="date" id="filterDateStart" onchange="applyFiltersAndFetch()" class="fatura-filter-date">
-            <span class="filter-date-sep">—</span>
-            <input type="date" id="filterDateEnd" onchange="applyFiltersAndFetch()" class="fatura-filter-date">
-          </div>
 
-          <button class="filter-btn-clear" onclick="clearAllFilters()" title="Temizle">
-            <i class="ti ti-trash" style="font-size:14px;"></i>
-          </button>
+                <!-- LEFT: Dashboard -->
+                <div class="gb-dashboard">
+                  <!-- ─── Insights strip — 3 AI-derived cards ────────────────────────────────── -->
+                  <div class="gb-insights">
+
+                    <!-- 1. Top Mover -->
+                    <div class="gb-insight gb-insight--mover" id="gbInsightMover" style="display:flex;">
+                      <div class="gb-insight-header">
+                        <div class="gb-insight-tag">
+                          <i class="ti ti-trending-up"></i>
+                          YÜKSELEN
+                        </div>
+                        <div class="gb-insight-nav">
+                          <button class="gb-insight-nav-btn" onclick="changeInsight('mover', -1)" aria-label="Önceki">
+                            <i class="ti ti-chevron-left"></i>
+                          </button>
+                          <span class="gb-insight-counter" id="gbInsightMoverCounter">1 / 1</span>
+                          <button class="gb-insight-nav-btn" onclick="changeInsight('mover', 1)" aria-label="Sonraki">
+                            <i class="ti ti-chevron-right"></i>
+                          </button>
+                          <div class="gb-insight-live"></div>
+                        </div>
+                      </div>
+                      <div class="gb-insight-value" id="gbInsightMoverValue">
+                        <!--<strong>Acme Sanayi</strong> ile son 30 gündeki hacim <span class='gb-accent'>3.2x</span> artmış-->
+                      </div>
+                      <div class="gb-insight-hint" id="gbInsightMoverHint">
+                        <!-- e.g. "₺ 142K → ₺ 458K · 8 fatura" -->
+                      </div>
+                    </div>
+
+                    <!-- 2. Cadence Anomaly -->
+                    <div class="gb-insight gb-insight--anomaly" id="gbInsightAnomaly" style="display:flex;">
+                      <div class="gb-insight-header">
+                        <div class="gb-insight-tag">
+                          <i class="ti ti-trending-up"></i>
+                          SESSİZ
+                        </div>
+                        <div class="gb-insight-nav">
+                          <button class="gb-insight-nav-btn" onclick="changeInsight('anomaly', -1)" aria-label="Önceki">
+                            <i class="ti ti-chevron-left"></i>
+                          </button>
+                          <span class="gb-insight-counter" id="gbInsightAnomalyCounter">1 / 1</span>
+                          <button class="gb-insight-nav-btn" onclick="changeInsight('anomaly', 1)" aria-label="Sonraki">
+                            <i class="ti ti-chevron-right"></i>
+                          </button>
+                          <div class="gb-insight-live"></div>
+                        </div>
+                      </div>
+                      <div class="gb-insight-value" id="gbInsightAnomalyValue">
+                        <!-- e.g. "<strong>Beta A.Ş.</strong> her ay fatura keser, bu ay <span class='gb-accent-warn'>henüz yok</span>" -->
+                      </div>
+                      <div class="gb-insight-hint" id="gbInsightAnomalyHint">
+                        <!-- e.g. "Son 6 ay ortalama: 4 fatura/ay · Son: 22 May" -->
+                      </div>
+                    </div>
+
+                    <!-- 3. Forecast -->
+                    <div class="gb-insight gb-insight--forecast" id="gbInsightForecast" style="display:flex;">
+                      <div class="gb-insight-header">
+                        <div class="gb-insight-tag">
+                          <i class="ti ti-chart-line"></i>
+                          TAHMİN
+                        </div>
+                        <div class="gb-insight-live" aria-label="Canlı"></div>
+                      </div>
+                      <div class="gb-insight-value" id="gbInsightForecastValue">
+                        <!-- e.g. "Ay sonuna <strong>~₺850K</strong> giden bekleniyor" -->
+                      </div>
+                      <div class="gb-forecast-bar">
+                        <div class="gb-forecast-bar-fill" id="gbForecastBarFill" style="width:0%"></div>
+                        <div class="gb-forecast-bar-projected" id="gbForecastBarProjected" style="left:0%"></div>
+                      </div>
+                      <div class="gb-insight-hint" id="gbInsightForecastHint">
+                        <!-- e.g. "₺528K bugün · Ayın 18. günü" -->
+                      </div>
+                    </div>
+
+                  </div>
+
+                  <!-- KPI bar -->
+                  <div class="gb-kpi-bar">
+                    <!-- Giden section -->
+                    <div class="gb-kpi-section">
+                      <div class="gb-kpi-section-header gb-kpi-section-header--giden">
+                        <i class="ti ti-arrow-up"></i> Giden
+                      </div>
+                      <div class="gb-kpi-currencies-top">
+                        <div class="gb-kpi-curr-cell">
+                          <span class="gb-kpi-curr-amt" id="gbGidenTryTotal">—</span>
+                        </div>
+                        <div class="gb-kpi-curr-cell">
+                          <span class="gb-kpi-curr-amt" id="gbGidenUsdTotal">—</span>
+                        </div>
+                        <div class="gb-kpi-curr-cell">
+                          <span class="gb-kpi-curr-amt" id="gbGidenEurTotal">—</span>
+                        </div>
+                      </div>
+                      <div class="gb-kpi-counts-row">
+                        <div class="gb-kpi-cell">
+                          <div class="gb-kpi-cell-label">Fatura Adedi</div>
+                          <div class="gb-kpi-cell-value" id="gbGidenInvoiceCount">—</div>
+                        </div>
+                        <div class="gb-kpi-cell">
+                          <div class="gb-kpi-cell-label">Firma Adedi</div>
+                          <div class="gb-kpi-cell-value" id="gbGidenCompanyCount">—</div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <!-- Gelen section -->
+                    <div class="gb-kpi-section">
+                      <div class="gb-kpi-section-header gb-kpi-section-header--gelen">
+                        <i class="ti ti-arrow-down"></i> Gelen
+                      </div>
+                      <div class="gb-kpi-currencies-top">
+                        <div class="gb-kpi-curr-cell">
+                          <span class="gb-kpi-curr-amt" id="gbGelenTryTotal">—</span>
+                        </div>
+                        <div class="gb-kpi-curr-cell">
+                          <span class="gb-kpi-curr-amt" id="gbGelenUsdTotal">—</span>
+                        </div>
+                        <div class="gb-kpi-curr-cell">
+                          <span class="gb-kpi-curr-amt" id="gbGelenEurTotal">—</span>
+                        </div>
+                      </div>
+                      <div class="gb-kpi-counts-row">
+                        <div class="gb-kpi-cell">
+                          <div class="gb-kpi-cell-label">Fatura Adedi</div>
+                          <div class="gb-kpi-cell-value" id="gbGelenInvoiceCount">—</div>
+                        </div>
+                        <div class="gb-kpi-cell">
+                          <div class="gb-kpi-cell-label">Firma Adedi</div>
+                          <div class="gb-kpi-cell-value" id="gbGelenCompanyCount">—</div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- Chart card (with inline date filter) -->
+                  <div class="gb-chart-card">
+                    <div class="gb-chart-card-header">
+
+                      <div class="gb-chart-title-block">
+                        <span class="gb-chart-title-value" id="gbChartTitleValue">Tüm Zamanlar</span>
+                      </div>
+
+                      <div class="gb-chart-controls">
+                        <button class="gb-date-chip gb-date-chip--active" id="gbDateChipAll" onclick="setGenelDateMode('all')">
+                          Tüm zamanlar
+                        </button>
+
+                        <!-- Date pill — shown only when "Özel tarih" is active -->
+                        <div class="filter-pill-wrap" id="gbDatePillWrap" >
+                          <div class="filter-pill" id="gbDatePill" onclick="toggleFilterPop('gbDatePop', 'gbDatePill')">
+                            <i class="ti ti-calendar"></i>
+                            <div class="filter-pill-text">
+                              <span class="filter-pill-value" id="gbDateDisplay">Tarih seç</span>
+                            </div>
+                            <i class="ti ti-chevron-down filter-pill-caret"></i>
+                          </div>
+
+                          <div class="filter-popover" id="gbDatePop" onclick="event.stopPropagation()">
+                            <div class="filter-presets">
+                              <button class="filter-preset-chip" onclick="setGenelDatePreset(this,'day')">Bugün</button>
+                              <button class="filter-preset-chip" onclick="setGenelDatePreset(this,'week')">Bu hafta</button>
+                              <button class="filter-preset-chip" onclick="setGenelDatePreset(this,'month')">Bu ay</button>
+                              <button class="filter-preset-chip" onclick="setGenelDatePreset(this,'q')">Son 3 ay</button>
+                              <button class="filter-preset-chip" onclick="setGenelDatePreset(this,'year')">Bu yıl</button>
+                            </div>
+                            <div class="filter-cal-wrap">
+                              <div class="filter-cal" id="gbCal1"></div>
+                              <div class="filter-cal-divider"></div>
+                              <div class="filter-cal" id="gbCal2"></div>
+                            </div>
+                            <input type="hidden" id="gbDateStart">
+                            <input type="hidden" id="gbDateEnd">
+                          </div>
+                        </div>
+
+                      </div>
+
+                      <div class="gb-chart-legend">
+                        <span><span class="gb-legend-dot gb-legend-dot--giden"></span>Giden</span>
+                        <span><span class="gb-legend-dot gb-legend-dot--gelen"></span>Gelen</span>
+                      </div>
+
+                    </div>
+
+                    <div class="gb-chart-area">
+                      <canvas id="gbLineChart"></canvas>
+                      <div class="gb-chart-loading" id="gbChartLoading">
+                        <div class="gb-spinner"></div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- Top companies side by side — with pagination -->
+                  <div class="gb-companies-row">
+
+                    <div class="gb-companies-card">
+                      <div class="gb-companies-header">
+                        <i class="ti ti-arrow-up gb-companies-icon gb-companies-icon--giden"></i>
+                        <span class="gb-card-title">Top Firmalar — Giden</span>
+
+                        <div class="gb-companies-pager" id="gbCompaniesPager_giden" style="display:none;">
+                          <button class="gb-companies-pager-btn" id="gbCompaniesPrev_giden" onclick="changeGbCompanyPage('giden', -1)" aria-label="Önceki">
+                            <i class="ti ti-chevron-left"></i>
+                          </button>
+                          <span class="gb-companies-pager-info" id="gbCompaniesPageInfo_giden">1 / 1</span>
+                          <button class="gb-companies-pager-btn" id="gbCompaniesNext_giden" onclick="changeGbCompanyPage('giden', 1)" aria-label="Sonraki">
+                            <i class="ti ti-chevron-right"></i>
+                          </button>
+                        </div>
+                      </div>
+                      <div class="gb-companies-list" id="gbCompaniesGiden">
+                        <div class="gb-loading"><div class="gb-spinner"></div></div>
+                      </div>
+                    </div>
+
+                    <div class="gb-companies-card">
+                      <div class="gb-companies-header">
+                        <i class="ti ti-arrow-down gb-companies-icon gb-companies-icon--gelen"></i>
+                        <span class="gb-card-title">Top Firmalar — Gelen</span>
+
+                        <div class="gb-companies-pager" id="gbCompaniesPager_gelen" style="display:none;">
+                          <button class="gb-companies-pager-btn" id="gbCompaniesPrev_gelen" onclick="changeGbCompanyPage('gelen', -1)" aria-label="Önceki">
+                            <i class="ti ti-chevron-left"></i>
+                          </button>
+                          <span class="gb-companies-pager-info" id="gbCompaniesPageInfo_gelen">1 / 1</span>
+                          <button class="gb-companies-pager-btn" id="gbCompaniesNext_gelen" onclick="changeGbCompanyPage('gelen', 1)" aria-label="Sonraki">
+                            <i class="ti ti-chevron-right"></i>
+                          </button>
+                        </div>
+                      </div>
+                      <div class="gb-companies-list" id="gbCompaniesGelen">
+                        <div class="gb-loading"><div class="gb-spinner"></div></div>
+                      </div>
+                    </div>
+
+                  </div>
+
+                </div>
+
+              </div>
+            </div>
+
+            <!-- List + detail content — used by list.js / detail.js -->
+            <div id="panelList" class="fat-panel fat-panel--active" style="position:relative;">
+              <div id="fatLoadingOverlay" style="position:absolute; inset:0; background:rgba(248,250,252,0); backdrop-filter:blur(0px); display:flex; align-items:center; justify-content:center; z-index:10; pointer-events:none; transition:all 0.25s;">
+                <div id="fatLoadingSpinner" style="width:28px; height:28px; border:2px solid #e2e8f0; border-top-color:#2563eb; border-radius:50%; opacity:0; transition:opacity 0.2s;"></div>
+              </div>
+              <div class="fat-content" id="fatContent"></div>
+            </div>
+
+            <div id="fatPagination" style="display:none;">
+              <span id="fatPagInfo" class="fat-pag-info"></span>
+              <div id="fatPagPages" class="fat-pag-pages"></div>
+              <div class="fat-pag-limit">
+                <span class="fat-pag-label">Sayfa başına:</span>
+                <select id="fatPagLimit" class="fat-pag-select" onchange="changeLimit(this.value)">
+                  <option value="10">10</option>
+                  <option value="25">25</option>
+                  <option value="50">50</option>
+                  <option value="100">100</option>
+                </select>
+              </div>
+            </div>
+
+          </div>
+          <!-- ─── END Main content ─────────────────────────────────────── -->
+
         </div>
+        <!-- ─── END Main area (left) ─────────────────────────────────── -->
+
+        <!-- ─── AI side panel (single, shared across tabs) ─────────────────────── -->
+        <aside class="fat-ai-side" id="aiSidePanel" style="display:none;">
+
+          <!-- Header -->
+          <div class="ai-side-header">
+            <div class="ai-side-title">
+              <i class="ti ti-sparkles"></i>
+              Fatura Asistanı
+            </div>
+            <button class="ai-side-btn" onclick="aiClearChat()" title="Yeni sohbet" aria-label="Yeni sohbet">
+              <i class="ti ti-plus"></i>
+            </button>
+          </div>
+
+          <!-- Activity feed — collapsible, populated dynamically per tab -->
+          <div class="ai-feed" id="aiFeed">
+            <div class="ai-feed-header" onclick="toggleAiFeed()">
+              <span class="ai-feed-label">Son Aktivite</span>
+              <i class="ti ti-chevron-down ai-feed-toggle"></i>
+            </div>
+            <div class="ai-feed-cards" id="aiFeedCards">
+              <!-- Cards injected by JS via renderAiFeed() -->
+            </div>
+          </div>
+
+          <!-- Chat messages — content swapped on tab change via renderAiChat() -->
+          <div class="ai-messages" id="aiMessages"></div>
+
+          <!-- Quick prompts — swapped per tab too -->
+
+          <div class="ai-quick-wrap" id="aiQuickWrap">
+            <div class="ai-quick-header">
+              <span class="ai-quick-header-label">Öneriler</span>
+              <button class="ai-quick-header-btn" id="aiQuickToggle" type="button" aria-label="Aç/kapat">
+                <i class="ti ti-chevron-down"></i>
+              </button>
+            </div>
+            <div class="ai-quick-prompts" id="aiQuickPrompts"></div>
+          </div>
+
+          <!-- Input -->
+          <div class="ai-input-wrap">
+            <input class="ai-input" id="aiInput" type="text" placeholder="Bir şey sor..." autocomplete="off">
+            <button class="ai-send" id="aiSend" onclick="aiSendMessage()" aria-label="Gönder">
+              <i class="ti ti-arrow-up"></i>
+            </button>
+          </div>
+
+        </aside>
+        <!-- ─── END AI side panel ────────────────────────────────────── -->
+
       </div>
-      <!-- ─── END Filter bar ───────────────────────────────────────────── -->
-      <!-- ─── KPI Bar ─────────────────────────────────────────────────────────── -->
-      <div class="fat-kpi-bar" id="fatKpiBar" style="display:none;">
-        <div class="fat-kpi-card">
-          <span class="fat-kpi-label">Fatura Adedi</span>
-          <span class="fat-kpi-value" id="kpiCount">—</span>
-        </div>
-        <div class="fat-kpi-card">
-          <span class="fat-kpi-label">TL Toplam</span>
-          <span class="fat-kpi-value" id="kpiTryTotal">—</span>
-          <span class="fat-kpi-sub" id="kpiTryAvg"></span>
-        </div>
-        <div class="fat-kpi-card">
-          <span class="fat-kpi-label">USD Toplam</span>
-          <span class="fat-kpi-value" id="kpiUsdTotal">—</span>
-          <span class="fat-kpi-sub" id="kpiUsdAvg"></span>
-        </div>
-        <div class="fat-kpi-card">
-          <span class="fat-kpi-label">EUR Toplam</span>
-          <span class="fat-kpi-value" id="kpiEurTotal">—</span>
-          <span class="fat-kpi-delta" id="kpiEurDelta"></span>
-        </div>
-      </div>
-      <!-- ─── END KPI Bar ──────────────────────────────────────────────────────── -->
-      <!-- ─── Main content area ───────────────────────────────────────── -->
-      <div class="fat-area" id="fatArea">
-
-        <!-- Bekleyenler sub-tab bar -->
-        <div class="fat-sub-tabbar" id="fatSubTabBar" style="display:none;">
-          <button class="fat-sub-tab fat-sub-tab--active" id="subTabBekGiden" onclick="switchBekleyenTab('giden')">
-            <i class="ti ti-arrow-up" style="font-size:15px; color:#6e6a62;" aria-hidden="true"></i>
-            Giden
-            <span class="fat-sub-badge" id="subTabBekGidenCount"></span>
-          </button>
-          <button class="fat-sub-tab" id="subTabBekGelen" onclick="switchBekleyenTab('gelen')">
-            <i class="ti ti-arrow-down" style="font-size:15px; color:#9a6318;" aria-hidden="true"></i>
-            Gelen
-            <span class="fat-sub-badge" id="subTabBekGelenCount"></span>
-          </button>
-
-        </div>
-
-        <!-- Genel Bakış panel — loads as iframe to isolate chat JS -->
-        <div id="panelGenel" class="fat-panel" style="display:none;">
-          <iframe id="genelBakisFrame" src="" style="width:100%; height:100%; border:none; display:block;" title="Genel Bakış"></iframe>
-        </div>
-
-        <!-- List + detail content — used by list.js / detail.js -->
-        <div id="panelList" class="fat-panel fat-panel--active" style="position:relative;">
-          <div id="fatLoadingOverlay" style="position:absolute; inset:0; background:rgba(248,250,252,0); backdrop-filter:blur(0px); display:flex; align-items:center; justify-content:center; z-index:10; pointer-events:none; transition:all 0.25s;">
-            <div id="fatLoadingSpinner" style="width:28px; height:28px; border:2px solid #e2e8f0; border-top-color:#2563eb; border-radius:50%; opacity:0; transition:opacity 0.2s;"></div>
-          </div>
-          <div class="fat-content" id="fatContent"></div>
-        </div>
-
-        <div id="fatPagination" style="display:none;">
-          <span id="fatPagInfo" class="fat-pag-info"></span>
-          <div id="fatPagPages" class="fat-pag-pages"></div>
-          <div class="fat-pag-limit">
-            <span class="fat-pag-label">Sayfa başına:</span>
-            <select id="fatPagLimit" class="fat-pag-select" onchange="changeLimit(this.value)">
-              <option value="10">10</option>
-              <option value="25">25</option>
-              <option value="50">50</option>
-              <option value="100">100</option>
-            </select>
-          </div>
-        </div>
-
-      </div>
-      <!-- ─── END Main content ─────────────────────────────────────────── -->
+      <!-- ─── END Below header ─────────────────────────────────────── -->
 
     </div>
     </div>
   </div>
-
-<!-- ─── Invoice modal (required by main.js) ──────────────────────────────── -->
-<div id="invoiceModal" class="modal-overlay">
-  <div class="modal-content invoice-modal-v2">
-
-    <div id="eklePdfPane" class="ekle-pdf-pane">
-      <input type="file" id="eklePdfInput" accept=".xml" hidden>
-      <div id="eklePdfDrop" class="ekle-pdf-drop">
-        <svg width="52" height="52" fill="none" stroke="#cbd5e1" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
-            d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
-        </svg>
-        <p style="font-size:15px; font-weight:600; color:#94a3b8; margin-top:14px;">XML Sürükleyin</p>
-        <span style="font-size:13px; color:#cbd5e1; margin-top:4px;">veya klasörden seçin</span>
-        <button type="button" onclick="document.getElementById('eklePdfInput').click()"
-          style="margin-top:16px; padding:8px 20px; background:#2563eb; color:white; border:none; border-radius:8px; font-size:13px; font-weight:600; cursor:pointer; font-family:inherit;">
-          Dosya Seç
-        </button>
-      </div>
-      <iframe id="eklePdfPreview" style="display:none; width:100%; flex:1; border:none;"></iframe>
-    </div>
-
-    <form id="invoiceForm" autocomplete="off" style="flex:1; display:flex; flex-direction:column; overflow:hidden; min-height:0;">
-
-      <div class="invoice-modal-header">
-        <div style="display:flex; align-items:center; gap:10px;">
-          <button type="button" class="btn btn-ghost btn-sm" onclick="closeInvoiceModal()">✕</button>
-          <h2 class="invoice-modal-title" id="invoiceModalTitle">Fatura Ekle</h2>
-        </div>
-        <div style="display:flex; align-items:center; gap:8px;" id="invoiceModalHeaderActions"></div>
-      </div>
-
-      <div class="invoice-modal-body">
-        <div class="invoice-modal-left">
-          <div class="section-header"><h3>Fatura Bilgileri</h3></div>
-          <div class="form-grid">
-            <input type="hidden" id="f_id">
-            <div class="form-group span-2">
-              <label>Firma *</label>
-              <div style="display:flex; gap:6px;">
-                <input type="text" id="f_firma" class="locked-input" required placeholder="Firma adı" style="flex:1;">
-                <input type="text" id="f_vkn"   class="locked-input" placeholder="VKN / TCKN" style="width:130px;">
-              </div>
-            </div>
-            <div class="form-group">
-              <label>Yön *</label>
-              <select id="f_direction" class="locked-input">
-                <option value="INCOMING">Gelen</option>
-                <option value="OUTGOING">Giden</option>
-              </select>
-            </div>
-            <div class="form-group">
-              <label>Onay Durumu</label>
-              <select id="f_approval">
-                <option value="pending">Bekliyor</option>
-                <option value="approved">Onaylandı</option>
-              </select>
-            </div>
-            <div class="form-group">
-              <label>Fatura No *</label>
-              <input type="text" id="f_no" class="locked-input" required>
-            </div>
-            <div class="form-group">
-              <label>Fatura Tarihi</label>
-              <input type="date" id="f_date" class="locked-input">
-            </div>
-            <div class="form-group">
-              <label>Vade Tarihi</label>
-              <input type="date" id="f_due_date">
-            </div>
-            <div class="form-group">
-              <label>Fatura Türü</label>
-              <select id="f_type" class="locked-input">
-                <option value="e-Fatura">e-Fatura</option>
-                <option value="e-Arşiv">e-Arşiv</option>
-                <option value="Temel">Temel</option>
-                <option value="Ticari">Ticari</option>
-              </select>
-            </div>
-            <div class="form-group">
-              <label>Döviz</label>
-              <select id="f_currency" class="locked-input">
-                <option value="TL">TRY</option>
-                <option value="USD">USD</option>
-              </select>
-            </div>
-            <div class="form-group">
-              <label>Döviz Kuru (1 $ = ?)</label>
-              <div style="display:flex; gap:4px;">
-                <input type="number" id="f_kur" step="0.0001" placeholder="0.0000" class="input-accent" style="width:100%">
-                <button type="button" title="TCMB Son Kuru Çek" onclick="fetchTCMBKur()"
-                  style="background:#eef2f5; border:1px solid #cbd5e1; border-radius:4px; cursor:pointer;">🔄</button>
-              </div>
-            </div>
-            <div class="form-group">
-              <label>Matrah (Net)</label>
-              <input type="number" id="f_net" step="0.01" class="locked-input">
-            </div>
-            <div class="form-group">
-              <label>KDV Toplamı</label>
-              <input type="number" id="f_tax" step="0.01" class="locked-input">
-            </div>
-            <div class="form-group span-2">
-              <label>Genel Toplam</label>
-              <input type="number" id="f_total" step="0.01" class="input-highlight locked-input">
-            </div>
-          </div>
-        </div>
-
-        <div class="invoice-modal-items">
-          <div class="section-header" style="margin-bottom:12px;">
-            <h3 style="margin:0;">Ürünler & Hizmetler</h3>
-            <button type="button" class="btn-text" onclick="addLineItem()">＋ Ürün Ekle</button>
-          </div>
-          <div id="unlockWarningBox" style="display:none;" class="unlock-warning">
-            XML ile yüklenen alanlar kilitlidir.
-            <button type="button" class="btn-text" onclick="unlockInvoiceForm()" style="margin-left:8px;">🔓 Kilidi Aç</button>
-          </div>
-          <div class="line-items-wrapper">
-            <table class="line-table">
-              <thead>
-                <tr>
-                  <th>Açıklama</th>
-                  <th width="145">Ürün Kodu</th>
-                  <th width="58">Miktar</th>
-                  <th width="80">B.Fiyat</th>
-                  <th width="100">Toplam</th>
-                  <th width="210">Ofis-İçin</th>
-                  <th width="190">Kategori</th>
-                  <th width="32"></th>
-                </tr>
-              </thead>
-              <tbody id="lineItemsBody"></tbody>
-            </table>
-          </div>
-          <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-top:20px; padding-top:16px; border-top:1px solid var(--border);">
-            <div style="display:flex; flex-direction:column; gap:10px;">
-              <div class="form-group"><label>Telefon</label><input type="text" id="f_phone" placeholder="0212..."></div>
-              <div class="form-group"><label>Web Sitesi</label><input type="text" id="f_website" placeholder="www.firma.com"></div>
-              <div class="form-group"><label>E-Posta</label><input type="email" id="f_email" placeholder="info@firma.com"></div>
-              <div class="form-group"><label>Vergi Dairesi</label><input type="text" id="f_tax_office" class="locked-input" placeholder="Vergi dairesi (XML)"></div>
-            </div>
-            <div style="display:flex; flex-direction:column; gap:10px;">
-              <div class="form-group"><label>Adres</label><input type="text" id="f_address" placeholder="Mahalle, Sokak, No..."></div>
-              <div class="form-group" style="flex:1; display:flex; flex-direction:column;">
-                <label>Notlar</label>
-                <textarea id="f_notes" style="flex:1; resize:none; min-height:120px;"></textarea>
-              </div>
-            </div>
-          </div>
-          <div id="previewPane" style="margin-top:12px;"></div>
-        </div>
-      </div>
-
-      <div class="invoice-modal-footer" style="display:flex; justify-content:space-between; align-items:center;">
-        <label style="display:flex; align-items:center; gap:6px; cursor:pointer; font-size:14px; font-weight:600; color:#334155;">
-          <input type="checkbox" id="f_update_stock" checked style="width:16px; height:16px; accent-color:var(--primary);">
-          Stokları ve Siparişleri Güncelle
-        </label>
-        <div style="display:flex; gap:12px;">
-          <button type="button" class="btn btn-secondary" onclick="closeInvoiceModal()">İptal</button>
-          <button type="submit" form="invoiceForm" class="btn btn-success">💾 Faturayı Kaydet</button>
-        </div>
-      </div>
-
-    </form>
-  </div>
-</div>
 
 <div id="toast-container"></div>
-
-<!-- ─── JS modules (same order as gelen-faturalar.html) ─────────────────── -->
-
-<script src="/faturalar/js/utils.js"></script>
-<script src="/faturalar/js/xml.js?v=1"></script>
-<script src="/faturalar/js/api.js?v=20260521-sort"></script>
-<script src="/faturalar/js/state.js?v=20260511-detailpage"></script>
-<script src="/faturalar/js/list.js?v=20260518-tag-filter-fix"></script>
-<script src="/faturalar/js/detail.js?v=20260521-batch-is-internal"></script>
-<script src="/faturalar/js/main.js?v=20260511-bek-pdf-fix"></script>
-
-<script src="/faturalar/js/faturalar.js"></script>
-
 
 </body>
 </html>

@@ -1,0 +1,271 @@
+/* ─── Insights strip — 3 AI-derived cards ─────────────────────────────────── */
+
+.gb-insights {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+}
+
+/* ── Card base ── */
+.gb-insight {
+    background: var(--fat-bg);
+    border: 1px solid var(--fat-border);
+    border-radius: 10px;
+    padding: 12px 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    position: relative;
+    overflow: hidden;
+    min-height: 90px;
+}
+
+/* Top accent bar — category color */
+.gb-insight::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 2px;
+    opacity: 0.4;
+}
+
+.gb-insight--mover::before    { background: var(--fat-green); }
+.gb-insight--anomaly::before  { background: var(--fat-amber); }
+.gb-insight--forecast::before { background: var(--fat-ink2); }
+
+/* ── Header (tag + live dot) ── */
+.gb-insight-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+.gb-insight-tag {
+    font-family: var(--fat-font-data);
+    font-size: 9px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.gb-insight-tag i {
+    font-size: 11px;
+}
+
+.gb-insight--mover    .gb-insight-tag { color: var(--fat-green); }
+.gb-insight--anomaly  .gb-insight-tag { color: var(--fat-amber); }
+.gb-insight--forecast .gb-insight-tag { color: var(--fat-ink2); }
+
+/* ── Live pulsing dot ── */
+.gb-insight-live {
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: var(--fat-green);
+    position: relative;
+    flex-shrink: 0;
+}
+
+.gb-insight-live::after {
+    content: '';
+    position: absolute;
+    inset: -3px;
+    border-radius: 50%;
+    border: 1px solid var(--fat-green);
+    opacity: 0;
+    animation: gb-insight-pulse 2.4s ease-out infinite;
+}
+
+@keyframes gb-insight-pulse {
+    0%   { opacity: 0.6; transform: scale(1); }
+    100% { opacity: 0;   transform: scale(2.2); }
+}
+
+/* ── Main value text ── */
+.gb-insight-value {
+    font-size: 13px;
+    color: var(--fat-ink);
+    line-height: 1.4;
+    font-weight: 500;
+}
+
+.gb-insight-value strong {
+    font-family: var(--fat-font-data);
+    font-weight: 600;
+}
+
+.gb-accent {
+    color: var(--fat-green);
+    font-weight: 600;
+    font-family: var(--fat-font-data);
+}
+
+.gb-accent-warn {
+    color: var(--fat-amber);
+    font-weight: 600;
+    font-family: var(--fat-font-data);
+}
+
+/* ── Hint line ── */
+.gb-insight-hint {
+    font-size: 10px;
+    color: var(--fat-ink4);
+    font-family: var(--fat-font-data);
+    letter-spacing: 0.02em;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+
+.gb-insight-hint .gb-bullet {
+    width: 2px;
+    height: 2px;
+    background: var(--fat-ink4);
+    border-radius: 50%;
+    display: inline-block;
+    flex-shrink: 0;
+}
+
+/* ── Forecast progress bar ── */
+.gb-forecast-bar {
+    height: 3px;
+    background: var(--fat-bg3);
+    border-radius: 2px;
+    overflow: hidden;
+    margin-top: 2px;
+    position: relative;
+}
+
+.gb-forecast-bar-fill {
+    height: 100%;
+    background: var(--fat-ink2);
+    border-radius: 2px;
+    position: relative;
+    transition: width 0.6s ease-out;
+}
+
+.gb-forecast-bar-projected {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 100%;
+    background: repeating-linear-gradient(
+        90deg,
+        var(--fat-ink4) 0,
+        var(--fat-ink4) 3px,
+        transparent 3px,
+        transparent 6px
+    );
+    opacity: 0.5;
+    transition: left 0.6s ease-out;
+}
+
+/* ── Skeleton state while loading ── */
+.gb-insight--loading .gb-insight-value,
+.gb-insight--loading .gb-insight-hint {
+    color: transparent;
+    background: linear-gradient(90deg, var(--fat-bg2), var(--fat-bg3), var(--fat-bg2));
+    background-size: 200% 100%;
+    animation: gb-insight-skeleton 1.4s ease-in-out infinite;
+    border-radius: 3px;
+    height: 12px;
+}
+
+.gb-insight--loading .gb-insight-hint {
+    height: 9px;
+    width: 60%;
+}
+
+@keyframes gb-insight-skeleton {
+    0%   { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+}
+
+/* Pager controls */
+.gb-insight-nav {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.gb-insight-nav-btn {
+    width: 18px;
+    height: 18px;
+    padding: 0;
+    background: none;
+    border: 1px solid var(--fat-border);
+    border-radius: 4px;
+    color: var(--fat-ink3);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.1s, color 0.1s, border-color 0.1s;
+}
+
+.gb-insight-nav-btn i {
+    font-size: 11px;
+}
+
+.gb-insight-nav-btn:hover:not(:disabled) {
+    background: var(--fat-bg2);
+    color: var(--fat-ink);
+    border-color: var(--fat-border2);
+}
+
+.gb-insight-nav-btn:disabled {
+    opacity: 0.35;
+    cursor: not-allowed;
+}
+
+.gb-insight-counter {
+    font-family: var(--fat-font-data);
+    font-size: 9px;
+    color: var(--fat-ink4);
+    letter-spacing: 0.05em;
+    min-width: 26px;
+    text-align: center;
+    user-select: none;
+}
+
+/* Fade transition on value + hint */
+.gb-insight-value,
+.gb-insight-hint {
+    transition: opacity 0.2s ease-out;
+}
+
+.gb-insight--fading .gb-insight-value,
+.gb-insight--fading .gb-insight-hint {
+    opacity: 0;
+}
+
+.gb-dir-badge {
+    display: inline-block;
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-family: var(--fat-font-data);
+    font-size: 8px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    vertical-align: middle;
+    margin-right: 4px;
+}
+
+.gb-dir-giden {
+    background: rgba(26, 107, 71, 0.12);
+    color: var(--fat-green);
+}
+
+.gb-dir-gelen {
+    background: rgba(154, 99, 24, 0.12);
+    color: var(--fat-amber);
+}

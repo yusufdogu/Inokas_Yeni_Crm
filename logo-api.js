@@ -49,7 +49,12 @@ function clearAuthCache(tenantId) {
 const FULL_SYNC_START = '2026-01-01T00:00:00';
 
 function getLast48Hours() {
-  const d = new Date(Date.now() - 48 * 60 * 60 * 1000);
+  const d = new Date(Date.now() - 24 * 60 * 60 * 1000);
+  return d.toISOString().substring(0, 19);
+}
+function getLast2Months() {
+  const d = new Date();
+  d.setMonth(d.getMonth() - 3);
   return d.toISOString().substring(0, 19);
 }
 
@@ -209,4 +214,5 @@ module.exports = {
   getGidenInvoiceStatus,
   FULL_SYNC_START,
   getLast48Hours,
+  getLast2Months,
 };

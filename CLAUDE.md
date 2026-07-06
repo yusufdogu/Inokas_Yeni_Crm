@@ -29,11 +29,11 @@ There is no build step, no bundler, no test suite. The app is deployed to Railwa
 
 ### Auth & Multi-Tenancy
 
-Auth is session-based. `public/auth/login.html` posts credentials to `/api/auth`; on success, the server returns a token stored in `sessionStorage` as `inokas_token`.
+Auth is session-based. `public/auth/login.html` posts credentials to `/api/auth`; on success, the server returns a token stored in `sessionStorage` as `login_auth_token`.
 
 Every API route (except `/api/auth`) is protected by `middleware/tenant.js`, which reads `x-auth-token` from request headers, looks up the session in the `sessions` Supabase table, and injects `req.tenantId`, `req.userId`, and `req.userRole` into the request.
 
-`public/shared/auth-interceptor.js` is included in every page. It monkey-patches `window.fetch` to automatically attach `x-auth-token` to all `/api/` calls. Pages check `sessionStorage.getItem('inokas_token')` on load and redirect to `/auth/login.html` if missing.
+`public/shared/auth-interceptor.js` is included in every page. It monkey-patches `window.fetch` to automatically attach `x-auth-token` to all `/api/` calls. Pages check `sessionStorage.getItem('login_auth_token')` on load and redirect to `/auth/login.html` if missing.
 
 `public/index.html` is a redirect-only entry point — it sends authenticated users to `/faturalar/pages/gelen-faturalar.html` and unauthenticated users to `/auth/login.html`.
 

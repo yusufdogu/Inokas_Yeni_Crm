@@ -1,6 +1,110 @@
 // Fatura para birimi ve tutar hesaplama yardımcıları
 // DOM veya fetch içermez — sadece veri alır, değer döndürür.
 
+// ─── Skeleton renderer ──────────────────────────────────────────────────────
+// Renders N pulsing placeholder rows into a container.
+//
+// Usage:
+//   renderSkeleton('myList', 3, [
+//     { width: 14, height: 10 },        // a small block
+//     { width: '60%', height: 11 },     // a flexible text line
+//     { width: 48, height: 11 },        // a fixed amount block
+//   ]);
+//
+// Or for a row of stacked lines, use multiple rows:
+//   renderSkeleton('myList', 3, {
+//     rank:    { width: 14, height: 10 },
+//     name:    { width: '60%', height: 11 },
+//     amount:  { width: 48, height: 11 },
+//     bar:     { width: '100%', height: 4, span: 'full' },
+//   });
+
+function renderSkeleton(containerId, count, schema) {
+    const el = document.getElementById(containerId);
+    if (!el) return;
+
+    // Vary widths slightly so rows don't look identical
+    const widthVariations = ['58%', '46%', '68%', '52%', '62%'];
+
+    const rows = [];
+    for (let i = 0; i < count; i++) {
+        const widthIdx = i % widthVariations.length;
+        rows.push(_buildSkeletonRow(schema, widthVariations[widthIdx]));
+    }
+
+    el.innerHTML = `<div class="skel-list">${rows.join('')}</div>`;
+}
+
+function _buildSkeletonRow(schema, nameWidth) {
+    // schema can be:
+    //   { rank, name, amount, bar }  → row with rank | (name+amount on top, bar below)
+    //   simple array → flat row of pills
+
+    if (Array.isArray(schema)) {
+        return `<div class="skel-row">${
+            schema.map(s => _buildSkelBox(s)).join('')
+        }</div>`;
+    }
+
+    // structured row (companies-style)
+    const parts = [];
+    if (schema.rank)   parts.push(_buildSkelBox(schema.rank));
+    parts.push(`
+        <div class="skel-info">
+            <div class="skel-line">
+                ${_buildSkelBox({ ...schema.name, width: nameWidth })}
+                ${_buildSkelBox(schema.amount)}
+            </div>
+            ${schema.bar ? _buildSkelBox(schema.bar) : ''}
+        </div>
+    `);
+
+    return `<div class="skel-row">${parts.join('')}</div>`;
+}
+
+function _buildSkelBox({ width, height, radius = 3 }) {
+    const w = typeof width === 'number' ? width + 'px' : width;
+    const h = typeof height === 'number' ? height + 'px' : height;
+    return `<div class="skel-box" style="width:${w}; height:${h}; border-radius:${radius}px;"></div>`;
+}
+
+// Companies card (3 rows by default)
+function renderCompaniesSkeleton(containerId, count = 3) {
+    renderSkeleton(containerId, count, {
+        rank:   { width: 14, height: 10 },
+        name:   { width: '60%', height: 11 },
+        amount: { width: 48, height: 11 },
+        bar:    { width: '100%', height: 4, radius: 2 },
+    });
+}
+
+// KPI cards (3 lines stacked)
+function renderKpiSkeleton(containerId) {
+    renderSkeleton(containerId, 1, [
+        { width: 80, height: 10 },    // label
+        { width: 120, height: 22 },   // big value
+    ]);
+}
+
+// Invoice list row (matches table layout)
+function renderInvoiceListSkeleton(containerId, count = 5) {
+    renderSkeleton(containerId, count, [
+        { width: '40%', height: 40 },   // invoice no
+        { width: '40%', height: 40 },   // company
+        { width: '10%', height: 40 },    // date
+        { width: '10%', height: 40 },    // amount
+    ]);
+}
+
+// Chat assistant message bubble (single)
+function renderChatSkeleton(containerId) {
+    renderSkeleton(containerId, 1, [
+        { width: 180, height: 11 },
+        { width: 240, height: 11 },
+        { width: 140, height: 11 },
+    ]);
+}
+
 function normalizeCurrencyCode(code) {
     const val = String(code || '').trim().toUpperCase();
     if (val === 'TL') return 'TRY';
@@ -243,7 +347,7 @@ function createTagFilter({ wrapId, inputId, dropdownId, getOptions, onChange }) 
     function renderDropdown(query) {
         const opts = getOptions().filter(o =>
             !selected.includes(o) &&
-            (!query || o.toLocaleLowerCase('tr-TR').includes(query.toLocaleLowerCase('tr-TR')))
+            (!query || o.toLocaleLowerCase('tr-TR').includes(query.toLocaleLowerCase('tr-TR')) || o.toLocaleLowerCase('en-US').includes(query.toLocaleLowerCase('en-US')))
         );
         const list = dropdown.querySelector('.filter-dropdown-list') || (() => {
             const ul = document.createElement('ul');
@@ -253,7 +357,7 @@ function createTagFilter({ wrapId, inputId, dropdownId, getOptions, onChange }) 
         })();
         list.innerHTML = '';
         highlightIdx = -1;
-        opts.slice(0, 40).forEach(o => {
+        opts.forEach(o => {
             const li = document.createElement('li');
             li.className = 'filter-dropdown-item';
             li.textContent = o;
@@ -292,15 +396,36 @@ function createTagFilter({ wrapId, inputId, dropdownId, getOptions, onChange }) 
     });
 
     return {
-      getSelected:   () => [...selected],
-      clear:         () => { selected = []; renderTags(); },
-      // in createTagFilter return value
-      _forceSelect: (v) => {
-        if (!selected.includes(v)) {
+        // Inside createTagFilter, alongside getSelected/clear:
+
+        getSelected:   () => [...selected],
+        clear:         () => {
+          selected = [];
+          input.value='';
+          dropdown.classList.remove('open');
+          renderTags(); },
+
+        add: (v) => {
+            console.log('[tagFilter.add] called with:', v);
+            if (v == null || v === '') return;
+            if (selected.includes(v)) {
+                console.log('[tagFilter.add] already selected, skipping');
+                return;
+            }
             selected.push(v);
+            console.log('[tagFilter.add] pushed. selected:', selected);
             renderTags();
-            if (!window._restoringFilters) onChange(selected);
-        }
-      },
+            if (typeof onChange === 'function') {
+                console.log('[tagFilter.add] calling onChange');
+                onChange(selected);
+            }
+        },
+        _forceSelect: (v) => {
+             if (!selected.includes(v)) {
+                selected.push(v);
+                renderTags();
+                if (!window._restoringFilters) onChange(selected);
+            }
+        },
     };
 }

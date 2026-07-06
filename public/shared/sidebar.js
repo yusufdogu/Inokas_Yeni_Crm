@@ -46,7 +46,7 @@
   let _giderOpen   = false;
 
   const path        = location.pathname;
-  const isFaturalar = path === '/' || path.includes('/faturalar/pages/') || path.includes('genel-bakis.html');
+  const isFaturalar = path === '/' || path.includes('/faturalar/pages/') || path.includes('faturalar.html');
   const isOfisIci   = path.includes('ofis-ici');
   const isStok      = path.includes('/stok');
   const isDmo       = path.includes('/dmo');
@@ -102,7 +102,8 @@
 
   <nav class="sb-nav">
 
-    <!-- AI Asistan -->
+    
+    <!-- AI Asistan 
     <a href="/chat" class="sb-item${isChat ? ' active' : ''}" style="position:relative;">
       <i class="ti ti-message-bolt" style="color:${isChat ? '#93c5fd' : 'rgba(255,255,255,0.45)'}"></i>
       <span class="sb-label">AI Asistan</span>
@@ -110,6 +111,7 @@
     </a>
 
     <div class="sb-divider"></div>
+    -->
 
     <!-- Faturalar -->
     <a href="/faturalar/pages/faturalar.html"
@@ -133,7 +135,7 @@
 
     <div class="sb-divider"></div>
 
-    <!-- Giderler -->
+    <!-- Giderler 
     <button class="sb-item${isGider ? ' active' : ''}" id="gider-toggle" onclick="toggleGider()">
       <i class="ti ti-building"></i>
       <span class="sb-label">Giderler</span>
@@ -148,7 +150,8 @@
     </div>
 
     <div class="sb-divider"></div>
-
+    -->
+    
     <!-- Stok -->
     <a href="/stok/pages/stok.html"
        class="sb-item${path.includes('stok') ? ' active' : ''}">
@@ -160,7 +163,7 @@
 
     <div class="sb-divider"></div>
 
-    <!-- DMO -->
+    <!-- DMO 
     <button class="sb-item${isDmo ? ' active' : ''}" id="dmo-toggle" onclick="toggleDMO()">
       <i class="ti ti-building-store"></i>
       <span class="sb-label">DMO</span>
@@ -182,8 +185,9 @@
     </div>
 
     <div class="sb-divider"></div>
-
-    <!-- Teklifler -->
+    -->
+    
+    <!-- Teklifler 
     <button class="sb-item${isQuotes ? ' active' : ''}" id="quotes-toggle" onclick="toggleQuotes()">
       <i class="ti ti-file-description"></i>
       <span class="sb-label">Teklifler</span>
@@ -201,8 +205,9 @@
     </div>
 
     <div class="sb-divider"></div>
-
-    <!-- Cari Analiz -->
+    -->
+    
+    <!-- Cari Analiz 
     <button class="sb-item${isCari ? ' active' : ''}" id="cari-toggle" onclick="toggleCari()">
       <i class="ti ti-users"></i>
       <span class="sb-label">Cari Analiz</span>
@@ -219,7 +224,9 @@
       </a>
       
     </div>
+    -->
     
+    <!--
     <div class="sb-divider"></div>
     <a href="/teknik/pages/teknik-sorunlar.html" class="sb-item${path.includes('teknik') ? ' active' : ''}">
       <i class="ti ti-tool"></i>
@@ -227,6 +234,7 @@
     </a>
 
     <div class="sb-divider"></div>
+    -->
 
   </nav>
     
@@ -315,7 +323,7 @@
     }
 
     document.getElementById('sb-logout-btn')?.addEventListener('click', () => {
-      sessionStorage.removeItem('inokas_token');
+      sessionStorage.removeItem('login_auth_token');
       window.location.replace('/auth/login.html');
     });
 

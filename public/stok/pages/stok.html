@@ -5,18 +5,19 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Stok — İnokas CRM</title>
   <script>
-    if (!sessionStorage.getItem('inokas_token')) window.location.href = '/auth/login.html';
+    if (!sessionStorage.getItem('login_auth_token')) window.location.href = '/auth/login.html';
   </script>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.x/dist/tabler-icons.min.css">
   <link rel="stylesheet" href="/shared/sidebar.css">
   <link rel="stylesheet" href="/shared/shared-filters.css">
   <link rel="stylesheet" href="/stok/css/kategori-yonetimi.css">
-  <link rel="stylesheet" href="/stok/css/stok-base.css">
   <link rel="stylesheet" href="/stok/css/stok.css">
+  <link rel="stylesheet" href="/stok/css/stok-base.css">
   <link rel="stylesheet" href="/stok/css/backorder.css">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
   <script src="/shared/auth-interceptor.js"></script>
+  <script src="/stok/js/urunler-chat.js" defer></script>
 </head>
 <body>
 
@@ -54,130 +55,297 @@
         <iframe id="genelBakisFrame" src="" style="width:100%; height:100%; border:none; display:block;" title="Genel Bakış"></iframe>
       </div>
 
-      <!-- Ürünler panel -->
-      <!-- ── Ürünler panel — drop this in place of the existing panelUrunler div ── -->
-      <div id="panelUrunler" class="stk-panel" style="display:none;">
+      <!-- ══════════════════════════════════════════════════════════════════════════
+       ÜRÜNLER PANEL — replaces the existing #panelUrunler block (stok.html lines 59–149)
+       70/30 split: .ur-main (filters + KPIs + table) | .ur-chat (assistant rail)
+      ════════════════════════════════════════════════════════════════════════════ -->
+      <div id="panelUrunler" class="stk-panel" style="display:none; flex-direction:row;">
 
-        <!-- Filter bar -->
-        <div class="stk-filter-bar">
-          <div class="stk-filter-row">
+        <!-- ══ LEFT 70% ══════════════════════════════════════════════════════════ -->
+        <div class="ur-main">
 
-            <!-- Ürün adı tag filter -->
-            <div class="filter-tags-wrap" id="urProductNameTagsWrap" style="flex:2;" onclick="document.getElementById('urProductNameTagInput').focus()">
-              <div id="urProductNameTags" class="filter-tags"></div>
-              <input type="text" id="urProductNameTagInput" class="filter-tags-input" placeholder="Ürün adı ekle...">
-              <div id="urProductNameDropdown" class="filter-dropdown"></div>
+          <!-- ══════════════════════════════════════════════════════════════════════════
+           ÜRÜNLER FILTER BAR — light theme, 3 rows.
+           Adet aralığı & Stok değeri are now pill + popover (sliders removed).
+           Replaces the old <div class="stk-filter-bar sf-dark"> … </div> inside .ur-main.
+          ════════════════════════════════════════════════════════════════════════════ -->
+          <div class="stk-filter-bar">
+
+            <!-- ── Row 1: SKU · Ad · Kategori · Adet pill · Değer pill ──────────────────── -->
+            <div class="stk-filter-row">
+
+              <!-- SKU tag filter -->
+              <div class="filter-tags-wrap" id="urSkuTagsWrap" style="flex:1.1;" onclick="document.getElementById('urSkuTagInput').focus()">
+                <div id="urSkuTags" class="filter-tags"></div>
+                <input type="text" id="urSkuTagInput" class="filter-tags-input" placeholder="SKU / kod ekle...">
+                <div id="urSkuDropdown" class="filter-dropdown"></div>
+              </div>
+
+              <!-- Ürün adı tag filter -->
+              <div class="filter-tags-wrap" id="urProductNameTagsWrap" style="flex:1.6;" onclick="document.getElementById('urProductNameTagInput').focus()">
+                <div id="urProductNameTags" class="filter-tags"></div>
+                <input type="text" id="urProductNameTagInput" class="filter-tags-input" placeholder="Ürün adı ekle...">
+                <div id="urProductNameDropdown" class="filter-dropdown"></div>
+              </div>
+
+              <!-- Kategori tag filter -->
+              <div class="filter-tags-wrap" id="urCategoryTagsWrap" onclick="document.getElementById('urCategoryTagInput').focus()">
+                <div id="urCategoryTags" class="filter-tags"></div>
+                <input type="text" id="urCategoryTagInput" class="filter-tags-input" placeholder="Kategori ekle...">
+                <div id="urCategoryDropdown" class="filter-dropdown"></div>
+              </div>
+
+              <!-- Adet aralığı — pill + popover -->
+              <div class="filter-pill-wrap" id="urQtyPillWrap">
+                <button type="button" class="filter-pill" id="urQtyPill" onclick="toggleQtyPop(event)">
+                  <span class="filter-pill-label" id="urQtyPillLabel">Adet aralığı</span>
+                  <span class="filter-pill-clear" id="urQtyPillClear" style="display:none;"
+                        onclick="event.stopPropagation(); clearQtyRange()">×</span>
+                  <i class="ti ti-chevron-down filter-pill-caret" style="font-size:12px;"></i>
+                </button>
+
+                <div class="filter-popover" id="urQtyPop" onclick="event.stopPropagation()">
+                  <div class="filter-presets">
+                    <button type="button" class="filter-preset-chip" onclick="setQtyBucket(this,0,10)">0–10</button>
+                    <button type="button" class="filter-preset-chip" onclick="setQtyBucket(this,10,50)">10–50</button>
+                    <button type="button" class="filter-preset-chip" onclick="setQtyBucket(this,50,100)">50–100</button>
+                    <button type="button" class="filter-preset-chip" onclick="setQtyBucket(this,100,null)">100+</button>
+                  </div>
+                  <div class="filter-range-inputs">
+                    <div class="filter-range-group">
+                      <label>En az</label>
+                      <input type="text" inputmode="numeric" id="urQtyMinInput" oninput="onQtyInputChange()" placeholder="0">
+                    </div>
+                    <span class="filter-range-sep">–</span>
+                    <div class="filter-range-group">
+                      <label>En çok</label>
+                      <input type="text" inputmode="numeric" id="urQtyMaxInput" oninput="onQtyInputChange()" placeholder="∞">
+                    </div>
+                  </div>
+                  <div class="filter-popover-foot">
+                    <button type="button" class="filter-popover-clear" onclick="clearQtyRange()">Temizle</button>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Stok değeri — pill + popover -->
+              <div class="filter-pill-wrap" id="urValPillWrap">
+                <button type="button" class="filter-pill" id="urValPill" onclick="toggleValPop(event)">
+                  <span class="filter-pill-label" id="urValPillLabel">Stok değeri (<span id="urValCurSym">₺</span>)</span>
+                  <span class="filter-pill-clear" id="urValPillClear" style="display:none;"
+                        onclick="event.stopPropagation(); clearValRange()">×</span>
+                  <i class="ti ti-chevron-down filter-pill-caret" style="font-size:12px;"></i>
+                </button>
+
+                <div class="filter-popover" id="urValPop" onclick="event.stopPropagation()">
+                  <div class="filter-presets">
+                    <button type="button" class="filter-preset-chip" onclick="setValBucket(this,0,10000)">0–10K</button>
+                    <button type="button" class="filter-preset-chip" onclick="setValBucket(this,10000,50000)">10–50K</button>
+                    <button type="button" class="filter-preset-chip" onclick="setValBucket(this,50000,null)">50K+</button>
+                  </div>
+                  <div class="filter-range-inputs">
+                    <div class="filter-range-group">
+                      <label>En az</label>
+                      <input type="text" inputmode="numeric" id="urValMinInput" oninput="onValInputChange()" placeholder="0">
+                    </div>
+                    <span class="filter-range-sep">–</span>
+                    <div class="filter-range-group">
+                      <label>En çok</label>
+                      <input type="text" inputmode="numeric" id="urValMaxInput" oninput="onValInputChange()" placeholder="∞">
+                    </div>
+                  </div>
+                  <div class="filter-popover-foot">
+                    <button type="button" class="filter-popover-clear" onclick="clearValRange()">Temizle</button>
+                  </div>
+                </div>
+              </div>
+
             </div>
 
-            <!-- Marka tag filter -->
-            <div class="filter-tags-wrap" id="urBrandTagsWrap" onclick="document.getElementById('urBrandTagInput').focus()">
-              <div id="urBrandTags" class="filter-tags"></div>
-              <input type="text" id="urBrandTagInput" class="filter-tags-input" placeholder="Marka ekle...">
-              <div id="urBrandDropdown" class="filter-dropdown"></div>
+            <!-- ── Row 2: Gelişmiş · Temizle · Ürün Ekle ───────────────────────────────── -->
+            <div class="stk-filter-row">
+              <button class="stk-adv-toggle" id="urAdvancedFiltersBtn" onclick="toggleUrunAdvanced()">
+                <i class="ti ti-adjustments-horizontal" style="font-size:14px;"></i>
+                <span id="urAdvancedFiltersBtnText">Gelişmiş</span>
+                <i class="ti ti-chevron-down stk-adv-chev" style="font-size:12px;"></i>
+              </button>
+
+              <button class="stk-filter-clear" onclick="_clearUrunlerFilters()" title="Temizle">
+                <i class="ti ti-trash" style="font-size:13px;"></i>
+              </button>
+              <button class="stk-btn-primary" onclick="openAddModal()">
+                <i class="ti ti-plus" style="font-size:13px;"></i> Ürün Ekle
+              </button>
             </div>
 
-            <!-- Kategori tag filter -->
-            <div class="filter-tags-wrap" id="urCategoryTagsWrap" onclick="document.getElementById('urCategoryTagInput').focus()">
-              <div id="urCategoryTags" class="filter-tags"></div>
-              <input type="text" id="urCategoryTagInput" class="filter-tags-input" placeholder="Kategori ekle...">
-              <div id="urCategoryDropdown" class="filter-dropdown"></div>
+            <!-- ── Row 3: Advanced panel (hidden until toggled) ────────────────────────── -->
+            <div class="stk-adv-panel" id="urAdvancedFiltersPanel">
+
+              <!-- Depoda chip -->
+              <button class="stk-chip stk-chip--active" id="chipInStock" onclick="toggleChip('inStock')">
+                <i class="ti ti-check" style="font-size:12px;"></i> Depoda olanlar
+              </button>
+
+              <!-- Marka tag filter -->
+              <div class="filter-tags-wrap" id="urBrandTagsWrap" onclick="document.getElementById('urBrandTagInput').focus()">
+                <div id="urBrandTags" class="filter-tags"></div>
+                <input type="text" id="urBrandTagInput" class="filter-tags-input" placeholder="Marka ekle...">
+                <div id="urBrandDropdown" class="filter-dropdown"></div>
+              </div>
+
+              <!-- Para birimi tag filter -->
+              <div class="filter-tags-wrap" id="urCurrencyTagsWrap" style="max-width:180px; min-width:140px; flex:unset;" onclick="document.getElementById('urCurrencyTagInput').focus()">
+                <div id="urCurrencyTags" class="filter-tags"></div>
+                <input type="text" id="urCurrencyTagInput" class="filter-tags-input" placeholder="Para birimi...">
+                <div id="urCurrencyDropdown" class="filter-dropdown"></div>
+              </div>
+
+              <!-- Kategori-bazlı dinamik özellik filtreleri (JS injects here, unchanged) -->
+              <div id="dynamic-attr-filters" style="display:none;"></div>
+              <label id="urFilterMissingAttrsWrap" style="display:none; align-items:center; gap:5px; font-size:11px; color:var(--stk-ink3); cursor:pointer;">
+                <input type="checkbox" id="filterMissingAttrs" onchange="applyUrunlerFilters()" style="width:auto;">
+                Eksik özellikli
+              </label>
             </div>
-            <div class="filter-tags-wrap" id="urCurrencyTagsWrap" style="max-width:160px;" onclick="document.getElementById('urCurrencyTagInput').focus()">
-              <div id="urCurrencyTags" class="filter-tags"></div>
-              <input type="text" id="urCurrencyTagInput" class="filter-tags-input" placeholder="Para birimi...">
-              <div id="urCurrencyDropdown" class="filter-dropdown"></div>
+
+          </div>
+
+          <!-- ══════════════════════════════════════════════════════════════════════════
+               ÜRÜNLER KPI STRIP — Ürün · Kategori · Stok Adedi · Stok Değeri (currency hero)
+               Each card carries a small trend pill (Δ last 30 days vs prior 30–60 days).
+               Pills are FAKE placeholders for now — wired to backend later.
+          ════════════════════════════════════════════════════════════════════════════ -->
+          <div class="stk-kpi-grid stk-kpi-grid--urunler2">
+
+            <!-- Toplam Ürün -->
+            <div class="stk-kpi">
+              <p class="stk-kpi-label">Toplam Ürün</p>
+              <div class="stk-kpi-valrow">
+                <span class="stk-kpi-value" id="kpi-total-ur">—</span>
+                <span class="stk-kpi-trend stk-kpi-trend--down" id="kpi-total-ur-trend" title="Son 30 gün / önceki 30–60 gün">
+                  <i class="ti ti-trending-down"></i> -84.0%
+                </span>
+              </div>
             </div>
 
-            <!-- Quick chip toggles -->
-            <button class="stk-chip stk-chip--active" id="chipInStock" onclick="toggleChip('inStock')">
-              <i class="ti ti-package" style="font-size:12px;"></i> Depoda
-            </button>
-            <button class="stk-chip" id="chipDmo" onclick="toggleChip('dmo')">
-              <i class="ti ti-building-store" style="font-size:12px;"></i> DMO
-            </button>
-            <button class="stk-chip" id="chipRisk" onclick="toggleChip('risk')">
-              <i class="ti ti-alert-circle" style="font-size:12px;"></i> Risk
-            </button>
-            <button class="stk-chip" id="chipDead" onclick="toggleChip('dead')">
-              <i class="ti ti-ghost" style="font-size:12px;"></i> Ölü Stok
-            </button>
+            <!-- Kategori -->
+            <div class="stk-kpi">
+              <p class="stk-kpi-label">Kategori</p>
+              <div class="stk-kpi-valrow">
+                <span class="stk-kpi-value" id="kpi-categories">—</span>
+                <span class="stk-kpi-trend stk-kpi-trend--up" id="kpi-categories-trend" title="Son 30 gün / önceki 30–60 gün">
+                  <i class="ti ti-trending-up"></i> +4.2%
+                </span>
+              </div>
+            </div>
 
-            <button class="stk-filter-clear" onclick="_clearUrunlerFilters()" title="Temizle">
-              <i class="ti ti-trash" style="font-size:13px;"></i>
-            </button>
-            <button class="stk-btn-primary" onclick="openAddModal()">
-              <i class="ti ti-plus" style="font-size:13px;"></i> Ürün Ekle
-            </button>
+            <!-- Toplam Stok Adedi (NEW) -->
+            <div class="stk-kpi">
+              <p class="stk-kpi-label">Toplam Stok Adedi</p>
+              <div class="stk-kpi-valrow">
+                <span class="stk-kpi-value" id="kpi-total-qty">—</span>
+                <span class="stk-kpi-trend stk-kpi-trend--down" id="kpi-total-qty-trend" title="Son 30 gün / önceki 30–60 gün">
+                  <i class="ti ti-trending-down"></i> -12.5%
+                </span>
+              </div>
+            </div>
+
+            <!-- Toplam Stok Değeri — currency hero, a pill per currency -->
+            <div class="stk-kpi stk-kpi--hero">
+              <p class="stk-kpi-label">Toplam Stok Değeri</p>
+              <div class="ur-cur-row">
+
+                <div class="ur-cur-item">
+                  <span class="ur-cur-amt" id="kpi-stock-tl">₺0</span>
+                  <span class="stk-kpi-trend stk-kpi-trend--down" id="kpi-stock-tl-trend" title="Son 30 gün / önceki 30–60 gün">
+                    <i class="ti ti-trending-down"></i> -58.4%
+                  </span>
+                </div>
+
+                <div class="ur-cur-item">
+                  <span class="ur-cur-amt" id="kpi-stock-eur">€0</span>
+                  <span class="stk-kpi-trend stk-kpi-trend--down" id="kpi-stock-eur-trend" title="Son 30 gün / önceki 30–60 gün">
+                    <i class="ti ti-trending-down"></i> -100%
+                  </span>
+                </div>
+
+                <div class="ur-cur-item">
+                  <span class="ur-cur-amt" id="kpi-stock-usd">$0</span>
+                  <span class="stk-kpi-trend stk-kpi-trend--down" id="kpi-stock-usd-trend" title="Son 30 gün / önceki 30–60 gün">
+                    <i class="ti ti-trending-down"></i> -95.2%
+                  </span>
+                </div>
+
+              </div>
+            </div>
+
           </div>
 
-        </div>
-
-        <!-- KPI strip — Option B layout -->
-        <div class="stk-kpi-grid stk-kpi-grid--urunler">
-
-          <!-- Hero: total stock value -->
-          <div class="stk-kpi stk-kpi--hero">
-            <p class="stk-kpi-label">Toplam Stok Değeri</p>
-            <p class="stk-kpi-value" id="kpi-stock-tl">—</p>
-            <p class="stk-kpi-sub" id="kpi-stock-usd">—</p>
+          <div class="stock-tab-bar" id="stockTabBar">
+            <span class="stock-tab-bar-label">Ürünler</span>
+            <div class="stock-tab-divider" ></div>
+            <div class="stock-tabs-scroll" id="stockTabsScroll"></div>
+            <span class="stock-tab-empty" id="stockTabsEmpty">Ürünlere tıkladıkça burada listelenir</span>
           </div>
 
-          <!-- Aktif SKU -->
-          <div class="stk-kpi">
-            <p class="stk-kpi-label">Aktif SKU</p>
-            <p class="stk-kpi-value" id="kpi-total-ur">—</p>
-            <p class="stk-kpi-sub">depoda ürün</p>
+          <!-- ── Table (unchanged structure) ───────────────────────────────────────── -->
+          <div class="stk-tbl-wrap">
+            <table class="stk-tbl">
+              <thead>
+                <tr>
+                  <th style="width:22%;"><span class="th-ico"><i class="ti ti-package"></i>Ürün Adı</span></th>
+                  <th style="width:14%;"><span class="th-ico"><i class="ti ti-barcode"></i>SKU / Kod</span></th>
+                  <th style="width:16%;"><span class="th-ico"><i class="ti ti-tag"></i>Kategori</span></th>
+                  <th style="width:10%; text-align:right; cursor:pointer;" onclick="sortUrunler('stock_on_hand')">
+                    <span class="th-ico th-ico--right"><i class="ti ti-stack-2"></i>Mevcut Miktar<span id="urunSortHdr-stock_on_hand" class="th-sort"> ↕</span></span>
+                  </th>
+                  <th style="width:14%; text-align:right; cursor:pointer;" onclick="sortUrunler('total_stock_price')">
+                    <span class="th-ico th-ico--right"><i class="ti ti-coins"></i>Toplam Stok<span id="urunSortHdr-total_stock_price" class="th-sort"> ↕</span></span>
+                  </th>
+                </tr>
+              </thead>
+              <tbody id="urunlerTableBody"></tbody>
+            </table>
+            <div id="urunlerEmpty" class="stk-empty">Ürün bulunamadı.</div>
+            <div id="urunlerPagination" class="stk-pagination"></div>
           </div>
 
-          <!-- Kategori -->
-          <div class="stk-kpi">
-            <p class="stk-kpi-label">Kategori</p>
-            <p class="stk-kpi-value" id="kpi-categories">—</p>
+        </div><!-- /.ur-main -->
+
+        <!-- ══ RIGHT 30% — ASSISTANT RAIL ════════════════════════════════════════ -->
+        <div class="ur-chat" id="urChat">
+
+          <div class="ur-chat-head">
+            <div class="ur-chat-ava"><i class="ti ti-sparkles" style="font-size:15px;"></i></div>
+            <div>
+              <p class="ur-chat-title">Stok Asistanı</p>
+              <p class="ur-chat-sub">bu görünüm hakkında sor</p>
+            </div>
           </div>
 
-          <!-- Risk altında — clickable -->
-          <div class="stk-kpi stk-kpi--clickable" onclick="toggleChip('risk')" title="Risk altındakileri filtrele">
-            <p class="stk-kpi-label">Risk Altında</p>
-            <p class="stk-kpi-value stk-kpi--amber" id="kpi-risk">—</p>
-            <p class="stk-kpi-sub">düşük stok</p>
+          <div class="ur-chat-body" id="urChatBody">
+            <div class="ur-msg ur-msg--bot">Merhaba! Ekrandaki ürünler hakkında soru sorabilirsin.</div>
           </div>
 
-          <!-- Ölü stok — clickable -->
-          <div class="stk-kpi stk-kpi--clickable" onclick="toggleChip('dead')" title="Ölü stoğu filtrele">
-            <p class="stk-kpi-label">Ölü Stok</p>
-            <p class="stk-kpi-value stk-kpi--red" id="kpi-dead">—</p>
-            <p class="stk-kpi-sub">hiç çıkış yok</p>
+          <div class="ur-chat-chips" id="urChatChips">
+            <button class="ur-chat-chip" onclick="urChatQuick(this)">Kaç ürün listeleniyor?</button>
+            <button class="ur-chat-chip" onclick="urChatQuick(this)">Toplam stok değeri nedir?</button>
+            <button class="ur-chat-chip" onclick="urChatQuick(this)">En yüksek stoklu ürün?</button>
           </div>
 
-        </div>
+          <div class="ur-chat-foot">
+            <div class="ur-chat-inputwrap">
+              <textarea class="ur-chat-input" id="urChatInput" rows="1" placeholder="Bir şeyler sor..."
+                        oninput="urChatGrow(this); urChatToggleSend()" onkeydown="urChatKey(event)"></textarea>
+              <button class="ur-chat-send" id="urChatSend" onclick="sendUrChat()" disabled>
+                <i class="ti ti-arrow-up" style="font-size:16px;"></i>
+              </button>
+            </div>
+          </div>
 
-        <!-- Table -->
-        <div class="stk-tbl-wrap">
-          <table class="stk-tbl">
-            <thead>
-              <tr>
-                <th style="width:20%;">Ürün Adı</th>
-                <th style="width:10%;">SKU / Kod</th>
-                <th style="width:10%;">Marka</th>
-                <th style="width:10%;">Kategori</th>
-                <th style="width:8%; text-align:right; cursor:pointer;" onclick="sortUrunler('stock_on_hand')">
-                  Mevcut Miktar<span id="urunSortHdr-stock_on_hand" style="font-family:'DM Mono',monospace; font-size:10px; opacity:0.35;"> ↕</span>
-                </th>
-                <th style="width:10%; text-align:right; cursor:pointer;" onclick="sortUrunler('last_purchase_price_cur')">
-                  Son Alış Fiyatı<span id="urunSortHdr-last_purchase_price_cur" style="font-family:'DM Mono',monospace; font-size:10px; opacity:0.35;"> ↕</span>
-                </th>
-                <th style="width:10%; text-align:right; cursor:pointer;" onclick="sortUrunler('total_stock_price')">
-                  Toplam Stok (TL)<span id="urunSortHdr-total_stock_price" style="font-family:'DM Mono',monospace; font-size:10px; opacity:0.35;"> ↕</span>
-                </th>
-              </tr>
-            </thead>
-            <tbody id="urunlerTableBody"></tbody>
-          </table>
-          <div id="urunlerEmpty" class="stk-empty">Ürün bulunamadı.</div>
-          <div id="urunlerPagination" class="stk-pagination"></div>
-        </div>
+        </div><!-- /.ur-chat -->
 
-      </div>
+      </div><!-- /#panelUrunler -->
 
       <!-- ── Backorder panel — replace lines 182–269 in stok.html ─────────────────── -->
       <!-- ── Backorder panel — replace lines 182–269 in stok.html ─────────────────── -->

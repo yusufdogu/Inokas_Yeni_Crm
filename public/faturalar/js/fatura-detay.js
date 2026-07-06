@@ -177,14 +177,24 @@ if (typeof approveDetailInvoice === 'undefined') {
                 window.location.href = '/faturalar/pages/ofis-ici.html';
             } else if (internalCount > 0) {
                 // Karışık → direction'a göre git
-                window.location.href = isIncoming
-                    ? '/faturalar/pages/gelen-faturalar.html'
-                    : '/faturalar/pages/giden-faturalar.html';
+                if (isIncoming){
+                    _activeMainTab='gelen';
+                    window.location.href = '/faturalar/pages/faturalar.html';
+                }
+                else{
+                    _activeMainTab='giden';
+                    window.location.href = '/faturalar/pages/faturalar.html';
+                }
             } else {
                 // Hiç internal yok → direction'a göre git
-                window.location.href = isIncoming
-                    ? '/faturalar/pages/gelen-faturalar.html'
-                    : '/faturalar/pages/giden-faturalar.html';
+                if (isIncoming){
+                    _activeMainTab='gelen';
+                    window.location.href = '/faturalar/pages/faturalar.html';
+                }
+                else{
+                    _activeMainTab='giden';
+                    window.location.href = '/faturalar/pages/faturalar.html';
+                }
             }
         } catch (err) {
             alert(`Hata: ${err.message}`);
@@ -192,6 +202,7 @@ if (typeof approveDetailInvoice === 'undefined') {
         }
     };
 }
+
 
 
 // ─── Category select helpers (normally in main.js) ────────────────────────────

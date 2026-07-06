@@ -30,6 +30,10 @@ function switchMainTab(tab) {
   _activeMainTab = tab;
   history.replaceState(null, '', `?tab=${tab}`);
 
+  if (tab !== 'genel' && typeof _stopInsightAutoCycle === 'function') {
+        _stopInsightAutoCycle();
+    }
+
   document.querySelectorAll('.fat-nav-tab').forEach(btn => btn.classList.remove('fat-nav-tab--active'));
   const tabId = { genel: 'navTabGenel', gelen: 'navTabGelen', giden: 'navTabGiden', bekleyen: 'navTabBekleyen' }[tab];
   document.getElementById(tabId)?.classList.add('fat-nav-tab--active');
@@ -45,35 +49,62 @@ function switchMainTab(tab) {
 
   // ← show/hide instead of remove
   const kpiBar = document.getElementById('fatKpiBar');
-  if (kpiBar) kpiBar.style.display = isGenel ? 'none' : 'flex';
+  const pagination=document.getElementById('fatPagination');
+
+  const aiPanel = document.getElementById('aiSidePanel');
+  if (aiPanel) {
+      if (tab === 'genel' || tab === 'giden' || tab === 'gelen') {
+          aiPanel.style.display = 'flex';
+          aiPanel.classList.toggle('fat-ai-side--wide', tab === 'genel');
+          setAiActiveSession(tab);
+      } else {
+          aiPanel.style.display = 'none';
+      }
+  }
 
   if (isGenel) {
-    document.getElementById('fatPagination')?.remove();
-    const iframe = document.getElementById('genelBakisFrame');
-    if (iframe && !iframe.getAttribute('src')) {
-      iframe.src = '/faturalar/pages/genel-bakis.html';
+    kpiBar.style.display = 'none';
+    pagination.style.display = 'none';
+    if (!_gbLoaded) {
+        _gbLoaded = true;
+        loadGenelData();
     }
+    renderInvoiceTabBar();
     return;
   }
 
   if (isBekleyen) {
+    kpiBar.style.display = 'none' ;
     window._FAT_PENDING = true;
     loadBekleyenCounts();
     switchBekleyenTab('giden'); // ← delegates everything cleanly
+    renderInvoiceTabBar();
     return; // switchBekleyenTab calls initInvoiceView itself
   }
 
   // gelen / giden
+
+  kpiBar.style.display = 'flex';
   window._FAT_PENDING = false;
   currentView = tab;
-  clearFilterUI();
+  window._fatActiveFilters = {};
+  window._fatFilterOptions = {
+    companies: [],
+    brands: [],
+    products: [],
+    categories: [],
+    models: [],
+    currencies: [],
+    invoiceNumbers: [],
+    relationships: []
+  };
+  window._filterOptionsLoaded = false;
   restoreFilterState(tab);
   restoreTagFilters()
-  window._filterOptionsLoaded = false;
   _currentPage = window._fatActiveFilters?.page || 1;
   showLoadingOverlay();
   initInvoiceView(false);
-
+  renderInvoiceTabBar();
 }
 
 
@@ -103,6 +134,7 @@ function switchBekleyenTab(sub) {
   _currentPage = 1;
   showLoadingOverlay();
   initInvoiceView(false);
+  renderInvoiceTabBar();
 }
 
 document.addEventListener('DOMContentLoaded', () => {

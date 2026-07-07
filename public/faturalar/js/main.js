@@ -60,14 +60,6 @@ function bindModalOutsideClose() {
     bindOne('invoiceDetailModal', closeInvoiceDetailModal);
 }
 
-// in main.js, wrap restoreTagFilters
-async function restoreAndApply() {
-    window._restoringFilters = true;
-    restoreTagFilters();
-    window._restoringFilters = false;
-    // Now manually sync _fatActiveFilters from restored tag state
-    applyFiltersAndFetch();
-}
 
 
 

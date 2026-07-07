@@ -549,3 +549,25 @@
     opacity: 0;
     pointer-events: none;
 }
+
+.ai-msg-bubble a {
+    color: var(--fat-green);
+    text-decoration: none;
+    border-bottom: 1px dotted var(--fat-green);
+    transition: color 0.12s, border-color 0.12s;
+}
+
+.ai-msg-bubble a:hover {
+    color: var(--fat-ink);
+    border-bottom-color: var(--fat-ink);
+}
+
+.ai-msg.user .ai-msg-bubble a {
+    color: #b8e2d0;
+    border-bottom-color: #b8e2d0;
+}
+
+.ai-msg.user .ai-msg-bubble a:hover {
+    color: #fff;
+    border-bottom-color: #fff;
+}

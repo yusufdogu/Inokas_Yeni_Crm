@@ -192,6 +192,30 @@ function restoreTagFilters() {
   updateAdvancedBadge()
 }
 
+
+function _hasActiveFilters() {
+    const f = window._fatActiveFilters || {};
+
+    // Any tag list with content
+    if (f.companies?.length)      return true;
+    if (f.brands?.length)         return true;
+    if (f.categories?.length)     return true;
+    if (f.products?.length)       return true;
+    if (f.invoiceNumbers?.length) return true;
+
+    // Date range
+    if (f.dateStart || f.dateEnd) return true;
+
+    // Price range
+    if (f.priceMin != null || f.priceMax != null) return true;
+
+    // Currency
+    if (f.currency) return true;
+
+    return false;
+}
+
+// ── KPI DELTAS (last 30d vs previous 30d) ────────────────────────────────────
 async function refreshKpiSummary() {
   try {
     //renderKpiSkeleton('kpiCard');
@@ -241,30 +265,6 @@ async function refreshKpiSummary() {
   }
 }
 
-function _hasActiveFilters() {
-    const f = window._fatActiveFilters || {};
-
-    // Any tag list with content
-    if (f.companies?.length)      return true;
-    if (f.brands?.length)         return true;
-    if (f.categories?.length)     return true;
-    if (f.products?.length)       return true;
-    if (f.invoiceNumbers?.length) return true;
-
-    // Date range
-    if (f.dateStart || f.dateEnd) return true;
-
-    // Price range
-    if (f.priceMin != null || f.priceMax != null) return true;
-
-    // Currency
-    if (f.currency) return true;
-
-    return false;
-}
-
-// ── KPI DELTAS (last 30d vs previous 30d) ────────────────────────────────────
-
 async function _refreshKpiDeltas() {
     try {
         const params = new URLSearchParams();
@@ -288,7 +288,6 @@ async function _refreshKpiDeltas() {
         _clearKpiDeltas();
     }
 }
-
 
 function _setKpiDeltaBadge(id, current, previous) {
     const el = document.getElementById(id);
@@ -334,7 +333,6 @@ function _setKpiDeltaBadge(id, current, previous) {
     el.style.display = 'inline-flex';
 }
 
-
 function _clearKpiDeltas() {
     ['kpiCountDelta', 'kpiCompanyCountDelta', 'kpiTryTotalDelta', 'kpiUsdTotalDelta', 'kpiEurTotalDelta']
         .forEach(id => {
@@ -352,7 +350,6 @@ function _onTagFilterChange(advanced = false) {
         const btn = document.getElementById('btnToggleShowAll');
         if (btn) btn.innerText = 'Tümünü Göster';
     }
-    saveFilterState();
     applyFiltersAndFetch();
 }
 
@@ -453,7 +450,6 @@ function saveFilterState() {
     dateStart:  document.getElementById('filterDateStart')?.value || '',
     dateEnd:    document.getElementById('filterDateEnd')?.value   || '',
     currency:   document.getElementById('filterCurrency')?.value  || '',
-
     page:       _currentPage,
   };
   try {

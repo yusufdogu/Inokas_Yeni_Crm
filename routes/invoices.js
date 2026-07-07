@@ -379,7 +379,7 @@ async function fetchInvoiceList(supabase, tenantId, opts = {}) {
     // ── Step 4: build query ─────────────────────────────────────────────────
     let q = supabase
         .from(sourceTable)
-        .select('id, invoice_no, invoice_date, payable_amount_tl, payable_amount_cur, base_currency, companies(name)')
+        .select('id, invoice_no, invoice_date, payable_amount_tl, payable_amount_cur, base_currency, pdf_url, companies(name)')
         .or(`tenant_id.eq.${tenantId},tenant_id.is.null`)
         .or('approval_status.neq.pending,approval_status.is.null');
 
@@ -418,8 +418,157 @@ async function fetchInvoiceList(supabase, tenantId, opts = {}) {
         amount_tl:  parseFloat(row.payable_amount_tl)  || 0,
         amount_cur: parseFloat(row.payable_amount_cur) || 0,
         currency:   row.base_currency || 'TRY',
+        pdf_url:    row.pdf_url || null,   // ← add
     }));
 }
+
+async function fetchProductBreakdown(supabase, tenantId, opts = {}) {
+    const {
+        direction,
+        companies      = null,
+        dateStart      = null,
+        dateEnd        = null,
+        currency       = null,
+        groupBy        = 'product',
+        sortBy         = 'total',
+        limit          = 10,
+    } = opts;
+
+    const cappedLimit = Math.min(Math.max(limit, 1), 20);
+
+    // Step 1: resolve company IDs
+    let companyIds = null;
+    if (companies?.length) {
+        const { data: matched } = await supabase
+            .from('companies').select('id').in('name', companies).eq('tenant_id', tenantId);
+        companyIds = (matched || []).map(c => c.id);
+        if (!companyIds.length) return [];
+    }
+
+    // Step 2: get excluded invoice ids
+    const { data: excluded } = await supabase
+        .from('fully_internal_invoice_ids').select('invoice_id');
+    const excludeIds = (excluded || []).map(r => r.invoice_id);
+
+    // Step 3: fetch invoices matching the filter — capture their calculation_rate too
+    let invQ = supabase
+        .from('invoices')
+        .select('id, calculation_rate, base_currency')
+        .eq('tenant_id', tenantId)
+        .or('approval_status.neq.pending,approval_status.is.null');
+
+    if (direction)          invQ = invQ.eq('direction', direction);
+    if (currency)           invQ = invQ.eq('base_currency', currency);
+    if (dateStart)          invQ = invQ.gte('invoice_date', dateStart);
+    if (dateEnd)            invQ = invQ.lte('invoice_date', dateEnd);
+    if (companyIds?.length) invQ = invQ.in('company_id', companyIds);
+    if (excludeIds.length)  invQ = invQ.not('id', 'in', `(${excludeIds.join(',')})`);
+
+    const { data: invRows, error: invErr } = await invQ;
+    if (invErr) throw invErr;
+
+    const invoiceIds = (invRows || []).map(r => r.id);
+    if (!invoiceIds.length) return [];
+
+    // Build invoice_id → calculation_rate map for TL conversion
+    const rateMap = new Map();
+    (invRows || []).forEach(r => {
+        rateMap.set(r.id, parseFloat(r.calculation_rate) || 1);
+    });
+
+    // Step 4: fetch items for those invoices
+    // Chunk if too many (URL length safety)
+    let itemRows;
+    if (invoiceIds.length <= 500) {
+        const { data } = await supabase
+            .from('invoice_items')
+            .select('invoice_id, product_name, product_code, brand_name, quantity, total_price_cur, currency, is_internal')
+            .eq('is_internal', false)
+            .in('invoice_id', invoiceIds);
+        itemRows = data || [];
+    } else {
+        // Fallback: fetch all non-internal, filter in JS
+        const { data } = await supabase
+            .from('invoice_items')
+            .select('invoice_id, product_name, product_code, brand_name, quantity, total_price_cur, currency, is_internal')
+            .eq('is_internal', false);
+        const idSet = new Set(invoiceIds);
+        itemRows = (data || []).filter(r => idSet.has(r.invoice_id));
+    }
+
+    // Step 5: enrich with category if needed
+    let categoryMap = {};
+    if (groupBy === 'category') {
+        const productCodes = [...new Set(itemRows.map(r => r.product_code).filter(Boolean))];
+        if (productCodes.length) {
+            const { data: productRows } = await supabase
+                .from('products')
+                .select('product_code, category')
+                .eq('tenant_id', tenantId)
+                .in('product_code', productCodes);
+            (productRows || []).forEach(p => {
+                if (p.product_code && p.category) categoryMap[p.product_code] = p.category;
+            });
+        }
+    }
+
+    // Step 6: aggregate — per-currency totals + TL-equivalent for sorting
+    const bucketMap = new Map();
+
+    itemRows.forEach(r => {
+        let key;
+        if (groupBy === 'brand')         key = r.brand_name;
+        else if (groupBy === 'category') key = categoryMap[r.product_code];
+        else                             key = r.product_name;
+
+        if (!key) return;
+
+        if (!bucketMap.has(key)) {
+            bucketMap.set(key, {
+                name:          key,
+                count:         0,
+                quantity:      0,
+                try_total:     0,
+                usd_total:     0,
+                eur_total:     0,
+                tl_equivalent: 0,   // used for sorting only, not sent to Claude
+            });
+        }
+
+        const b        = bucketMap.get(key);
+        const rate     = rateMap.get(r.invoice_id) || 1;
+        const cur      = (r.currency || 'TRY').toUpperCase();
+        const priceCur = parseFloat(r.total_price_cur) || 0;
+
+        b.lineCount++;                                  // number of invoice lines
+        b.quantity += parseFloat(r.quantity) || 0;      // total units sold
+
+        if (cur === 'USD') {
+            b.usd_total     += priceCur;
+            b.tl_equivalent += priceCur * rate;
+        } else if (cur === 'EUR') {
+            b.eur_total     += priceCur;
+            b.tl_equivalent += priceCur * rate;
+        } else {
+            // TRY / TL
+            b.try_total     += priceCur;
+            b.tl_equivalent += priceCur;
+        }
+    });
+
+    // Step 7: sort — use tl_equivalent when sorting by total (for cross-currency correctness)
+    const sortKey = sortBy === 'count'    ? 'count'
+                  : sortBy === 'quantity' ? 'quantity'
+                                          : 'tl_equivalent';
+
+    const sorted = [...bucketMap.values()]
+        .sort((a, b) => b[sortKey] - a[sortKey])
+        .slice(0, cappedLimit);
+
+    // Step 8: strip tl_equivalent from the response — it was internal-only
+    return sorted.map(({ tl_equivalent, ...rest }) => rest);
+}
+
 
 // GET /api/invoices
 router.get('/', async (req, res) => {
@@ -1802,3 +1951,4 @@ router.put('/:id/items/batch-category', async (req, res) => {
 module.exports = router;
 module.exports.fetchKpiSummary = fetchKpiSummary;   // ← add this line
 module.exports.fetchInvoiceList = fetchInvoiceList;
+module.exports.fetchProductBreakdown = fetchProductBreakdown;

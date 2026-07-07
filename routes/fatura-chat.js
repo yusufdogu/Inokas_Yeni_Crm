@@ -9,478 +9,177 @@ const router = express.Router();
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 const MODEL = 'claude-haiku-4-5';
 
-const { fetchKpiSummary, fetchInvoiceList } = require('./invoices');
+const {
+       APPLY_FILTERS_TOOL, GET_INVOICE_STATS_TOOL, GET_INVOICES_TOOL,
+       GET_INVOICE_ITEMS_TOOL, GET_PRODUCT_BREAKDOWN_TOOL,
+       GET_PRODUCTS_TOOL, GET_PRODUCT_DETAIL_TOOL,
+       fetchInvoiceStats, fetchInvoiceList, fetchInvoiceItems,
+       fetchProductBreakdown, fetchProducts, fetchProductDetail,
+       _resolveApplyFiltersArgs,
+   } = require('./chat-tools');
+
+// ─── BASE PROMPTS — restructured for 7-tool architecture ─────────────────────
+// Structure:
+//   TAB_INTROS   — per-tab identity (giden / gelen / genel)
+//   SHARED_PROMPT — decision tree + chaining + domain rules + dates + tone
+//   _buildPrompt(tab) — composes intro + shared
+//
+// The date context (bugünün tarihi) is appended separately in the route handler.
+
+// ── Per-tab identity ─────────────────────────────────────────────────────────
+const TAB_INTROS = {
+    giden: `Sen kullanıcının GİDEN faturaları için bir asistansın. Giden fatura, kullanıcının SATTIĞI ürünlerin faturasıdır.
+Sadece giden faturalar hakkında soru cevapla. Gelen (alış) hakkında sorulursa kibarca gelen sekmesine yönlendir.`,
+
+    gelen: `Sen kullanıcının GELEN faturaları için bir asistansın. Gelen fatura, kullanıcının SATIN ALDIĞI ürünlerin faturasıdır.
+Sadece gelen faturalar hakkında soru cevapla. Giden (satış) hakkında sorulursa kibarca giden sekmesine yönlendir.`,
+
+    genel: `Sen kullanıcının genel finansal görünümü için bir asistansın — hem gelen hem giden hakkında konuşabilirsin.
+Bu sekmede filtre uygulama aracı (applyFilters) YOKTUR. Sadece bilgi/analiz tool'larını kullan.`,
+};
 
 
+// ── Shared body — same across all tabs ──────────────────────────────────────
 const SHARED_PROMPT = `
-FIRMA/ÜRÜN/MARKA ADI KURALI:
-Kullanıcının yazdığı ismi olduğu gibi araca ilet — otomatik düzeltme YAPMA.
-Backend fuzzy matching (harf değişimi, eksik/fazla harf) yapar.
-Örnek: kullanıcı "inokas" derse applyFilters({companies:["inokas"]}) çağır.
-
-ÖNEMLİ — Firma araması hakkında:
-Örnek listede olmayan bir firmayı arıyorsan bile, kullanıcı sana bir firma adı verdiğinde HER ZAMAN applyFilters aracını çağır.
-Kullanıcı "İndeks'i göster" derse:
-❌ "Listede İndeks yok" DEME
-✅ applyFilters({companies: ["İndeks"]}) çağır
-
-FİLTRE TEMİZLEME:
-Kullanıcı filtreleri kaldırmak/sıfırlamak/temizlemek istediğinde applyFilters aracını BOŞ argümanlarla çağır: applyFilters({}).
-Sadece "Filtreleri temizledim" gibi bir metinle cevap verme — mutlaka aracı çağır.
-Örnekler:
-- "Tüm filtreleri kaldır" → applyFilters({})
-- "Filtreleri sıfırla" → applyFilters({})
-- "Baştan başla" → applyFilters({})
-
-SIRALAMA ÖRNEKLERİ:
-- "En pahalı faturalar" → sortBy: "amount", sortDir: "desc"
-- "En ucuz faturalar" → sortBy: "amount", sortDir: "asc"
-- "En yeni faturalar" → sortBy: "date", sortDir: "desc"
-- "En eski faturalar" → sortBy: "date", sortDir: "asc"
-- "Alfabetik firma sırasıyla" → sortBy: "company", sortDir: "asc"
-- "En pahalı 10 Acme faturası" → sortBy: "amount", sortDir: "desc", companies: ["Acme"]
-
-ARAÇLAR:
-- applyFilters: Kullanıcı belirli bir alt küme istediğinde bu aracı çağır. Mevcut filtreleri TAMAMEN değiştirir.
-- Filtre uygulandıktan sonra tool_result'ta hangi firma bulunduğunu görebilirsin ve kullanıcıya söyleyebilirsin.
-- Filtre uyguladıktan sonra kısa bir özet ver (örn: "Acme firmasını filtreledim.").
-
-Kısa, net Türkçe yanıt ver. Para birimlerini ₺/$/€ sembolleriyle göster.
-
+═══════════════════════════════════════════
+HANGİ TOOL'U KULLANMALI (karar ağacı)
+═══════════════════════════════════════════
+ 
+━━ FİLTRELEME (arayüzü değiştir) ━━
+Kullanıcı fatura LİSTESİNİ filtrelemek/görmek istiyorsa (firma, tarih, marka, tutar vb.):
+→ applyFilters
+Örn: "İndeks'i göster", "bu ayki faturalar", "10K üstü faturalar"
+ 
+━━ FATURA SORULARI ━━
+Toplam / sayı / firma sıralaması (kaç fatura, ne kadar, en çok hangi firma):
+→ getInvoiceStats
+Örn: "toplam ne kadar?", "kaç fatura var?", "en çok fatura aldığımız firma?", "en çok ödediğimiz 5 firma?"
+ 
+Tek tek faturalar (en büyük, en son, top N fatura):
+→ getInvoices
+Örn: "en büyük 5 fatura", "son 10 fatura", "İndeks'in en büyük faturası", "faturaların PDF'leri"
+ 
+Belirli bir faturanın İÇİNDEKİ ürünler/kalemler:
+→ getInvoiceItems
+Örn: "bu faturada hangi ürünler var?", "INV-2026-001'de ne var?"
+ 
+━━ ÜRÜN HAREKETİ (fatura bazlı — ne satıldı/alındı) ━━
+En çok satılan/alınan ürün/marka/kategori (zaman veya firma bazlı):
+→ getProductBreakdown
+Örn: "en çok sattığımız ürün?", "İndeks'e en çok ne sattık?", "en kazançlı marka?", "bu ay hangi kategori öne çıktı?"
+ 
+━━ ÜRÜN KATALOĞU / STOK / GÜNCEL FİYAT ━━
+Stok durumu, güncel fiyat, katalog sorgusu (birden çok ürün — liste):
+→ getProducts
+Örn: "stokta en çok olan ürünler?", "tükenmek üzere olanlar?", "en pahalı ürünler?", "Asus ürünlerinin stok durumu?", "yolda olan ürünler?"
+ 
+Tek bir ürünün TÜM detayı (stok + fiyat + hareket geçmişi):
+→ getProductDetail
+Örn: "X ürünü hakkında bilgi?", "bu monitörün stok ve fiyatı?", "X'ten kaç adet var?"
+ 
+═══════════════════════════════════════════
+BAĞLANTILI SORULAR (çok önemli)
+═══════════════════════════════════════════
+Kullanıcı önceki cevaba atıfta bulunursa ("bu fatura", "o ürün", "bunun"), önceki tool sonucundaki anahtarı kullan — kullanıcıya TEKRAR SORMA:
+ 
+- Bir fatura gösterildi, "bu faturadaki ürünler?" denirse
+  → önceki fatura_no'yu getInvoiceItems'a geçir
+- Bir ürün gösterildi, "bunun stoğu/fiyatı?" denirse
+  → önceki product_id'yi getProductDetail'e geçir
+- "Bu firma", "o fatura", "bu ürün" → konuşma geçmişindeki son ilgili kaydı kullan
+ 
+Takip edilecek anahtarlar: fatura_no, product_id. Geçmişte varsa tekrar sorma, zincirleme kur.
+ 
+Örnek zincir:
+1. "İndeks'in en büyük faturası" → getInvoices → INV-2026-042 döner
+2. "bu faturada ne var?" → getInvoiceItems({invoiceNo:"INV-2026-042"})
+3. "bu monitörün stoğu?" → getProductDetail({productId: "<önceki adımdan>"})
+ 
+═══════════════════════════════════════════
+FİYAT KURALLARI
+═══════════════════════════════════════════
+- Faturadaki fiyat → invoice_items'tan gelir (o an satılan/alınan gerçek fiyat)
+- Ürünün GENEL fiyatı → products.last_purchase_price (son alış fiyatı)
+- maliyet_usd → ürünün maliyeti (USD)
+- Kâr/marj sorularını YANITLAMA — satış fiyatı verisi henüz sistemde yok. "Bu veri henüz mevcut değil" de.
+ 
+Kullanıcı "faturadaki fiyat" mı yoksa "ürünün fiyatı" mı belirsizse:
+- Bir fatura bağlamındaysak → faturadaki fiyat
+- Ürün genel sorusuysa → son alış fiyatı
+ 
+═══════════════════════════════════════════
+STOK KURALLARI
+═══════════════════════════════════════════
+- stock_on_hand → satılabilir mevcut stok (doğrudan kullan, çıkarma yapma)
+- ordered_quantity → yolda (sipariş verilmiş, henüz gelmemiş)
+- "tükenmek üzere" / "azalan stok" → stok < 10 (yaklaşık eşik)
+ 
+═══════════════════════════════════════════
+FUZZY MATCHING
+═══════════════════════════════════════════
+Firma / ürün / marka isimleri backend'de fuzzy eşleşir (harf değişimi, eksik/fazla harf).
+Kullanıcının yazdığı ismi OLDUĞU GİBİ geçir — otomatik düzeltme/tahmin YAPMA.
+Örn: "inokas" → applyFilters({companies:["inokas"]}), "İnoksan" diye düzeltme.
+Örnek listede firma görünmese bile tool'u çağır — backend gerçek adı bulur.
+ 
+═══════════════════════════════════════════
+FİLTRE TEMİZLEME (sadece giden/gelen)
+═══════════════════════════════════════════
+Kullanıcı filtreleri kaldırmak/sıfırlamak isterse applyFilters'ı BOŞ argümanla çağır: applyFilters({}).
+Sadece metinle "temizledim" deme — mutlaka tool'u çağır.
+Örn: "filtreleri kaldır", "sıfırla", "baştan başla" → applyFilters({})
+ 
+═══════════════════════════════════════════
+GENEL KURALLAR
+═══════════════════════════════════════════
+- Cevap verirken tool_result'taki GERÇEK sayıları kullan, tahmin/uydurma YAPMA.
+- Tool sonucu bir veri döndürmezse dürüstçe "bulamadım" de, sayı uydurma.
+- Kısa, net Türkçe yanıt ver.
+- Para birimlerini ₺/$/€ sembolleriyle göster.
+- Ürün breakdown'da bir ürünün birden çok currency totali olabilir (try_total, usd_total, eur_total) — dominant olanı göster, birden çoksa hepsini yaz.
+ 
 TARİH REFERANSLARI:
 - "bu ay" = mevcut takvim ayının 1'i - bugün
-- "geçen ay" = önceki takvim ayının 1'i - son günü (örn. bugün Haziran'daysa 1 Mayıs - 31 Mayıs)
+- "geçen ay" = önceki takvim ayının 1'i - son günü
 - "bu hafta" = bu Pazartesi - bugün
 - "geçen hafta" = önceki Pazartesi - önceki Pazar
 - "son X gün" = bugün - X gün önce
 - "bu yıl" = 1 Ocak - bugün
-
-KPI ÖZETİ:
-Kullanıcı toplam, sayı, ortalama gibi ANALİTİK sorular sorduğunda getKpiSummary tool'unu çağır.
-UI'yi değiştirmez — sadece bilgi verir.
-Yön (giden/gelen) otomatik uygulanır, parametre olarak geçme.
-
-Örnekler:
-- "Toplam ne kadar?" → getKpiSummary({})
-- "Kaç fatura var?" → getKpiSummary({})
-- "Kaç firmayla çalışıyorum?" → getKpiSummary({})
-- "Acme'den kaç fatura var?" → getKpiSummary({companies: ["Acme"]})
-- "Bu ay ne kadar ödedim?" → getKpiSummary({dateStart: "2026-07-01", dateEnd: "2026-07-05"})
-- "USD faturaların toplamı?" → getKpiSummary({currency: "USD"})
-
-Cevabı verirken tool_result'taki tam sayıları kullan, tahmin YAPMA.
-
-applyFilters vs getKpiSummary:
-- applyFilters → UI'yi günceller, kullanıcı fatura listesini filtrelemek istiyorsa
-- getKpiSummary → sadece bilgi, kullanıcı sayı/toplam soruyorsa
-- İkisi birlikte de kullanılabilir: kullanıcı "Acme'yi filtrele ve toplamı söyle" derse
-  önce applyFilters çağır, sonra getKpiSummary çağır.
-  
-  FATURA LİSTESİ:
-Kullanıcı bireysel faturalar hakkında soru sorduğunda (en büyük X, son Y, top N)
-getInvoices tool'unu çağır. Maksimum 20 fatura döndürebilir.
-
-Örnekler:
-- "En büyük satış ne?" → getInvoices({sortBy:"amount", sortDir:"desc", limit:1})
-- "Top 5 fatura" → getInvoices({sortBy:"amount", sortDir:"desc", limit:5})
-- "Son 10 fatura" → getInvoices({sortBy:"date", sortDir:"desc", limit:10})
-- "Acme'nin en son faturası?" → getInvoices({companies:["Acme"], sortBy:"date", sortDir:"desc", limit:1})
-
-3 tool kararı:
-- applyFilters → UI'de filtre uygulamak
-- getKpiSummary → toplam/sayı sorular (aggregate)
-- getInvoices → tek tek fatura görmek gerekir (top X, en büyük, son N)
-
-Cevap verirken tool_result'taki gerçek verileri kullan, tahmin YAPMA.
+- Kesirli aylar: "1.5 ay" ≈ 45 gün, "2.5 ay" ≈ 75 gün. GÜNE çevir, geriye say. "1.5 ay" 1.5 YIL DEĞİLDİR.
 `;
 
-const TAB_INTROS = {
-    giden: `Sen kullanıcının GİDEN faturaları için bir asistansın. Giden fatura kullanıcının sattığı ürünlerin faturalarıdır.
-Sadece giden faturalar hakkında soru cevapla. Gelen hakkında sorulursa kibarca yönlendir.`,
 
-    gelen: `Sen kullanıcının GELEN faturaları için bir asistansın. Gelen fatura kullanıcının satın aldığı ürünlerin faturalarıdır.
-Sadece gelen faturalar hakkında soru cevapla. Giden hakkında sorulursa kibarca yönlendir.`,
-
-    genel: `Sen kullanıcının genel finansal görünümü için bir asistansın — hem gelen hem giden hakkında konuşabilirsin.
-Bu sekmede filtre uygulama aracı YOKTUR (applyFilters kullanma).
-Sadece getKpiSummary ile veri sorularını cevaplayabilirsin.`,
-};
-
-
-// Compose final prompts on demand
+// ── Composer ─────────────────────────────────────────────────────────────────
 function _buildPrompt(tab) {
     const intro = TAB_INTROS[tab];
-    if (!intro) return '';
-
-    // Genel doesn't have filter tools — skip the shared filter section
-    if (tab === 'genel') {
-        return `${intro}\n\nKısa, net Türkçe yanıt ver. Para birimlerini ₺/$/€ sembolleriyle göster.\n\nTARİH REFERANSLARI:\n- "bu ay" = mevcut takvim ayının 1'i - bugün\n- "geçen ay" = önceki takvim ayının 1'i - son günü\n- "bu hafta" = bu Pazartesi - bugün\n- "geçen hafta" = önceki Pazartesi - önceki Pazar\n- "son X gün" = bugün - X gün önce\n- "bu yıl" = 1 Ocak - bugün`;
-    }
-
-    return `${intro}\n\n${SHARED_PROMPT}`;
+    if (!intro) return SHARED_PROMPT;
+    return `${intro}\n${SHARED_PROMPT}`;
 }
 
-
-// ── Helpers ─────────────────────────────────────────────────────────────────
-const _fmt = n => (parseFloat(n) || 0).toLocaleString('tr-TR', { maximumFractionDigits: 0 });
-const _safeDate = d => {
-    if (!d) return null;
-    try { return new Date(d).toISOString().slice(0, 10); } catch { return null; }
-};
-
-
-// ── Data fetchers (unchanged) ───────────────────────────────────────────────
-
-
-function _bestMatchList(requested, available) {
-    if (!Array.isArray(requested) || !requested.length) return { matched: [], unmatched: [] };
-
-    const norm = s => String(s || '')
-        .toLocaleLowerCase('tr-TR')
-        .replace(/[ıİI]/g, 'i').replace(/[şŞ]/g, 's').replace(/[çÇ]/g, 'c')
-        .replace(/[ğĞ]/g, 'g').replace(/[üÜ]/g, 'u').replace(/[öÖ]/g, 'o')
-        .replace(/[^a-z0-9 ]/g, '')   // strip punctuation
-        .replace(/\s+/g, ' ')
-        .trim();
-
-    const matched = [];
-    const unmatched = [];
-    const availNorm = (available || []).map(a => ({ original: a, normalized: norm(a) }));
-
-    for (const q of requested) {
-        const qn = norm(q);
-
-        // 1. Exact match
-        let hit = availNorm.find(a => a.normalized === qn);
-
-        // 2. Contains match (either direction)
-        if (!hit) hit = availNorm.find(a => a.normalized.includes(qn) || qn.includes(a.normalized));
-
-        // 3. Fuzzy match — Levenshtein distance
-        //    Threshold: allow ~20% of query length in edits (min 2)
-        if (!hit) {
-            const maxDistance = Math.max(2, Math.floor(qn.length * 0.25));
-            let bestFuzzy = null;
-            let bestDist  = Infinity;
-
-            for (const a of availNorm) {
-                // Skip huge candidates — probably not typos of a short query
-                if (Math.abs(a.normalized.length - qn.length) > maxDistance) {
-                    // Try token-level match instead (query might be a substring of any word)
-                    const tokens = a.normalized.split(' ');
-                    for (const tok of tokens) {
-                        if (Math.abs(tok.length - qn.length) > maxDistance) continue;
-                        const d = _levenshtein(qn, tok);
-                        if (d <= maxDistance && d < bestDist) {
-                            bestFuzzy = a;
-                            bestDist = d;
-                        }
-                    }
-                    continue;
-                }
-
-                const d = _levenshtein(qn, a.normalized);
-                if (d <= maxDistance && d < bestDist) {
-                    bestFuzzy = a;
-                    bestDist = d;
-                }
-            }
-
-            if (bestFuzzy) hit = bestFuzzy;
-        }
-
-        if (hit) matched.push(hit.original);
-        else unmatched.push(q);
-    }
-    return { matched, unmatched };
-}
-
-// Levenshtein distance — how many single-char edits to transform a into b
-function _levenshtein(a, b) {
-    if (a === b) return 0;
-    if (!a.length) return b.length;
-    if (!b.length) return a.length;
-
-    // Use only two rows to keep memory O(min(a,b))
-    let prev = new Array(b.length + 1);
-    let curr = new Array(b.length + 1);
-
-    for (let j = 0; j <= b.length; j++) prev[j] = j;
-
-    for (let i = 1; i <= a.length; i++) {
-        curr[0] = i;
-        for (let j = 1; j <= b.length; j++) {
-            const cost = (a[i - 1] === b[j - 1]) ? 0 : 1;
-            curr[j] = Math.min(
-                curr[j - 1] + 1,        // insertion
-                prev[j] + 1,            // deletion
-                prev[j - 1] + cost      // substitution
-            );
-        }
-        [prev, curr] = [curr, prev];
-    }
-    return prev[b.length];
-}
-
-
-// ── Fetch full filter-option lists (unchanged) ──────────────────────────────
-async function _fetchFilterOptions(supabase, tenantId, direction) {
-    // Exclude fully-internal invoices (small list — safe to serialize)
-    const { data: excluded } = await supabase
-        .from('fully_internal_invoice_ids')
-        .select('invoice_id');
-    const excludeIds = (excluded || []).map(r => r.invoice_id);
-
-    let invQuery = supabase
-        .from('invoices')
-        .select('id, invoice_no, companies(name)')
-        .or(`tenant_id.eq.${tenantId},tenant_id.is.null`)
-        .or('approval_status.neq.pending,approval_status.is.null');
-
-    if (direction)         invQuery = invQuery.eq('direction', direction);
-    if (excludeIds.length) invQuery = invQuery.not('id', 'in', `(${excludeIds.join(',')})`);
-
-    const { data: invRows } = await invQuery;
-    const companies = [...new Set((invRows || []).map(r => r.companies?.name).filter(Boolean))];
-    const invoiceNumbers = [...new Set((invRows || []).map(r => r.invoice_no).filter(Boolean))];
-
-    const directionFilteredIds = (invRows || []).map(r => r.id).filter(Boolean);
-
-    // Fetch items — if list is huge, fetch all non-internal and filter in JS
-    let itemRows;
-    if (directionFilteredIds.length <= 500) {
-        const { data } = await supabase
-            .from('invoice_items')
-            .select('product_name, product_code')
-            .eq('is_internal', false)
-            .in('invoice_id', directionFilteredIds);
-        itemRows = data || [];
-    } else {
-        const { data } = await supabase
-            .from('invoice_items')
-            .select('invoice_id, product_name, product_code')
-            .eq('is_internal', false);
-        const idSet = new Set(directionFilteredIds);
-        itemRows = (data || []).filter(r => idSet.has(r.invoice_id));
-    }
-
-    const products     = [...new Set(itemRows.map(r => r.product_name).filter(Boolean))];
-    const productCodes = [...new Set(itemRows.map(r => r.product_code).filter(Boolean))];
-
-    let brands = [], categories = [];
-    if (productCodes.length) {
-        // Same handling for products query
-        let productRows;
-        if (productCodes.length <= 500) {
-            const { data } = await supabase
-                .from('products')
-                .select('brand, category')
-                .eq('tenant_id', tenantId)
-                .eq('is_internal', false)
-                .in('product_code', productCodes);
-            productRows = data || [];
-        } else {
-            const { data } = await supabase
-                .from('products')
-                .select('product_code, brand, category')
-                .eq('tenant_id', tenantId)
-                .eq('is_internal', false);
-            const codeSet = new Set(productCodes);
-            productRows = (data || []).filter(r => codeSet.has(r.product_code));
-        }
-        brands     = [...new Set(productRows.map(r => r.brand).filter(Boolean))];
-        categories = [...new Set(productRows.map(r => r.category).filter(Boolean))];
-    }
-
-    return { companies, brands, categories, products, invoiceNumbers };
-}
-
-// ── applyFilters resolver (unchanged) ───────────────────────────────────────
-async function _resolveApplyFiltersArgs(args, supabase, tenantId, direction) {
-    const options = await _fetchFilterOptions(supabase, tenantId, direction);
-    const applied = {};
-    const warnings = [];
-
-    for (const key of ['companies', 'brands', 'categories', 'products', 'invoiceNumbers']) {
-        if (Array.isArray(args[key]) && args[key].length) {
-            const { matched, unmatched } = _bestMatchList(args[key], options[key] || []);
-            applied[key] = matched;
-            if (unmatched.length) warnings.push(`${key}: ${unmatched.join(', ')} bulunamadı`);
-        } else {
-            applied[key] = [];
-        }
-    }
-
-    applied.dateStart = args.dateStart ? _safeDate(args.dateStart) : null;
-    applied.dateEnd   = args.dateEnd   ? _safeDate(args.dateEnd)   : null;
-
-    // Coerce priceMin/priceMax — handle numbers or numeric strings
-    const toNum = v => {
-        if (typeof v === 'number') return v;
-        if (typeof v === 'string') { const n = parseFloat(v); return isNaN(n) ? null : n; }
-        return null;
-    };
-    applied.priceMin  = toNum(args.priceMin);
-    applied.priceMax  = toNum(args.priceMax);
-    applied.currency  = args.currency ? String(args.currency).toUpperCase() : null;
-
-    // ── ADD sort handling ──
-    const ALLOWED_SORT_COLS = ['date', 'amount', 'company', 'invoice_no'];
-    const ALLOWED_SORT_DIRS = ['asc', 'desc'];
-
-    applied.sortBy  = ALLOWED_SORT_COLS.includes(args.sortBy) ? args.sortBy  : null;
-    applied.sortDir = ALLOWED_SORT_DIRS.includes(args.sortDir) ? args.sortDir : null;
-
-    // If sortBy provided but sortDir isn't, default to desc
-    if (applied.sortBy && !applied.sortDir) applied.sortDir = 'desc';
-
-    return { applied, warnings };
-}
-
-
-// ── Context builder (unchanged) ─────────────────────────────────────────────
-
-
-// ── Tool definition — Anthropic schema (JSON Schema, not Google Type enums) ─
-const APPLY_FILTERS_TOOL = {
-    name: 'applyFilters',
-    description: 'Kullanıcı fatura filtresi istediğinde HER ZAMAN çağır. Firma/marka/kategori/ürün için kısmi eşleşme çalışır — kısa isimlerle de çalışır. Backend fuzzy matching ile gerçek ismi bulur.\n' +
-        '\n' +
-        'ÖNEMLİ ayrım:\n' +
-        '- "Asus" gibi bir MARKA adı verildiğinde → brands parametresini kullan (products DEĞİL)\n' +
-        '- "Acme Ltd" gibi bir FİRMA adı verildiğinde → companies\n' +
-        '- Tam bir ürün adı verildiğinde (model + SKU seviyesi) → products\n' +
-        '\n' +
-        'Örnek eşleşmeler:\n' +
-        '- "Asus faturaları" → brands: ["Asus"]\n' +
-        '- "İndeks\'ten olan faturalar" → companies: ["İndeks"]\n' +
-        '- "Samsung monitör içeren faturalar" → brands: ["Samsung"], categories: ["Monitör"]\n' +
-        '\n' +
-        'Mevcut filtreleri TAMAMEN değiştirir.'+
-        'Boş argümanlarla çağrıldığında ({}) TÜM filtreleri temizler. Kullanıcı temizleme/sıfırlama istediğinde bu şekilde çağır.',
-    input_schema: {
-        type: 'object',
-        properties: {
-            companies: {
-                type: 'array',
-                items: { type: 'string' },
-                description: 'Firma/şirket/tedarikçi/müşteri isimleri. Örn: "Acme Ltd", "İndeks Bilgisayar". Kullanıcı "X firmasının faturaları", "X\'ten faturaları" gibi ifadeler kullandığında burada.',
-            },
-            brands: {
-                type: 'array',
-                items: { type: 'string' },
-                description: 'ÜRETICI marka isimleri (Asus, Samsung, HP, Nvidia, Apple, Dell gibi). Kullanıcı "X markası", "X marka ürünler", "X ürünü olan faturalar" gibi ifadeler kullandığında burada. Marka bir SKU değil, bir üretici firmadır.',
-            },
-            categories: {
-                type: 'array',
-                items: { type: 'string' },
-                description: 'Ürün kategorileri (Monitör, Klavye, Yazılım, Sunucu gibi). Belirli bir ürün türü aranıyorsa.',
-            },
-            products: {
-                type: 'array',
-                items: { type: 'string' },
-                description: 'Spesifik ürün adları (SKU seviyesi). Kullanıcı tam bir ürün adı verirse (örn. "ASUS VZ249HG monitör"). Sadece marka adı için burayı KULLANMA — bunun için brands\'i kullan.',
-            },
-            invoiceNumbers: {
-                type: 'array',
-                items: { type: 'string' },
-                description: 'Fatura numaraları (örn. "INV-2026-001")',
-            },
-            dateStart: { type: 'string', description: 'Başlangıç tarihi YYYY-MM-DD' },
-            dateEnd:   { type: 'string', description: 'Bitiş tarihi YYYY-MM-DD' },
-            priceMin: {
-                type: 'number',
-                description: 'Minimum tutar. Değer, currency parametresi ile birlikte kullanılır — currency belirtilmezse TL varsayılır. Örn: "10K USD fatura" → priceMin: 10000, currency: "USD".',
-            },
-            priceMax: {
-                type: 'number',
-                description: 'Maksimum tutar. currency ile birlikte kullanılır.',
-            },
-            currency: {type: 'string', description: 'Fatura para birimi (base_currency): TRY, USD veya EUR. Kullanıcı fatura tutarı ile birlikte bir para birimi belirttiğinde MUTLAKA burayı doldur. Örn: "10K TL faturaları" → currency: "TRY", priceMin: 10000. Sadece "10K faturaları" derse currency boş kalabilir.',},
-            sortBy: {
-                type: 'string',
-                enum: ['date', 'amount', 'company', 'invoice_no'],
-                description: 'Sıralama kriteri. Kullanıcı "en pahalı", "en yeni", "alfabetik" gibi ifadeler kullandığında burayı doldur.',
-            },
-            sortDir: {
-                type: 'string',
-                enum: ['asc', 'desc'],
-                description: 'Sıralama yönü. Varsayılan: desc (büyükten küçüğe / yeniden eskiye).',
-            },
-        },
-    },
-};
-const GET_KPI_SUMMARY_TOOL = {
-    name: 'getKpiSummary',
-    description: 'Belirli bir filtre kombinasyonu için KPI özetini döndürür — fatura sayısı, farklı firma sayısı, ve para birimlerine göre toplam tutarlar. UI\'yi DEĞİŞTİRMEZ, sadece veri getirir.\n\nKullanıcı toplam, sayı, ortalama gibi ANALİTİK sorular sorduğunda çağır.\n\nÖrnekler:\n- "Toplam ne kadar?" → getKpiSummary({})\n- "İndeks\'in bu ayki toplamı?" → getKpiSummary({companies:["İndeks"], dateStart:"2026-07-01", dateEnd:"2026-07-05"})\n- "USD faturaların sayısı?" → getKpiSummary({currency:"USD"})\n- "Acme\'den kaç fatura var?" → getKpiSummary({companies:["Acme"]})\n\nCevabı verirken tool_result\'taki gerçek sayıları kullan, tahmin ETME.\nUI\'ye filtre uygulamak istiyorsan applyFilters kullan — bu farklı bir araç.',
-    input_schema: {
-        type: 'object',
-        properties: {
-            companies:      { type: 'array', items: { type: 'string' }, description: 'Firma isimleri' },
-            brands:         { type: 'array', items: { type: 'string' }, description: 'Marka isimleri' },
-            categories:     { type: 'array', items: { type: 'string' }, description: 'Kategori isimleri' },
-            products:       { type: 'array', items: { type: 'string' }, description: 'Ürün isimleri' },
-            invoiceNumbers: { type: 'array', items: { type: 'string' }, description: 'Fatura numaraları' },
-            dateStart:      { type: 'string', description: 'Başlangıç tarihi YYYY-MM-DD' },
-            dateEnd:        { type: 'string', description: 'Bitiş tarihi YYYY-MM-DD' },
-            priceMin:       { type: 'number', description: 'Minimum tutar' },
-            priceMax:       { type: 'number', description: 'Maksimum tutar' },
-            currency:       { type: 'string', description: 'TRY, USD veya EUR' },
-        },
-    },
-};
-const GET_INVOICES_TOOL = {
-    name: 'getInvoices',
-    description: 'Belirli filtreler ve sıralama ile FATURA LİSTESİNİ döndürür — bireysel fatura kayıtlarına erişim sağlar. UI\'yi DEĞİŞTİRMEZ, sadece Claude için veri getirir.\n\n"En büyük X fatura", "en son Y fatura", "top 5" gibi listeleme soruları için kullan. Ayrıca "en büyük satış ne kadar?" gibi tekil sorular için de çalışır (limit: 1).\n\nÖrnekler:\n- "En büyük satış ne?" → getInvoices({sortBy:"amount", sortDir:"desc", limit:1})\n- "Top 5 fatura?" → getInvoices({sortBy:"amount", sortDir:"desc", limit:5})\n- "En son 10 fatura?" → getInvoices({sortBy:"date", sortDir:"desc", limit:10})\n- "Acme\'nin en büyük 3 faturası?" → getInvoices({companies:["Acme"], sortBy:"amount", sortDir:"desc", limit:3})\n\nMaksimum 20 fatura döndürebilir. UI\'ye filtre uygulamak istiyorsan applyFilters kullan.',
-    input_schema: {
-        type: 'object',
-        properties: {
-            companies:      { type: 'array', items: { type: 'string' } },
-            brands:         { type: 'array', items: { type: 'string' } },
-            categories:     { type: 'array', items: { type: 'string' } },
-            products:       { type: 'array', items: { type: 'string' } },
-            invoiceNumbers: { type: 'array', items: { type: 'string' } },
-            dateStart:      { type: 'string', description: 'YYYY-MM-DD' },
-            dateEnd:        { type: 'string', description: 'YYYY-MM-DD' },
-            priceMin:       { type: 'number' },
-            priceMax:       { type: 'number' },
-            currency:       { type: 'string' },
-            sortBy: {
-                type: 'string',
-                enum: ['date', 'amount', 'company', 'invoice_no'],
-                description: 'Varsayılan: date',
-            },
-            sortDir: {
-                type: 'string',
-                enum: ['asc', 'desc'],
-                description: 'Varsayılan: desc',
-            },
-            limit: {
-                type: 'integer',
-                description: 'Kaç fatura döndürülsün (varsayılan 10, maks 20)',
-            },
-        },
-    },
-};
-const GENERATE_REPORT_TOOL = {
-    name: 'generateReport',
-    description: 'Belirli bir firma için detaylı, indirilebilir bir PDF rapor oluşturur — KPIlar, en büyük faturalar, ürün dağılımı, zaman çizelgesi, ve yorumlar içerir.\n\nKullanıcı "rapor", "özet", "detaylı analiz" istediğinde çağır. UI\'yi değiştirmez, sadece bir PDF dosyası üretir.\n\nÖrnekler:\n- "Acme için bu yılın raporu" → generateReport({companies:["Acme"], dateStart:"2026-01-01", dateEnd:"2026-07-05"})\n- "İndeks için son 3 ay raporu" → generateReport({companies:["İndeks"], dateStart:"2026-04-05", dateEnd:"2026-07-05"})\n- "Bu ayın raporunu hazırla" → generateReport({dateStart:"2026-07-01", dateEnd:"2026-07-05"}) (belirli firma yok)\n\nRapor hazırlandığında kullanıcıya kısa bir özet + indirme bağlantısı sunulur.',
-    input_schema: {
-        type: 'object',
-        properties: {
-            companies: { type: 'array', items: { type: 'string' }, description: 'Rapor odağındaki firma(lar). Boşsa tüm firmalar dahil.' },
-            dateStart: { type: 'string', description: 'YYYY-MM-DD' },
-            dateEnd:   { type: 'string', description: 'YYYY-MM-DD' },
-            title:     { type: 'string', description: 'Rapor için özel başlık (opsiyonel). Yoksa otomatik üretilir.' },
-        },
-    },
-};
 
 function _toolsForTab(tab) {
-    if (tab === 'genel') return [GET_KPI_SUMMARY_TOOL, GET_INVOICES_TOOL];
-    return [APPLY_FILTERS_TOOL, GET_KPI_SUMMARY_TOOL, GET_INVOICES_TOOL];
+    if (tab === 'genel') {
+        // Read-only tools on genel — no filter UI to update
+        return [
+            GET_INVOICE_STATS_TOOL,
+            GET_INVOICES_TOOL,
+            GET_INVOICE_ITEMS_TOOL,
+            GET_PRODUCT_BREAKDOWN_TOOL,
+            GET_PRODUCTS_TOOL,
+            GET_PRODUCT_DETAIL_TOOL,
+        ];
+    }
+    // Giden / Gelen — all tools including UI filter
+    return [
+        APPLY_FILTERS_TOOL,
+        GET_INVOICE_STATS_TOOL,
+        GET_INVOICES_TOOL,
+        GET_INVOICE_ITEMS_TOOL,
+        GET_PRODUCT_BREAKDOWN_TOOL,
+        GET_PRODUCTS_TOOL,
+        GET_PRODUCT_DETAIL_TOOL,
+    ];
 }
-
 // ── Build Claude messages from history + new message ────────────────────────
 function buildMessages(history, message) {
     const messages = (history || [])
@@ -532,6 +231,14 @@ async function _streamWithRetry(streamOptions, maxAttempts = 3) {
 
 
 // ── POST /api/chat/ask ──────────────────────────────────────────────────────
+// ─── POST /api/chat/ask ──────────────────────────────────────────────────────
+// Updated for 7-tool architecture:
+//   applyFilters, getInvoiceStats, getInvoices, getInvoiceItems,
+//   getProductBreakdown, getProducts, getProductDetail
+//
+// Tool implementations live in ./chat-tools.js
+
+
 router.post('/ask', async (req, res) => {
     const { tab, message, history, filters } = req.body || {};
 
@@ -549,7 +256,7 @@ router.post('/ask', async (req, res) => {
     const tenantId = req.tenantId;
     const direction = tab === 'giden' ? 'OUTGOING' : tab === 'gelen' ? 'INCOMING' : null;
 
-    // SSE setup — same output format the frontend expects
+    // ── SSE setup ───────────────────────────────────────────────────────────
     res.setHeader('Content-Type', 'text/event-stream');
     res.setHeader('Cache-Control', 'no-cache, no-transform');
     res.setHeader('Connection', 'keep-alive');
@@ -565,22 +272,23 @@ router.post('/ask', async (req, res) => {
     req.on('close', () => { closed = true; });
 
     try {
+        // ── System prompt ────────────────────────────────────────────────────
         const today   = new Date().toISOString().slice(0, 10);
-        const dayName = new Date().toLocaleDateString('tr-TR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+        const dayName = new Date().toLocaleDateString('tr-TR', {
+            weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
+        });
         const dateContext = `Bugünün tarihi: ${today} (${dayName})`;
-        // After building system prompt, add current filter state
-        const activeFiltersDesc = _describeActiveFilters(filters || {});
         const systemPrompt = `${_buildPrompt(tab)}\n\n${dateContext}`;
         const tools = _toolsForTab(tab);
 
-        // Conversation loop — keeps going as long as the model requests tools
+        // ── Conversation loop ────────────────────────────────────────────────
         const messages = buildMessages(history, message);
         let safety = 0;
 
         while (safety++ < 5) {
             if (closed) break;
 
-            const stream = await _streamWithRetry({
+            const stream = client.messages.stream({
                 model: MODEL,
                 max_tokens: 2048,
                 system: systemPrompt,
@@ -588,43 +296,26 @@ router.post('/ask', async (req, res) => {
                 ...(tools ? { tools } : {}),
             });
 
-            // Stream text tokens to the client as they arrive
             stream.on('text', (text) => {
                 if (!closed && text) sendEvent('token', { text });
             });
 
-            // Wait for the complete message
-            let finalMessage;
-            try {
-                finalMessage = await stream.finalMessage();
-            } catch (err) {
-                const isRetryable = err?.status === 529 || err?.error?.type === 'overloaded_error';
-
-                if (isRetryable && safety < 4) {
-                    // Retry the whole turn
-                    console.warn('[claude] mid-stream overload, retrying turn');
-                    await new Promise(r => setTimeout(r, 1000));
-                    continue;   // re-run the while loop iteration
-                }
-                throw err;
-            }
+            const finalMessage = await stream.finalMessage();
             if (closed) break;
 
-            // Find any tool_use blocks in the response
             const toolUses = (finalMessage.content || []).filter(c => c.type === 'tool_use');
-
-            // No tools → conversation is done, exit the loop
             if (!toolUses.length) break;
 
-            // Push assistant message (with tool_use blocks) into history
+            // Push assistant message with tool_use blocks
             messages.push({ role: 'assistant', content: finalMessage.content });
 
-            // Execute each tool, collect results
+            // Execute tools
             const toolResults = [];
             for (const toolUse of toolUses) {
-                if (toolUse.name === 'applyFilters') {
-                    console.log('[applyFilters] raw args from AI:', JSON.stringify(toolUse.input, null, 2));
 
+                // ── applyFilters — UI action ────────────────────────────────
+                if (toolUse.name === 'applyFilters') {
+                    console.log('[applyFilters] raw args:', JSON.stringify(toolUse.input, null, 2));
                     sendEvent('tool_call', { name: 'applyFilters', args: toolUse.input || {} });
 
                     const { applied, warnings } = await _resolveApplyFiltersArgs(
@@ -632,12 +323,10 @@ router.post('/ask', async (req, res) => {
                     );
 
                     console.log('[applyFilters] resolved:', JSON.stringify(applied, null, 2));
-                    console.log('[applyFilters] warnings:', warnings);
+                    if (warnings.length) console.log('[applyFilters] warnings:', warnings);
 
-                    // Emit UI action — frontend applies filters to the visible table
                     sendEvent('action', { type: 'applyFilters', params: applied });
 
-                    // Feed the result back to Claude so it can compose a text reply
                     toolResults.push({
                         type: 'tool_result',
                         tool_use_id: toolUse.id,
@@ -650,56 +339,51 @@ router.post('/ask', async (req, res) => {
                         }),
                     });
                 }
-                else if (toolUse.name === 'getKpiSummary') {
-                    console.log('[getKpiSummary] raw args from AI:', JSON.stringify(toolUse.input, null, 2));
 
-                    sendEvent('tool_call', { name: 'getKpiSummary', args: toolUse.input || {} });
+                // ── getInvoiceStats — aggregate totals or company ranking ───
+                else if (toolUse.name === 'getInvoiceStats') {
+                    console.log('[getInvoiceStats] raw args:', JSON.stringify(toolUse.input, null, 2));
+                    sendEvent('tool_call', { name: 'getInvoiceStats', args: toolUse.input || {} });
 
-                    // Reuse the fuzzy matcher so "İndeks" → "INDEKS BİLGİSAYAR..."
                     const { applied, warnings } = await _resolveApplyFiltersArgs(
                         toolUse.input || {}, supabase, tenantId, direction
                     );
 
-                    // Call the shared helper — auto-scope by tab's direction
-                    let kpiResult;
                     try {
-                        kpiResult = await fetchKpiSummary(supabase, tenantId, {
+                        const result = await fetchInvoiceStats(supabase, tenantId, {
                             direction,
-                            companies:      applied.companies,
-                            brands:         applied.brands,
-                            categories:     applied.categories,
-                            products:       applied.products,
-                            invoiceNumbers: applied.invoiceNumbers,
-                            dateStart:      applied.dateStart,
-                            dateEnd:        applied.dateEnd,
-                            priceMin:       applied.priceMin,
-                            priceMax:       applied.priceMax,
-                            currency:       applied.currency,
+                            groupBy:   toolUse.input?.groupBy || 'none',
+                            sortBy:    toolUse.input?.sortBy  || 'amount',
+                            limit:     toolUse.input?.limit   || 10,
+                            ...applied,
                         });
-                    } catch (err) {
-                        console.error('[getKpiSummary] error:', err.message);
+
+                        console.log('[getInvoiceStats] result summary:',
+                            result.totals
+                                ? `totals: count=${result.totals.total_count}, companies=${result.totals.company_count}`
+                                : `groupBy company: ${result.companies?.length || 0} companies`);
+
                         toolResults.push({
                             type: 'tool_result',
                             tool_use_id: toolUse.id,
-                            content: JSON.stringify({ error: 'KPI verisi alınamadı: ' + err.message }),
+                            content: JSON.stringify({
+                                ...result,
+                                appliedFilters: applied,
+                                warnings: warnings.length ? warnings : undefined,
+                            }),
+                        });
+                    } catch (err) {
+                        console.error('[getInvoiceStats] error:', err.message);
+                        toolResults.push({
+                            type: 'tool_result',
+                            tool_use_id: toolUse.id,
+                            content: JSON.stringify({ error: 'İstatistik alınamadı: ' + err.message }),
                             is_error: true,
                         });
-                        continue;
                     }
-
-                    console.log('[getKpiSummary] result:', JSON.stringify(kpiResult, null, 2));
-
-                    // Feed back to Claude (no UI action — this is data-only)
-                    toolResults.push({
-                        type: 'tool_result',
-                        tool_use_id: toolUse.id,
-                        content: JSON.stringify({
-                            totals: kpiResult.totals,
-                            appliedFilters: applied,
-                            warnings: warnings.length ? warnings : undefined,
-                        }),
-                    });
                 }
+
+                // ── getInvoices — individual invoice list ───────────────────
                 else if (toolUse.name === 'getInvoices') {
                     console.log('[getInvoices] raw args:', JSON.stringify(toolUse.input, null, 2));
                     sendEvent('tool_call', { name: 'getInvoices', args: toolUse.input || {} });
@@ -708,46 +392,221 @@ router.post('/ask', async (req, res) => {
                         toolUse.input || {}, supabase, tenantId, direction
                     );
 
-                    // Sort/limit params come through as-is
-                    const sortBy  = toolUse.input?.sortBy  || 'date';
-                    const sortDir = toolUse.input?.sortDir || 'desc';
-                    const limit   = toolUse.input?.limit   || 10;
-
-                    let invoiceList;
                     try {
-                        invoiceList = await fetchInvoiceList(supabase, tenantId, {
+                        const invoiceList = await fetchInvoiceList(supabase, tenantId, {
                             direction,
+                            sortBy:  toolUse.input?.sortBy  || 'date',
+                            sortDir: toolUse.input?.sortDir || 'desc',
+                            limit:   toolUse.input?.limit   || 10,
                             ...applied,
-                            sortBy,
-                            sortDir,
-                            limit,
                         });
-                    } catch (err) {
+
+                        console.log('[getInvoices] returned', invoiceList.length, 'invoices');
+
                         toolResults.push({
                             type: 'tool_result',
                             tool_use_id: toolUse.id,
-                            content: JSON.stringify({ error: 'Fatura verisi alınamadı: ' + err.message }),
+                            content: JSON.stringify({
+                                invoices: invoiceList,
+                                count: invoiceList.length,
+                                appliedFilters: applied,
+                                warnings: warnings.length ? warnings : undefined,
+                            }),
+                        });
+                    } catch (err) {
+                        console.error('[getInvoices] error:', err.message);
+                        toolResults.push({
+                            type: 'tool_result',
+                            tool_use_id: toolUse.id,
+                            content: JSON.stringify({ error: 'Fatura listesi alınamadı: ' + err.message }),
+                            is_error: true,
+                        });
+                    }
+                }
+
+                // ── getInvoiceItems — line items of specific invoices ───────
+                else if (toolUse.name === 'getInvoiceItems') {
+                    console.log('[getInvoiceItems] raw args:', JSON.stringify(toolUse.input, null, 2));
+                    sendEvent('tool_call', { name: 'getInvoiceItems', args: toolUse.input || {} });
+
+                    const invoiceNumbers = Array.isArray(toolUse.input?.invoiceNumbers)
+                        ? toolUse.input.invoiceNumbers.filter(Boolean)
+                        : [];
+
+                    if (!invoiceNumbers.length) {
+                        toolResults.push({
+                            type: 'tool_result',
+                            tool_use_id: toolUse.id,
+                            content: JSON.stringify({ error: 'invoiceNumbers boş olamaz.' }),
                             is_error: true,
                         });
                         continue;
                     }
 
-                    console.log('[getInvoices] returned', invoiceList.length, 'invoices');
+                    try {
+                        const items = await fetchInvoiceItems(supabase, tenantId, {
+                            invoiceNumbers,
+                            direction,   // scope to current tab's direction
+                        });
 
-                    toolResults.push({
-                        type: 'tool_result',
-                        tool_use_id: toolUse.id,
-                        content: JSON.stringify({
-                            invoices: invoiceList,
-                            count: invoiceList.length,
-                            appliedFilters: applied,
-                            warnings: warnings.length ? warnings : undefined,
-                        }),
-                    });
+                        console.log('[getInvoiceItems] returned', items.length, 'items');
+
+                        toolResults.push({
+                            type: 'tool_result',
+                            tool_use_id: toolUse.id,
+                            content: JSON.stringify({
+                                items,
+                                count: items.length,
+                                invoiceNumbers,
+                            }),
+                        });
+                    } catch (err) {
+                        console.error('[getInvoiceItems] error:', err.message);
+                        toolResults.push({
+                            type: 'tool_result',
+                            tool_use_id: toolUse.id,
+                            content: JSON.stringify({ error: 'Kalemler alınamadı: ' + err.message }),
+                            is_error: true,
+                        });
+                    }
                 }
 
+                // ── getProductBreakdown — product activity from invoices ────
+                else if (toolUse.name === 'getProductBreakdown') {
+                    console.log('[getProductBreakdown] raw args:', JSON.stringify(toolUse.input, null, 2));
+                    sendEvent('tool_call', { name: 'getProductBreakdown', args: toolUse.input || {} });
+
+                    const { applied, warnings } = await _resolveApplyFiltersArgs(
+                        toolUse.input || {}, supabase, tenantId, direction
+                    );
+
+                    try {
+                        const breakdown = await fetchProductBreakdown(supabase, tenantId, {
+                            direction,
+                            groupBy: toolUse.input?.groupBy || 'product',
+                            sortBy:  toolUse.input?.sortBy  || 'total',
+                            limit:   toolUse.input?.limit   || 10,
+                            companies: applied.companies,
+                            dateStart: applied.dateStart,
+                            dateEnd:   applied.dateEnd,
+                            currency:  applied.currency,
+                        });
+
+                        console.log('[getProductBreakdown] returned', breakdown.length, 'items');
+
+                        toolResults.push({
+                            type: 'tool_result',
+                            tool_use_id: toolUse.id,
+                            content: JSON.stringify({
+                                breakdown,
+                                groupBy: toolUse.input?.groupBy || 'product',
+                                sortBy:  toolUse.input?.sortBy  || 'total',
+                                appliedFilters: applied,
+                                warnings: warnings.length ? warnings : undefined,
+                            }),
+                        });
+                    } catch (err) {
+                        console.error('[getProductBreakdown] error:', err.message);
+                        toolResults.push({
+                            type: 'tool_result',
+                            tool_use_id: toolUse.id,
+                            content: JSON.stringify({ error: 'Ürün dağılımı alınamadı: ' + err.message }),
+                            is_error: true,
+                        });
+                    }
+                }
+
+                // ── getProducts — catalog / stock / pricing list ────────────
+                else if (toolUse.name === 'getProducts') {
+                    console.log('[getProducts] raw args:', JSON.stringify(toolUse.input, null, 2));
+                    sendEvent('tool_call', { name: 'getProducts', args: toolUse.input || {} });
+
+                    try {
+                        const products = await fetchProducts(supabase, tenantId, {
+                            search:   toolUse.input?.search   || null,
+                            brand:    toolUse.input?.brand    || null,
+                            category: toolUse.input?.category || null,
+                            lowStock: toolUse.input?.lowStock === true,
+                            onOrder:  toolUse.input?.onOrder  === true,
+                            inStock:  toolUse.input?.inStock  === true,
+                            sortBy:   toolUse.input?.sortBy  || 'stock',
+                            sortDir:  toolUse.input?.sortDir || 'desc',
+                            limit:    toolUse.input?.limit   || 10,
+                        });
+
+                        console.log('[getProducts] returned', products.length, 'products');
+
+                        toolResults.push({
+                            type: 'tool_result',
+                            tool_use_id: toolUse.id,
+                            content: JSON.stringify({
+                                products,
+                                count: products.length,
+                            }),
+                        });
+                    } catch (err) {
+                        console.error('[getProducts] error:', err.message);
+                        toolResults.push({
+                            type: 'tool_result',
+                            tool_use_id: toolUse.id,
+                            content: JSON.stringify({ error: 'Ürün listesi alınamadı: ' + err.message }),
+                            is_error: true,
+                        });
+                    }
+                }
+
+                // ── getProductDetail — deep-dive on ONE product ─────────────
+                else if (toolUse.name === 'getProductDetail') {
+                    console.log('[getProductDetail] raw args:', JSON.stringify(toolUse.input, null, 2));
+                    sendEvent('tool_call', { name: 'getProductDetail', args: toolUse.input || {} });
+
+                    const identifier = {
+                        productId:   toolUse.input?.productId   || null,
+                        productName: toolUse.input?.productName || null,
+                        productCode: toolUse.input?.productCode || null,
+                    };
+
+                    if (!identifier.productId && !identifier.productName && !identifier.productCode) {
+                        toolResults.push({
+                            type: 'tool_result',
+                            tool_use_id: toolUse.id,
+                            content: JSON.stringify({ error: 'En az bir tanımlayıcı gerekli: productId, productName veya productCode.' }),
+                            is_error: true,
+                        });
+                        continue;
+                    }
+
+                    try {
+                        const detail = await fetchProductDetail(supabase, tenantId, identifier);
+
+                        if (!detail) {
+                            toolResults.push({
+                                type: 'tool_result',
+                                tool_use_id: toolUse.id,
+                                content: JSON.stringify({ error: 'Ürün bulunamadı.', identifier }),
+                            });
+                        } else {
+                            console.log('[getProductDetail] found:', detail.name);
+                            toolResults.push({
+                                type: 'tool_result',
+                                tool_use_id: toolUse.id,
+                                content: JSON.stringify({ product: detail }),
+                            });
+                        }
+                    } catch (err) {
+                        console.error('[getProductDetail] error:', err.message);
+                        toolResults.push({
+                            type: 'tool_result',
+                            tool_use_id: toolUse.id,
+                            content: JSON.stringify({ error: 'Ürün detayı alınamadı: ' + err.message }),
+                            is_error: true,
+                        });
+                    }
+                }
+
+                // ── Unknown tool ────────────────────────────────────────────
                 else {
-                    // Unknown tool
+                    console.warn('[chat] unknown tool:', toolUse.name);
                     toolResults.push({
                         type: 'tool_result',
                         tool_use_id: toolUse.id,
@@ -757,7 +616,7 @@ router.post('/ask', async (req, res) => {
                 }
             }
 
-            // Push tool results as the next user message so Claude can continue
+            // Push tool results as the next user turn
             messages.push({ role: 'user', content: toolResults });
         }
 
@@ -766,24 +625,17 @@ router.post('/ask', async (req, res) => {
 
     } catch (err) {
         console.error('chat /ask error:', err?.message || err);
-
         if (!closed) {
             let userMessage = err?.message || 'Bilinmeyen hata';
-
-            // Recognize common Anthropic errors and translate
-            if (err?.status === 529 || err?.error?.type === 'overloaded_error' || userMessage.includes('overloaded')) {
-                userMessage = 'AI servisi şu an yoğun. Birkaç saniye sonra tekrar dener misin?';
+            if (err?.status === 529 || err?.error?.type === 'overloaded_error') {
+                userMessage = 'AI servisi şu an yoğun. Birkaç saniye sonra tekrar dene.';
             } else if (err?.status === 429) {
                 userMessage = 'Çok fazla istek gönderildi. Biraz bekleyip tekrar dene.';
-            } else if (err?.status >= 500) {
-                userMessage = 'AI servisine ulaşılamıyor. Kısa süre sonra tekrar dene.';
             }
-
             sendEvent('error', { message: userMessage });
             res.end();
         }
     }
 });
-
 
 module.exports = router;

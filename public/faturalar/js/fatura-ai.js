@@ -51,12 +51,10 @@ function renderAiChat() {
     }).join('');
     messages.scrollTop = messages.scrollHeight;
 
-    const prompts = _aiQuickPromptsByTab[_aiActiveSession] || [];
+    /*const prompts = _aiQuickPromptsByTab[_aiActiveSession] || [];
     quickWrap.innerHTML = prompts.map(p =>
         `<button class="ai-quick-chip" onclick="aiQuickPrompt(this)">${_aiEscape(p)}</button>`
-    ).join('');
-
-    _saveAiChatSessions();
+    ).join('');*/
 }
 
 
@@ -320,7 +318,6 @@ function _generateChatSuggestions() {
     }
     return ['Bu ayki toplam?', 'En büyük fatura?', 'En aktif firma?'];
 }
-
 function _refreshChatSuggestions() {
     const container = document.getElementById('aiQuickPrompts');   // ← your actual ID
     if (!container) return;
@@ -422,7 +419,7 @@ async function _aiStreamReply(message, session, assistantMsg, bubble) {
             } else if (eventType === 'done') {
                 assistantMsg.streaming = false;
                 bubble?.classList.remove('ai-msg-bubble--streaming');
-                _refreshChatSuggestions()
+                //_refreshChatSuggestions()
 
             } else if (eventType === 'error') {
                 throw new Error(data.message || 'Sunucu hatası');
@@ -432,21 +429,29 @@ async function _aiStreamReply(message, session, assistantMsg, bubble) {
 
     assistantMsg.streaming = false;
     bubble?.classList.remove('ai-msg-bubble--streaming');
+    _saveAiChatSessions()
 }
 
 function _aiRenderMarkdown(text) {
     if (!text) return '';
     try {
-        // marked() options: keep it simple, no raw HTML pass-through (safer)
+        // Custom renderer — force target=_blank on all links
+        const renderer = new marked.Renderer();
+        const originalLink = renderer.link.bind(renderer);
+        renderer.link = (href, title, text) => {
+            const html = originalLink(href, title, text);
+            return html.replace(/^<a /, '<a target="_blank" rel="noopener noreferrer" ');
+        };
+
         return marked.parse(text, {
-            breaks: true,      // convert single newlines to <br>
-            gfm: true,         // GitHub-flavored: tables, strikethrough, etc.
+            breaks: true,
+            gfm: true,
+            renderer,
         });
     } catch (e) {
-        return _aiEscape(text);  // fallback to plain
+        return _aiEscape(text);
     }
 }
-
 function _getCurrentFilters() {
     // Genel uses its own date range, no other filters
     if (_aiActiveSession === 'genel') {
@@ -584,9 +589,6 @@ document.addEventListener('DOMContentLoaded', () => {
                         ...m,
                         streaming: false,  // never restore streaming state
                     }));
-
-                    // Also drop any empty assistant messages (mid-stream refresh)
-                    _aiChatSessions[tab] = _aiChatSessions[tab].filter(m => m.text && m.text.trim());
                 }
             }
         }

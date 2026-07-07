@@ -85,7 +85,7 @@ async function initInvoiceView(useCache = false) {
     // in initInvoiceView, replace the render block with:
     if (allInvoicesCache ) {
       _lastListInvoices = allInvoicesCache;
-      saveFilterState();
+      //saveFilterState();
       if (activeTabKey === 'list' && typeof renderListView === 'function') {
         renderListView(allInvoicesCache);
         if (typeof hideLoadingOverlay === 'function') hideLoadingOverlay();

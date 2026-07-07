@@ -83,24 +83,24 @@ function switchMainTab(tab) {
   }
 
   // gelen / giden
-
   kpiBar.style.display = 'flex';
   window._FAT_PENDING = false;
   currentView = tab;
+
   window._fatActiveFilters = {};
-  window._fatFilterOptions = {
-    companies: [],
-    brands: [],
-    products: [],
-    categories: [],
-    models: [],
-    currencies: [],
-    invoiceNumbers: [],
-    relationships: []
-  };
+    window._fatFilterOptions = {companies: [], brands: [], products: [], categories: [], models: [], currencies: [], invoiceNumbers: [], relationships: []};
   window._filterOptionsLoaded = false;
+
+  // ── Clear everything, then restore this tab's saved state ──
+  window._suppressFilterFetch = true;
+  try {
+      clearAllFilters();     // ← wipes tag filters + date + price + currency
+  } finally {
+      window._suppressFilterFetch = false;
+  }
+
   restoreFilterState(tab);
-  restoreTagFilters()
+  restoreTagFilters();
   _currentPage = window._fatActiveFilters?.page || 1;
   showLoadingOverlay();
   initInvoiceView(false);

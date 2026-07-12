@@ -1,5 +1,5 @@
 // ─── GENEL BAKIŞ ──────────────────────────────────────────────────────────────
-// Lives inside faturalar.html (no longer iframe).
+// Lives inside faturalar.pages (no longer iframe).
 // All public IDs prefixed with "gb" to avoid collision with the main filter bar.
 
 // ── State ────────────────────────────────────────────────────────────────────

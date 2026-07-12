@@ -13,9 +13,10 @@ const {
        APPLY_FILTERS_TOOL, GET_INVOICE_STATS_TOOL, GET_INVOICES_TOOL,
        GET_INVOICE_ITEMS_TOOL, GET_PRODUCT_BREAKDOWN_TOOL,
        GET_PRODUCTS_TOOL, GET_PRODUCT_DETAIL_TOOL,
+       APPLY_STOCK_FILTERS_TOOL,
        fetchInvoiceStats, fetchInvoiceList, fetchInvoiceItems,
        fetchProductBreakdown, fetchProducts, fetchProductDetail,
-       _resolveApplyFiltersArgs,
+       _resolveApplyFiltersArgs, _resolveStockFilterArgs,
    } = require('./chat-tools');
 
 // ─── BASE PROMPTS — restructured for 7-tool architecture ─────────────────────
@@ -36,6 +37,15 @@ Sadece gelen faturalar hakkında soru cevapla. Giden (satış) hakkında sorulur
 
     genel: `Sen kullanıcının genel finansal görünümü için bir asistansın — hem gelen hem giden hakkında konuşabilirsin.
 Bu sekmede filtre uygulama aracı (applyFilters) YOKTUR. Sadece bilgi/analiz tool'larını kullan.`,
+
+    'stok-genel': `Sen kullanıcının STOK genel bakış asistanısın. Ürün stok durumu, bağlı stok değeri (TL/USD/EUR), ölü stok (uzun süredir hareketsiz), riskli/azalan stok ve kategori/marka bazlı değer dağılımı hakkında konuşursun.
+Bu sekmede filtre uygulama aracı YOKTUR — sadece bilgi/analiz tool'larını kullan (getProducts, getProductDetail).
+Stok seviyesi için stock_on_hand, güncel değer için son alış fiyatını (last_purchase) kullan. Kâr/marj sorularını yanıtlama — satış fiyatı verisi sistemde yok.`,
+
+    'stok-urunler': `Sen kullanıcının ÜRÜNLER sayfası asistanısın. Ürün kataloğu, stok seviyeleri ve güncel fiyatlar hakkında konuşursun; ayrıca kullanıcının isteğiyle sayfadaki FİLTRELERİ uygulayabilirsin.
+Kullanıcı ürün listesini filtrelemek/görmek isterse (SKU, marka, kategori, para birimi, stokta olanlar, adet aralığı, değer aralığı) → applyStockFilters aracını çağır.
+Örn: "Asus ürünlerini göster" → applyStockFilters({brands:["Asus"]}); "stoğu 5'in altındakiler" → applyStockFilters({inStock:true, qtyMax:5}); "filtreleri temizle" → applyStockFilters({clear:true}).
+Sadece metinle "filtreledim" DEME — mutlaka aracı çağır. Bilgi/analiz için getProducts ve getProductDetail kullan.`
 };
 
 
@@ -158,6 +168,21 @@ function _buildPrompt(tab) {
 
 
 function _toolsForTab(tab) {
+    if (tab === 'stok-urunler') {
+        // Stock products page — read tools + UI filter action
+        return [
+            APPLY_STOCK_FILTERS_TOOL,
+            GET_PRODUCTS_TOOL,
+            GET_PRODUCT_DETAIL_TOOL,
+        ];
+    }
+    if (tab === 'stok-genel') {
+        // Stock overview — read-only
+        return [
+            GET_PRODUCTS_TOOL,
+            GET_PRODUCT_DETAIL_TOOL,
+        ];
+    }
     if (tab === 'genel') {
         // Read-only tools on genel — no filter UI to update
         return [
@@ -245,7 +270,7 @@ router.post('/ask', async (req, res) => {
     if (!message || typeof message !== 'string') {
         return res.status(400).json({ error: 'message is required' });
     }
-    if (!['genel', 'giden', 'gelen'].includes(tab)) {
+    if (!['genel', 'giden', 'gelen', 'stok-genel', 'stok-urunler'].includes(tab)) {
         return res.status(400).json({ error: 'invalid tab' });
     }
     if (!process.env.ANTHROPIC_API_KEY) {
@@ -336,6 +361,31 @@ router.post('/ask', async (req, res) => {
                             note: warnings.length
                                 ? 'Bazı değerler eşleşmedi: ' + warnings.join('; ')
                                 : 'Filtreler başarıyla uygulandı.',
+                        }),
+                    });
+                }
+
+                // ── applyStockFilters — ürünler UI action ───────────────────
+                else if (toolUse.name === 'applyStockFilters') {
+                    console.log('[applyStockFilters] raw args:', JSON.stringify(toolUse.input, null, 2));
+                    sendEvent('tool_call', { name: 'applyStockFilters', args: toolUse.input || {} });
+
+                    const { applied, warnings } = await _resolveStockFilterArgs(
+                        toolUse.input || {}, supabase, tenantId
+                    );
+
+                    // tell the frontend to drive the ürünler filter bar
+                    sendEvent('action', { type: 'applyStockFilters', params: applied });
+
+                    toolResults.push({
+                        type: 'tool_result',
+                        tool_use_id: toolUse.id,
+                        content: JSON.stringify({
+                            applied,
+                            warnings,
+                            note: warnings.length
+                                ? 'Bazı değerler eşleşmedi: ' + warnings.join('; ')
+                                : 'Filtreler uygulandı.',
                         }),
                     });
                 }

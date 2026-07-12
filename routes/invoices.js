@@ -216,17 +216,13 @@ async function fetchKpiSummary(supabase, tenantId, opts = {}) {
         if (!companyIds.length) return emptyRes;
     }
 
-    // ── Step 3: excluded ids ────────────────────────────────────────────────
-    const { data: excluded } = await supabase
-        .from('fully_internal_invoice_ids').select('invoice_id');
-    const excludeIds = (excluded || []).map(r => r.invoice_id);
-
     // ── Step 4: build query ─────────────────────────────────────────────────
     let q = supabase
         .from('invoices')
         .select('id, company_id, base_currency, payable_amount_tl, payable_amount_cur')
         .eq('tenant_id', tenantId)
-        .or('approval_status.neq.pending,approval_status.is.null');
+        .or('approval_status.neq.pending,approval_status.is.null')
+        .or('invoice_category.neq.NON_INTERNAL,invoice_category.is.null');
 
     if (pending) {
         q = supabase.from('invoices')
@@ -242,7 +238,6 @@ async function fetchKpiSummary(supabase, tenantId, opts = {}) {
     if (priceMax != null)             q = q.lte('payable_amount_tl', priceMax);
     if (companyIds?.length)           q = q.in('company_id', companyIds);
     if (invoiceNumbers?.length)       q = q.in('invoice_no', invoiceNumbers);
-    if (excludeIds.length)            q = q.not('id', 'in', `(${excludeIds.join(',')})`);
 
     // Combine item filter IDs into a single .in() call (URL-length safe)
     let combinedIds = null;
@@ -278,7 +273,7 @@ async function fetchKpiSummary(supabase, tenantId, opts = {}) {
     const { data: itemRows } = await supabase
         .from('invoice_items')
         .select('invoice_id, currency, total_price_cur, product_code, brand_name, product_name, is_internal')
-        .eq('is_internal', false)
+        .eq('is_internal', true)
         .in('invoice_id', validInvoiceIds);
 
     let matchingItems = itemRows || [];
@@ -304,270 +299,6 @@ async function fetchKpiSummary(supabase, tenantId, opts = {}) {
     return { totals: { total_count, company_count, try_total, try_count, usd_total, usd_count, eur_total, eur_count } };
 }
 
-async function fetchInvoiceList(supabase, tenantId, opts = {}) {
-    const {
-        direction,
-        dateStart          = null,
-        dateEnd            = null,
-        currency           = null,
-        priceMin           = null,
-        priceMax           = null,
-        companies          = null,
-        brands             = null,
-        categories         = null,
-        products           = null,
-        invoiceNumbers     = null,
-        sortBy             = 'date',
-        sortDir            = 'desc',
-        limit              = 10,
-    } = opts;
-
-    const cappedLimit = Math.min(Math.max(limit, 1), 20);
-
-    // ── Step 1: resolve filter IDs (same pattern as fetchKpiSummary) ────────
-    let brandFilteredIds = null;
-    if (brands?.length) {
-        const { data: brandItems } = await supabase
-            .from('invoice_items').select('invoice_id').in('brand_name', brands);
-        brandFilteredIds = [...new Set((brandItems || []).map(r => r.invoice_id).filter(Boolean))];
-        if (!brandFilteredIds.length) return [];
-    }
-
-    let categoryFilteredIds = null;
-    if (categories?.length) {
-        const { data: catProducts } = await supabase
-            .from('products').select('product_code').in('category', categories).eq('tenant_id', tenantId);
-        const catCodes = (catProducts || []).map(r => r.product_code).filter(Boolean);
-        if (!catCodes.length) return [];
-        const { data: catItems } = await supabase
-            .from('invoice_items').select('invoice_id').in('product_code', catCodes);
-        categoryFilteredIds = [...new Set((catItems || []).map(r => r.invoice_id).filter(Boolean))];
-        if (!categoryFilteredIds.length) return [];
-    }
-
-    let productFilteredIds = null;
-    if (products?.length) {
-        const { data: prodItems } = await supabase
-            .from('invoice_items').select('invoice_id').in('product_name', products);
-        productFilteredIds = [...new Set((prodItems || []).map(r => r.invoice_id).filter(Boolean))];
-        if (!productFilteredIds.length) return [];
-    }
-
-    let companyIds = null;
-    if (companies?.length) {
-        const { data: matchedCompanies } = await supabase
-            .from('companies').select('id').in('name', companies).eq('tenant_id', tenantId);
-        companyIds = (matchedCompanies || []).map(c => c.id);
-        if (!companyIds.length) return [];
-    }
-
-    // ── Step 2: excluded IDs ────────────────────────────────────────────────
-    const { data: excluded } = await supabase
-        .from('fully_internal_invoice_ids').select('invoice_id');
-    const excludeIds = (excluded || []).map(r => r.invoice_id);
-
-    // ── Step 3: sort column resolution ──────────────────────────────────────
-    const sortColMap = {
-        date:       'invoice_date',
-        amount:     'payable_amount_tl',
-        company:    'company_name',       // requires the invoices_with_company view
-        invoice_no: 'invoice_no',
-    };
-    const sortCol     = sortColMap[sortBy] || 'invoice_date';
-    const sourceTable = sortCol === 'company_name' ? 'invoices_with_company' : 'invoices';
-
-    // ── Step 4: build query ─────────────────────────────────────────────────
-    let q = supabase
-        .from(sourceTable)
-        .select('id, invoice_no, invoice_date, payable_amount_tl, payable_amount_cur, base_currency, pdf_url, companies(name)')
-        .or(`tenant_id.eq.${tenantId},tenant_id.is.null`)
-        .or('approval_status.neq.pending,approval_status.is.null');
-
-    if (direction)              q = q.eq('direction', direction);
-    if (currency)               q = q.eq('base_currency', currency);
-    if (dateStart)              q = q.gte('invoice_date', dateStart);
-    if (dateEnd)                q = q.lte('invoice_date', dateEnd);
-    if (priceMin != null)       q = q.gte('payable_amount_tl', priceMin);
-    if (priceMax != null)       q = q.lte('payable_amount_tl', priceMax);
-    if (invoiceNumbers?.length) q = q.in('invoice_no', invoiceNumbers);
-    if (companyIds?.length)     q = q.in('company_id', companyIds);
-    if (excludeIds.length)      q = q.not('id', 'in', `(${excludeIds.join(',')})`);
-
-    // Combine item filter IDs into single .in() call (URL-length safe)
-    let combinedIds = null;
-    if (brandFilteredIds !== null) combinedIds = brandFilteredIds;
-    if (categoryFilteredIds !== null) {
-        combinedIds = combinedIds ? combinedIds.filter(id => categoryFilteredIds.includes(id)) : categoryFilteredIds;
-    }
-    if (productFilteredIds !== null) {
-        combinedIds = combinedIds ? combinedIds.filter(id => productFilteredIds.includes(id)) : productFilteredIds;
-    }
-    if (combinedIds !== null) q = q.in('id', combinedIds);
-
-    // Sort + limit
-    q = q.order(sortCol, { ascending: sortDir === 'asc' }).limit(cappedLimit);
-
-    const { data, error } = await q;
-    if (error) throw error;
-
-    // ── Step 5: trim to essentials for Claude ───────────────────────────────
-    return (data || []).map(row => ({
-        invoice_no: row.invoice_no,
-        company:    row.companies?.name || row.company_name || 'Bilinmeyen',
-        date:       row.invoice_date,
-        amount_tl:  parseFloat(row.payable_amount_tl)  || 0,
-        amount_cur: parseFloat(row.payable_amount_cur) || 0,
-        currency:   row.base_currency || 'TRY',
-        pdf_url:    row.pdf_url || null,   // ← add
-    }));
-}
-
-async function fetchProductBreakdown(supabase, tenantId, opts = {}) {
-    const {
-        direction,
-        companies      = null,
-        dateStart      = null,
-        dateEnd        = null,
-        currency       = null,
-        groupBy        = 'product',
-        sortBy         = 'total',
-        limit          = 10,
-    } = opts;
-
-    const cappedLimit = Math.min(Math.max(limit, 1), 20);
-
-    // Step 1: resolve company IDs
-    let companyIds = null;
-    if (companies?.length) {
-        const { data: matched } = await supabase
-            .from('companies').select('id').in('name', companies).eq('tenant_id', tenantId);
-        companyIds = (matched || []).map(c => c.id);
-        if (!companyIds.length) return [];
-    }
-
-    // Step 2: get excluded invoice ids
-    const { data: excluded } = await supabase
-        .from('fully_internal_invoice_ids').select('invoice_id');
-    const excludeIds = (excluded || []).map(r => r.invoice_id);
-
-    // Step 3: fetch invoices matching the filter — capture their calculation_rate too
-    let invQ = supabase
-        .from('invoices')
-        .select('id, calculation_rate, base_currency')
-        .eq('tenant_id', tenantId)
-        .or('approval_status.neq.pending,approval_status.is.null');
-
-    if (direction)          invQ = invQ.eq('direction', direction);
-    if (currency)           invQ = invQ.eq('base_currency', currency);
-    if (dateStart)          invQ = invQ.gte('invoice_date', dateStart);
-    if (dateEnd)            invQ = invQ.lte('invoice_date', dateEnd);
-    if (companyIds?.length) invQ = invQ.in('company_id', companyIds);
-    if (excludeIds.length)  invQ = invQ.not('id', 'in', `(${excludeIds.join(',')})`);
-
-    const { data: invRows, error: invErr } = await invQ;
-    if (invErr) throw invErr;
-
-    const invoiceIds = (invRows || []).map(r => r.id);
-    if (!invoiceIds.length) return [];
-
-    // Build invoice_id → calculation_rate map for TL conversion
-    const rateMap = new Map();
-    (invRows || []).forEach(r => {
-        rateMap.set(r.id, parseFloat(r.calculation_rate) || 1);
-    });
-
-    // Step 4: fetch items for those invoices
-    // Chunk if too many (URL length safety)
-    let itemRows;
-    if (invoiceIds.length <= 500) {
-        const { data } = await supabase
-            .from('invoice_items')
-            .select('invoice_id, product_name, product_code, brand_name, quantity, total_price_cur, currency, is_internal')
-            .eq('is_internal', false)
-            .in('invoice_id', invoiceIds);
-        itemRows = data || [];
-    } else {
-        // Fallback: fetch all non-internal, filter in JS
-        const { data } = await supabase
-            .from('invoice_items')
-            .select('invoice_id, product_name, product_code, brand_name, quantity, total_price_cur, currency, is_internal')
-            .eq('is_internal', false);
-        const idSet = new Set(invoiceIds);
-        itemRows = (data || []).filter(r => idSet.has(r.invoice_id));
-    }
-
-    // Step 5: enrich with category if needed
-    let categoryMap = {};
-    if (groupBy === 'category') {
-        const productCodes = [...new Set(itemRows.map(r => r.product_code).filter(Boolean))];
-        if (productCodes.length) {
-            const { data: productRows } = await supabase
-                .from('products')
-                .select('product_code, category')
-                .eq('tenant_id', tenantId)
-                .in('product_code', productCodes);
-            (productRows || []).forEach(p => {
-                if (p.product_code && p.category) categoryMap[p.product_code] = p.category;
-            });
-        }
-    }
-
-    // Step 6: aggregate — per-currency totals + TL-equivalent for sorting
-    const bucketMap = new Map();
-
-    itemRows.forEach(r => {
-        let key;
-        if (groupBy === 'brand')         key = r.brand_name;
-        else if (groupBy === 'category') key = categoryMap[r.product_code];
-        else                             key = r.product_name;
-
-        if (!key) return;
-
-        if (!bucketMap.has(key)) {
-            bucketMap.set(key, {
-                name:          key,
-                count:         0,
-                quantity:      0,
-                try_total:     0,
-                usd_total:     0,
-                eur_total:     0,
-                tl_equivalent: 0,   // used for sorting only, not sent to Claude
-            });
-        }
-
-        const b        = bucketMap.get(key);
-        const rate     = rateMap.get(r.invoice_id) || 1;
-        const cur      = (r.currency || 'TRY').toUpperCase();
-        const priceCur = parseFloat(r.total_price_cur) || 0;
-
-        b.lineCount++;                                  // number of invoice lines
-        b.quantity += parseFloat(r.quantity) || 0;      // total units sold
-
-        if (cur === 'USD') {
-            b.usd_total     += priceCur;
-            b.tl_equivalent += priceCur * rate;
-        } else if (cur === 'EUR') {
-            b.eur_total     += priceCur;
-            b.tl_equivalent += priceCur * rate;
-        } else {
-            // TRY / TL
-            b.try_total     += priceCur;
-            b.tl_equivalent += priceCur;
-        }
-    });
-
-    // Step 7: sort — use tl_equivalent when sorting by total (for cross-currency correctness)
-    const sortKey = sortBy === 'count'    ? 'count'
-                  : sortBy === 'quantity' ? 'quantity'
-                                          : 'tl_equivalent';
-
-    const sorted = [...bucketMap.values()]
-        .sort((a, b) => b[sortKey] - a[sortKey])
-        .slice(0, cappedLimit);
-
-    // Step 8: strip tl_equivalent from the response — it was internal-only
-    return sorted.map(({ tl_equivalent, ...rest }) => rest);
-}
 
 
 // GET /api/invoices
@@ -644,17 +375,9 @@ router.get('/', async (req, res) => {
       .select('*, companies(*), invoice_items(*)', { count: 'exact' })
       .or(`tenant_id.eq.${tenantId},tenant_id.is.null`)
       .or('approval_status.neq.pending,approval_status.is.null')
+      .or('invoice_category.neq.NON_INTERNAL,invoice_category.is.null')
       .order(sortCol, { ascending: sortDir === 'asc' });
 
-
-    // Sonra excluded'ı çek ve query'ye ekle
-    const { data: excluded } = await supabase
-      .from('fully_internal_invoice_ids')
-      .select('invoice_id');
-    const excludeIds = (excluded || []).map(r => r.invoice_id);
-    if (excludeIds.length) {
-      query = query.not('id', 'in', `(${excludeIds.join(',')})`);
-    }
 
     if (direction) query = query.eq('direction', direction);
     if (status) query = query.ilike('status', status);
@@ -705,20 +428,14 @@ router.get('/filter-options', async (req, res) => {
     const tenantId = req.tenantId;
     const direction = req.query.direction;
 
-    //because we don't have invoice based internal-noninternal seperation we do it from invoiceitems
-    // Small exclude list — negation is URL-safe
-    const { data: excluded } = await supabase
-      .from('fully_internal_invoice_ids')
-      .select('invoice_id');
-    const excludeIds = (excluded || []).map(r => r.invoice_id);
 
     let invQuery = supabase
       .from('invoices')
       .select('id, invoice_no, base_currency, companies(name)')
       .eq('tenant_id', tenantId)
-      .or('approval_status.neq.pending,approval_status.is.null');
+      .or('approval_status.neq.pending,approval_status.is.null')
+      .or('invoice_category.neq.NON_INTERNAL,invoice_category.is.null');
 
-    if (excludeIds.length) invQuery = invQuery.not('id', 'in', `(${excludeIds.join(',')})`);
 
     if (direction) invQuery = invQuery.eq('direction', direction);
 
@@ -743,7 +460,7 @@ router.get('/filter-options', async (req, res) => {
     let itemQuery = supabase
       .from('invoice_items')
       .select('invoice_id, brand_name, product_name, product_code')
-      .eq('is_internal', false);
+      .eq('is_internal', true);
 
     const { data: allItems } = await itemQuery;
 
@@ -767,7 +484,7 @@ router.get('/filter-options', async (req, res) => {
         .from('products')
         .select('product_code, category,brand, model')
         .eq('tenant_id', tenantId)
-        .eq('is_internal', false)
+        .eq('is_internal', true)
         .in('product_code', productCodes)
         .not('category', 'is', null);
 
@@ -822,10 +539,6 @@ router.get('/totals', async (req, res) => {
     const companies = req.query.companies ? req.query.companies.split(',').map(s => s.trim()).filter(Boolean) : [];
     const brands = req.query.brands ? req.query.brands.split(',').map(s => s.trim()).filter(Boolean) : [];
 
-    const { data: niItems } = await supabase.from('invoice_items').select('invoice_id').eq('is_internal', false);
-    const nonInternalIds = [...new Set((niItems || []).map(r => r.invoice_id).filter(Boolean))];
-    if (!nonInternalIds.length) return res.json({ total_tl: 0, total_usd: 0, count: 0, unpaid_tl: 0 });
-
     // Companies
     const companyIds = await resolveCompanyIds(supabase, tenantId, companies);
     if (companyIds !== null && !companyIds.length) return res.json(/* empty */);
@@ -847,7 +560,7 @@ router.get('/totals', async (req, res) => {
       .from('invoices')
       .select('payable_amount_tl, payable_amount_cur, base_currency, status, paid_amount_cur, calculation_rate')
       .eq('tenant_id', tenantId)
-      .in('id', nonInternalIds);
+      .or('invoice_category.neq.NON_INTERNAL,invoice_category.is.null');
 
     if (pendingOnly) query = query.eq('approval_status', 'pending');
     else query = query.or('approval_status.neq.pending,approval_status.is.null');
@@ -889,14 +602,13 @@ router.get('/price-histogram', async (req, res) => {
     const direction = req.query.direction;
     const BIN_COUNT = 10;
 
-
-
     // Build query — only fetch payable_amount_tl
     let query = supabase
       .from('invoices')
       .select('payable_amount_tl')
       .or(`tenant_id.eq.${tenantId},tenant_id.is.null`)
       .or('approval_status.neq.pending,approval_status.is.null')
+      .or('invoice_category.neq.NON_INTERNAL,invoice_category.is.null')
       .not('payable_amount_tl', 'is', null);
 
     if (direction) query = query.eq('direction', direction);
@@ -957,6 +669,7 @@ router.get('/kpi-summary', async (req, res) => {
         res.status(500).json({ error: err.message });
     }
 });
+
 router.get('/kpi-deltas', async (req, res) => {
   try {
     const supabase = req.app.get('supabase');
@@ -978,12 +691,6 @@ router.get('/kpi-deltas', async (req, res) => {
     const previousStart = daysAgo(60);
     const previousEnd   = daysAgo(30);
 
-    // Fetch exclude list once (fully-internal invoices)
-    const { data: excluded } = await supabase
-      .from('fully_internal_invoice_ids')
-      .select('invoice_id');
-    const excludeIds = (excluded || []).map(r => r.invoice_id);
-
     // Helper — fetch a window and reduce to totals
     async function _fetchWindow(startDate, endDateExclusive) {
       let q = supabase
@@ -991,11 +698,11 @@ router.get('/kpi-deltas', async (req, res) => {
         .select('company_id, base_currency, payable_amount_tl, payable_amount_cur')
         .eq('tenant_id', tenantId)
         .or('approval_status.neq.pending,approval_status.is.null')
+        .or('invoice_category.neq.NON_INTERNAL,invoice_category.is.null')
         .gte('invoice_date', iso(startDate))
         .lt('invoice_date', iso(endDateExclusive));
 
       if (direction) q = q.eq('direction', direction);
-      if (excludeIds.length) q = q.not('id', 'in', `(${excludeIds.join(',')})`);
 
       const { data, error } = await q;
       if (error) return { count: 0, company_count: 0, try_total: 0, usd_total: 0, eur_total: 0 };
@@ -1050,22 +757,17 @@ router.get('/cashflow-series', async (req, res) => {
     const tenantId  = req.tenantId;
     const { direction, date_start, date_end, bucket = 'month' } = req.query;
 
-    // get excluded invoice ids
-    const { data: excluded } = await supabase
-      .from('fully_internal_invoice_ids')
-      .select('invoice_id');
-    const excludeIds = (excluded || []).map(r => r.invoice_id);
 
     let q = supabase
       .from('invoices')
       .select('invoice_date, base_currency, payable_amount_tl, payable_amount_cur')
       .eq('tenant_id', tenantId)
+      .or('invoice_category.neq.NON_INTERNAL,invoice_category.is.null')
       .or('approval_status.neq.pending,approval_status.is.null');
 
     if (direction)  q = q.eq('direction', direction);
     if (date_start) q = q.gte('invoice_date', date_start);
     if (date_end)   q = q.lte('invoice_date', date_end);
-    if (excludeIds.length) q = q.not('id', 'in', `(${excludeIds.join(',')})`);
 
     const { data: rows, error } = await q;
     if (error) throw error;
@@ -1118,21 +820,14 @@ router.get('/top-companies', async (req, res) => {
     const dateStart  = req.query.date_start;
     const dateEnd    = req.query.date_end;
 
-    // Exclude fully-internal invoices
-    // Fetch the small "fully internal" exclude list
-    const { data: excluded } = await supabase
-      .from('fully_internal_invoice_ids')
-      .select('invoice_id');
-    const excludeIds = (excluded || []).map(r => r.invoice_id);
 
     // Fetch invoices with company name, direction, amounts
     let query = supabase
       .from('invoices')
       .select('direction, base_currency, payable_amount_tl, payable_amount_cur, calculation_rate, companies(name)')
       .eq('tenant_id', tenantId)
+      .or('invoice_category.neq.NON_INTERNAL,invoice_category.is.null')
       .or('approval_status.neq.pending,approval_status.is.null');
-
-    if (excludeIds.length) query = query.not('id', 'in', `(${excludeIds.join(',')})`);
 
     if (direction)  query = query.eq('direction', direction);
     if (dateStart)  query = query.gte('invoice_date', dateStart);
@@ -1185,11 +880,6 @@ router.get('/company-cadence', async (req, res) => {
     const windowStart = new Date(now.getFullYear(), now.getMonth() - (months - 1), 1);
     const iso         = d => d.toISOString().slice(0, 10);
 
-    // Exclude fully-internal invoices (same pattern as other routes)
-    const { data: excluded } = await supabase
-      .from('fully_internal_invoice_ids')
-      .select('invoice_id');
-    const excludeIds = (excluded || []).map(r => r.invoice_id);
 
     // Fetch invoices in window
     let q = supabase
@@ -1197,11 +887,11 @@ router.get('/company-cadence', async (req, res) => {
       .select('invoice_date, companies(name)')
       .eq('tenant_id', tenantId)
       .or('approval_status.neq.pending,approval_status.is.null')
+      .or('invoice_category.neq.NON_INTERNAL,invoice_category.is.null')
       .gte('invoice_date', iso(windowStart))
       .not('invoice_date', 'is', null);
 
     if (direction)         q = q.eq('direction', direction);
-    if (excludeIds.length) q = q.not('id', 'in', `(${excludeIds.join(',')})`);
 
     const { data: rows, error } = await q;
     if (error) throw error;
@@ -1299,14 +989,13 @@ router.get('/trend', async (req, res) => {
     const productIds = await resolveInvoiceIdsByProduct(supabase, products);
     if (productIds !== null && !productIds.length) return res.json(/* empty */);
 
-    // Exclude fully-internal invoices
-    const { data: excluded } = await supabase.from('fully_internal_invoice_ids').select('invoice_id');
-    const excludeIds = (excluded || []).map(r => r.invoice_id);
+
 
     // ── Fetch raw invoice dates + amounts ─────────────────────────────────
     let query = supabase
       .from('invoices')
       .select('invoice_date, base_currency, payable_amount_tl, payable_amount_cur')
+      .or('invoice_category.neq.NON_INTERNAL,invoice_category.is.null')
       .eq('tenant_id', tenantId);
 
     if (pendingOnly) query = query.eq('approval_status', 'pending');
@@ -1322,7 +1011,6 @@ router.get('/trend', async (req, res) => {
     if (categoryIds)    query = query.in('id', categoryIds);
     if (productIds)     query = query.in('id', productIds);
     if (modelIds)       query = query.in('id', modelIds);
-    if (excludeIds.length)  query = query.not('id', 'in', `(${excludeIds.join(',')})`);
 
     const { data: rows, error } = await query;
     if (error) throw error;
@@ -1454,7 +1142,7 @@ router.get('/ofis-ici', async (req, res) => {
     const limit = Math.min(200, parseInt(req.query.limit) || 0);
     const totalsOnly = req.query.totals === 'true';
 
-    let itemQuery = supabase.from('invoice_items').select('invoice_id').eq('is_internal', true);
+    let itemQuery = supabase.from('invoice_items').select('invoice_id').eq('is_internal', false);
     if (category) itemQuery = itemQuery.eq('item_subcategory', category);
     const { data: items, error: itemsErr } = await itemQuery;
     if (itemsErr) throw itemsErr;
@@ -1474,6 +1162,7 @@ router.get('/ofis-ici', async (req, res) => {
       .eq('tenant_id', tenantId)
       .in('id', invoiceIds)
       .or('approval_status.eq.approved,approval_status.is.null')
+      .eq('invoice_category','NON_INTERNAL')
       .order('invoice_date', { ascending: false });
 
     if (search) query = query.or(`invoice_no.ilike.%${search}%`);
@@ -1482,21 +1171,30 @@ router.get('/ofis-ici', async (req, res) => {
     if (companyIds?.length) query = query.in('company_id', companyIds);
 
     if (totalsOnly) {
-      const { data, error, count } = await query;
+      const { data, error } = await query;
       if (error) throw error;
       const rows = data || [];
+
       let tryTotal = 0, usdTotal = 0;
       const catMap = {};
+
       rows.forEach(inv => {
         const isUSD = (inv.base_currency || '').toUpperCase() === 'USD';
-        (inv.invoice_items || []).filter(it => it.is_internal).forEach(it => {
+        (inv.invoice_items || []).filter(it => !it.is_internal).forEach(it => {
           const lineTotal = parseFloat(it.total_price_cur) || 0;
-          if (isUSD) usdTotal += lineTotal; else tryTotal += lineTotal;
+          if (isUSD) usdTotal += lineTotal;
+          else       tryTotal += lineTotal;
           const cat = it.item_subcategory || 'diğer';
           catMap[cat] = (catMap[cat] || 0) + (parseFloat(it.quantity) || 1);
         });
       });
-      return res.json({ count: count || 0, total_tl: tryTotal, total_usd: usdTotal, cat_map: catMap });
+
+      return res.json({
+        count:     rows.length,     // ← derive from data, not the PostgREST count header
+        total_tl:  tryTotal,
+        total_usd: usdTotal,
+        cat_map:   catMap,
+      });
     }
 
     if (limit > 0) query = query.range((page - 1) * limit, page * limit - 1);
@@ -1816,7 +1514,7 @@ router.post('/items/normalize-sku', async (req, res) => {
 router.get('/ofis-ici-categories', async (req, res) => {
   try {
     const supabase = req.app.get('supabase');
-    const { data, error } = await supabase.from('invoice_items').select('item_subcategory').eq('is_internal', true).not('item_subcategory', 'is', null).neq('item_subcategory', '');
+    const { data, error } = await supabase.from('invoice_items').select('item_subcategory').eq('is_internal', false).not('item_subcategory', 'is', null).neq('item_subcategory', '');
     if (error) throw error;
     const cats = [...new Set((data || []).map(r => r.item_subcategory).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'tr'));
     res.json(cats);
@@ -1829,7 +1527,7 @@ router.get('/ofis-ici-categories', async (req, res) => {
 router.get('/internal-categories', async (req, res) => {
   try {
     const supabase = req.app.get('supabase');
-    const { data, error } = await supabase.from('invoice_items').select('item_subcategory').eq('is_internal', true).not('item_subcategory', 'is', null).neq('item_subcategory', '');
+    const { data, error } = await supabase.from('invoice_items').select('item_subcategory').eq('is_internal', false).not('item_subcategory', 'is', null).neq('item_subcategory', '');
     if (error) throw error;
     const countMap = {};
     (data || []).forEach(r => { const c = r.item_subcategory; if (c) countMap[c] = (countMap[c] || 0) + 1; });
@@ -1949,6 +1647,4 @@ router.put('/:id/items/batch-category', async (req, res) => {
 });
 
 module.exports = router;
-module.exports.fetchKpiSummary = fetchKpiSummary;   // ← add this line
-module.exports.fetchInvoiceList = fetchInvoiceList;
-module.exports.fetchProductBreakdown = fetchProductBreakdown;
+module.exports.fetchKpiSummary = fetchKpiSummary;

@@ -423,7 +423,7 @@ async function renderTable(orders) {
         const profitColor = (order.net_profit || 0) >= 0 ? "#16a34a" : "#dc2626";
         return `
             <tr style="border-bottom:1px solid #f1f5f9; cursor:pointer; transition:background 0.1s;"
-                onclick="window.location.href='/dmo/pages/invoice.html?id=${order.id}'"
+                onclick="window.location.href='/dmo/pages/invoice.pages?id=${order.id}'"
                 onmouseover="this.style.background='#f8fafc'"
                 onmouseout="this.style.background=''"
             >

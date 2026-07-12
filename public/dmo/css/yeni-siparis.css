@@ -50,7 +50,6 @@
     background: #f9fafb;
 }
 
-.text-right { text-align: right; }
 .section-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid var(--text-main); padding-bottom: 5px; }
 .btn-text { background: none; border: none; color: var(--primary); font-weight: 700; cursor: pointer; }
 

@@ -643,7 +643,7 @@ async function renderUrunlerView(id, body, inv) {
         : '';
 
     const cards = items.map(it => {
-        const isInt = !!it.is_internal;
+        const isInt = !it.is_internal;
         const code = String(it.product_code || it.sku || '').trim();
         const name = String(it.product_name || '').trim();
         const cat = isInt
@@ -707,7 +707,7 @@ function enterUrunlerEdit(id) {
     const fmtP = n => (parseFloat(n) || 0).toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
     function buildItem(it, idx) {
-        const isInt = !!it.is_internal;
+        const isInt = !it.is_internal;
         const code = String(it.product_code || it.sku || '').trim();
         const name = String(it.product_name || '').replace(/</g, '&lt;');
         const brand = String(it.brand_name || it.brand || '').replace(/"/g, '&quot;');

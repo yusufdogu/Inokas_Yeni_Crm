@@ -4,6 +4,440 @@
 const express = require('express');
 const router  = express.Router();
 
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  NEW STOCK ROUTES — merge these into routes/stocks.js
+//  (paste above `module.exports = router;`)
+//
+//  All four are tenant-scoped (req.tenantId) and reconstruct stock history from
+//  invoice_items + invoices, mirroring the existing /summary and the invoices
+//  /cashflow-series patterns.
+//
+//  Value model (agreed): cumulative running balance per product
+//    stock(T) = Σ INCOMING qty (date ≤ T) − Σ OUTGOING qty (date ≤ T)
+//  valued at the product's latest known unit_price, normalized to TL.
+//  Chart = single TL line. Totals card = three separate currencies.
+// ═══════════════════════════════════════════════════════════════════════════
+
+// ── Shared helper: load approved, non-internal invoice lines for the tenant ───
+// Returns [{ sku, name, qty, direction, date, currency, unit_price_cur, rate }]
+// plus a productByCode map (from products) for latest price / brand / category.
+async function _loadStockLines(supabase, tenantId, { dateStart, dateEnd } = {}) {
+  let query = supabase
+    .from('invoices')
+    .select(`invoice_date, direction, currency, calculation_rate, approval_status, tenant_id,
+             invoice_items(product_name, product_code, quantity, unit_price_cur, currency, is_internal)`)
+    .eq('tenant_id', tenantId)
+    .eq('approval_status', 'approved')
+    .or('invoice_category.eq.INTERNAL,invoice_category.is.null')
+    .order('invoice_date', { ascending: true });
+
+  if (dateStart) query = query.gte('invoice_date', dateStart);
+  if (dateEnd)   query = query.lte('invoice_date', dateEnd);
+
+  const { data: invoices, error } = await query;
+  if (error) throw error;
+
+
+  const lines = [];
+  (invoices || []).forEach(inv => {
+    if (!inv || inv.tenant_id !== tenantId) return;
+    const direction = String(inv.direction || '').toUpperCase();
+    (inv.invoice_items || []).forEach(it => {
+      const sku = String(it.product_code || '').trim();
+      if (!sku) return;
+      lines.push({
+        sku,
+        name: it.product_name,
+        qty: Number(it.quantity) || 0,
+        direction,
+        date: inv.invoice_date || null,
+        currency: String(it.currency || inv.currency || '').toUpperCase(),
+        unit_price_cur: Number(it.unit_price_cur) || 0,
+        rate: Number(inv.calculation_rate) || 0,
+      });
+    });
+  });
+
+  // latest price / brand / category per product (current snapshot)
+  const skus = [...new Set(lines.map(l => l.sku))];
+  const productByCode = new Map();
+  if (skus.length) {
+    const { data: prods, error: pErr } = await supabase
+      .from('products')
+      .select('product_code, brand, category, stock_on_hand, last_purchase_price_cur, last_purchase_currency, last_purchase_rate, avg_purchase_price_tl, is_internal, is_hidden')
+      .eq('tenant_id', tenantId)
+      .eq('is_internal',true)
+      .in('product_code', skus);
+    if (pErr) throw pErr;
+    (prods || []).forEach(p => {
+      productByCode.set(String(p.product_code || '').trim(), p);
+    });
+  }
+
+  return { lines, productByCode };
+}
+
+// Latest TL unit price for a product (fallbacks mirror the frontend logic).
+function _latestUnitTL(p) {
+  if (!p) return 0;
+  const cur = String(p.last_purchase_currency || '').toUpperCase();
+  if ((cur === 'TRY' || cur === 'TL') && Number(p.avg_purchase_price_tl) > 0) return Number(p.avg_purchase_price_tl);
+  const unit = Number(p.last_purchase_price_cur) || 0;
+  const rate = Number(p.last_purchase_rate) || 0;
+  if (unit > 0 && rate > 0) return unit * rate;
+  if (Number(p.avg_purchase_price_tl) > 0) return Number(p.avg_purchase_price_tl);
+  return 0;
+}
+
+// Bucket-key generator (same grains as invoices/cashflow-series).
+function _bucketKeyOf(d, bucket) {
+  if (bucket === 'day') {
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  }
+  if (bucket === 'week') {
+    const day = d.getDay() || 7;
+    const monday = new Date(d);
+    monday.setHours(0, 0, 0, 0);
+    monday.setDate(d.getDate() - (day - 1));
+    return `${monday.getFullYear()}-${String(monday.getMonth() + 1).padStart(2, '0')}-${String(monday.getDate()).padStart(2, '0')}`;
+  }
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`; // month
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// GET /api/stocks/value-series?bucket=day|week|month&date_start&date_end
+// Cumulative held-stock value in TL, sampled at each bucket boundary.
+// ─────────────────────────────────────────────────────────────────────────────
+router.get('/value-series', async (req, res) => {
+  try {
+    const supabase = req.app.get('supabase');
+    const tenantId = req.tenantId;
+    const bucket   = String(req.query.bucket || 'month');
+    const dateStart = String(req.query.date_start || '').trim() || null;
+    const dateEnd   = String(req.query.date_end   || '').trim() || null;
+
+    // NOTE: for a running balance we need ALL history up to date_end, so we do
+    // NOT pass dateStart to the loader — we filter the OUTPUT range instead.
+    const { lines, productByCode } = await _loadStockLines(supabase, tenantId, { dateEnd });
+
+    // price per sku (latest TL)
+    const priceBySku = new Map();
+    productByCode.forEach((p, code) => priceBySku.set(code, _latestUnitTL(p)));
+
+    // sort lines by date, assign each a bucket, accumulate net qty per sku
+    const dated = lines.filter(l => l.date).sort((a, b) => String(a.date).localeCompare(String(b.date)));
+
+    // running net-qty per sku, snapshot the TOTAL value at each bucket boundary
+    const netBySku = new Map();
+    const bucketValue = new Map();   // bucketKey -> total TL value at end of bucket
+    let lastKey = null;
+
+    const snapshot = () => {
+      let total = 0;
+      netBySku.forEach((qty, sku) => {
+        if (qty > 0) total += qty * (priceBySku.get(sku) || 0);
+      });
+      return total;
+    };
+
+    dated.forEach(l => {
+      const d = new Date(l.date);
+      const key = _bucketKeyOf(d, bucket);
+      if (lastKey !== null && key !== lastKey) {
+        bucketValue.set(lastKey, snapshot());   // close previous bucket
+      }
+      const delta = l.direction === 'INCOMING' ? l.qty : -l.qty;
+      netBySku.set(l.sku, (netBySku.get(l.sku) || 0) + delta);
+      lastKey = key;
+    });
+    if (lastKey !== null) bucketValue.set(lastKey, snapshot()); // close final bucket
+
+    let series = [...bucketValue.entries()]
+      .map(([period, value_tl]) => ({ period, value_tl: Math.round(value_tl) }))
+      .sort((a, b) => a.period.localeCompare(b.period));
+
+    // trim to requested display window (values remain cumulative/correct)
+    if (dateStart) {
+      const startKey = _bucketKeyOf(new Date(dateStart), bucket);
+      series = series.filter(pt => pt.period >= startKey);
+    }
+
+    res.json({ series, bucket });
+  } catch (err) {
+    console.error('value-series hatası:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// GET /api/stocks/totals?date_start&date_end
+// Stock as-of period end: 3-currency value + counts + top-3 lists (by TL value).
+// ─────────────────────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
+// GET /api/stocks/totals?date_end=
+// "Now" (no date_end, or date_end >= today) → read the products snapshot
+// (stock_on_hand), matching the ürünler page exactly.
+// A PAST date_end → reconstruct held stock from invoice history (best-effort).
+// ─────────────────────────────────────────────────────────────────────────────
+router.get('/totals', async (req, res) => {
+  try {
+    const supabase = req.app.get('supabase');
+    const tenantId = req.tenantId;
+    const dateEnd  = String(req.query.date_end || '').trim() || null;
+
+    const today = new Date().toISOString().slice(0, 10);
+    const isHistorical = dateEnd && dateEnd < today;
+
+    // ── Build a { sku → netQty } map ─────────────────────────────────────────
+    // Snapshot: read stock_on_hand straight from products (source of truth).
+    // Historical: reconstruct Σ IN − Σ OUT up to date_end.
+    let netBySku = new Map();
+    let productByCode;
+
+    if (isHistorical) {
+      const loaded = await _loadStockLines(supabase, tenantId, { dateEnd });
+      productByCode = loaded.productByCode;
+      loaded.lines.filter(l => l.date).forEach(l => {
+        const delta = l.direction === 'INCOMING' ? l.qty : -l.qty;
+        netBySku.set(l.sku, (netBySku.get(l.sku) || 0) + delta);
+      });
+    } else {
+      // snapshot straight from the products table
+      const { data: prods, error } = await supabase
+        .from('products')
+        .select('product_code, product_name, brand, category, stock_on_hand, last_purchase_price_cur, last_purchase_currency, last_purchase_rate, avg_purchase_price_tl, is_internal, is_hidden')
+        .eq('tenant_id', tenantId)
+        .eq('is_internal', true)
+        .eq('is_hidden', false);
+      if (error) throw error;
+
+      productByCode = new Map();
+      (prods || []).forEach(p => {
+        const code = String(p.product_code || '').trim();
+        if (!code) return;
+        productByCode.set(code, p);
+        netBySku.set(code, Number(p.stock_on_hand || 0));
+      });
+    }
+
+    // ── Aggregate (identical for both paths) ─────────────────────────────────
+    let tl = 0, eur = 0, usd = 0, totalQty = 0, productCount = 0;
+    const catVal = {}, brandVal = {}, prodVal = {};
+    const cats = new Set(), brands = new Set();
+
+    netBySku.forEach((qty, sku) => {
+      if (qty <= 0) return;
+      const p = productByCode.get(sku);
+      if (!p) return;
+      productCount += 1;
+      totalQty += qty;
+
+      const cur    = String(p.last_purchase_currency || '').toUpperCase();
+      const unit   = Number(p.last_purchase_price_cur) || 0;
+      const tlUnit = _latestUnitTL(p);
+
+      // three separate currency totals — mirrors renderUrunlerKpis exactly
+      if ((cur === 'TRY' || cur === 'TL') && Number(p.avg_purchase_price_tl) > 0) {
+        tl += qty * Number(p.avg_purchase_price_tl);
+      } else if (cur === 'EUR' && unit > 0) {
+        eur += qty * unit;
+      } else if (cur === 'USD' && unit > 0) {
+        usd += qty * unit;
+      }
+
+      // top lists ranked by TL-equivalent value
+      const vTL = qty * tlUnit;
+      const cat = String(p.category || '').trim();
+      const br  = String(p.brand || '').trim();
+      if (cat) { cats.add(cat);  catVal[cat]  = (catVal[cat]  || 0) + vTL; }
+      if (br)  { brands.add(br); brandVal[br] = (brandVal[br] || 0) + vTL; }
+      prodVal[sku] = { name: p.product_name || sku, val: vTL };
+    });
+
+    const rankAll = (obj) =>
+      Object.entries(obj).map(([name, val]) => ({ name, val: Math.round(val) }))
+        .sort((a, b) => b.val - a.val);
+
+    const topProducts = Object.values(prodVal)
+      .map(x => ({ name: x.name, val: Math.round(x.val) }))
+      .sort((a, b) => b.val - a.val);
+
+    res.json({
+      tl: Math.round(tl), eur: Math.round(eur), usd: Math.round(usd),
+      products: productCount, total_qty: totalQty,
+      categories: cats.size, brands: brands.size,
+      top_products: topProducts,
+      top_categories: rankAll(catVal),
+      top_brands: rankAll(brandVal),
+    });
+  } catch (err) {
+    console.error('stocks/totals hatası:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+// ─────────────────────────────────────────────────────────────────────────────
+// GET /api/stocks/insights
+// Snapshot (not period-filtered): risers, dead, risky + a simple forecast.
+//   dead  = stock_on_hand > 0 AND no OUTGOING line in last 14 days
+//   risky = stock_on_hand < 5
+//   riser = OUTGOING value last 30d / prior 30d > 1
+// ─────────────────────────────────────────────────────────────────────────────
+router.get('/insights', async (req, res) => {
+  try {
+    const supabase = req.app.get('supabase');
+    const tenantId = req.tenantId;
+
+    const { lines, productByCode } = await _loadStockLines(supabase, tenantId, {});
+
+    const now = Date.now();
+    const DAY = 24 * 60 * 60 * 1000;
+    const d14 = now - 14 * DAY;
+    const d30 = now - 30 * DAY;
+    const d60 = now - 60 * DAY;
+
+    // per-sku aggregates from movement history
+    const lastOutBySku = new Map();          // most recent OUTGOING ts
+    const out30 = new Map(), outPrev30 = new Map();  // OUTGOING value windows (TL)
+
+    lines.forEach(l => {
+      const ts = l.date ? new Date(l.date).getTime() : NaN;
+      if (!Number.isFinite(ts)) return;
+      if (l.direction !== 'OUTGOING') return;
+
+      if (!lastOutBySku.has(l.sku) || ts > lastOutBySku.get(l.sku)) lastOutBySku.set(l.sku, ts);
+
+      const p = productByCode.get(l.sku);
+      const tlUnit = _latestUnitTL(p);
+      const vTL = l.qty * tlUnit;
+      if (ts >= d30)                 out30.set(l.sku,     (out30.get(l.sku)     || 0) + vTL);
+      else if (ts >= d60 && ts < d30) outPrev30.set(l.sku, (outPrev30.get(l.sku) || 0) + vTL);
+    });
+
+    const dead = [], risky = [], risers = [];
+
+    productByCode.forEach((p, sku) => {
+      const stock = Number(p.stock_on_hand || 0);
+      const tlUnit = _latestUnitTL(p);
+      const valueTL = Math.round(stock * tlUnit);
+
+      // dead
+      const lastOut = lastOutBySku.get(sku) || 0;
+      if (stock > 0 && lastOut < d14) {
+        const daysIdle = lastOut ? Math.round((now - lastOut) / DAY) : 999;
+        dead.push({ name: p.product_name || sku, code: sku, qty: stock, days: daysIdle, value_tl: valueTL });
+      }
+
+      // risky
+      if (stock > 0 && stock < 5) {
+        risky.push({ name: p.product_name || sku, code: sku, qty: stock, value_tl: valueTL });
+      }
+
+      // riser
+      const cur = out30.get(sku) || 0;
+      const prev = outPrev30.get(sku) || 0;
+      if (prev > 0 && cur / prev > 1) {
+        risers.push({
+          name: p.product_name || sku, code: sku,
+          mult: +(cur / prev).toFixed(1),
+          prev_tl: Math.round(prev), now_tl: Math.round(cur),
+        });
+      }
+    });
+
+    dead.sort((a, b) => b.value_tl - a.value_tl);
+    risky.sort((a, b) => a.qty - b.qty);
+    risers.sort((a, b) => b.mult - a.mult);
+
+    // simple month-end forecast from current total held value
+    let totalTL = 0;
+    productByCode.forEach(p => { totalTL += Number(p.stock_on_hand || 0) * _latestUnitTL(p); });
+    const today = new Date();
+    const dayOfMonth = today.getDate();
+    const daysInMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate();
+
+    res.json({
+      risers: risers.slice(0, 8),
+      dead:   dead.slice(0, 8),
+      risky:  risky.slice(0, 8),
+      forecast: {
+        now_tl: Math.round(totalTL),
+        // naive linear projection to month end (placeholder until real model)
+        projected_tl: Math.round(totalTL * (daysInMonth / Math.max(1, dayOfMonth))),
+        pct: Math.round(dayOfMonth / daysInMonth * 100),
+        day_of_month: dayOfMonth,
+      },
+    });
+  } catch (err) {
+    console.error('stocks/insights hatası:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// GET /api/stocks/kpi-deltas
+// % change (last 30d vs prior 30–60d) for the ürünler trend pills.
+// Compares held-stock value/counts at "today" vs "30 days ago" reconstructions.
+// ─────────────────────────────────────────────────────────────────────────────
+router.get('/kpi-deltas', async (req, res) => {
+  try {
+    const supabase = req.app.get('supabase');
+    const tenantId = req.tenantId;
+
+    const { lines, productByCode } = await _loadStockLines(supabase, tenantId, {});
+
+    const DAY = 24 * 60 * 60 * 1000;
+    const tNow  = Date.now();
+    const tPrev = tNow - 30 * DAY;
+
+    // reconstruct net qty per sku as of a cutoff timestamp
+    const netAsOf = (cutoffTs) => {
+      const net = new Map();
+      lines.forEach(l => {
+        const ts = l.date ? new Date(l.date).getTime() : NaN;
+        if (!Number.isFinite(ts) || ts > cutoffTs) return;
+        const delta = l.direction === 'INCOMING' ? l.qty : -l.qty;
+        net.set(l.sku, (net.get(l.sku) || 0) + delta);
+      });
+      return net;
+    };
+
+    const measure = (net) => {
+      let valueTL = 0, qty = 0, products = 0;
+      const cats = new Set(), brands = new Set();
+      net.forEach((q, sku) => {
+        if (q <= 0) return;
+        const p = productByCode.get(sku);
+        if (!p) return;
+        products += 1;
+        qty += q;
+        valueTL += q * _latestUnitTL(p);
+        const c = String(p.category || '').trim(); if (c) cats.add(c);
+        const b = String(p.brand || '').trim();    if (b) brands.add(b);
+      });
+      return { valueTL, qty, products, categories: cats.size, brands: brands.size };
+    };
+
+    const cur  = measure(netAsOf(tNow));
+    const prev = measure(netAsOf(tPrev));
+
+    const pct = (a, b) => {
+      if (!b) return a > 0 ? 100 : 0;
+      return +(((a - b) / b) * 100).toFixed(1);
+    };
+
+    res.json({
+      value_tl:   pct(cur.valueTL,    prev.valueTL),
+      qty:        pct(cur.qty,        prev.qty),
+      products:   pct(cur.products,   prev.products),
+      categories: pct(cur.categories, prev.categories),
+      brands:     pct(cur.brands,     prev.brands),
+    });
+  } catch (err) {
+    console.error('stocks/kpi-deltas hatası:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
 // GET /api/stocks/summary
 router.get('/summary', async (req, res) => {
   try {
@@ -184,6 +618,7 @@ router.get('/movements', async (req, res) => {
       .from('invoices')
       .select(`invoice_no, invoice_date, direction, currency, approval_status, pdf_url, companies(name), invoice_items(id, product_name, product_code, quantity, unit_price_cur, currency, is_internal)`)
       .eq('tenant_id', tenantId)
+      .or('invoice_category.neq.NON_INTERNAL,invoice_category.is.null')
       .order('invoice_date', { ascending: false });
 
     if (approvalFilter) query = query.eq('approval_status', approvalFilter);
@@ -198,7 +633,7 @@ router.get('/movements', async (req, res) => {
       const approvalStatus = String(inv.approval_status || '').toLowerCase();
 
       (inv.invoice_items || []).forEach(item => {
-        if (item.is_internal === true) return;
+        if (item.is_internal === false) return;
         const sku = String(item.product_code || '').trim();
         if (skuFilter && sku.toLowerCase() !== skuLower) return;
         movements.push({
@@ -213,17 +648,16 @@ router.get('/movements', async (req, res) => {
     const skus = [...new Set(movements.map(m => m.sku).filter(Boolean))];
     if (skus.length > 0) {
       const { data: products } = await supabase
-        .from('products').select('product_code, brand, category, model, is_internal').eq('tenant_id', tenantId).in('product_code', skus);
+        .from('products').select('product_code, brand, category, model').eq('tenant_id', tenantId).eq('is_internal',true).in('product_code', skus);
 
       const productMap          = new Map((products || []).map(p => [String(p.product_code || '').trim(), p]));
-      const internalProductSkus = new Set((products || []).filter(p => p.is_internal === true).map(p => String(p.product_code || '').trim()));
 
       movements.forEach(m => {
         const p = productMap.get(m.sku);
         m.brand = p?.brand || ''; m.category = p?.category || ''; m.model = p?.model || '';
       });
 
-      return res.json(movements.filter(m => !internalProductSkus.has(m.sku)));
+      return res.json(movements);
     }
 
     res.json(movements);

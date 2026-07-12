@@ -1,5 +1,5 @@
 /* ─── gelen-giden.css ────────────────────────────────────────────────────────
-   Standalone CSS for gelen-faturalar.html and giden-faturalar.html.
+   Standalone CSS for gelen-faturalar.pages and giden-faturalar.pages.
    Updated to match landing page design language.
 ──────────────────────────────────────────────────────────────────────────────*/
 
@@ -711,3 +711,619 @@ body {
 }
 
 @keyframes fat-spin { to { transform: rotate(360deg); } }
+
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   OFİS İÇİ FATURALAR — fatura design system
+   Tokens assumed available from gelen-giden.css:
+     --fat-bg, --fat-bg2, --fat-ink, --fat-ink2, --fat-ink3, --fat-ink4,
+     --fat-border, --fat-border2, --fat-green, --fat-amber, --fat-red,
+     --fat-font, --fat-font-data
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+
+/* ── Page shell ──────────────────────────────────────────────────────────── */
+.fatura-page {
+    background: var(--fat-bg);
+}
+
+
+/* ═══ PAGE HEADER — dark warm, matches sidebar ═══════════════════════════ */
+.fat-page-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 16px;
+    background: var(--fat-ink);
+    border-bottom: 1px solid rgba(0, 0, 0, 0.4);
+    flex-shrink: 0;
+}
+
+.fat-page-title {
+    margin: 0;
+    font-family: var(--fat-font);
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--fat-bg);
+}
+
+
+/* ═══ FILTER BAR ═════════════════════════════════════════════════════════ */
+.ofis-topbar {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+    padding: 10px 16px;
+    background: var(--fat-bg2);
+    border-bottom: 1px solid var(--fat-border);
+    flex-shrink: 0;
+}
+
+.ofis-filter-row {
+    display: flex;
+    gap: 8px;
+    align-items: flex-start;
+    flex-wrap: wrap;
+}
+
+/* Search input */
+.ofis-search {
+    flex: 1;
+    min-width: 140px;
+    padding: 7px 10px;
+    background: var(--fat-bg);
+    border: 1px solid var(--fat-border);
+    border-radius: 6px;
+    font-family: var(--fat-font);
+    font-size: 12px;
+    color: var(--fat-ink);
+    outline: none;
+    transition: border-color 0.12s, background 0.12s;
+}
+
+.ofis-search::placeholder {
+    color: var(--fat-ink4);
+}
+
+.ofis-search:focus {
+    border-color: var(--fat-green);
+    background: #fff;
+}
+
+/* Tag filter wrapper (company) */
+.ofis-tags-wrap {
+    flex: 2;
+    min-width: 180px;
+    position: relative;
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 4px;
+    padding: 4px 8px;
+    min-height: 32px;
+    background: var(--fat-bg);
+    border: 1px solid var(--fat-border);
+    border-radius: 6px;
+    cursor: text;
+    transition: border-color 0.12s, background 0.12s;
+}
+
+.ofis-tags-wrap:focus-within {
+    border-color: var(--fat-green);
+    background: #fff;
+}
+
+.ofis-tags {
+    display: flex;
+    gap: 4px;
+    flex-wrap: wrap;
+}
+
+/* Individual company tag chip */
+.ofis-tags .filter-tag,
+.ofis-tags .tag-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 6px;
+    background: rgba(26, 107, 71, 0.12);
+    color: var(--fat-green);
+    border-radius: 10px;
+    font-family: var(--fat-font);
+    font-size: 10px;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.ofis-tags .filter-tag button,
+.ofis-tags .tag-chip button,
+.ofis-tags .filter-tag-x {
+    background: none;
+    border: none;
+    color: var(--fat-green);
+    cursor: pointer;
+    padding: 0;
+    font-size: 11px;
+    line-height: 1;
+    opacity: 0.6;
+    transition: opacity 0.1s;
+}
+
+.ofis-tags .filter-tag button:hover,
+.ofis-tags .tag-chip button:hover,
+.ofis-tags .filter-tag-x:hover {
+    opacity: 1;
+}
+
+.ofis-tags-input {
+    flex: 1;
+    min-width: 60px;
+    border: none;
+    background: transparent;
+    outline: none;
+    font-family: var(--fat-font);
+    font-size: 12px;
+    color: var(--fat-ink);
+}
+
+.ofis-tags-input::placeholder {
+    color: var(--fat-ink4);
+}
+
+/* Dropdown for the tag filter */
+.ofis-dropdown {
+    position: absolute;
+    top: calc(100% + 4px);
+    left: 0;
+    right: 0;
+    max-height: 220px;
+    overflow-y: auto;
+    background: #fff;
+    border: 1px solid var(--fat-border);
+    border-radius: 6px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+    z-index: 100;
+    display: none;
+}
+
+.ofis-dropdown.open,
+.ofis-dropdown:not(:empty) {
+    display: block;
+}
+
+.ofis-dropdown div {
+    padding: 7px 10px;
+    font-family: var(--fat-font);
+    font-size: 12px;
+    color: var(--fat-ink);
+    cursor: pointer;
+    transition: background 0.1s;
+}
+
+.ofis-dropdown div:hover {
+    background: var(--fat-bg2);
+}
+
+/* Date range group */
+.ofis-date-group {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    flex-shrink: 0;
+}
+
+.ofis-date {
+    padding: 6px 8px;
+    background: var(--fat-bg);
+    border: 1px solid var(--fat-border);
+    border-radius: 6px;
+    font-family: var(--fat-font-data);
+    font-size: 11px;
+    color: var(--fat-ink);
+    outline: none;
+    cursor: pointer;
+    transition: border-color 0.12s, background 0.12s;
+}
+
+.ofis-date:focus {
+    border-color: var(--fat-green);
+    background: #fff;
+}
+
+.ofis-date-sep {
+    color: var(--fat-ink4);
+    font-size: 11px;
+}
+
+/* Category select */
+.ofis-select {
+    padding: 6px 10px;
+    background: var(--fat-bg);
+    border: 1px solid var(--fat-border);
+    border-radius: 6px;
+    font-family: var(--fat-font);
+    font-size: 12px;
+    color: var(--fat-ink);
+    outline: none;
+    cursor: pointer;
+    flex-shrink: 0;
+    transition: border-color 0.12s, background 0.12s;
+}
+
+.ofis-select:focus {
+    border-color: var(--fat-green);
+    background: #fff;
+}
+
+/* Clear filters button */
+.ofis-clear-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 6px 10px;
+    background: rgba(184, 50, 50, 0.06);
+    border: 1px solid rgba(184, 50, 50, 0.2);
+    border-radius: 6px;
+    color: var(--fat-red);
+    cursor: pointer;
+    flex-shrink: 0;
+    transition: background 0.12s, border-color 0.12s;
+}
+
+.ofis-clear-btn:hover {
+    background: rgba(184, 50, 50, 0.12);
+    border-color: rgba(184, 50, 50, 0.35);
+}
+
+.ofis-clear-btn i {
+    font-size: 14px;
+}
+
+
+/* ═══ KPI BAR ════════════════════════════════════════════════════════════ */
+.fat-kpi-bar {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    padding: 10px 16px;
+    background: var(--fat-bg);
+    border-bottom: 1px solid var(--fat-border);
+    flex-shrink: 0;
+}
+
+.ofis-kpi {
+    background: #ffffff;
+    border: 0.5px solid rgba(0, 0, 0, 0.08);
+    border-radius: 6px;
+    padding: 7px 12px;
+    min-width: 100px;
+}
+
+.ofis-kpi-label {
+    margin: 0;
+    font-family: var(--fat-font-data);
+    font-size: 9px;
+    color: var(--fat-ink3);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    font-weight: 600;
+}
+
+.ofis-kpi-value {
+    margin: 2px 0 0;
+    font-family: var(--fat-font-data);
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--fat-ink);
+}
+
+/* Spend values — amber (money leaving the business) */
+.ofis-kpi-value--spend {
+    color: var(--fat-amber);
+}
+
+
+/* ═══ TAB BAR ════════════════════════════════════════════════════════════ */
+.fat-area {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    min-height: 0;
+    background: var(--fat-bg);
+}
+
+.fat-tabbar {
+    display: flex;
+    gap: 12px;
+    padding: 0 16px;
+    background: var(--fat-bg);
+    border-bottom: 1px solid var(--fat-border);
+    flex-shrink: 0;
+}
+
+.fat-tab {
+    padding: 9px 0;
+    background: none;
+    border: none;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -1px;
+    font-family: var(--fat-font);
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--fat-ink3);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    cursor: pointer;
+    transition: color 0.12s, border-color 0.12s;
+}
+
+.fat-tab:hover {
+    color: var(--fat-ink);
+}
+
+.fat-tab--active {
+    color: var(--fat-ink);
+    border-bottom-color: var(--fat-green);
+}
+
+
+/* ═══ CONTENT / TABLE ════════════════════════════════════════════════════ */
+.fat-content {
+    flex: 1;
+    overflow-y: auto;
+    padding: 8px 16px 16px;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+}
+
+.ofis-tbl-wrap {
+    background: #ffffff;
+    border: 0.5px solid rgba(0, 0, 0, 0.08);
+    border-radius: 6px;
+    overflow: hidden;
+}
+
+.ofis-tbl {
+    width: 100%;
+    border-collapse: collapse;
+    font-family: var(--fat-font);
+}
+
+.ofis-tbl thead tr {
+    background: var(--fat-bg2);
+}
+
+.ofis-tbl th {
+    padding: 8px 12px;
+    text-align: left;
+    font-family: var(--fat-font-data);
+    font-size: 9px;
+    font-weight: 700;
+    color: var(--fat-ink2);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    border-bottom: 1px solid var(--fat-border);
+    white-space: nowrap;
+}
+
+.ofis-tbl th.ofis-th-right {
+    text-align: right;
+}
+
+.ofis-tbl tbody tr {
+    border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+    cursor: pointer;
+    transition: background 0.1s;
+}
+
+.ofis-tbl tbody tr:last-child {
+    border-bottom: none;
+}
+
+.ofis-tbl tbody tr:nth-child(even) {
+    background: rgba(0, 0, 0, 0.015);
+}
+
+.ofis-tbl tbody tr:hover {
+    background: rgba(26, 107, 71, 0.04);
+}
+
+.ofis-tbl td {
+    padding: 10px 12px;
+    font-size: 12px;
+    color: var(--fat-ink);
+    vertical-align: middle;
+}
+
+/* Invoice number — mono */
+.ofis-tbl-no {
+    font-family: var(--fat-font-data);
+    font-weight: 600;
+    color: var(--fat-ink);
+}
+
+/* Company */
+.ofis-tbl-firm {
+    font-weight: 500;
+    color: var(--fat-ink);
+}
+
+/* Date — muted */
+.ofis-tbl-date {
+    font-family: var(--fat-font-data);
+    font-size: 11px;
+    color: var(--fat-ink3);
+    white-space: nowrap;
+}
+
+/* Amount — right-aligned mono */
+.ofis-tbl-amount {
+    text-align: right;
+    font-family: var(--fat-font-data);
+    font-weight: 600;
+    color: var(--fat-ink);
+    white-space: nowrap;
+}
+
+.ofis-tbl-cur {
+    color: var(--fat-ink4);
+    font-size: 10px;
+    margin-left: 2px;
+}
+
+/* Category badges cell */
+.ofis-tbl-cats {
+    display: flex;
+    gap: 4px;
+    flex-wrap: wrap;
+}
+
+.ofis-cat-badge {
+    display: inline-block;
+    padding: 1px 6px;
+    border-radius: 8px;
+    font-family: var(--fat-font);
+    font-size: 9px;
+    font-weight: 600;
+    white-space: nowrap;
+    background: rgba(26, 107, 71, 0.1);
+    color: var(--fat-green);
+}
+
+/* Alternate badge tone — apply .ofis-cat-badge--alt to every other one in JS
+   for visual variety, or leave all green for a calmer look */
+.ofis-cat-badge--alt {
+    background: rgba(154, 99, 24, 0.1);
+    color: var(--fat-amber);
+}
+
+/* Empty-category placeholder */
+.ofis-tbl-empty-cell {
+    color: var(--fat-ink4);
+    font-size: 12px;
+}
+
+
+/* ═══ STATES (loading / empty / error) ═══════════════════════════════════ */
+.ofis-state {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    font-family: var(--fat-font);
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--fat-ink3);
+    padding: 40px 20px;
+}
+
+.ofis-state--error {
+    color: var(--fat-red);
+}
+
+
+/* ═══ PAGINATION ═════════════════════════════════════════════════════════ */
+.ofis-pagination {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+    padding: 9px 16px;
+    background: var(--fat-bg2);
+    border-top: 1px solid var(--fat-border);
+    flex-shrink: 0;
+}
+
+.ofis-pag-info {
+    font-family: var(--fat-font-data);
+    font-size: 10px;
+    color: var(--fat-ink3);
+}
+
+.ofis-pag-pages {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.ofis-pag-btn {
+    height: 26px;
+    min-width: 26px;
+    padding: 0 7px;
+    background: var(--fat-bg);
+    border: 1px solid var(--fat-border);
+    border-radius: 5px;
+    font-family: var(--fat-font-data);
+    font-size: 11px;
+    color: var(--fat-ink2);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.12s, color 0.12s, border-color 0.12s;
+}
+
+.ofis-pag-btn:hover:not(:disabled):not(.ofis-pag-btn--active) {
+    background: #fff;
+    color: var(--fat-ink);
+    border-color: var(--fat-border2);
+}
+
+.ofis-pag-btn--active {
+    background: var(--fat-green);
+    border-color: var(--fat-green);
+    color: var(--fat-bg);
+    font-weight: 700;
+}
+
+.ofis-pag-btn:disabled {
+    opacity: 0.35;
+    cursor: not-allowed;
+}
+
+.ofis-pag-btn i {
+    font-size: 12px;
+}
+
+.ofis-pag-dots {
+    font-family: var(--fat-font-data);
+    font-size: 11px;
+    color: var(--fat-ink4);
+    padding: 0 3px;
+    user-select: none;
+}
+
+.ofis-pag-limit {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.ofis-pag-limit-label {
+    font-family: var(--fat-font-data);
+    font-size: 10px;
+    color: var(--fat-ink3);
+}
+
+.ofis-pag-limit-select {
+    height: 26px;
+    padding: 0 6px;
+    background: var(--fat-bg);
+    border: 1px solid var(--fat-border);
+    border-radius: 5px;
+    font-family: var(--fat-font-data);
+    font-size: 11px;
+    color: var(--fat-ink);
+    cursor: pointer;
+    outline: none;
+    transition: border-color 0.12s;
+}
+
+.ofis-pag-limit-select:focus {
+    border-color: var(--fat-green);
+}

@@ -146,14 +146,14 @@ async function _fetchFilterOptions(supabase, tenantId, direction) {
         const { data } = await supabase
             .from('invoice_items')
             .select('product_name, product_code')
-            .eq('is_internal', false)
+            .eq('is_internal', true)
             .in('invoice_id', directionFilteredIds);
         itemRows = data || [];
     } else {
         const { data } = await supabase
             .from('invoice_items')
             .select('invoice_id, product_name, product_code')
-            .eq('is_internal', false);
+            .eq('is_internal', true);
         const idSet = new Set(directionFilteredIds);
         itemRows = (data || []).filter(r => idSet.has(r.invoice_id));
     }
@@ -169,7 +169,7 @@ async function _fetchFilterOptions(supabase, tenantId, direction) {
                 .from('products')
                 .select('brand, category')
                 .eq('tenant_id', tenantId)
-                .eq('is_internal', false)
+                .eq('is_internal', true)
                 .in('product_code', productCodes);
             productRows = data || [];
         } else {
@@ -177,7 +177,7 @@ async function _fetchFilterOptions(supabase, tenantId, direction) {
                 .from('products')
                 .select('product_code, brand, category')
                 .eq('tenant_id', tenantId)
-                .eq('is_internal', false);
+                .eq('is_internal', true);
             const codeSet = new Set(productCodes);
             productRows = (data || []).filter(r => codeSet.has(r.product_code));
         }
@@ -261,6 +261,77 @@ async function _resolveItemFilterIds(supabase, tenantId, { brands, categories, p
     return { combinedIds };
 }
 
+
+// ─── Resolve applyStockFilters args against real products (fuzzy brand/cat) ──
+// Returns { applied, warnings }. `applied` is the shape the ürünler frontend
+// consumes: { skus, productNames, brands, categories, currency, inStock,
+// qtyMin, qtyMax, valueMin, valueMax, clear }.
+async function _resolveStockFilterArgs(args, supabase, tenantId) {
+    const applied = {
+        skus: [], productNames: [], brands: [], categories: [],
+        currency: null, inStock: null,
+        qtyMin: null, qtyMax: null, valueMin: null, valueMax: null,
+        clear: args.clear === true,
+    };
+    const warnings = [];
+
+    // Clear short-circuits everything else.
+    if (applied.clear) return { applied, warnings };
+
+    // Pull distinct brands / categories / codes for fuzzy matching.
+    const { data: rows, error } = await supabase
+        .from('products')
+        .select('product_code, product_name, brand, category')
+        .eq('tenant_id', tenantId)
+        .eq('is_internal', true)
+        .eq('is_hidden', false);
+    if (error) throw error;
+
+    const distinct = (key) =>
+        [...new Set((rows || []).map(r => String(r[key] || '').trim()).filter(Boolean))];
+
+    const brandOpts = distinct('brand');
+    const catOpts   = distinct('category');
+    const codeOpts  = distinct('product_code');
+    const nameOpts  = distinct('product_name');
+
+    if (Array.isArray(args.brands) && args.brands.length) {
+        const { matched, unmatched } = _bestMatchList(args.brands, brandOpts);
+        applied.brands = matched;
+        if (unmatched.length) warnings.push(`marka: ${unmatched.join(', ')} bulunamadı`);
+    }
+    if (Array.isArray(args.categories) && args.categories.length) {
+        const { matched, unmatched } = _bestMatchList(args.categories, catOpts);
+        applied.categories = matched;
+        if (unmatched.length) warnings.push(`kategori: ${unmatched.join(', ')} bulunamadı`);
+    }
+    if (Array.isArray(args.skus) && args.skus.length) {
+        const { matched, unmatched } = _bestMatchList(args.skus, codeOpts);
+        applied.skus = matched;
+        if (unmatched.length) warnings.push(`SKU: ${unmatched.join(', ')} bulunamadı`);
+    }
+    if (Array.isArray(args.productNames) && args.productNames.length) {
+        const { matched, unmatched } = _bestMatchList(args.productNames, nameOpts);
+        applied.productNames = matched;
+        if (unmatched.length) warnings.push(`ürün: ${unmatched.join(', ')} bulunamadı`);
+    }
+
+    // Currency — normalize + validate.
+    if (args.currency) {
+        const c = String(args.currency).toUpperCase().trim();
+        applied.currency = ['TRY', 'TL', 'USD', 'EUR'].includes(c) ? (c === 'TL' ? 'TRY' : c) : null;
+        if (!applied.currency) warnings.push(`para birimi: ${args.currency} geçersiz`);
+    }
+
+    if (args.inStock === true) applied.inStock = true;
+
+    applied.qtyMin   = _toNum(args.qtyMin);
+    applied.qtyMax   = _toNum(args.qtyMax);
+    applied.valueMin = _toNum(args.valueMin);
+    applied.valueMax = _toNum(args.valueMax);
+
+    return { applied, warnings };
+}
 
 // ═════════════════════════════════════════════════════════════════════════════
 // TOOL SCHEMAS
@@ -405,7 +476,26 @@ const GET_PRODUCT_DETAIL_TOOL = {
     },
 };
 
-
+const APPLY_STOCK_FILTERS_TOOL = {
+    name: 'applyStockFilters',
+    description: 'Kullanıcı ÜRÜNLER sayfasındaki listeyi FİLTRELEMEK istediğinde çağır — arayüzdeki filtreleri günceller. Mevcut filtreleri TAMAMEN değiştirir.\n\nÖrnekler:\n- "Asus ürünlerini göster" → applyStockFilters({brands:["Asus"]})\n- "Elektronik kategorisi" → applyStockFilters({categories:["Elektronik"]})\n- "Stoğu 5\'in altındakiler" → applyStockFilters({inStock:true, qtyMax:5})\n- "100 adetten fazla olanlar" → applyStockFilters({qtyMin:100})\n- "Değeri 50 binin üstündekiler" → applyStockFilters({valueMin:50000})\n- "USD ile alınanlar" → applyStockFilters({currency:"USD"})\n- "Filtreleri temizle" → applyStockFilters({clear:true})\n\nBackend fuzzy matching yapar — kısmi/yanlış yazılmış marka ve kategori isimleriyle çalışır. Kullanıcının yazdığı ismi OLDUĞU GİBİ geçir.',
+    input_schema: {
+        type: 'object',
+        properties: {
+            skus:          { type: 'array', items: { type: 'string' }, description: 'Ürün kodları (SKU)' },
+            productNames:  { type: 'array', items: { type: 'string' }, description: 'Ürün adları (fuzzy eşleşir)' },
+            brands:        { type: 'array', items: { type: 'string' }, description: 'Marka isimleri (fuzzy eşleşir)' },
+            categories:    { type: 'array', items: { type: 'string' }, description: 'Kategori isimleri (fuzzy eşleşir)' },
+            currency:      { type: 'string', description: 'Para birimi filtresi: TRY, USD veya EUR' },
+            inStock:       { type: 'boolean', description: 'true → sadece stokta olanlar (stok > 0)' },
+            qtyMin:        { type: 'number', description: 'Minimum adet' },
+            qtyMax:        { type: 'number', description: 'Maksimum adet' },
+            valueMin:      { type: 'number', description: 'Minimum toplam stok değeri (TL)' },
+            valueMax:      { type: 'number', description: 'Maksimum toplam stok değeri (TL)' },
+            clear:         { type: 'boolean', description: 'true → tüm filtreleri sıfırla' },
+        },
+    },
+};
 // ═════════════════════════════════════════════════════════════════════════════
 // FETCHERS
 // ═════════════════════════════════════════════════════════════════════════════
@@ -637,7 +727,7 @@ async function fetchInvoiceItems(supabase, tenantId, opts = {}) {
     const { data: itemRows, error: itemErr } = await supabase
         .from('invoice_items')
         .select('invoice_id, product_id, product_name, product_code, brand_name, quantity, unit_price_cur, total_price_cur, currency')
-        .eq('is_internal', false)
+        .eq('is_internal', true)
         .in('invoice_id', invoiceIds);
     if (itemErr) throw itemErr;
 
@@ -717,14 +807,14 @@ async function fetchProductBreakdown(supabase, tenantId, opts = {}) {
         const { data } = await supabase
             .from('invoice_items')
             .select('invoice_id, product_name, product_code, brand_name, quantity, total_price_cur, currency')
-            .eq('is_internal', false)
+            .eq('is_internal', true)
             .in('invoice_id', invoiceIds);
         itemRows = data || [];
     } else {
         const { data } = await supabase
             .from('invoice_items')
             .select('invoice_id, product_name, product_code, brand_name, quantity, total_price_cur, currency')
-            .eq('is_internal', false);
+            .eq('is_internal', true);
         const idSet = new Set(invoiceIds);
         itemRows = (data || []).filter(r => idSet.has(r.invoice_id));
     }
@@ -827,7 +917,7 @@ async function fetchProducts(supabase, tenantId, opts = {}) {
         .from('products')
         .select('id, product_code, product_name, brand, category, stock_on_hand, ordered_quantity, last_purchase_price_cur, last_purchase_price_tl, last_purchase_currency, maliyet_usd')
         .eq('tenant_id', tenantId)
-        .eq('is_internal', false)
+        .eq('is_internal', true)
         .eq('is_hidden', false);
 
     if (brand)    q = q.eq('brand', brand);
@@ -894,7 +984,7 @@ async function fetchProductDetail(supabase, tenantId, identifier = {}) {
             .from('products')
             .select('id, product_code, product_name, brand, category, stock_on_hand, ordered_quantity, last_purchase_price_cur, last_purchase_price_tl, last_purchase_currency, maliyet_usd')
             .eq('tenant_id', tenantId)
-            .eq('is_internal', false)
+            .eq('is_internal', true)
             .eq('is_hidden', false)
             .limit(200);
 
@@ -916,7 +1006,7 @@ async function fetchProductDetail(supabase, tenantId, identifier = {}) {
             .from('invoice_items')
             .select('invoice_id, quantity, unit_price_cur, total_price_cur, currency, invoices(invoice_no, invoice_date, direction, companies(name))')
             .eq('product_id', product.id)
-            .eq('is_internal', false)
+            .eq('is_internal', true)
             .order('created_at', { ascending: false })
             .limit(5);
 
@@ -962,6 +1052,7 @@ module.exports = {
     GET_PRODUCT_BREAKDOWN_TOOL,
     GET_PRODUCTS_TOOL,
     GET_PRODUCT_DETAIL_TOOL,
+    APPLY_STOCK_FILTERS_TOOL,
 
     // Fetchers
     fetchInvoiceStats,
@@ -973,6 +1064,7 @@ module.exports = {
 
     // Shared utilities (used by fatura-chat.js)
     _resolveApplyFiltersArgs,
+    _resolveStockFilterArgs,
     _fetchFilterOptions,
     _bestMatchList,
     _safeDate,

@@ -285,7 +285,7 @@ function normalizeProductCodeForMatch(code) {
 function invNonInternalPayableAmountSrc(inv) {
     const items = inv?.invoice_items;
     if (!items || !items.length) return invPayableAmountSrc(inv);
-    const hasInternal = items.some(it => it.is_internal);
+    const hasInternal = items.some(it => !it.is_internal);
     if (!hasInternal) return invPayableAmountSrc(inv);
     return items
         .filter(it => !it.is_internal)

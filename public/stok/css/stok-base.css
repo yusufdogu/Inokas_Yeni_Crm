@@ -255,7 +255,6 @@ body {
 .data-table tbody tr { cursor: default; }
 .data-table tbody tr.clickable { cursor: pointer; }
 
-.text-right { text-align: right; }
 
 /* ── BADGES ── */
 .badge-sku {

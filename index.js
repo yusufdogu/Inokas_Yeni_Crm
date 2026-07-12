@@ -53,7 +53,6 @@ app.use('/api/dmo',                 require('./routes/dmo'));
 app.use('/api/debug-tcmb',          require('./routes/dmo'));
 app.use('/api/quotes',              require('./routes/quotes'));
 app.use('/api/product-groups',      require('./routes/quotes'));
-app.use('/api/chat',                require('./routes/chat'));
 app.use('/api/transcribe',          require('./routes/transcribe'));
 app.use('/api/whatsapp', require('./routes/whatsapp'));
 app.use('/api/integrations', require('./routes/integrations'));
@@ -76,21 +75,21 @@ app.post('/api/invoices/recheck-now', (req, res) => {
 // ─── Page Routes ──────────────────────────────────────────────────────────────
 app.get('/', (req, res) => {
   res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
-  res.sendFile(path.join(__dirname, 'public', 'landing.html'));
+  res.sendFile(path.join(__dirname, 'public', 'landing.pages'));
 });
 
 app.get('/landing', (req, res) =>
-  res.sendFile(path.join(__dirname, 'public', 'landing.html'))
+  res.sendFile(path.join(__dirname, 'public', 'landing.pages'))
 );
 
-app.get('/signup',     (req, res) => res.sendFile(path.join(__dirname, 'public', 'auth', 'signup.html')));
-app.get('/onboarding', (req, res) => res.sendFile(path.join(__dirname, 'public', 'auth', 'onboarding.html')));
+app.get('/signup',     (req, res) => res.sendFile(path.join(__dirname, 'public', 'auth', 'signup.pages')));
+app.get('/onboarding', (req, res) => res.sendFile(path.join(__dirname, 'public', 'auth', 'onboarding.pages')));
 
 app.get('/chat', (req, res) => {
   res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
   res.setHeader('Pragma', 'no-cache');
   res.setHeader('Expires', '0');
-  res.sendFile(path.join(__dirname, 'public', 'chat.html'));
+  res.sendFile(path.join(__dirname, 'public', 'chat.pages'));
 });
 
 app.get('/login', (req, res) => res.redirect('/auth/login.html'));
@@ -100,7 +99,7 @@ app.get('/login', (req, res) => res.redirect('/auth/login.html'));
 
 app.use(express.static(path.join(__dirname, 'public'), {
   setHeaders: (res, filePath) => {
-    if (filePath.endsWith('.html') || filePath.endsWith('.js')) {
+    if (filePath.endsWith('.pages') || filePath.endsWith('.js')) {
       res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
       res.setHeader('Pragma', 'no-cache');
       res.setHeader('Expires', '0');

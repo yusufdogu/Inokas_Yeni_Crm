@@ -42,8 +42,10 @@ let _uhSort = { col: null, dir: 'desc' };
 let _uhCompanyFilter;
 
 let _urPage     = 0;
-let _urPageSize = 100;
+let _urPageSize = 10;
 let _urFiltered = [];
+
+
 
 let _stockTabs = [];   // recently-clicked SKUs (activity strip)
 const _STOCK_TABS_KEY = 'inokas_urunler_tabs_v1';
@@ -326,21 +328,32 @@ function applyUrunlerFilters() {
 
   // Sort
   if (_urunSort.col) {
-    filtered.sort((a, b) => {
-      let aVal, bVal;
-      if (_urunSort.col === 'stock_on_hand') {
-        aVal = Number(a.stock_on_hand || 0);
-        bVal = Number(b.stock_on_hand || 0);
-      } else if (_urunSort.col === 'last_purchase_price_cur') {
-        aVal = Number(a.last_purchase_price_cur || 0);
-        bVal = Number(b.last_purchase_price_cur || 0);
-      } else if (_urunSort.col === 'total_stock_price') {
-        // TL-equivalent so mixed-currency rows order meaningfully
-        aVal = _itemStockValue(a, null) || 0;
-        bVal = _itemStockValue(b, null) || 0;
-      }
-      return _urunSort.dir === 'desc' ? bVal - aVal : aVal - bVal;
-    });
+    const col = _urunSort.col;
+    const dir = _urunSort.dir === 'desc' ? -1 : 1;
+
+    // string columns → Turkish locale compare
+    if (_UR_TEXT_COLS.includes(col)) {
+      filtered.sort((a, b) => {
+        const av = String(a[col] || '').trim();
+        const bv = String(b[col] || '').trim();
+        return dir * av.localeCompare(bv, 'tr', { sensitivity: 'base' });
+      });
+    } else {
+      // numeric columns
+      filtered.sort((a, b) => {
+        let av, bv;
+        if (col === 'stock_on_hand') {
+          av = Number(a.stock_on_hand || 0); bv = Number(b.stock_on_hand || 0);
+        } else if (col === 'total_stock_price') {
+          av = _itemStockValue(a, null) || 0; bv = _itemStockValue(b, null) || 0;
+        } else if (col === 'last_purchase_price_cur') {
+          av = Number(a.last_purchase_price_cur || 0); bv = Number(b.last_purchase_price_cur || 0);
+        } else {
+          av = 0; bv = 0;
+        }
+        return dir * (av - bv);
+      });
+    }
   }
 
   _urFiltered = filtered;
@@ -362,7 +375,63 @@ function _clearUrunlerFilters() {
   applyUrunlerFilters();
 }
 
+// ─── ASSISTANT-DRIVEN FILTERING ────────────────────────────────────────────────
+// Called by urunler-chat.js when the assistant emits an applyStockFilters action.
+// `p` is the backend-resolved payload:
+//   { skus, productNames, brands, categories, currency, inStock,
+//     qtyMin, qtyMax, valueMin, valueMax, clear }
+// Values are already fuzzy-matched to real brand/category/SKU strings, so the
+// tag filters can accept them directly.
+function _applyFiltersFromAssistant(p) {
+  if (!p || typeof p !== 'object') return;
 
+  // Clear wipes everything and stops.
+  if (p.clear) { _clearUrunlerFilters(); return; }
+
+  // Tag filters (setSelected added in utils.js; no-op if a filter is absent)
+  _skuFilter?.setSelected?.(Array.isArray(p.skus) ? p.skus : []);
+  _productNameFilter?.setSelected?.(Array.isArray(p.productNames) ? p.productNames : []);
+  _brandFilter?.setSelected?.(Array.isArray(p.brands) ? p.brands : []);
+  _categoryFilter?.setSelected?.(Array.isArray(p.categories) ? p.categories : []);
+  _currencyFilter?.setSelected?.(p.currency ? [String(p.currency).toUpperCase()] : []);
+
+  // Depoda chip
+  _filterInStock = p.inStock === true;
+  _syncChipUI();
+
+  // Quantity range
+  _qtyMin = _numOr(p.qtyMin, 0);
+  _qtyMax = _numOr(p.qtyMax, Infinity);
+
+  // Value range
+  _valMin = _numOr(p.valueMin, 0);
+  _valMax = _numOr(p.valueMax, Infinity);
+
+  // Reflect ranges in the pills + inputs, refresh currency-symbol basis, re-filter.
+  _fillQtyInputs?.();
+  _fillValInputs?.();
+  _clearPresetHighlight?.('urQtyPop');
+  _clearPresetHighlight?.('urValPop');
+  _syncQtyPill?.();
+  _onCurrencyChange?.();   // updates value-slider symbol if a currency was set
+  _syncValPill?.();
+
+  // If any advanced-row filter is active, open the advanced panel so it's visible.
+  const advActive = _filterInStock === false
+    || Number.isFinite(_qtyMax) || _qtyMin > 0
+    || Number.isFinite(_valMax) || _valMin > 0
+    || (p.currency ? true : false)
+    || (Array.isArray(p.brands) && p.brands.length);
+  if (advActive && !_advancedOpen) toggleUrunAdvanced();
+
+  applyUrunlerFilters();
+}
+
+// small numeric coercer: null/undefined/NaN → fallback
+function _numOr(v, fallback) {
+  const n = Number(v);
+  return Number.isFinite(n) ? n : fallback;
+}
 // ─── KPIs ─────────────────────────────────────────────────────────────────────
 // Three SEPARATE currency totals (each currency summed in its own unit).
 function renderUrunlerKpis(subset) {
@@ -618,19 +687,22 @@ function _fmtMoneyShort(n) {
 }
 
 // ─── SORT ─────────────────────────────────────────────────────────────────────
+// text columns default A→Z (asc); numeric columns default biggest-first (desc)
+const _UR_TEXT_COLS = ['product_name', 'product_code', 'category'];
+
 function sortUrunler(col) {
   if (_urunSort.col === col) {
     _urunSort.dir = _urunSort.dir === 'desc' ? 'asc' : 'desc';
   } else {
     _urunSort.col = col;
-    _urunSort.dir = 'desc';
+    _urunSort.dir = _UR_TEXT_COLS.includes(col) ? 'asc' : 'desc';
   }
   updateUrunSortHeaders();
   applyUrunlerFilters();
 }
 
 function updateUrunSortHeaders() {
-  ['stock_on_hand', 'last_purchase_price_cur', 'total_stock_price'].forEach(col => {
+  ['product_name', 'product_code', 'category', 'stock_on_hand', 'total_stock_price'].forEach(col => {
     const el = document.getElementById(`urunSortHdr-${col}`);
     if (!el) return;
     const isActive = _urunSort.col === col;
@@ -688,12 +760,12 @@ function renderUrunlerTable(filtered) {
       <td style="font-weight:600;">${esc(p.product_name || '—')}${missingBadge}</td>
       <td><span class="badge-sku">${esc(p.product_code || '—')}</span></td>
       <td>${p.category ? `<span class="pill-category">${esc(p.category)}</span>` : '—'}</td>
-      <td style="text-align:right; font-family:'DM Mono',monospace; font-size:12px;">
+      <td >
         ${stock > 0
           ? `<span style="color:#166534; font-weight:700;">${Math.floor(stock).toLocaleString('tr-TR')}</span>`
           : `<span style="color:#94a3b8;">0</span>`}
       </td>
-      <td class="text-right total-stock-price-cell">${totalStock}</td>`;
+      <td >${totalStock}</td>`;
     body.appendChild(tr);
   });
   renderPagination(filtered.length)
@@ -763,12 +835,13 @@ const _NUMERIC_FIELDS = new Set([
 const _READONLY_FIELDS = new Set(['created_at', 'updated_at', 'dmo_fiyat_updated']);
 const _ALL_FIELDS = [
   'product_name', 'product_code', 'brand', 'category',
-  'maliyet_usd', 'sozlesme_fiyat_eur',
   'last_purchase_price_cur', 'last_purchase_currency', 'last_purchase_rate',
   'last_purchase_price_tl', 'avg_purchase_price_tl',
-  'dmo_code', 'dmo_fiyat_try', 'dmo_url', 'gift_quantity',
-  'created_at', 'updated_at', 'dmo_fiyat_updated',
+  'stock_on_hand', 'specs'
 ];
+
+const _JSON_FIELDS     = new Set(['specs']);
+const _CHECKBOX_FIELDS = new Set(['needs_review']);
 
 function _buildCategorySelect(selected = '') {
   const input = document.getElementById('pf-category');
@@ -887,7 +960,9 @@ function openAddModal() {
   _isInternalMode = false;
   _ALL_FIELDS.forEach(key => {
     const el = document.getElementById(`pf-${key}`);
-    if (el) el.value = '';
+    if (!el) return;
+    if (_CHECKBOX_FIELDS.has(key)) el.checked = false;
+    else                            el.value   = '';
   });
   const toggle = document.getElementById('pf-is-internal');
   if (toggle) toggle.checked = false;
@@ -950,14 +1025,26 @@ async function openUrunModal(productId, sku) {
     _ALL_FIELDS.forEach(key => {
       const el = document.getElementById(`pf-${key}`);
       if (!el) return;
+
       if (_READONLY_FIELDS.has(key)) {
         el.value = product[key] ? new Date(product[key]).toLocaleString('tr-TR') : '—';
+
+      } else if (_CHECKBOX_FIELDS.has(key)) {
+        el.checked = !!product[key];
+
+      } else if (_JSON_FIELDS.has(key)) {
+        // specs is JSONB — pretty-print the object so it's human-editable
+        const val = product[key];
+        el.value = (val && typeof val === 'object')
+          ? JSON.stringify(val, null, 2)
+          : (val || '');
+
       } else {
         el.value = product[key] ?? '';
       }
     });
 
-    const isInternal = !!product.is_internal;
+    const isInternal = !product.is_internal;
     _isInternalMode  = isInternal;
     const toggle     = document.getElementById('pf-is-internal');
     if (toggle) toggle.checked = isInternal;
@@ -1315,16 +1402,47 @@ async function saveProduct() {
   saveBtn.disabled  = true;
 
   const payload = {};
-  _ALL_FIELDS.filter(k => !_READONLY_FIELDS.has(k)).forEach(key => {
-    const el = document.getElementById(`pf-${key}`);
-    if (!el) return;
-    const raw = el.value.trim();
-    payload[key] = _NUMERIC_FIELDS.has(key)
-      ? (raw === '' ? null : Number(raw))
-      : (raw === '' ? null : raw);
-  });
-  payload.is_internal = _isInternalMode;
-  payload.is_hidden   = !!(document.getElementById('pf-is-hidden')?.checked);
+  _ALL_FIELDS
+    .filter(k => !_READONLY_FIELDS.has(k) && !_JSON_FIELDS.has(k) && !_CHECKBOX_FIELDS.has(k))
+    .forEach(key => {
+      const el = document.getElementById(`pf-${key}`);
+      if (!el) return;
+      const raw = el.value.trim();
+      payload[key] = _NUMERIC_FIELDS.has(key)
+        ? (raw === '' ? null : Number(raw))
+        : (raw === '' ? null : raw);
+    });
+
+  // ── specs (JSONB) — parse and validate before sending ──
+  const specsEl  = document.getElementById('pf-specs');
+  const specsRaw = specsEl ? specsEl.value.trim() : '';
+  if (specsRaw) {
+    try {
+      const parsed = JSON.parse(specsRaw);
+      if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
+        throw new Error('bir JSON nesnesi olmalı (ör. {"model": "X"})');
+      }
+      payload.specs = parsed;
+    } catch (e) {
+      msgEl.textContent = `Teknik özellikler geçersiz JSON: ${e.message}`;
+      msgEl.className   = 'modal-msg error';
+      saveBtn.disabled  = false;
+      return;                                  // abort — don't send bad data
+    }
+  } else {
+    payload.specs = {};
+  }
+
+  // ── checkbox fields ──
+  payload.needs_review = !!(document.getElementById('pf-needs_review')?.checked);
+
+  // ── is_internal — NEW polarity: true = our business ──
+  // "Ofis İçi" checked  → office/internal-use item → NOT our business → false
+  // "Ofis İçi" unchecked → tradeable product        → our business     → true
+  payload.is_internal = !_isInternalMode;
+
+  payload.is_hidden = !!(document.getElementById('pf-is-hidden')?.checked);
+
   if (_isInternalMode) {
     const internalCat = (document.getElementById('pf-internal-cat-input')?.value || '').trim();
     payload.category  = internalCat || null;
@@ -1362,6 +1480,6 @@ async function saveProduct() {
     msgEl.textContent = `Hata: ${err.message}`;
     msgEl.className   = 'modal-msg error';
   } finally {
-    saveBtn.disabled = false;
+    saveBtn.disabled  = false;
   }
 }

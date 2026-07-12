@@ -1,0 +1,402 @@
+/* ─── Fatura Detay — Page Layout ─────────────────────────────────────────── */
+
+.detay-page {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    overflow: hidden;
+    height: 100vh;
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   HEADER — dark warm, matches sidebar
+   ═══════════════════════════════════════════════════════════════════════════ */
+.detay-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 16px;
+    background: var(--fat-ink);           /* dark warm — matches sidebar */
+    border-bottom: 1px solid rgba(0,0,0,0.4);
+    flex-shrink: 0;
+}
+
+.detay-back-btn {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(255,255,255,0.10);
+    border-radius: 6px;
+    padding: 6px 12px;
+    font-size: 12px;
+    font-weight: 600;
+    color: rgba(245,242,236,0.72);        /* cream, muted */
+    cursor: pointer;
+    white-space: nowrap;
+    flex-shrink: 0;
+    font-family: var(--fat-font);
+    transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+
+.detay-back-btn:hover {
+    background: rgba(255,255,255,0.12);
+    color: var(--fat-bg);
+    border-color: rgba(255,255,255,0.18);
+}
+
+.detay-header-info {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    overflow: hidden;
+}
+
+.detay-invoice-no {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--fat-bg);                  /* cream on dark */
+    white-space: nowrap;
+    font-family: var(--fat-font-data);
+}
+
+.detay-company {
+    font-size: 13px;
+    font-weight: 600;
+    color: rgba(245,242,236,0.88);
+    font-family: var(--fat-font);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* Direction pill in the header — same convention as list view:
+   OUTGOING (giden) = green, INCOMING (gelen) = amber */
+.detay-dir-badge {
+    display: inline-block;
+    font-size: 10px;
+    font-weight: 600;
+    padding: 2px 8px;
+    border-radius: 12px;
+    white-space: nowrap;
+    flex-shrink: 0;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    font-family: var(--fat-font-data);
+}
+
+.detay-dir-out {
+    background: rgba(26, 107, 71, 0.28);
+    color: #a8d5b8;
+}
+
+.detay-dir-in {
+    background: rgba(154, 99, 24, 0.28);
+    color: #f0c78a;
+}
+
+.detay-header-actions {
+    display: flex;
+    gap: 6px;
+    flex-shrink: 0;
+}
+
+/* Approve button in the header — accent green */
+.detay-approve-btn {
+    background: var(--fat-green);
+    color: var(--fat-bg);
+    border: none;
+    border-radius: 6px;
+    padding: 6px 14px;
+    font-family: var(--fat-font);
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: background 0.15s, transform 0.05s;
+}
+
+.detay-approve-btn:hover:not(:disabled) {
+    background: #17583b;                   /* slightly darker green */
+}
+
+.detay-approve-btn:active:not(:disabled) {
+    transform: translateY(1px);
+}
+
+.detay-approve-btn:disabled {
+    background: rgba(26, 107, 71, 0.4);
+    cursor: not-allowed;
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   SPLIT VIEW CONTAINER
+   ═══════════════════════════════════════════════════════════════════════════ */
+.detay-split {
+    flex: 1;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    overflow: hidden;
+    min-height: 0;
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   PDF PANE (LEFT — unchanged)
+   ═══════════════════════════════════════════════════════════════════════════ */
+.detay-pdf-pane {
+    border-right: 1px solid #e2e8f0;
+    overflow: hidden;
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    background: #f8fafc;
+}
+
+.detay-pdf-iframe {
+    display: none;
+    width: 100%;
+    flex: 1;
+    border: none;
+}
+
+.detay-pdf-empty {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    color: #94a3b8;
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   INFO PANE (RIGHT — fatura-toned)
+   ═══════════════════════════════════════════════════════════════════════════ */
+.detay-info-pane {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    background: var(--fat-bg);
+}
+
+/* ── Loading state ────────────────────────────────────────────────────────── */
+.detay-loading {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--fat-ink3);
+    font-family: var(--fat-font);
+    font-size: 13px;
+    gap: 10px;
+}
+
+.detay-spinner {
+    width: 24px;
+    height: 24px;
+    border: 2px solid var(--fat-border);
+    border-top-color: var(--fat-green);
+    border-radius: 50%;
+    animation: detay-spin 0.7s linear infinite;
+}
+
+@keyframes detay-spin {
+    to { transform: rotate(360deg); }
+}
+
+
+/* ── Error state ──────────────────────────────────────────────────────────── */
+.detay-error {
+    text-align: center;
+    padding: 24px;
+}
+
+.detay-error-icon {
+    display: block;
+    font-size: 32px;
+    color: var(--fat-red);
+    margin-bottom: 8px;
+}
+
+.detay-error-msg {
+    font-family: var(--fat-font);
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--fat-red);
+    margin: 0 0 12px;
+}
+
+.detay-error-btn {
+    padding: 7px 14px;
+    background: var(--fat-bg2);
+    border: 1px solid var(--fat-border);
+    border-radius: 6px;
+    font-family: var(--fat-font);
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--fat-ink);
+    cursor: pointer;
+    transition: background 0.15s;
+}
+
+.detay-error-btn:hover {
+    background: var(--fat-border);
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   TAB BODY CONTENT — the actual field cards
+   These target common patterns; align class names in your renderBilgilerView.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ── Section wrapper ──────────────────────────────────────────────────────── */
+.fat-detail-section {
+    padding: 14px 16px;
+    border-bottom: 1px solid var(--fat-border);
+}
+
+.fat-detail-section:last-child {
+    border-bottom: none;
+}
+
+.fat-detail-section-title {
+    font-family: var(--fat-font-data);
+    font-size: 10px;
+    font-weight: 700;
+    color: var(--fat-amber);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    margin-bottom: 10px;
+    padding-bottom: 6px;
+    border-bottom: 1px solid rgba(154, 99, 24, 0.2);
+}
+
+
+/* ── Grid of field cards ──────────────────────────────────────────────────── */
+.fat-detail-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+}
+
+
+/* ── Individual field card ────────────────────────────────────────────────── */
+.fat-detail-field {
+    background: #ffffff;
+    border: 0.5px solid rgba(0,0,0,0.08);
+    border-radius: 6px;
+    padding: 8px 10px;
+    min-width: 0;               /* prevent overflow in narrow columns */
+    transition: opacity 0.15s;
+}
+
+.fat-detail-field-label {
+    font-family: var(--fat-font-data);
+    font-size: 9px;
+    color: var(--fat-ink3);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    font-weight: 600;
+    margin-bottom: 3px;
+}
+
+.fat-detail-field-value {
+    font-family: var(--fat-font);
+    font-size: 12px;
+    color: var(--fat-ink);
+    font-weight: 500;
+    overflow-wrap: break-word;
+}
+
+/* Value styled as monospace (invoice numbers, VKN, phone, amounts) */
+.fat-detail-field-value--data,
+.fat-detail-field-value--mono {
+    font-family: var(--fat-font-data);
+}
+
+/* Full-width field (spans both columns) */
+.fat-detail-field--wide {
+    grid-column: 1 / -1;
+}
+
+/* Empty field — dim but still visible */
+.fat-detail-field--empty {
+    opacity: 0.55;
+}
+
+.fat-detail-field--empty .fat-detail-field-value {
+    color: var(--fat-ink4);
+    font-weight: 400;
+}
+
+
+/* ── Genel Toplam — hero total card, colored by direction ─────────────────── */
+.fat-detail-total {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 12px;
+    border-radius: 6px;
+    margin-top: 10px;
+}
+
+.fat-detail-total-label {
+    font-family: var(--fat-font-data);
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+}
+
+.fat-detail-total-value {
+    font-family: var(--fat-font-data);
+    font-size: 16px;
+    font-weight: 700;
+}
+
+/* Outgoing (giden) — green: money coming in from sales */
+.fat-detail-total--out {
+    background: rgba(26, 107, 71, 0.08);
+    border: 1px solid rgba(26, 107, 71, 0.28);
+}
+.fat-detail-total--out .fat-detail-total-label,
+.fat-detail-total--out .fat-detail-total-value {
+    color: var(--fat-green);
+}
+
+/* Incoming (gelen) — amber: money going out to suppliers */
+.fat-detail-total--in {
+    background: rgba(154, 99, 24, 0.08);
+    border: 1px solid rgba(154, 99, 24, 0.28);
+}
+.fat-detail-total--in .fat-detail-total-label,
+.fat-detail-total--in .fat-detail-total-value {
+    color: var(--fat-amber);
+}
+
+
+/* ── Firma hero row (used in Firma Bilgileri) ─────────────────────────────── */
+.fat-detail-hero {
+    padding: 4px 0 10px;
+    margin-bottom: 6px;
+    border-bottom: 1px solid rgba(0,0,0,0.05);
+}
+
+.fat-detail-hero-name {
+    font-family: var(--fat-font);
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--fat-ink);
+    margin: 0 0 2px;
+}
+
+.fat-detail-hero-meta {
+    font-family: var(--fat-font);
+    font-size: 11px;
+    color: var(--fat-ink3);
+}

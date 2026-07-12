@@ -1,5 +1,5 @@
 // faturalar/js/bekleyen-page.js
-// Shared logic for bekleyen-gelen.html, bekleyen-giden.html, fatura-yukle.html
+// Shared logic for bekleyen-gelen.pages, bekleyen-giden.pages, fatura-yukle.pages
 // Direction controlled by window._BEK_DIR ('INCOMING' | 'OUTGOING')
 
 

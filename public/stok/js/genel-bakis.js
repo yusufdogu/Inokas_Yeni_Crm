@@ -1,564 +1,535 @@
-// ── genel-bakis.js — Stok Genel Bakış ────────────────────────────────────────
-'use strict';
+// stok/genel-bakis.js — Stok Genel Bakış (inline dashboard)
+//
+// REAL DATA via four tenant-scoped endpoints in routes/stocks.js:
+//   GET /api/stocks/value-series?bucket&date_start&date_end  → chart
+//   GET /api/stocks/totals?date_start&date_end               → totals card + top-3
+//   GET /api/stocks/insights                                 → 3 insight cards (snapshot)
+// The time filter refetches totals + value-series (NOT insights).
+// Chat has its own history key, separate from the ürünler rail; it streams from
+// /api/chat/ask (tab 'stok-genel', read-only) via stok-chat-core.
 
-// ── Constants ─────────────────────────────────────────────────────────────────
-const LOW_STOCK_THRESHOLD = 10;
-const PAGE_SIZE           = 3;
+let _gbReady     = false;
+let _gbPeriod    = 'all';           // 'all' | 'month' | 'q' | 'custom'
+let _gbDateStart = null;
+let _gbDateEnd   = null;
+let _gbChart     = null;
+let _gbLoadSeq   = 0;               // guards out-of-order fetch responses
 
-// ── State ─────────────────────────────────────────────────────────────────────
-let _movements        = [];
-let _internalSkus     = new Set();
-let _urunRanking      = [];
-let _innerMode        = 'urun';  // 'urun'
-let _innerPage        = 0;
-let _period           = 'month';  // 'week' | 'month' | 'year'
-let _chatHistory      = [];
-let _chatLoading      = false;
-let _chartInstance=null;
-let _periodOffset=0;
+// insight cycling state (populated from /insights)
+let _gbInsights   = { mover: [], dead: [] };
+let _gbInsightIdx = { mover: 0, dead: 0 };
+let _gbForecast   = null;
 
-let allProducts = [];
+// top-list pagination — full arrays + independent page index per list
+const _GB_TOP_PAGE_SIZE = 3;
+let _gbTopData = { products: [], categories: [], brands: [] };
+let _gbTopPageIdx = { products: 0, categories: 0, brands: 0 };
+const _GB_TOP_META = {
+  products:   { listId: 'gbTopProducts',   pagerId: 'gbTopProductsPager',   infoId: 'gbTopProductsInfo'   },
+  categories: { listId: 'gbTopCategories', pagerId: 'gbTopCategoriesPager', infoId: 'gbTopCategoriesInfo' },
+  brands:     { listId: 'gbTopBrands',     pagerId: 'gbTopBrandsPager',     infoId: 'gbTopBrandsInfo'     },
+};
 
+// ─── INIT (called by stok.js when the tab first opens) ────────────────────────
+async function initGenelBakis() {
+  if (_gbReady) return;
+  _gbReady = true;
 
-// ── Init ──────────────────────────────────────────────────────────────────────
-document.addEventListener('DOMContentLoaded', () => {
-  Promise.all([loadSummary(), loadMovements()]);
-  bindChatInput();
-});
+  _gbChatLoad();
 
-// ── Data loading ──────────────────────────────────────────────────────────────
-async function loadSummary() {
+  document.addEventListener('click', _gbCloseDatePop);
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') _gbCloseDatePop(); });
+
+  _gbLoadInsights();   // snapshot, filter-independent
+  _gbApplyPeriod();    // totals + chart for the initial period
+}
+
+// ─── PERIOD → date range ───────────────────────────────────────────────────────
+function _gbPeriodRange() {
+  const today = new Date();
+  const iso = d => d.toISOString().slice(0, 10);
+  if (_gbPeriod === 'custom' && _gbDateStart && _gbDateEnd) {
+    const days = (new Date(_gbDateEnd) - new Date(_gbDateStart)) / 86400000;
+    const bucket = days <= 45 ? 'day' : (days <= 200 ? 'week' : 'month');
+    return { date_start: _gbDateStart, date_end: _gbDateEnd, bucket };
+  }
+  if (_gbPeriod === 'month') {
+    const start = new Date(today.getFullYear(), today.getMonth(), 1);
+    return { date_start: iso(start), date_end: iso(today), bucket: 'day' };
+  }
+  if (_gbPeriod === 'q') {
+    const start = new Date(today); start.setMonth(today.getMonth() - 3);
+    return { date_start: iso(start), date_end: iso(today), bucket: 'week' };
+  }
+  return { date_start: null, date_end: null, bucket: 'month' }; // all
+}
+
+function gbSetPeriod(period, btn) {
+  _gbPeriod = period;
+  _gbDateStart = _gbDateEnd = null;
+  ['gbChipAll', 'gbChipMonth', 'gbChipQ'].forEach(id =>
+    document.getElementById(id)?.classList.remove('gb-date-chip--active'));
+  btn?.classList.add('gb-date-chip--active');
+  _gbSetText('gbDateDisplay', 'Tarih seç');
+  document.getElementById('gbDatePill')?.classList.remove('active');
+  _gbApplyPeriod();
+}
+
+// Refetch the period-scoped half (totals + chart). Insights untouched.
+async function _gbApplyPeriod() {
+  const seq = ++_gbLoadSeq;
+  const { date_start, date_end, bucket } = _gbPeriodRange();
+  _gbSetText('gbChartTitle', _gbPeriodTitle());
+
+  const qs = new URLSearchParams();
+  if (date_start) qs.set('date_start', date_start);
+  if (date_end)   qs.set('date_end', date_end);
+
   try {
-    const productsRes  = await fetch('/api/products');
-    if (!productsRes.ok) throw new Error();
-    allProducts = await productsRes.json();
-
-    renderHero(allProducts);
-    loadAsistanReport(allProducts);
+    const [totals, series] = await Promise.all([
+      _gbFetch(`/api/stocks/totals?${qs.toString()}`),
+      _gbFetch(`/api/stocks/value-series?bucket=${bucket}&${qs.toString()}`),
+    ]);
+    if (seq !== _gbLoadSeq) return;               // superseded by a newer request
+    _gbRenderTotals(totals);
+    _gbRenderTops(totals);
+    _gbRenderChart(series);
   } catch (err) {
-    console.error('Stok özet yüklenemedi:', err);
-    document.getElementById('gbHeroTL').textContent = 'Yüklenemedi';
-    document.getElementById('gbAsistanBody').innerHTML = '<span class="gb-error-text">Veri yüklenemedi.</span>';
+    console.error('Genel bakış (period) yüklenemedi:', err);
+    if (seq === _gbLoadSeq) _gbShowDataError();
   }
 }
 
-async function loadMovements() {
-  try {
-    const res  = await fetch('/api/stocks/movements');
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    _movements = (await res.json()) || [];
-
-    // Filter out internal products
-    _movements = _movements.filter(m => m.sku && !_internalSkus.has(m.sku));
-
-    buildRankings();
-    renderMovChart()
-    renderInnerList();
-  } catch (err) {
-    console.error('Stok hareketleri yüklenemedi:', err);
-    document.getElementById('gbChartWrap').innerHTML = '<div class="gb-empty">Grafik yüklenemedi.</div>';
-    document.getElementById('gbInnerList').innerHTML  = '<div class="gb-empty">Veriler yüklenemedi.</div>';
-  }
+function _gbPeriodTitle() {
+  if (_gbPeriod === 'month') return 'Bu Ay';
+  if (_gbPeriod === 'q')     return 'Son 3 Ay';
+  if (_gbPeriod === 'custom' && _gbDateStart && _gbDateEnd) return `${_gbDateStart} – ${_gbDateEnd}`;
+  return 'Tüm Zamanlar';
 }
 
-// ── Hero ──────────────────────────────────────────────────────────────────────
-function renderHero(data) {
-  let totalTL  = 0;
-  let totalUSD = 0;
-
-  data.forEach(r => {
-    const stock       = Number(r.stock_on_hand || 0);
-    const avgTL       = Number(r.avg_purchase_price_tl || 0);
-    const lastCur     = (r.last_purchase_currency || '').toUpperCase().trim();
-
-    if (Math.floor(stock) > 0) {
-      if ((lastCur === 'TRY' || lastCur === 'TL') && avgTL > 0) {
-        totalTL+=stock * r.avg_purchase_price_tl
-      } else if (lastCur === 'USD' && r.last_purchase_price_cur >0) {
-        totalUSD += stock * r.last_purchase_price_cur;
-      }
-    }
-  });
-
-  document.getElementById('gbHeroTL').textContent =
-    '₺' + Math.round(totalTL).toLocaleString('tr-TR');
-  document.getElementById('gbHeroUSD').textContent =
-    '$' + Math.round(totalUSD).toLocaleString('tr-TR');
+// ─── TOTALS CARD ────────────────────────────────────────────────────────────────
+function _gbRenderTotals(t) {
+  if (!t) return;
+  _gbSetText('gbTotalTL',  '₺' + Number(t.tl  || 0).toLocaleString('tr-TR'));
+  _gbSetText('gbTotalEUR', '€' + Number(t.eur || 0).toLocaleString('tr-TR'));
+  _gbSetText('gbTotalUSD', '$' + Number(t.usd || 0).toLocaleString('tr-TR'));
+  _gbSetText('gbTotalProducts',   Number(t.products   || 0).toLocaleString('tr-TR'));
+  _gbSetText('gbTotalQty',        Number(t.total_qty  || 0).toLocaleString('tr-TR'));
+  _gbSetText('gbTotalCategories', String(t.categories || 0));
+  _gbSetText('gbTotalBrands',     String(t.brands     || 0));
 }
 
-// ── Rankings (built from movements) ──────────────────────────────────────────
-function buildRankings() {
-  // Firma ranking: sum all quantities (in + out) per company
-  const urunMap  = {};
-
-
-  _movements.forEach(m => {
-    // inside the movements.forEach, replace the urunMap block:
-    const key   = m.sku || m.product_name || '—';
-    const label = m.product_name || m.sku  || '—';
-    const qty   = Math.abs(Number(m.quantity || 0));
-
-    if (!urunMap[key]) urunMap[key] = { name: label, sku: m.sku || '', qty: 0, in: 0, out: 0 };
-    urunMap[key].qty += qty;
-    if (m.direction === 'INCOMING') urunMap[key].in  += qty;
-    else                            urunMap[key].out += qty;
-  });
-
-
-  _urunRanking = Object.values(urunMap)
-    .sort((a, b) => b.qty - a.qty);
+// ─── TOP-3 LISTS ────────────────────────────────────────────────────────────────
+// New data from /totals → store full lists, reset all pagers to page 0, render.
+function _gbRenderTops(t) {
+  if (!t) return;
+  _gbTopData.products   = t.top_products   || [];
+  _gbTopData.categories = t.top_categories || [];
+  _gbTopData.brands     = t.top_brands     || [];
+  _gbTopPageIdx = { products: 0, categories: 0, brands: 0 };
+  _gbRenderTopList('products');
+  _gbRenderTopList('categories');
+  _gbRenderTopList('brands');
 }
 
-// ── Chart ─────────────────────────────────────────────────────────────────────
-function renderMovChart() {
-  const canvas = document.getElementById('gbMovChart');
-  if (!canvas) return;
+// Pager handler (HTML: gbTopPage('products'|'categories'|'brands', ±1))
+function gbTopPage(which, dir) {
+  const rows = _gbTopData[which] || [];
+  const pages = Math.max(1, Math.ceil(rows.length / _GB_TOP_PAGE_SIZE));
+  _gbTopPageIdx[which] = Math.min(pages - 1, Math.max(0, (_gbTopPageIdx[which] || 0) + dir));
+  _gbRenderTopList(which);
+}
 
-  const buckets = buildBuckets(_movements, _period, _periodOffset);
+function _gbRenderTopList(which) {
+  const meta = _GB_TOP_META[which];
+  const rows = _gbTopData[which] || [];
+  const listEl  = document.getElementById(meta.listId);
+  const pagerEl = document.getElementById(meta.pagerId);
+  const infoEl  = document.getElementById(meta.infoId);
+  if (!listEl) return;
 
-  // Update period label
-  const labelEl = document.getElementById('gbPeriodLabel');
-  if (labelEl && buckets.length) {
-    if (_period === 'month')     labelEl.textContent = buckets[0].label + ' – ' + buckets[buckets.length-1].label;
-    else if (_period === 'year') labelEl.textContent = buckets[0].label + (buckets.length > 1 ? ' – ' + buckets[buckets.length-1].label : '');
-    else                         labelEl.textContent = buckets[0].label + ' – ' + buckets[buckets.length-1].label;
-  }
-
-  // Update totals
-  const totalIn  = buckets.reduce((s, b) => s + b.in,  0);
-  const totalOut = buckets.reduce((s, b) => s + b.out, 0);
-  const inEl  = document.getElementById('gbTotalIn');
-  const outEl = document.getElementById('gbTotalOut');
-  if (inEl)  inEl.textContent  = totalIn.toLocaleString('tr-TR');
-  if (outEl) outEl.textContent = totalOut.toLocaleString('tr-TR');
-
-  if (_chartInstance) { _chartInstance.destroy(); _chartInstance = null; }
-
-  if (!buckets.length) {
-    canvas.getContext('2d').clearRect(0, 0, canvas.width, canvas.height);
+  if (!rows.length) {
+    listEl.innerHTML = '<div style="font-size:11px;color:var(--stk-ink4);">Veri yok</div>';
+    if (pagerEl) pagerEl.style.display = 'none';
     return;
   }
 
-  _chartInstance = new Chart(canvas, {
+  const pages    = Math.ceil(rows.length / _GB_TOP_PAGE_SIZE);
+  const page     = Math.min(_gbTopPageIdx[which] || 0, pages - 1);
+  const start    = page * _GB_TOP_PAGE_SIZE;
+  const pageRows = rows.slice(start, start + _GB_TOP_PAGE_SIZE);
+
+  // bars scale against the overall #1 so ranking reads consistently across pages
+  const max = rows[0].val || 1;
+
+  listEl.innerHTML = pageRows.map((r, i) => {
+    const rank = start + i + 1;   // continuous rank across pages
+    return `
+    <div class="gb-top-row">
+      <span class="gb-top-rank">${rank}</span>
+      <div class="gb-top-body">
+        <div class="gb-top-line">
+          <span class="gb-top-name" title="${esc(r.name)}">${esc(r.name)}</span>
+          <span class="gb-top-amt">${_gbFmtTL(r.val)}</span>
+        </div>
+        <div class="gb-top-bar"><div class="gb-top-bar-fill" style="width:${Math.max(4, Math.round(r.val / max * 100))}%"></div></div>
+      </div>
+    </div>`;
+  }).join('');
+
+  if (pagerEl) {
+    if (pages > 1) {
+      pagerEl.style.display = 'flex';
+      if (infoEl) infoEl.textContent = `${page + 1} / ${pages}`;
+      const btns = pagerEl.querySelectorAll('.gb-top-pager-btn');
+      if (btns[0]) btns[0].disabled = page === 0;
+      if (btns[1]) btns[1].disabled = page >= pages - 1;
+    } else {
+      pagerEl.style.display = 'none';
+    }
+  }
+}
+
+// ─── CHART (Chart.js line, single TL series) ────────────────────────────────────
+function _gbRenderChart(payload) {
+  const canvas = document.getElementById('gbValueChart');
+  if (!canvas || typeof Chart === 'undefined') return;
+
+  const series = (payload && payload.series) || [];
+  const labels = series.map(pt => _gbPrettyPeriod(pt.period));
+  const data   = series.map(pt => Number(pt.value_tl || 0));
+
+  const green = getComputedStyle(document.documentElement).getPropertyValue('--stk-green').trim() || '#1a6b47';
+
+  if (_gbChart) {
+    _gbChart.data.labels = labels;
+    _gbChart.data.datasets[0].data = data;
+    _gbChart.update();
+    return;
+  }
+
+  _gbChart = new Chart(canvas.getContext('2d'), {
     type: 'line',
     data: {
-      labels: buckets.map(b => b.label),
-      datasets: [
-        {
-          label:       'Giriş',
-          data:        buckets.map(b => b.in),
-          borderColor: '#6e6a62',
-          backgroundColor: 'rgba(110,106,98,0.08)',
-          borderWidth: 2,
-          pointRadius: 3,
-          pointBackgroundColor: '#6e6a62',
-          tension: 0.4,
-          fill: true,
-        },
-        {
-          label:       'Çıkış',
-          data:        buckets.map(b => b.out),
-          borderColor: '#9a6318',
-          backgroundColor: 'rgba(154,99,24,0.08)',
-          borderWidth: 2,
-          pointRadius: 3,
-          pointBackgroundColor: '#9a6318',
-          tension: 0.4,
-          fill: true,
-        },
-      ],
+      labels,
+      datasets: [{
+        data,
+        borderColor: green,
+        backgroundColor: 'rgba(26,107,71,0.08)',
+        borderWidth: 2,
+        fill: true,
+        tension: 0.35,
+        pointRadius: 0,
+        pointHoverRadius: 4,
+        pointHoverBackgroundColor: green,
+      }],
     },
     options: {
-      responsive:          true,
+      responsive: true,
       maintainAspectRatio: false,
       plugins: {
         legend: { display: false },
-        tooltip: {
-          backgroundColor: '#0e0d0b',
-          titleColor:      'rgba(245,242,236,0.5)',
-          bodyColor:       'rgba(245,242,236,0.9)',
-          padding:         8,
-          callbacks: {
-            label: ctx => ` ${ctx.dataset.label}: ${Number(ctx.raw).toLocaleString('tr-TR')} adet`
-          }
-        }
+        tooltip: { callbacks: { label: ctx => '₺' + Number(ctx.parsed.y).toLocaleString('tr-TR') } },
       },
       scales: {
-        x: {
-          grid:  { color: 'rgba(14,13,11,0.05)' },
-          ticks: { color: '#a8a39a', font: { size: 9, family: 'DM Mono' } },
-        },
-        y: {
-          grid:  { color: 'rgba(14,13,11,0.05)' },
-          ticks: { color: '#a8a39a', font: { size: 9, family: 'DM Mono' }, precision: 0 },
-          beginAtZero: true,
-        }
-      }
-    }
+        x: { grid: { display: false }, ticks: { font: { size: 10, family: 'DM Mono' }, color: '#a8a39a', maxRotation: 0, autoSkip: true, maxTicksLimit: 7 } },
+        y: { grid: { color: 'rgba(14,13,11,0.06)' }, ticks: { font: { size: 10, family: 'DM Mono' }, color: '#a8a39a', callback: v => '₺' + _gbShort(v) } },
+      },
+    },
   });
 }
 
-function buildBuckets(movements, period, offset = 0) {
-  const map = {};
-
-  movements.forEach(m => {
-    const date = m.invoice_date ? new Date(m.invoice_date) : null;
-    if (!date || isNaN(date)) return;
-
-    let key, label;
-    if (period === 'week') {
-      const weekStart = getWeekStart(date);
-      key   = weekStart.toISOString().slice(0, 10);
-      label = `${weekStart.getDate()}/${weekStart.getMonth() + 1}`;
-    } else if (period === 'month') {
-      key   = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
-      label = MONTHS_TR[date.getMonth()];
-    } else {
-      key   = String(date.getFullYear());
-      label = key;
-    }
-
-    if (!map[key]) map[key] = { label, in: 0, out: 0 };
-    const qty = Math.abs(Number(m.quantity || 0));
-    if (m.direction === 'INCOMING') map[key].in  += qty;
-    else                            map[key].out += qty;
-  });
-
-  const sorted = Object.entries(map)
-    .sort(([a], [b]) => a.localeCompare(b))
-    .map(([, v]) => v);
-
-  // Window size per period
-  const window = period === 'week' ? 8 : period === 'month' ? 3 : 4;
-  const total  = sorted.length;
-  // offset 0 = most recent window, offset -1 = one step back, etc.
-  const end    = total + offset;  // offset is 0 or negative
-  const start  = Math.max(0, end - window);
-  return sorted.slice(start, end);
-}
-function setPeriod(p) {
-  _period = p;
-  _periodOffset = 0;
-  ['week','month','year'].forEach(id => {
-    const el = document.getElementById(`ptab${id.charAt(0).toUpperCase() + id.slice(1)}`);
-    if (el) el.classList.toggle('gb-ptab--active', id === p);
-  });
-  renderMovChart();
-}
-function navigatePeriod(dir) {
-  _periodOffset += dir;
-  renderMovChart();
-}
-const MONTHS_TR = ['Oca','Şub','Mar','Nis','May','Haz','Tem','Ağu','Eyl','Eki','Kas','Ara'];
-
-
-function innerPageNav(dir) {
-  const list       = _innerMode === 'urun' ? _urunRanking:'';
-  const totalPages = Math.ceil(list.length / PAGE_SIZE);
-  _innerPage = Math.max(0, Math.min(totalPages - 1, _innerPage + dir));
-  renderInnerList();
+// "2026-03" → "Mar 26";  "2026-03-14" → "14 Mar"
+function _gbPrettyPeriod(period) {
+  const months = ['Oca', 'Şub', 'Mar', 'Nis', 'May', 'Haz', 'Tem', 'Ağu', 'Eyl', 'Eki', 'Kas', 'Ara'];
+  const parts = String(period || '').split('-');
+  if (parts.length === 3) return `${parts[2]} ${months[+parts[1] - 1] || ''}`;
+  if (parts.length === 2) return `${months[+parts[1] - 1] || ''} ${parts[0].slice(2)}`;
+  return String(period || '');
 }
 
-function renderInnerList() {
-  const container  = document.getElementById('gbInnerList');
-  const list       = _urunRanking;
-  const totalPages = Math.ceil(list.length / PAGE_SIZE) || 1;
-  const start      = _innerPage * PAGE_SIZE;
-  const pageItems  = list.slice(start, start + PAGE_SIZE);
-  const maxTotal   = Math.max(...list.map(p => p.qty), 1);
+// ─── INSIGHTS (snapshot — fetched once) ─────────────────────────────────────────
+async function _gbLoadInsights() {
+  try {
+    const data = await _gbFetch('/api/stocks/insights');
+    _gbInsights.mover = (data.risers || []).map(r => ({
+      name: r.name, code: r.code, mult: String(r.mult),
+      prev: _gbFmtTL(r.prev_tl), now: _gbFmtTL(r.now_tl),
+    }));
+    const dead  = (data.dead  || []).map(d => ({ kind: 'dead', name: d.name, code: d.code, days: d.days, qty: d.qty, value: _gbFmtTL(d.value_tl) }));
+    const risky = (data.risky || []).map(r => ({ kind: 'risk', name: r.name, code: r.code, days: 0,     qty: r.qty, value: _gbFmtTL(r.value_tl) }));
+    _gbInsights.dead = [...dead, ...risky];
 
-  document.getElementById('gbPagerIndicator').textContent = `${_innerPage + 1}/${totalPages}`;
-  document.getElementById('gbPagerPrev').disabled = _innerPage === 0;
-  document.getElementById('gbPagerNext').disabled = _innerPage >= totalPages - 1;
+    if (!_gbInsights.mover.length) _gbInsights.mover = [{ name: '—', code: '', mult: '0', prev: '₺0', now: '₺0' }];
+    if (!_gbInsights.dead.length)  _gbInsights.dead  = [{ kind: 'dead', name: '—', code: '', days: 0, qty: 0, value: '₺0' }];
 
-  if (!pageItems.length) {
-    container.innerHTML = '<div class="gb-empty">Veri yok.</div>';
-    return;
+    _gbForecast = data.forecast
+      ? { projected: _gbFmtTL(data.forecast.projected_tl), now: _gbFmtTL(data.forecast.now_tl), pct: data.forecast.pct, dayOfMonth: data.forecast.day_of_month }
+      : null;
+
+    _gbInsightIdx = { mover: 0, dead: 0 };
+    _gbRenderInsights();
+    _gbRenderReportFromInsights(data);
+  } catch (err) {
+    console.error('Insights yüklenemedi:', err);
+    _gbSetText('gbMoverValue', 'Veri yüklenemedi');
+    _gbSetText('gbDeadValue', 'Veri yüklenemedi');
+    _gbSetText('gbForecastValue', 'Veri yüklenemedi');
   }
+}
 
-  const initials = name => {
-    const w = name.trim().split(/\s+/);
-    return ((w[0]?.[0] || '') + (w[1]?.[0] || w[0]?.[1] || '')).toUpperCase();
+function _gbRenderInsights() {
+  _gbRenderMover();
+  _gbRenderDead();
+  _gbRenderForecast();
+}
+
+function gbChangeInsight(which, dir) {
+  const arr = _gbInsights[which];
+  if (!arr || !arr.length) return;
+  _gbInsightIdx[which] = (_gbInsightIdx[which] + dir + arr.length) % arr.length;
+  if (which === 'mover') _gbRenderMover();
+  else _gbRenderDead();
+}
+
+function _gbRenderMover() {
+  const arr = _gbInsights.mover, i = _gbInsightIdx.mover, it = arr[i];
+  _gbSetHTML('gbMoverValue', `<strong>${esc(it.name)}</strong> giden hacmi <span class="gb-accent">${it.mult}x</span> arttı`);
+  _gbSetText('gbMoverHint', `${it.prev} → ${it.now} · son 30 gün`);
+  _gbSetText('gbMoverCounter', `${i + 1} / ${arr.length}`);
+}
+
+function _gbRenderDead() {
+  const arr = _gbInsights.dead, i = _gbInsightIdx.dead, it = arr[i];
+  const tag = document.getElementById('gbDeadTag');
+  if (it.kind === 'risk') {
+    if (tag) { tag.className = 'gb-insight-tag gb-insight-tag--risk'; tag.innerHTML = '<i class="ti ti-alert-triangle"></i> Riskli stok'; }
+    _gbSetHTML('gbDeadValue', `<strong>${esc(it.name)}</strong> stoğu <span class="gb-accent-warn">${it.qty} adet</span> kaldı`);
+    _gbSetText('gbDeadHint', `${it.value} bağlı değer · kritik seviye`);
+  } else {
+    if (tag) { tag.className = 'gb-insight-tag gb-insight-tag--down'; tag.innerHTML = '<i class="ti ti-trending-down"></i> Ölü stok'; }
+    _gbSetHTML('gbDeadValue', `<strong>${esc(it.name)}</strong> <span class="gb-accent-down">${it.days} gündür</span> hareketsiz`);
+    _gbSetText('gbDeadHint', `${it.value} bağlı değer · ${it.qty} adet`);
+  }
+  _gbSetText('gbDeadCounter', `${i + 1} / ${arr.length}`);
+}
+
+function _gbRenderForecast() {
+  if (!_gbForecast) return;
+  _gbSetHTML('gbForecastValue', `Ay sonu bağlı değer <strong>~${_gbForecast.projected}</strong>`);
+  _gbSetText('gbForecastHint', `${_gbForecast.now} bugün · ayın ${_gbForecast.dayOfMonth}. günü`);
+  const fill = document.getElementById('gbForecastFill');
+  const mark = document.getElementById('gbForecastMark');
+  if (fill) fill.style.width = _gbForecast.pct + '%';
+  if (mark) mark.style.left  = _gbForecast.pct + '%';
+}
+
+// ─── DATE POPOVER (reuses filter-pill / filter-popover) ────────────────────────
+function gbToggleDatePop(e) {
+  if (e) e.stopPropagation();
+  const pop  = document.getElementById('gbDatePop');
+  const wrap = document.getElementById('gbDatePillWrap');
+  if (!pop || !wrap) return;
+  const open = pop.classList.contains('open');
+  _gbCloseDatePop();
+  if (open) return;
+  const rect = wrap.getBoundingClientRect();
+  if (rect.left + 240 > window.innerWidth - 12) pop.classList.add('align-right');
+  pop.classList.add('open');
+  wrap.classList.add('open');
+}
+
+function _gbCloseDatePop() {
+  document.getElementById('gbDatePop')?.classList.remove('open', 'align-right');
+  document.getElementById('gbDatePillWrap')?.classList.remove('open');
+}
+
+function gbSetDatePreset(btn, kind) {
+  const today = new Date();
+  let start = new Date(today);
+  if (kind === 'day')   start = today;
+  if (kind === 'week')  start.setDate(today.getDate() - today.getDay());
+  if (kind === 'month') start = new Date(today.getFullYear(), today.getMonth(), 1);
+  if (kind === 'year')  start = new Date(today.getFullYear(), 0, 1);
+
+  _gbDateStart = _gbISO(start);
+  _gbDateEnd   = _gbISO(today);
+  const s = document.getElementById('gbDateStart'), e = document.getElementById('gbDateEnd');
+  if (s) s.value = _gbDateStart;
+  if (e) e.value = _gbDateEnd;
+  document.querySelectorAll('#gbDatePop .filter-preset-chip').forEach(c => c.classList.toggle('active', c === btn));
+  _gbApplyCustomDate();
+}
+
+function gbOnDateInput() {
+  _gbDateStart = document.getElementById('gbDateStart')?.value || null;
+  _gbDateEnd   = document.getElementById('gbDateEnd')?.value   || null;
+  document.querySelectorAll('#gbDatePop .filter-preset-chip').forEach(c => c.classList.remove('active'));
+  if (_gbDateStart && _gbDateEnd) _gbApplyCustomDate();
+}
+
+function _gbApplyCustomDate() {
+  _gbPeriod = 'custom';
+  ['gbChipAll', 'gbChipMonth', 'gbChipQ'].forEach(id =>
+    document.getElementById(id)?.classList.remove('gb-date-chip--active'));
+  document.getElementById('gbDatePill')?.classList.add('active');
+  if (_gbDateStart && _gbDateEnd) _gbSetText('gbDateDisplay', `${_gbDateStart} → ${_gbDateEnd}`);
+  _gbApplyPeriod();
+}
+
+function gbClearDate() {
+  _gbDateStart = _gbDateEnd = null;
+  const s = document.getElementById('gbDateStart'), e = document.getElementById('gbDateEnd');
+  if (s) s.value = ''; if (e) e.value = '';
+  document.querySelectorAll('#gbDatePop .filter-preset-chip').forEach(c => c.classList.remove('active'));
+  _gbCloseDatePop();
+  gbSetPeriod('all', document.getElementById('gbChipAll'));
+}
+
+// ─── "ASİSTAN DİYOR" REPORT ─────────────────────────────────────────────────────
+function _gbRenderReportFromInsights(data) {
+  const deadN  = (data.dead  || []).length;
+  const riskyN = (data.risky || []).length;
+  const totalTL = data.forecast ? _gbFmtTL(data.forecast.now_tl) : '—';
+  _gbSetText('gbReportBody',
+    `Toplam bağlı stok değeri ${totalTL}. ${deadN} üründe 14+ gündür çıkış yok, ${riskyN} üründe kritik stok seviyesi görünüyor.`);
+  const btns = document.getElementById('gbReportBtns');
+  if (btns) btns.style.display = '';
+}
+
+// ─── CHAT (separate history) ────────────────────────────────────────────────────
+const _GB_CHAT_KEY = 'inokas_genel_chat_v1';
+let _gbChatMsgs = [];
+let _gbChatBusy = false;
+
+function _gbChatLoad() {
+  try {
+    const raw = sessionStorage.getItem(_GB_CHAT_KEY);
+    _gbChatMsgs = raw ? JSON.parse(raw) : [];
+  } catch { _gbChatMsgs = []; }
+  _gbChatRenderAll();
+}
+
+function _gbChatSave() { try { sessionStorage.setItem(_GB_CHAT_KEY, JSON.stringify(_gbChatMsgs)); } catch {} }
+
+function _gbChatRenderAll() {
+  const body = document.getElementById('gbChatBody');
+  if (!body) return;
+  body.querySelectorAll('.ur-msg--dyn').forEach(el => el.remove());
+  _gbChatMsgs.forEach(m => body.appendChild(_gbChatBubble(m.role, m.text)));
+  body.scrollTop = body.scrollHeight;
+}
+
+function _gbChatBubble(role, text) {
+  const d = document.createElement('div');
+  d.className = 'ur-msg ur-msg--dyn ' + (role === 'user' ? 'ur-msg--user' : 'ur-msg--bot');
+  if (role === 'user') d.textContent = text;
+  else d.innerHTML = renderChatMarkdown(text);
+  return d;
+}
+
+function _gbChatAppend(role, text) {
+  _gbChatMsgs.push({ role, text });
+  _gbChatSave();
+  const body = document.getElementById('gbChatBody');
+  if (body) { body.appendChild(_gbChatBubble(role, text)); body.scrollTop = body.scrollHeight; }
+}
+
+function gbChatGrow(t) { t.style.height = 'auto'; t.style.height = Math.min(t.scrollHeight, 96) + 'px'; }
+
+function gbChatToggleSend() {
+  const inp = document.getElementById('gbChatInput');
+  const btn = document.getElementById('gbChatSend');
+  if (btn) btn.disabled = _gbChatBusy || !inp || !inp.value.trim();
+}
+
+function gbChatKey(e) { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); gbSendChat(); } }
+
+function gbChatQuick(btn) {
+  const inp = document.getElementById('gbChatInput');
+  if (!inp) return;
+  inp.value = btn.textContent;
+  gbChatGrow(inp);
+  gbChatToggleSend();
+  gbSendChat();
+}
+
+// Streams from /api/chat/ask via stok-chat-core (read-only — no UI actions).
+async function gbSendChat() {
+  const inp = document.getElementById('gbChatInput');
+  if (!inp || _gbChatBusy) return;
+  const text = inp.value.trim();
+  if (!text) return;
+
+  const history = _gbChatMsgs.slice();   // turns before this new one
+
+  _gbChatAppend('user', text);
+  inp.value = ''; gbChatGrow(inp);
+
+  _gbChatBusy = true; gbChatToggleSend();
+
+  // live bot bubble that grows as tokens arrive
+  const bubble = _gbChatBubble('bot', '');
+  bubble.classList.add('ur-msg--streaming');
+  const body = document.getElementById('gbChatBody');
+  body?.appendChild(bubble);
+  body && (body.scrollTop = body.scrollHeight);
+
+  let acc = '';
+  let finished = false;
+  const finish = () => {
+    if (finished) return;
+    finished = true;
+    bubble.classList.remove('ur-msg--streaming');
+    if (acc.trim()) {
+      bubble.innerHTML = renderChatMarkdown(acc);
+      _gbChatMsgs.push({ role: 'bot', text: acc }); _gbChatSave();
+    }
+    _gbChatBusy = false;
+    gbChatToggleSend();
+    inp.focus();
   };
 
-  container.innerHTML = '';
-  pageItems.forEach(item => {
-    const inPct  = ((item.in  / maxTotal) * 100).toFixed(1);
-    const outPct = ((item.out / maxTotal) * 100).toFixed(1);
-
-    const row = document.createElement('div');
-    row.className = 'gb-list-row';
-    row.innerHTML = `
-      <div class="gb-list-avatar">${initials(item.name)}</div>
-      <div class="gb-list-info">
-        <div class="gb-list-name">${escHtml(item.name)}</div>
-        <div class="gb-list-sub">${escHtml(item.sku || '—')}</div>
-        <div class="gb-list-bar-wrap">
-          <div class="gb-list-bar-in"  style="width:${inPct}%;"  title="Giriş: ${item.in.toLocaleString('tr-TR')}"></div>
-          <div class="gb-list-bar-out" style="width:${outPct}%;" title="Çıkış: ${item.out.toLocaleString('tr-TR')}"></div>
-        </div>
-      </div>
-      <span class="gb-list-val">${item.qty.toLocaleString('tr-TR')}</span>`;
-    container.appendChild(row);
+  await streamStokChat({
+    tab: 'stok-genel',
+    message: text,
+    history,
+    onToken: (chunk) => {
+      acc += chunk;
+      bubble.textContent = acc;
+      body && (body.scrollTop = body.scrollHeight);
+    },
+    // no onAction — genel bakış is read-only
+    onDone: finish,
+    onError: (msg) => {
+      if (!acc.trim()) bubble.textContent = 'Bir hata oluştu, tekrar dener misin?';
+      console.error('[stok-genel chat]', msg);
+      finish();
+    },
   });
 }
 
-// ── Asistan Diyor ─────────────────────────────────────────────────────────────
-function loadAsistanReport(data) {
-  const el = document.getElementById('gbAsistanBody');
-  const btns = document.getElementById('gbAsistanBtns');
-  if (!el) return;
-
-  try {
-    const inStock  = data.filter(r => Number(r.current_stock) > 0);
-    const today    = new Date();
-
-    // ── Top value product ─────────────────────────────────────────────────────
-    const byValue = inStock
-      .map(r => ({
-        name:    r.product_name || '—',
-        sku:     r.sku || '',
-        stock:   Number(r.current_stock || 0),
-        valueTL: Number(r.current_stock || 0) * Number(r.avg_purchase_price_tl || 0),
-        valueUSD: Number(r.stock_usd || 0),
-      }))
-      .sort((a, b) => b.valueTL - a.valueTL);
-
-    const totalTL  = byValue.reduce((s, r) => s + r.valueTL, 0);
-    const topVal   = byValue[0];
-    const topPct   = totalTL > 0 && topVal ? Math.round((topVal.valueTL / totalTL) * 100) : 0;
-
-    // ── Risk altında ──────────────────────────────────────────────────────────
-    const riskItems = inStock
-      .filter(r => Number(r.current_stock) > 0 && Number(r.current_stock) < LOW_STOCK_THRESHOLD)
-      .sort((a, b) => Number(a.current_stock) - Number(b.current_stock));
-    const worstRisk = riskItems[0];
-
-    // ── Ölü stok ──────────────────────────────────────────────────────────────
-    const deadItems = inStock.filter(r => Number(r.total_out || 0) === 0 && Number(r.total_in || 0) > 0);
-    const deadTL    = deadItems.reduce((s, r) => s + Number(r.current_stock || 0) * Number(r.avg_purchase_price_tl || 0), 0);
-
-    // ── Son hareket ───────────────────────────────────────────────────────────
-    const lastMov = _movements
-      .filter(m => m.invoice_date)
-      .sort((a, b) => b.invoice_date.localeCompare(a.invoice_date))[0];
-
-    // ── Summary text ──────────────────────────────────────────────────────────
-    const summaryParts = [];
-    if (topVal && topPct >= 30) summaryParts.push(`Paranın %${topPct}'i tek üründe (${topVal.name.slice(0, 25)}) — yoğunlaşma riski var.`);
-    if (riskItems.length > 0)   summaryParts.push(`${riskItems.length} ürün kritik stok altında.`);
-    if (deadItems.length > 0)   summaryParts.push(`${deadItems.length} üründe hiç çıkış hareketi yok.`);
-    const summaryText = summaryParts.join(' ') || 'Stok durumu normal görünüyor.';
-
-    // ── Render ────────────────────────────────────────────────────────────────
-    el.innerHTML = `
-
-      ${topVal ? `
-      <div class="gb-report-section">
-        <div class="gb-report-section-title">
-          <i class="ti ti-coin" style="font-size:13px;" aria-hidden="true"></i>
-          En Yüksek Değer
-          <span class="gb-report-badge" style="margin-left:auto;">${topPct}% toplam</span>
-        </div>
-        <div class="gb-report-row">
-          <div class="gb-report-row-main">
-            <span class="gb-report-row-name">${escHtml(topVal.name.slice(0, 32))}</span>
-            <span class="gb-report-row-badge">${topVal.sku} · ${topVal.stock.toLocaleString('tr-TR')} adet</span>
-          </div>
-          <span class="gb-report-row-amount">₺${Math.round(topVal.valueTL).toLocaleString('tr-TR')}</span>
-        </div>
-      </div>` : ''}
-
-      ${riskItems.length > 0 ? `
-      <div class="gb-report-section" style="border-color:rgba(184,50,50,0.2);">
-        <div class="gb-report-section-title">
-          <i class="ti ti-alert-circle" style="font-size:13px; color:#b83232;" aria-hidden="true"></i>
-          Risk Altında
-          <span class="gb-report-badge" style="color:#b83232; background:rgba(184,50,50,0.1); margin-left:auto;">${riskItems.length} SKU</span>
-        </div>
-        <div class="gb-report-row">
-          <div class="gb-report-row-main">
-            <span class="gb-report-row-name">${escHtml((worstRisk.product_name || '—').slice(0, 32))}</span>
-            <span class="gb-report-row-badge" style="color:#b83232;">En kritik · ${Number(worstRisk.current_stock)} adet kaldı</span>
-          </div>
-        </div>
-      </div>` : ''}
-
-      ${deadItems.length > 0 ? `
-      <div class="gb-report-section">
-        <div class="gb-report-section-title">
-          <i class="ti ti-ghost" style="font-size:13px;" aria-hidden="true"></i>
-          Ölü Stok
-          <span class="gb-report-badge" style="margin-left:auto;">${deadItems.length} SKU</span>
-        </div>
-        <div class="gb-report-row">
-          <div class="gb-report-row-main">
-            <span class="gb-report-row-name">Hiç çıkış yapılmamış</span>
-            <span class="gb-report-row-badge">Değer: ₺${Math.round(deadTL).toLocaleString('tr-TR')}</span>
-          </div>
-        </div>
-      </div>` : ''}
-
-      ${lastMov ? `
-      <div class="gb-report-last">
-        <i class="ti ti-circle-check" style="font-size:18px; color:#1a6b47; flex-shrink:0;" aria-hidden="true"></i>
-        <div style="flex:1; min-width:0;">
-          <div class="gb-report-last-name">${escHtml((lastMov.product_name || '—').slice(0, 32))}</div>
-          <div class="gb-report-last-sub">${(lastMov.invoice_date || '').slice(0, 10)} · ${lastMov.direction === 'INCOMING' ? 'Giriş' : 'Çıkış'} · ${escHtml(lastMov.company_name || '—')}</div>
-        </div>
-        <span class="gb-report-last-badge">Son Hareket</span>
-      </div>` : ''}
-
-      <div class="gb-report-summary">${escHtml(summaryText)}</div>
-
-      <div class="gb-report-suggests">
-        ${riskItems.length > 0 ? `<button class="gb-suggest-btn" onclick="gbPrefill('Risk altındaki ürünleri listele')">Risk altındaki ürünler →</button>` : ''}
-        ${deadItems.length > 0 ? `<button class="gb-suggest-btn" onclick="gbPrefill('Ölü stok listesini göster')">Ölü stoğu listele →</button>` : ''}
-        ${topVal ? `<button class="gb-suggest-btn" onclick="gbPrefill('En değerli stokları listele')">En değerli stoklar →</button>` : ''}
-      </div>`;
-
-    btns.style.display = 'none';
-
-  } catch(e) {
-    console.error('loadAsistanReport:', e);
-    el.innerHTML = '<span class="gb-error-text">Rapor yüklenemedi.</span>';
-  }
+// ─── FETCH + FORMAT HELPERS ─────────────────────────────────────────────────────
+async function _gbFetch(url) {
+  const res = await fetch(url, { cache: 'no-store' });
+  if (!res.ok) throw new Error(`HTTP ${res.status} — ${url}`);
+  return res.json();
 }
-// ── Chat ──────────────────────────────────────────────────────────────────────
-function bindChatInput() {
-  const input = document.getElementById('gbChatInput');
-  if (!input) return;
-  input.addEventListener('keydown', e => {
-    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); gbSend(); }
-  });
-  input.addEventListener('input', () => {
-    input.style.height = 'auto';
-    input.style.height = Math.min(input.scrollHeight, 100) + 'px';
+
+function _gbShowDataError() {
+  ['gbTopProducts', 'gbTopCategories', 'gbTopBrands'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.innerHTML = '<div style="font-size:11px;color:var(--stk-red);">Veri yüklenemedi</div>';
   });
 }
 
-async function gbSend() {
-  const input   = document.getElementById('gbChatInput');
-  const message = (input?.value || '').trim();
-  if (!message || _chatLoading) return;
-
-  input.value        = '';
-  input.style.height = 'auto';
-
-  appendChatMsg('user', message);
-  const typingId = appendTyping();
-  _chatLoading = true;
-  setSendDisabled(true);
-
-  let bubbleEl = null;
-
-  try {
-    const res = await fetch('/api/chat', {
-      method:  'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({ message, history: _chatHistory }),
-    });
-
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-
-    removeTyping(typingId);
-
-    const msgs = document.getElementById('gbChatMessages');
-    const wrap = document.createElement('div');
-    wrap.className = 'gb-chat-msg gb-chat-msg--assistant';
-    wrap.innerHTML  = '<div class="gb-chat-msg-label">AI Asistan</div>';
-    bubbleEl = document.createElement('div');
-    bubbleEl.className = 'gb-chat-bubble';
-    wrap.appendChild(bubbleEl);
-    msgs.appendChild(wrap);
-    gbScrollBottom();
-
-    const reader  = res.body.getReader();
-    const decoder = new TextDecoder();
-    let   buffer  = '';
-    let   streamed = '';
-
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-
-      buffer += decoder.decode(value, { stream: true });
-      const lines = buffer.split('\n');
-      buffer = lines.pop();
-
-      let eventType = null, dataLine = null;
-      for (const line of lines) {
-        if (line.startsWith('event: '))     eventType = line.slice(7).trim();
-        else if (line.startsWith('data: ')) dataLine  = line.slice(6).trim();
-        else if (line === '' && eventType && dataLine) {
-          try {
-            const data = JSON.parse(dataLine);
-            if (eventType === 'token') {
-              streamed += data.text || '';
-              if (bubbleEl) bubbleEl.textContent = streamed;
-              gbScrollBottom();
-            } else if (eventType === 'done' && data.assistant_message) {
-              _chatHistory.push({ role: 'user', content: message });
-              _chatHistory.push(data.assistant_message);
-              if (_chatHistory.length > 20) _chatHistory = _chatHistory.slice(-20);
-            }
-          } catch {}
-          eventType = null; dataLine = null;
-        }
-      }
-    }
-  } catch (err) {
-    removeTyping(typingId);
-    appendChatMsg('assistant', '⚠️ ' + err.message);
-  } finally {
-    _chatLoading = false;
-    setSendDisabled(false);
-    document.getElementById('gbChatInput')?.focus();
-  }
+function _gbFmtTL(n) { return '₺' + Math.round(Number(n || 0)).toLocaleString('tr-TR'); }
+function _gbShort(n) {
+  n = Number(n || 0);
+  if (n >= 1000000) return (n / 1000000).toFixed(n % 1000000 ? 1 : 0) + 'M';
+  if (n >= 1000)    return Math.round(n / 1000) + 'K';
+  return String(Math.round(n));
 }
-
-function gbAutoSend(text) {
-  const input = document.getElementById('gbChatInput');
-  if (input) input.value = text;
-  gbSend();
-}
-function gbPrefill(text) {
-  const input = document.getElementById('gbChatInput');
-  if (input) { input.value = text; input.focus(); }
-}
-// ── Chat helpers ──────────────────────────────────────────────────────────────
-function appendChatMsg(role, text) {
-  const msgs = document.getElementById('gbChatMessages');
-  if (!msgs) return;
-  const wrap = document.createElement('div');
-  wrap.className = `gb-chat-msg gb-chat-msg--${role}`;
-  wrap.innerHTML = `
-    <div class="gb-chat-msg-label">${role === 'user' ? 'Sen' : 'AI Asistan'}</div>
-    <div class="gb-chat-bubble">${escHtml(text)}</div>`;
-  msgs.appendChild(wrap);
-  gbScrollBottom();
-}
-
-function appendTyping() {
-  const msgs = document.getElementById('gbChatMessages');
-  if (!msgs) return null;
-  const id  = 'gb-typing-' + Date.now();
-  const div = document.createElement('div');
-  div.id        = id;
-  div.className = 'gb-chat-msg gb-chat-msg--assistant';
-  div.innerHTML = `
-    <div class="gb-chat-msg-label">AI Asistan</div>
-    <div class="gb-chat-typing">
-      <div class="gb-typing-dot"></div>
-      <div class="gb-typing-dot"></div>
-      <div class="gb-typing-dot"></div>
-    </div>`;
-  msgs.appendChild(div);
-  gbScrollBottom();
-  return id;
-}
-
-function removeTyping(id)    { document.getElementById(id)?.remove(); }
-function gbScrollBottom()    { const m = document.getElementById('gbChatMessages'); if (m) m.scrollTop = m.scrollHeight; }
-function setSendDisabled(v)  { const b = document.getElementById('gbChatSend'); if (b) b.disabled = v; }
-function escHtml(str)        { return String(str || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function _gbISO(d) { return d.toISOString().slice(0, 10); }
+function _gbSetText(id, v) { const el = document.getElementById(id); if (el) el.textContent = v; }
+function _gbSetHTML(id, v) { const el = document.getElementById(id); if (el) el.innerHTML = v; }

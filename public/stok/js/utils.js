@@ -168,5 +168,9 @@ function createTagFilter({ wrapId, inputId, dropdownId, placeholder, getOptions,
   return {
     getSelected: () => [...selected],
     clear: () => { selected = []; renderTags(); },
+    setSelected: (vals) => {
+      selected = Array.isArray(vals) ? [...new Set(vals.map(v => String(v)))] : [];
+      renderTags();
+    },
   };
 }

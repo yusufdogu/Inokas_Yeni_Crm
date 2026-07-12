@@ -15,9 +15,26 @@
   <link rel="stylesheet" href="/stok/css/stok.css">
   <link rel="stylesheet" href="/stok/css/stok-base.css">
   <link rel="stylesheet" href="/stok/css/backorder.css">
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
-  <script src="/shared/auth-interceptor.js"></script>
+  <!-- Third-party first -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js" defer></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/12.0.0/marked.min.js" defer></script>
+  <script src="/shared/auth-interceptor.js" defer></script>
+  <script src="/shared/sidebar.js" defer></script>
+
+  <!-- Shared helpers — must load before everything below (esc, createTagFilter) -->
+  <script src="/stok/js/utils.js" defer></script>
+  <script src="/stok/js/stok-chat-core.js" defer></script>
+  <!-- Page modules -->
+  <script src="/stok/js/urunler.js" defer></script>
   <script src="/stok/js/urunler-chat.js" defer></script>
+  <script src="/stok/js/genel-bakis.js" defer></script>
+  <script src="/stok/js/urun-hareketleri.js" defer></script>
+  <script src="/stok/js/backorder.js" defer></script>
+  <script src="/stok/js/kategori-yonetimi.js" defer></script>
+  <script src="/stok/js/analytics.js" defer></script>
+
+  <!-- Tab controller LAST — calls init functions defined by the modules above -->
+  <script src="/stok/js/stok.js" defer></script>
 </head>
 <body>
 
@@ -50,13 +67,213 @@
     <!-- ── Main area ────────────────────────────────────────────────────────── -->
     <div class="stk-area" id="stkArea">
 
-      <!-- Genel Bakış — iframe -->
-      <div id="panelGenel" class="stk-panel">
-        <iframe id="genelBakisFrame" src="" style="width:100%; height:100%; border:none; display:block;" title="Genel Bakış"></iframe>
-      </div>
+      <!-- Genel Bakış — inline dashboard + assistant rail (70/30) -->
+      <div id="panelGenel" class="stk-panel" style="display:none; flex-direction:row;">
 
+        <!-- ══ LEFT 70% ══ -->
+        <div class="gb-main">
+
+          <!-- ── Insight strip (independent of time filter) ────────────────────── -->
+          <div class="gb-insights">
+
+            <!-- 1. Yükselen -->
+            <div class="gb-insight" id="gbInsightMover">
+              <div class="gb-insight-head">
+                <span class="gb-insight-tag gb-insight-tag--up"><i class="ti ti-trending-up"></i> Yükselen</span>
+                <span class="gb-insight-nav">
+                  <button class="gb-insight-nav-btn" onclick="gbChangeInsight('mover',-1)" aria-label="Önceki"><i class="ti ti-chevron-left"></i></button>
+                  <span class="gb-insight-counter" id="gbMoverCounter">1 / 1</span>
+                  <button class="gb-insight-nav-btn" onclick="gbChangeInsight('mover',1)" aria-label="Sonraki"><i class="ti ti-chevron-right"></i></button>
+                </span>
+              </div>
+              <div class="gb-insight-value" id="gbMoverValue">—</div>
+              <div class="gb-insight-hint" id="gbMoverHint"></div>
+            </div>
+
+            <!-- 2. Ölü / Riskli -->
+            <div class="gb-insight" id="gbInsightDead">
+              <div class="gb-insight-head">
+                <span class="gb-insight-tag gb-insight-tag--down" id="gbDeadTag"><i class="ti ti-trending-down"></i> Ölü stok</span>
+                <span class="gb-insight-nav">
+                  <button class="gb-insight-nav-btn" onclick="gbChangeInsight('dead',-1)" aria-label="Önceki"><i class="ti ti-chevron-left"></i></button>
+                  <span class="gb-insight-counter" id="gbDeadCounter">1 / 1</span>
+                  <button class="gb-insight-nav-btn" onclick="gbChangeInsight('dead',1)" aria-label="Sonraki"><i class="ti ti-chevron-right"></i></button>
+                </span>
+              </div>
+              <div class="gb-insight-value" id="gbDeadValue">—</div>
+              <div class="gb-insight-hint" id="gbDeadHint"></div>
+            </div>
+
+            <!-- 3. Tahmin -->
+            <div class="gb-insight" id="gbInsightForecast">
+              <div class="gb-insight-head">
+                <span class="gb-insight-tag gb-insight-tag--fc"><i class="ti ti-chart-line"></i> Tahmin</span>
+              </div>
+              <div class="gb-insight-value" id="gbForecastValue">—</div>
+              <div class="gb-forecast-bar">
+                <div class="gb-forecast-bar-fill" id="gbForecastFill" style="width:0%"></div>
+                <div class="gb-forecast-bar-mark" id="gbForecastMark" style="left:0%"></div>
+              </div>
+              <div class="gb-insight-hint" id="gbForecastHint"></div>
+            </div>
+
+          </div>
+
+          <!-- ── Totals card (time-filtered) ───────────────────────────────────── -->
+          <div class="gb-totals">
+            <div class="gb-totals-money">
+              <div class="gb-totals-label">Toplam Stok Değeri</div>
+              <div class="gb-totals-cur-row">
+                <div class="gb-totals-cur"><span class="gb-totals-amt " id="gbTotalTL">₺0</span><span class="gb-totals-cc"></span></div>
+                <div class="gb-totals-cur"><span class="gb-totals-amt" id="gbTotalUSD">$0</span><span class="gb-totals-cc"></span></div>
+                <div class="gb-totals-cur"><span class="gb-totals-amt" id="gbTotalEUR">€0</span><span class="gb-totals-cc"></span></div>
+              </div>
+            </div>
+            <div class="gb-totals-counts">
+              <div class="gb-totals-count"><div class="gb-totals-count-label">Ürün</div><div class="gb-totals-count-val" id="gbTotalProducts">—</div></div>
+              <div class="gb-totals-count"><div class="gb-totals-count-label">Stok Adedi</div><div class="gb-totals-count-val" id="gbTotalQty">—</div></div>
+              <div class="gb-totals-count"><div class="gb-totals-count-label">Kategori</div><div class="gb-totals-count-val" id="gbTotalCategories">—</div></div>
+              <div class="gb-totals-count"><div class="gb-totals-count-label">Marka</div><div class="gb-totals-count-val" id="gbTotalBrands">—</div></div>
+            </div>
+          </div>
+
+          <!-- ── Chart card (time filter lives here) ───────────────────────────── -->
+          <div class="gb-chart-card">
+            <div class="gb-chart-head">
+              <span class="gb-chart-title" id="gbChartTitle">Tüm Zamanlar</span>
+
+              <div class="gb-chart-controls">
+                <button class="gb-date-chip gb-date-chip--active" id="gbChipAll"   onclick="gbSetPeriod('all',this)">Tüm zamanlar</button>
+                <button class="gb-date-chip"                        id="gbChipMonth" onclick="gbSetPeriod('month',this)">Bu ay</button>
+                <button class="gb-date-chip"                        id="gbChipQ"     onclick="gbSetPeriod('q',this)">Son 3 ay</button>
+
+                <!-- Custom date — reuses filter-pill / filter-popover from ürünler -->
+                <div class="filter-pill-wrap" id="gbDatePillWrap">
+                  <button type="button" class="filter-pill" id="gbDatePill" onclick="gbToggleDatePop(event)">
+                    <i class="ti ti-calendar" style="font-size:13px;"></i>
+                    <span class="filter-pill-label" id="gbDateDisplay">Tarih seç</span>
+                    <i class="ti ti-chevron-down filter-pill-caret" style="font-size:12px;"></i>
+                  </button>
+                  <div class="filter-popover" id="gbDatePop" onclick="event.stopPropagation()">
+                    <div class="filter-presets">
+                      <button type="button" class="filter-preset-chip" onclick="gbSetDatePreset(this,'day')">Bugün</button>
+                      <button type="button" class="filter-preset-chip" onclick="gbSetDatePreset(this,'week')">Bu hafta</button>
+                      <button type="button" class="filter-preset-chip" onclick="gbSetDatePreset(this,'month')">Bu ay</button>
+                      <button type="button" class="filter-preset-chip" onclick="gbSetDatePreset(this,'year')">Bu yıl</button>
+                    </div>
+                    <div class="filter-range-inputs">
+                      <div class="filter-range-group">
+                        <label>Başlangıç</label>
+                        <input type="date" id="gbDateStart" onchange="gbOnDateInput()">
+                      </div>
+                      <span class="filter-range-sep">–</span>
+                      <div class="filter-range-group">
+                        <label>Bitiş</label>
+                        <input type="date" id="gbDateEnd" onchange="gbOnDateInput()">
+                      </div>
+                    </div>
+                    <div class="filter-popover-foot">
+                      <button type="button" class="filter-popover-clear" onclick="gbClearDate()">Temizle</button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="gb-chart-legend">
+                <span><span class="gb-legend-dot"></span>Stok değeri</span>
+              </div>
+            </div>
+
+            <div class="gb-chart-area">
+              <canvas id="gbValueChart"></canvas>
+            </div>
+          </div>
+
+          <!-- ══════════════════════════════════════════════════════════════════════════
+               TOP-3 LISTS with independent pagination (3 per page).
+               Replaces the existing <div class="gb-tops-row"> … </div> in #panelGenel.
+          ════════════════════════════════════════════════════════════════════════════ -->
+          <div class="gb-tops-row">
+
+            <!-- Top ürünler -->
+            <div class="gb-top-card">
+              <div class="gb-top-head">
+                <span class="gb-top-head-title"><i class="ti ti-package"></i> Top ürünler</span>
+                <div class="gb-top-pager" id="gbTopProductsPager" style="display:none;">
+                  <button class="gb-top-pager-btn" onclick="gbTopPage('products',-1)" aria-label="Önceki"><i class="ti ti-chevron-left"></i></button>
+                  <span class="gb-top-pager-info" id="gbTopProductsInfo">1 / 1</span>
+                  <button class="gb-top-pager-btn" onclick="gbTopPage('products',1)" aria-label="Sonraki"><i class="ti ti-chevron-right"></i></button>
+                </div>
+              </div>
+              <div class="gb-top-list" id="gbTopProducts"></div>
+            </div>
+
+            <!-- Top kategoriler -->
+            <div class="gb-top-card">
+              <div class="gb-top-head">
+                <span class="gb-top-head-title"><i class="ti ti-tag"></i> Top kategoriler</span>
+                <div class="gb-top-pager" id="gbTopCategoriesPager" style="display:none;">
+                  <button class="gb-top-pager-btn" onclick="gbTopPage('categories',-1)" aria-label="Önceki"><i class="ti ti-chevron-left"></i></button>
+                  <span class="gb-top-pager-info" id="gbTopCategoriesInfo">1 / 1</span>
+                  <button class="gb-top-pager-btn" onclick="gbTopPage('categories',1)" aria-label="Sonraki"><i class="ti ti-chevron-right"></i></button>
+                </div>
+              </div>
+              <div class="gb-top-list" id="gbTopCategories"></div>
+            </div>
+
+            <!-- Top markalar -->
+            <div class="gb-top-card">
+              <div class="gb-top-head">
+                <span class="gb-top-head-title"><i class="ti ti-building-factory-2"></i> Top markalar</span>
+                <div class="gb-top-pager" id="gbTopBrandsPager" style="display:none;">
+                  <button class="gb-top-pager-btn" onclick="gbTopPage('brands',-1)" aria-label="Önceki"><i class="ti ti-chevron-left"></i></button>
+                  <span class="gb-top-pager-info" id="gbTopBrandsInfo">1 / 1</span>
+                  <button class="gb-top-pager-btn" onclick="gbTopPage('brands',1)" aria-label="Sonraki"><i class="ti ti-chevron-right"></i></button>
+                </div>
+              </div>
+              <div class="gb-top-list" id="gbTopBrands"></div>
+            </div>
+
+          </div>
+
+        </div><!-- /.gb-main -->
+
+        <!-- ══ RIGHT 30% — ASSISTANT (reuses ur-chat styles, separate history) ══ -->
+        <div class="ur-chat" id="gbChat">
+          <div class="ur-chat-head">
+            <div class="ur-chat-ava"><i class="ti ti-sparkles" style="font-size:15px;"></i></div>
+            <div>
+              <p class="ur-chat-title">Stok Asistanı</p>
+              <p class="ur-chat-sub">genel bakış hakkında sor</p>
+            </div>
+          </div>
+
+          <div class="ur-chat-body" id="gbChatBody">
+            <!-- Asistan diyor — auto report -->
+            <div class="gb-report" id="gbReport">
+              <div class="gb-report-head"><i class="ti ti-sparkles"></i> Asistan diyor</div>
+              <div class="gb-report-body" id="gbReportBody">Rapor hazırlanıyor...</div>
+              <div class="gb-report-btns" id="gbReportBtns" style="display:none;">
+                <button class="gb-report-btn" onclick="gbChatQuick(this)">Ölü stoğu gör</button>
+                <button class="gb-report-btn" onclick="gbChatQuick(this)">Risk raporu</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="ur-chat-foot">
+            <div class="ur-chat-inputwrap">
+              <textarea class="ur-chat-input" id="gbChatInput" rows="1" placeholder="Stok hakkında sor..."
+                        oninput="gbChatGrow(this); gbChatToggleSend()" onkeydown="gbChatKey(event)"></textarea>
+              <button class="ur-chat-send" id="gbChatSend" onclick="gbSendChat()" disabled>
+                <i class="ti ti-arrow-up" style="font-size:16px;"></i>
+              </button>
+            </div>
+          </div>
+        </div>
+
+      </div><!-- /#panelGenel -->
       <!-- ══════════════════════════════════════════════════════════════════════════
-       ÜRÜNLER PANEL — replaces the existing #panelUrunler block (stok.html lines 59–149)
+       ÜRÜNLER PANEL — replaces the existing #panelUrunler block (stok.pages lines 59–149)
        70/30 split: .ur-main (filters + KPIs + table) | .ur-chat (assistant rail)
       ════════════════════════════════════════════════════════════════════════════ -->
       <div id="panelUrunler" class="stk-panel" style="display:none; flex-direction:row;">
@@ -293,11 +510,17 @@
             <table class="stk-tbl">
               <thead>
                 <tr>
-                  <th style="width:22%;"><span class="th-ico"><i class="ti ti-package"></i>Ürün Adı</span></th>
-                  <th style="width:14%;"><span class="th-ico"><i class="ti ti-barcode"></i>SKU / Kod</span></th>
-                  <th style="width:16%;"><span class="th-ico"><i class="ti ti-tag"></i>Kategori</span></th>
+                  <th style="width:22%; cursor:pointer;" onclick="sortUrunler('product_name')">
+                    <span class="th-ico"><i class="ti ti-package"></i>Ürün Adı<span id="urunSortHdr-product_name" class="th-sort"> ↕</span></span>
+                  </th>
+                  <th style="width:14%; cursor:pointer;" onclick="sortUrunler('product_code')">
+                    <span class="th-ico"><i class="ti ti-barcode"></i>Kod<span id="urunSortHdr-product_code" class="th-sort"> ↕</span></span>
+                  </th>
+                  <th style="width:16%; cursor:pointer;" onclick="sortUrunler('category')">
+                    <span class="th-ico"><i class="ti ti-tag"></i>Kategori<span id="urunSortHdr-category" class="th-sort"> ↕</span></span>
+                  </th>
                   <th style="width:10%; text-align:right; cursor:pointer;" onclick="sortUrunler('stock_on_hand')">
-                    <span class="th-ico th-ico--right"><i class="ti ti-stack-2"></i>Mevcut Miktar<span id="urunSortHdr-stock_on_hand" class="th-sort"> ↕</span></span>
+                    <span class="th-ico th-ico--right"><i class="ti ti-stack-2"></i>Miktar<span id="urunSortHdr-stock_on_hand" class="th-sort"> ↕</span></span>
                   </th>
                   <th style="width:14%; text-align:right; cursor:pointer;" onclick="sortUrunler('total_stock_price')">
                     <span class="th-ico th-ico--right"><i class="ti ti-coins"></i>Toplam Stok<span id="urunSortHdr-total_stock_price" class="th-sort"> ↕</span></span>
@@ -307,8 +530,8 @@
               <tbody id="urunlerTableBody"></tbody>
             </table>
             <div id="urunlerEmpty" class="stk-empty">Ürün bulunamadı.</div>
-            <div id="urunlerPagination" class="stk-pagination"></div>
           </div>
+          <div id="urunlerPagination" class="stk-pagination"></div>
 
         </div><!-- /.ur-main -->
 
@@ -347,8 +570,8 @@
 
       </div><!-- /#panelUrunler -->
 
-      <!-- ── Backorder panel — replace lines 182–269 in stok.html ─────────────────── -->
-      <!-- ── Backorder panel — replace lines 182–269 in stok.html ─────────────────── -->
+      <!-- ── Backorder panel — replace lines 182–269 in stok.pages ─────────────────── -->
+      <!-- ── Backorder panel — replace lines 182–269 in stok.pages ─────────────────── -->
       <div id="panelBackorder" class="stk-panel" style="display:none;">
 
         <!-- Filter bar -->
@@ -754,8 +977,6 @@
         <div class="stk-modal-section">
           <div class="stk-modal-section-title">Fiyatlar</div>
           <div class="stk-modal-grid">
-            <div class="stk-modal-field"><label>Maliyet (USD)</label><input type="number" step="0.01" id="pf-maliyet_usd"></div>
-            <div class="stk-modal-field"><label>Sözleşme Fiyatı (EUR)</label><input type="number" step="0.01" id="pf-sozlesme_fiyat_eur"></div>
             <div class="stk-modal-field"><label>Son Alış Fiyatı</label><input type="number" step="0.01" id="pf-last_purchase_price_cur"></div>
             <div class="stk-modal-field"><label>Para Birimi</label><input type="text" id="pf-last_purchase_currency" placeholder="USD / EUR / TRY"></div>
             <div class="stk-modal-field"><label>Son Alış Kuru</label><input type="number" step="0.0001" id="pf-last_purchase_rate"></div>
@@ -765,23 +986,19 @@
         </div>
 
         <div class="stk-modal-section">
-          <div class="stk-modal-section-title">DMO Bilgileri</div>
+          <div class="stk-modal-section-title">Stok & Sistem</div>
           <div class="stk-modal-grid">
-            <div class="stk-modal-field"><label>DMO Kodu</label><input type="text" id="pf-dmo_code"></div>
-            <div class="stk-modal-field"><label>DMO Fiyatı (TRY)</label><input type="number" step="0.01" id="pf-dmo_fiyat_try"></div>
-            <div class="stk-modal-field stk-modal-field--full"><label>DMO URL</label><input type="text" id="pf-dmo_url" placeholder="https://www.dmo.gov.tr/..."></div>
-            <div class="stk-modal-field"><label>Hediye Miktarı</label><input type="number" step="1" id="pf-gift_quantity"></div>
+            <div class="stk-modal-field">
+              <label>Stok Miktarı</label>
+              <input type="number" step="0.01" id="pf-stock_on_hand">
+            </div>
+            <div class="stk-modal-field stk-modal-field--full">
+              <label>Teknik Özellikler (JSON)</label>
+              <textarea id="pf-specs" rows="4" placeholder='{"model": "...", "renk": "Siyah"}'></textarea>
+            </div>
           </div>
         </div>
 
-        <div class="stk-modal-section">
-          <div class="stk-modal-section-title">Sistem Bilgileri</div>
-          <div class="stk-modal-grid">
-            <div class="stk-modal-field"><label>Oluşturulma</label><input type="text" id="pf-created_at" readonly class="stk-readonly"></div>
-            <div class="stk-modal-field"><label>Son Güncelleme</label><input type="text" id="pf-updated_at" readonly class="stk-readonly"></div>
-            <div class="stk-modal-field"><label>DMO Fiyat Güncelleme</label><input type="text" id="pf-dmo_fiyat_updated" readonly class="stk-readonly"></div>
-          </div>
-        </div>
 
       </div>
 
@@ -858,13 +1075,6 @@
 
 <div id="toast-container"></div>
 
-<script src="/shared/sidebar.js" defer></script>
-<script src="/stok/js/utils.js"></script>
-<script src="/stok/js/urunler.js"></script>
-<script src="/stok/js/urun-hareketleri.js"></script>
-<script src="/stok/js/backorder.js"></script>
-<script src="/stok/js/kategori-yonetimi.js"></script>
-<script src="/stok/js/analytics.js"></script>
-<script src="/stok/js/stok.js"></script>
+
 </body>
 </html>

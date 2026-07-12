@@ -39,7 +39,8 @@ function _urChatRenderAll() {
 function _urChatBubble(role, text) {
   const d = document.createElement('div');
   d.className = 'ur-msg ur-msg--dyn ' + (role === 'user' ? 'ur-msg--user' : 'ur-msg--bot');
-  d.textContent = text;   // textContent — no HTML injection from messages
+  if (role === 'user') d.textContent = text;              // user stays plain
+  else d.innerHTML = renderChatMarkdown(text);            // bot → markdown
   return d;
 }
 
@@ -83,11 +84,15 @@ function urChatQuick(btn) {
 }
 
 // ─── SEND ─────────────────────────────────────────────────────────────────────
+// ─── SEND (streams from /api/chat/ask via stok-chat-core) ──────────────────────
 async function sendUrChat() {
   const inp = document.getElementById('urChatInput');
   if (!inp || _urChatBusy) return;
   const text = inp.value.trim();
   if (!text) return;
+
+  // history to send = everything BEFORE this new user turn
+  const history = _urChatMsgs.slice();
 
   _urChatAppend('user', text);
   inp.value = '';
@@ -95,73 +100,71 @@ async function sendUrChat() {
 
   _urChatBusy = true;
   urChatToggleSend();
-  try {
-    const reply = await _urChatReply(text);
-    _urChatAppend('bot', reply);
-  } catch (err) {
-    _urChatAppend('bot', 'Bir hata oluştu, tekrar dener misin?');
-  } finally {
+
+  // Create a live bot bubble that grows as tokens arrive.
+  const bubble = _urChatBubble('bot', '');
+  bubble.classList.add('ur-msg--streaming');
+  const body = document.getElementById('urChatBody');
+  body?.appendChild(bubble);
+  body && (body.scrollTop = body.scrollHeight);
+
+  let acc = '';
+  let finished = false;
+  const finish = () => {
+    if (finished) return;
+    finished = true;
+    bubble.classList.remove('ur-msg--streaming');
+    if (acc.trim()) {
+      bubble.innerHTML = renderChatMarkdown(acc);   // swap raw text → rendered markdown
+      _urChatMsgs.push({ role: 'bot', text: acc }); _urChatSave();
+    }
     _urChatBusy = false;
     urChatToggleSend();
     inp.focus();
-  }
-}
-
-// ─── REPLY (PLACEHOLDER) ───────────────────────────────────────────────────────
-// TODO: replace this body with the real assistant call. Suggested shape:
-//   const res = await fetch('/api/assistant/urunler', {
-//     method: 'POST',
-//     headers: { 'Content-Type': 'application/json' },
-//     body: JSON.stringify({ question, context: _urChatContext() })
-//   });
-//   const data = await res.json();
-//   return data.answer;
-async function _urChatReply(question) {
-  await new Promise(r => setTimeout(r, 300)); // tiny delay so it reads like a reply
-  const rows = Array.isArray(_urFiltered) ? _urFiltered : [];
-  const q = String(question || '').toLocaleLowerCase('tr');
-
-  if (q.includes('kaç') && (q.includes('ürün') || q.includes('listele'))) {
-    return rows.length.toLocaleString('tr-TR') + ' ürün listeleniyor (mevcut filtrelerle).';
-  }
-  if (q.includes('değer')) {
-    const tl  = document.getElementById('kpi-stock-tl')?.textContent  || '₺0';
-    const eur = document.getElementById('kpi-stock-eur')?.textContent || '€0';
-    const usd = document.getElementById('kpi-stock-usd')?.textContent || '$0';
-    return `Filtrelenmiş toplam stok değeri: ${tl} · ${eur} · ${usd}.`;
-  }
-  if (q.includes('yüksek') || q.includes('en çok') || q.includes('en fazla')) {
-    const top = [...rows].sort((a, b) => Number(b.stock_on_hand || 0) - Number(a.stock_on_hand || 0))[0];
-    return top
-      ? `En yüksek stok: ${top.product_name} (${top.product_code}) — ${Number(top.stock_on_hand || 0).toLocaleString('tr-TR')} adet.`
-      : 'Şu an gösterilecek ürün yok.';
-  }
-  if (q.includes('kategori')) {
-    const c = new Set(rows.map(p => String(p.category || '').trim()).filter(Boolean));
-    return c.size + ' farklı kategori görünüyor.';
-  }
-  if (q.includes('marka')) {
-    const b = new Set(rows.map(p => String(p.brand || '').trim()).filter(Boolean));
-    return b.size + ' farklı marka görünüyor.';
-  }
-  return 'Şu an yer tutucu yanıt veriyorum. Gerçek asistan bağlandığında bu soruyu ekrandaki verilerle yanıtlayacağım.';
-}
-
-// Context payload the real endpoint will likely want. Kept small on purpose.
-function _urChatContext() {
-  const rows = Array.isArray(_urFiltered) ? _urFiltered : [];
-  return {
-    visible_count: rows.length,
-    total_count: Array.isArray(allProducts) ? allProducts.length : 0,
-    kpis: {
-      tl:  document.getElementById('kpi-stock-tl')?.textContent  || null,
-      eur: document.getElementById('kpi-stock-eur')?.textContent || null,
-      usd: document.getElementById('kpi-stock-usd')?.textContent || null,
-      categories: document.getElementById('kpi-categories')?.textContent || null,
-      brands:     document.getElementById('kpi-brands')?.textContent || null,
-    },
   };
+
+  await streamStokChat({
+    tab: 'stok-urunler',
+    message: text,
+    history,
+    onToken: (chunk) => {
+      acc += chunk;
+      bubble.textContent = acc;
+      body && (body.scrollTop = body.scrollHeight);
+    },
+    onAction: (type, params) => {
+      if (type === 'applyStockFilters' && typeof _applyFiltersFromAssistant === 'function') {
+        _applyFiltersFromAssistant(params);
+        _urChatAppend('bot', _urFilterNote(params));   // visible confirmation note
+      }
+    },
+    onDone: finish,
+    onError: (msg) => {
+      if (!acc.trim()) bubble.textContent = 'Bir hata oluştu, tekrar dener misin?';
+      console.error('[stok-urunler chat]', msg);
+      finish();
+    },
+  });
 }
+
+// Human-readable summary of what the assistant filtered.
+function _urFilterNote(p) {
+  if (!p) return 'Filtreler güncellendi.';
+  if (p.clear) return 'Filtreler temizlendi.';
+  const parts = [];
+  if (p.brands?.length)       parts.push(p.brands.join(', '));
+  if (p.categories?.length)   parts.push(p.categories.join(', '));
+  if (p.skus?.length)         parts.push(p.skus.join(', '));
+  if (p.productNames?.length) parts.push(p.productNames.join(', '));
+  if (p.currency)             parts.push(p.currency);
+  if (p.inStock)              parts.push('stokta olanlar');
+  if (p.qtyMin != null || p.qtyMax != null) parts.push(`adet ${p.qtyMin ?? 0}–${p.qtyMax ?? '∞'}`);
+  if (p.valueMin != null || p.valueMax != null) parts.push(`değer ${p.valueMin ?? 0}–${p.valueMax ?? '∞'}`);
+  return parts.length ? `Filtreler uygulandı: ${parts.join(' · ')}` : 'Filtreler uygulandı.';
+}
+
+
+
 
 // ─── INIT ─────────────────────────────────────────────────────────────────────
 // Restore any session history when the script loads.

@@ -28,6 +28,11 @@ async function loadInvoice(id) {
 
         _detayInv = inv;
 
+        // Expose direction on body so any child element can theme accordingly
+        // (e.g. renderBilgilerView can pick fat-detail-total--out vs --in from this)
+        const dirRaw = String(inv.direction || '').toUpperCase();
+        document.body.dataset.invoiceDirection = dirRaw === 'INCOMING' ? 'in' : 'out';
+
         // Put into allInvoicesCache so detail.js functions (_findInvAndBody etc.) work
         allInvoicesCache = [inv];
 
@@ -57,18 +62,18 @@ function renderHeader(inv) {
         badgeEl.className   = `detay-dir-badge ${isIn ? 'detay-dir-in' : 'detay-dir-out'}`;
     }
 
-    // Show approve button if pending
+    // Approve button (shown only for pending invoices)
     if (actionsEl) {
         if (inv.approval_status === 'pending') {
             actionsEl.innerHTML = `
-                <button onclick="approveDetailInvoice('${inv.id}')"
-                    style="background:#10b981; color:#fff; border:none; border-radius:6px; padding:6px 12px; font-weight:600; cursor:pointer; font-size:12px; font-family:inherit;">
+                <button onclick="approveDetailInvoice('${inv.id}')" class="detay-approve-btn">
                     Aktar
                 </button>`;
+        } else {
+            actionsEl.innerHTML = '';
         }
     }
 
-    // Update page title
     document.title = `${inv.invoice_no || 'Fatura'} — İnokas CRM`;
 }
 
@@ -78,7 +83,7 @@ function goBack() {
     const from   = params.get('from') || '';
 
     if (from === 'ofis-ici') {
-        window.location.href = '/faturalar/pages/ofis-ici.html';
+        window.location.href = '../../giderler/pages/ofis-ici.html';
         return;
     }
 
@@ -91,9 +96,10 @@ function goBack() {
     }
 
     window.location.href = isIn
-        ? '/faturalar/pages/faturalar.html?tab=gelen'
-        : '/faturalar/pages/faturalar.html?tab=giden';
+        ? '/faturalar/pages/faturalar.pages?tab=gelen'
+        : '/faturalar/pages/faturalar.pages?tab=giden';
 }
+
 // ─── PDF ──────────────────────────────────────────────────────────────────────
 function renderPdf(id, inv) {
     const iframe = document.getElementById('detayPdfIframe');
@@ -103,12 +109,10 @@ function renderPdf(id, inv) {
 
 // ─── TABS ─────────────────────────────────────────────────────────────────────
 function renderTabs(id) {
-    // Hide loader, show tabs
     document.getElementById('detayLoading').style.display  = 'none';
     document.getElementById('detayTabBar').style.display   = 'flex';
     document.getElementById('fatDetailTabBody').style.display = 'block';
 
-    // Default to ürünler tab when coming from bekleyen pages so batch category is immediately visible
     const params = new URLSearchParams(location.search);
     const from   = params.get('from') || '';
     const startTab = (from === 'bekleyen-gelen' || from === 'bekleyen-giden') ? 'urunler' : 'bilgiler';
@@ -121,7 +125,6 @@ function switchDetayTab(tab) {
     document.getElementById('tabBilgilerBtn')?.classList.toggle('fat-dtab--active', tab === 'bilgiler');
     document.getElementById('tabUrunlerBtn')?.classList.toggle('fat-dtab--active', tab === 'urunler');
 
-    // Use existing detail.js rendering functions
     const body = document.getElementById('fatDetailTabBody');
     if (!body || !_detayInv) return;
 
@@ -135,19 +138,17 @@ function switchDetayTab(tab) {
 
 // ─── ERROR ────────────────────────────────────────────────────────────────────
 function showError(msg) {
-    document.getElementById('detayLoading').innerHTML = `
-        <div style="text-align:center; color:#94a3b8;">
-            <i class="ti ti-alert-circle" style="font-size:32px; color:#fca5a5; display:block; margin-bottom:8px;"></i>
-            <p style="font-size:14px; font-weight:600; color:#ef4444;">${msg}</p>
-            <button onclick="goBack()" style="margin-top:12px; padding:7px 14px; background:#f1f5f9; border:none; border-radius:8px; font-size:13px; font-weight:600; cursor:pointer; font-family:inherit;">
-                Geri Dön
-            </button>
+    const el = document.getElementById('detayLoading');
+    if (!el) return;
+    el.innerHTML = `
+        <div class="detay-error">
+            <i class="ti ti-alert-circle detay-error-icon"></i>
+            <p class="detay-error-msg">${msg}</p>
+            <button onclick="goBack()" class="detay-error-btn">Geri Dön</button>
         </div>`;
 }
 
 // ─── Override openFatDetailPage so detail.js edit flows stay on this page ────
-// After saveBilgilerEdit, detail.js calls renderBilgilerView which is fine.
-// We just need switchFatDetailTab to call our tab switcher.
 window.switchFatDetailTab = function(id, tab) {
     switchDetayTab(tab);
 };
@@ -161,7 +162,6 @@ if (typeof approveDetailInvoice === 'undefined') {
             const res = await fetch(`/api/invoices/${id}/approve`, { method: 'PUT' });
             if (!res.ok) throw new Error('Onay başarısız');
 
-            // Re-fetch to get up-to-date is_internal values (batch category may have changed them)
             const freshRes = await fetch(`/api/invoices/${encodeURIComponent(id)}`);
             const freshInv = freshRes.ok ? await freshRes.json() : _detayInv;
 
@@ -173,28 +173,13 @@ if (typeof approveDetailInvoice === 'undefined') {
             alert('Fatura başarıyla aktarıldı.');
 
             if (totalItems > 0 && internalCount === totalItems) {
-                // Hepsi internal → ofis içi
-                window.location.href = '/faturalar/pages/ofis-ici.html';
+                window.location.href = '../../giderler/pages/ofis-ici.html';
             } else if (internalCount > 0) {
-                // Karışık → direction'a göre git
-                if (isIncoming){
-                    _activeMainTab='gelen';
-                    window.location.href = '/faturalar/pages/faturalar.html';
-                }
-                else{
-                    _activeMainTab='giden';
-                    window.location.href = '/faturalar/pages/faturalar.html';
-                }
+                _activeMainTab = isIncoming ? 'gelen' : 'giden';
+                window.location.href = '/faturalar/pages/faturalar.html';
             } else {
-                // Hiç internal yok → direction'a göre git
-                if (isIncoming){
-                    _activeMainTab='gelen';
-                    window.location.href = '/faturalar/pages/faturalar.html';
-                }
-                else{
-                    _activeMainTab='giden';
-                    window.location.href = '/faturalar/pages/faturalar.html';
-                }
+                _activeMainTab = isIncoming ? 'gelen' : 'giden';
+                window.location.href = '/faturalar/pages/faturalar.html';
             }
         } catch (err) {
             alert(`Hata: ${err.message}`);
@@ -202,7 +187,6 @@ if (typeof approveDetailInvoice === 'undefined') {
         }
     };
 }
-
 
 
 // ─── Category select helpers (normally in main.js) ────────────────────────────

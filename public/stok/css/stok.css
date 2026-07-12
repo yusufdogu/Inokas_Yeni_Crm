@@ -262,7 +262,7 @@
 
 .stk-tbl thead th {
   padding: 10px 16px;
-  font-size: 10px;
+  font-size: 18px;
   font-weight: 500;
   color: var(--stk-ink4);
   background: var(--stk-bg2);
@@ -280,6 +280,7 @@
 .stk-tbl tbody tr {
   border-bottom: 0.5px solid var(--stk-border);
   cursor: pointer;
+  text-align: left;
   transition: background 0.1s;
 }
 
@@ -287,12 +288,11 @@
 
 .stk-tbl tbody td {
   padding: 11px 16px;
-  font-size: 13px;
+  font-size: 15px;
+  text-align: left;
   color: var(--stk-ink2);
   vertical-align: middle;
 }
-
-.text-right { text-align: right; }
 
 /* ── Empty state ───────────────────────────────────────────────────────────── */
 .stk-empty {
@@ -1627,6 +1627,124 @@
 
 
 /* ═══════════════════════════════════════════════════════════════════════════
+   CHAT MARKDOWN — rendered assistant replies inside .ur-msg bubbles
+   Ported from faturalar's aichat.css (.ai-msg-bubble rules) to the stok
+   .ur-msg / --stk-* system. Append to stok.css.
+   Applies to both stock chats (ürünler rail + genel-bakış rail).
+═══════════════════════════════════════════════════════════════════════════════ */
+
+/* Bot bubbles hold rendered HTML now; keep tight vertical rhythm. */
+.ur-msg--bot p { margin: 0; }
+.ur-msg--bot p + p { margin-top: 8px; }
+
+.ur-msg--bot strong { font-weight: 600; color: var(--stk-ink); }
+
+.ur-msg--bot ul,
+.ur-msg--bot ol {
+  margin: 6px 0;
+  padding-left: 20px;
+}
+
+.ur-msg--bot li { margin: 2px 0; }
+.ur-msg--bot li::marker { color: var(--stk-ink4); }
+
+.ur-msg--bot code {
+  font-family: var(--stk-font-data);
+  font-size: 11px;
+  padding: 1px 5px;
+  background: var(--stk-bg3);
+  border-radius: 3px;
+  color: var(--stk-ink);
+}
+
+.ur-msg--bot pre {
+  background: var(--stk-bg2);
+  border: 0.5px solid var(--stk-border);
+  border-radius: 6px;
+  padding: 8px 10px;
+  overflow-x: auto;
+  margin: 6px 0;
+}
+
+.ur-msg--bot pre code {
+  background: none;
+  padding: 0;
+  font-size: 11px;
+}
+
+.ur-msg--bot h1,
+.ur-msg--bot h2,
+.ur-msg--bot h3,
+.ur-msg--bot h4 {
+  font-size: 13px;
+  font-weight: 600;
+  margin: 8px 0 4px;
+  color: var(--stk-ink);
+}
+
+.ur-msg--bot blockquote {
+  border-left: 3px solid var(--stk-border2);
+  padding-left: 10px;
+  margin: 6px 0;
+  color: var(--stk-ink3);
+  font-style: italic;
+}
+
+.ur-msg--bot table {
+  border-collapse: collapse;
+  margin: 8px 0;
+  font-size: 11px;
+  width: 100%;
+}
+
+.ur-msg--bot th,
+.ur-msg--bot td {
+  border: 0.5px solid var(--stk-border);
+  padding: 4px 8px;
+  text-align: left;
+}
+
+.ur-msg--bot th {
+  background: var(--stk-bg2);
+  font-weight: 600;
+}
+
+.ur-msg--bot a {
+  color: var(--stk-green);
+  text-decoration: none;
+  border-bottom: 1px dotted var(--stk-green);
+  transition: color 0.12s, border-color 0.12s;
+}
+
+.ur-msg--bot a:hover {
+  color: var(--stk-ink);
+  border-bottom-color: var(--stk-ink);
+}
+
+/* first/last child margin reset so bubbles don't get top/bottom gaps */
+.ur-msg--bot > :first-child { margin-top: 0; }
+.ur-msg--bot > :last-child  { margin-bottom: 0; }
+
+/* ── Streaming indicator (dots while tokens arrive) ──────────────────────────── */
+.ur-msg--streaming {
+  min-width: 34px;
+  min-height: 16px;
+}
+
+.ur-msg--streaming::after {
+  content: '•••';
+  letter-spacing: 2px;
+  font-weight: 700;
+  opacity: 0.5;
+  animation: ur-typing 1.2s infinite;
+}
+
+@keyframes ur-typing {
+  0%, 100% { opacity: 0.3; }
+  50%      { opacity: 1; }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
    ÜRÜNLER KPI STRIP v2 — faturalar-style bordered cards + trend pills
    Append to stok.css. Supersedes the .stk-kpi-grid--urunler2 rule from the
    first additions file (redefine it here; delete the old 4-col version).
@@ -1873,7 +1991,7 @@
 }
 
 .th-ico i {
-  font-size: 14px;
+  font-size: 20px;
   opacity: 0.5;
   flex-shrink: 0;
 }
@@ -1884,3 +2002,569 @@
   font-size: 10px;
   opacity: 0.35;
 }
+
+
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   GENEL BAKIŞ — inline dashboard styles
+   Uses the real --stk-* tokens (same cream/ink/green/amber as ürünler &
+   faturalar). Append to stok.css. Chat rail reuses .ur-chat (already styled).
+═══════════════════════════════════════════════════════════════════════════════ */
+
+/* ── Layout: 70 / 30 ─────────────────────────────────────────────────────────── */
+.gb-main {
+  flex: 1 1 70%;
+  min-width: 0;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--stk-bg3) transparent;
+}
+
+/* #panelGenel carries flex-direction:row inline; the chat rail is .ur-chat */
+#panelGenel .ur-chat {
+  flex: 0 0 30%;
+  border-left: 0.5px solid var(--stk-border);
+}
+.ur-msg--streaming::after {
+  content: '▋';
+  margin-left: 1px;
+  opacity: 0.5;
+  animation: ur-blink 1s steps(2) infinite;
+}
+@keyframes ur-blink { 50% { opacity: 0; } }
+/* ── Insight strip ───────────────────────────────────────────────────────────── */
+.gb-insights {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.gb-insight {
+  background: var(--stk-bg);
+  border: 0.5px solid var(--stk-border2);
+  border-radius: var(--stk-r-lg);
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.gb-insight-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 9px;
+}
+
+.gb-insight-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 2px 8px;
+  border-radius: 20px;
+  white-space: nowrap;
+}
+
+.gb-insight-tag i { font-size: 11px; }
+
+.gb-insight-tag--up   { color: var(--stk-green); background: var(--stk-green-bg); }
+.gb-insight-tag--down { color: var(--stk-red);   background: var(--stk-red-bg); }
+.gb-insight-tag--risk { color: var(--stk-amber); background: var(--stk-amber-bg); }
+.gb-insight-tag--fc   { color: var(--stk-ink2);  background: var(--stk-bg3); }
+
+.gb-insight-nav {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  flex-shrink: 0;
+}
+
+.gb-insight-nav-btn {
+  width: 20px;
+  height: 20px;
+  border-radius: 5px;
+  border: 0.5px solid var(--stk-border);
+  background: transparent;
+  color: var(--stk-ink3);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  transition: background 0.1s, color 0.1s, border-color 0.1s;
+}
+
+.gb-insight-nav-btn i { font-size: 11px; }
+
+.gb-insight-nav-btn:hover:not(:disabled) {
+  background: var(--stk-bg2);
+  color: var(--stk-ink);
+  border-color: var(--stk-border2);
+}
+
+.gb-insight-nav-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+
+.gb-insight-counter {
+  font-family: var(--stk-font-data);
+  font-size: 10px;
+  color: var(--stk-ink4);
+  min-width: 30px;
+  text-align: center;
+  user-select: none;
+}
+
+.gb-insight-value {
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--stk-ink2);
+}
+
+.gb-insight-value strong { font-weight: 600; color: var(--stk-ink); }
+.gb-accent      { color: var(--stk-green); font-weight: 600; }
+.gb-accent-down { color: var(--stk-red);   font-weight: 600; }
+.gb-accent-warn { color: var(--stk-amber); font-weight: 600; }
+
+.gb-insight-hint {
+  font-size: 10px;
+  color: var(--stk-ink4);
+  font-family: var(--stk-font-data);
+  margin-top: 7px;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   GENEL BAKIŞ — insight auto-advance fade
+   The JS toggles .gb-fading on the card just before swapping the value/hint,
+   then removes it after the DOM update, producing a soft cross-fade instead of
+   an abrupt snap. Append to stok.css.
+═══════════════════════════════════════════════════════════════════════════════ */
+
+/* the value + hint fade; the tag / nav stay static */
+.gb-insight-value,
+.gb-insight-hint {
+  transition: opacity 0.2s ease;
+}
+
+/* applied by JS during the swap */
+.gb-insight.gb-fading .gb-insight-value,
+.gb-insight.gb-fading .gb-insight-hint {
+  opacity: 0;
+}
+
+/* subtle hover affordance: the card lifts its border slightly while paused,
+   hinting the auto-rotate has stopped under the cursor */
+.gb-insight { transition: border-color 0.15s ease; }
+.gb-insight:hover { border-color: var(--stk-border2); }
+
+/* forecast progress bar */
+.gb-forecast-bar {
+  position: relative;
+  height: 5px;
+  background: var(--stk-bg3);
+  border-radius: 3px;
+  margin-top: 9px;
+  overflow: hidden;
+}
+
+.gb-forecast-bar-fill {
+  position: absolute;
+  left: 0; top: 0; bottom: 0;
+  background: var(--stk-ink);
+  border-radius: 3px;
+  transition: width 0.5s ease;
+}
+
+.gb-forecast-bar-mark {
+  position: absolute;
+  top: 0; bottom: 0;
+  width: 2px;
+  background: var(--stk-ink4);
+}
+
+/* ── Totals card ─────────────────────────────────────────────────────────────── */
+.gb-totals {
+  display: flex;
+  background: var(--stk-bg);
+  border: 0.5px solid var(--stk-border2);
+  border-radius: var(--stk-r-lg);
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.gb-totals-money {
+  flex: 1;
+  padding: 12px 16px;
+  border-right: 0.5px solid var(--stk-border);
+  min-width: 0;
+}
+
+.gb-totals-label {
+  font-size: 10px;
+  color: var(--stk-ink4);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-family: var(--stk-font-data);
+  margin-bottom: 9px;
+}
+
+.gb-totals-cur-row {
+  display: flex;
+  gap: 20px;
+  align-items: baseline;
+  flex-wrap: wrap;
+}
+
+.gb-totals-cur {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.gb-totals-amt {
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--stk-ink);
+  font-family: var(--stk-font-data);
+  line-height: 1.1;
+}
+
+.gb-totals-amt--lead {
+  font-size: 19px;
+  color: var(--stk-ink);
+}
+
+.gb-totals-cc {
+  font-size: 9px;
+  color: var(--stk-ink4);
+  font-family: var(--stk-font-data);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.gb-totals-counts {
+  display: flex;
+  flex-shrink: 0;
+}
+
+.gb-totals-count {
+  padding: 12px 18px;
+  border-right: 0.5px solid var(--stk-border);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.gb-totals-count:last-child { border-right: none; }
+
+.gb-totals-count-label {
+  font-size: 9px;
+  color: var(--stk-ink4);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: 5px;
+}
+
+.gb-totals-count-val {
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--stk-ink);
+  font-family: var(--stk-font-data);
+  line-height: 1;
+}
+
+/* ── Chart card ──────────────────────────────────────────────────────────────── */
+.gb-chart-card {
+  background: var(--stk-bg);
+  border: 0.5px solid var(--stk-border2);
+  border-radius: var(--stk-r-lg);
+  padding: 12px 14px;
+  flex-shrink: 0;
+}
+
+.gb-chart-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 10px;
+  flex-wrap: wrap;
+}
+
+.gb-chart-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--stk-ink);
+  font-family: var(--stk-font-data);
+  flex-shrink: 0;
+}
+
+.gb-chart-controls {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+}
+
+.gb-date-chip {
+  font-size: 11px;
+  font-family: var(--stk-font-ui);
+  padding: 5px 12px;
+  border: 0.5px solid var(--stk-border2);
+  border-radius: 6px;
+  background: var(--stk-bg2);
+  color: var(--stk-ink3);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.1s, color 0.1s, border-color 0.1s;
+}
+
+.gb-date-chip:hover { background: var(--stk-bg3); color: var(--stk-ink2); }
+
+.gb-date-chip--active {
+  background: var(--stk-green-bg);
+  border-color: var(--stk-green);
+  color: var(--stk-green);
+}
+
+.gb-chart-legend {
+  display: flex;
+  gap: 14px;
+  font-size: 11px;
+  color: var(--stk-ink3);
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.gb-legend-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  margin-right: 5px;
+  vertical-align: middle;
+  background: var(--stk-ink);
+}
+
+.gb-chart-area {
+  position: relative;
+  height: 220px;
+}
+
+.gb-chart-area canvas {
+  width: 100% !important;
+  height: 100% !important;
+}
+
+/* ── Top-3 lists ─────────────────────────────────────────────────────────────── */
+.gb-tops-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.gb-top-card {
+  background: var(--stk-bg);
+  border: 0.5px solid var(--stk-border2);
+  border-radius: var(--stk-r-lg);
+  padding: 11px 13px;
+  min-width: 0;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   GENEL BAKIŞ — top-list pagination
+   Append AFTER the v5 gb-* block. Overrides a few gb-top-head rules to make
+   room for the pager, and adds the pager button styling (mirrors the faturalar
+   gb-companies-pager, in --stk-* tokens).
+═══════════════════════════════════════════════════════════════════════════════ */
+
+/* ── Header now splits: title (left) · pager (right) ─────────────────────────── */
+.gb-top-head {
+  justify-content: space-between;   /* title left, pager right */
+  gap: 8px;
+}
+
+.gb-top-head-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;                     /* let the title ellipsis if cramped */
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* icon lived on `.gb-top-head i` in v5; it now lives on the title span */
+.gb-top-head-title i {
+  font-size: 13px;
+  color: var(--stk-ink4);
+  flex-shrink: 0;
+}
+
+/* ── Pager ───────────────────────────────────────────────────────────────────── */
+.gb-top-pager {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  flex-shrink: 0;
+}
+
+.gb-top-pager-btn {
+  width: 20px;
+  height: 20px;
+  border-radius: 5px;
+  border: 0.5px solid var(--stk-border);
+  background: transparent;
+  color: var(--stk-ink3);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  transition: background 0.1s, color 0.1s, border-color 0.1s;
+}
+
+.gb-top-pager-btn i { font-size: 11px; }
+
+.gb-top-pager-btn:hover:not(:disabled) {
+  background: var(--stk-bg2);
+  color: var(--stk-ink);
+  border-color: var(--stk-border2);
+}
+
+.gb-top-pager-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.gb-top-pager-info {
+  font-family: var(--stk-font-data);
+  font-size: 10px;
+  color: var(--stk-ink3);
+  min-width: 30px;
+  text-align: center;
+  user-select: none;
+}
+
+
+.gb-top-list {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+
+/* rows injected by JS */
+.gb-top-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.gb-top-rank {
+  font-size: 10px;
+  color: var(--stk-ink4);
+  font-family: var(--stk-font-data);
+  font-weight: 600;
+  width: 12px;
+  flex-shrink: 0;
+}
+
+.gb-top-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.gb-top-line {
+  display: flex;
+  justify-content: space-between;
+  gap: 6px;
+  align-items: baseline;
+}
+
+.gb-top-name {
+  font-size: 11px;
+  color: var(--stk-ink2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.gb-top-amt {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--stk-ink);
+  font-family: var(--stk-font-data);
+  flex-shrink: 0;
+}
+
+.gb-top-bar {
+  height: 4px;
+  background: var(--stk-bg3);
+  border-radius: 2px;
+  margin-top: 4px;
+  overflow: hidden;
+}
+
+.gb-top-bar-fill {
+  height: 100%;
+  background: var(--stk-green);
+  border-radius: 2px;
+  transition: width 0.5s ease;
+}
+
+/* ── "Asistan diyor" report block (top of chat rail) ─────────────────────────── */
+.gb-report {
+  background: var(--stk-bg2);
+  border: 0.5px solid var(--stk-border);
+  border-radius: var(--stk-r-lg);
+  padding: 10px 12px;
+}
+
+.gb-report-head {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--stk-ink3);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: 6px;
+}
+
+.gb-report-head i { font-size: 12px; }
+
+.gb-report-body {
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--stk-ink2);
+}
+
+.gb-report-btns {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 9px;
+}
+
+.gb-report-btn {
+  font-size: 11px;
+  color: var(--stk-ink3);
+  background: transparent;
+  border: 0.5px solid var(--stk-border2);
+  border-radius: 99px;
+  padding: 4px 10px;
+  cursor: pointer;
+  font-family: var(--stk-font-ui);
+  transition: background 0.12s, color 0.12s;
+}
+
+.gb-report-btn:hover { background: var(--stk-bg); color: var(--stk-ink); }

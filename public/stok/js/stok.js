@@ -1,10 +1,10 @@
 // ── stok.js ───────────────────────────────────────────────────────────────────
 // Tab switching + lazy init for the unified Stok shell.
-
 let _activeTab       = 'genel';
 let _urunlerReady    = false;
 let _backorderReady  = false;
 let _kategoriReady   = false;
+let _genelReady      = false;
 
 // ── TAB SWITCHER ──────────────────────────────────────────────────────────────
 function switchTab(tab) {
@@ -31,11 +31,9 @@ function switchTab(tab) {
     if (el) el.style.display = t === tab ? '' : 'none';
   });
 
-  if (tab === 'genel') {
-    const iframe = document.getElementById('genelBakisFrame');
-    if (iframe && !iframe.getAttribute('src')) {
-      iframe.src = '/stok/pages/genel-bakis.html';
-    }
+  if (tab === 'genel' && !_genelReady) {
+    _genelReady = true;
+    if (typeof initGenelBakis === 'function') initGenelBakis();
   } else if (tab === 'urunler' && !_urunlerReady) {
     _urunlerReady = true;
     if (typeof initUrunler === 'function') initUrunler();

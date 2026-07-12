@@ -46,7 +46,7 @@
   let _giderOpen   = false;
 
   const path        = location.pathname;
-  const isFaturalar = path === '/' || path.includes('/faturalar/pages/') || path.includes('faturalar.html');
+  const isFaturalar = path === '/' || path.includes('/faturalar/pages/') || path.includes('faturalar.pages');
   const isOfisIci   = path.includes('ofis-ici');
   const isStok      = path.includes('/stok');
   const isDmo       = path.includes('/dmo');
@@ -75,7 +75,7 @@
 
   function updatePendingBadges() {
     const total = _pendingGelen + _pendingGiden;
-    // Update the header badge on faturalar.html if present
+    // Update the header badge on faturalar.pages if present
     const headerBadge = document.getElementById('bekleyenBadge');
     if (headerBadge) {
       headerBadge.textContent = total;
@@ -128,21 +128,19 @@
         <i class="ti ti-upload"></i>
         <span class="sb-label">Fatura Yükle</span>
       </a>
-
       
-
     </div>
 
     <div class="sb-divider"></div>
 
-    <!-- Giderler 
+    <!-- Giderler -->
     <button class="sb-item${isGider ? ' active' : ''}" id="gider-toggle" onclick="toggleGider()">
       <i class="ti ti-building"></i>
       <span class="sb-label">Giderler</span>
       <i class="ti ti-chevron-down sb-chevron" id="gider-chevron"></i>
     </button>
     <div class="sb-children" id="gider-children">
-      <a href="/faturalar/pages/ofis-ici.html"
+      <a href="/giderler/pages/ofis-ici.html"
          class="sb-child${path.includes('ofis-ici') ? ' active' : ''}">
         <i class="ti ti-home"></i>
         <span class="sb-label">Ofis İçi</span>
@@ -150,7 +148,7 @@
     </div>
 
     <div class="sb-divider"></div>
-    -->
+    
     
     <!-- Stok -->
     <a href="/stok/pages/stok.html"
@@ -170,15 +168,15 @@
       <i class="ti ti-chevron-down sb-chevron" id="dmo-chevron"></i>
     </button>
     <div class="sb-children" id="dmo-children">
-      <a href="/dmo/pages/siparisler.html" class="sb-child${path.includes('siparisler') ? ' active' : ''}">
+      <a href="/dmo/pages/siparisler.pages" class="sb-child${path.includes('siparisler') ? ' active' : ''}">
         <i class="ti ti-list"></i>
         <span class="sb-label">Siparişler</span>
       </a>
-      <a href="/dmo/pages/sepet-hesapla.html" class="sb-child${path.includes('sepet-hesapla') ? ' active' : ''}">
+      <a href="/dmo/pages/sepet-hesapla.pages" class="sb-child${path.includes('sepet-hesapla') ? ' active' : ''}">
         <i class="ti ti-shopping-cart"></i>
         <span class="sb-label">Sepet Hesapla</span>
       </a>
-      <a href="/dmo/pages/yeni-siparis.html" class="sb-child${path.includes('yeni-siparis') ? ' active' : ''}">
+      <a href="/dmo/pages/yeni-siparis.pages" class="sb-child${path.includes('yeni-siparis') ? ' active' : ''}">
         <i class="ti ti-upload"></i>
         <span class="sb-label">Sipariş Yükle</span>
       </a>
@@ -194,11 +192,11 @@
       <i class="ti ti-chevron-down sb-chevron" id="quotes-chevron"></i>
     </button>
     <div class="sb-children" id="quotes-children">
-      <a href="/quotes/pages/teklifler.html" class="sb-child${path.includes('teklifler') ? ' active' : ''}">
+      <a href="/quotes/pages/teklifler.pages" class="sb-child${path.includes('teklifler') ? ' active' : ''}">
         <i class="ti ti-list"></i>
         <span class="sb-label">Tekliflerim</span>
       </a>
-      <a href="/quotes/pages/teklif-form.html" class="sb-child${path.includes('teklif-form') ? ' active' : ''}">
+      <a href="/quotes/pages/teklif-form.pages" class="sb-child${path.includes('teklif-form') ? ' active' : ''}">
         <i class="ti ti-plus"></i>
         <span class="sb-label">Teklif Ekle</span>
       </a>
@@ -214,11 +212,11 @@
       <i class="ti ti-chevron-down sb-chevron" id="cari-chevron"></i>
     </button>
     <div class="sb-children" id="cari-children">
-      <a href="/cari/cari-index.html" class="sb-child${isCari ? ' active' : ''}">
+      <a href="/cari/cari-index.pages" class="sb-child${isCari ? ' active' : ''}">
         <i class="ti ti-arrow-down-circle"></i>
         <span class="sb-label">Alışlar Analiz</span>
       </a>
-      <a href="/cari/cari-index.html" class="sb-child">
+      <a href="/cari/cari-index.pages" class="sb-child">
         <i class="ti ti-arrow-up-circle"></i>
         <span class="sb-label">Satışlar Analiz</span>
       </a>
@@ -228,7 +226,7 @@
     
     <!--
     <div class="sb-divider"></div>
-    <a href="/teknik/pages/teknik-sorunlar.html" class="sb-item${path.includes('teknik') ? ' active' : ''}">
+    <a href="/teknik/pages/teknik-sorunlar.pages" class="sb-item${path.includes('teknik') ? ' active' : ''}">
       <i class="ti ti-tool"></i>
       <span class="sb-label">Teknik Sorunlar</span>
     </a>

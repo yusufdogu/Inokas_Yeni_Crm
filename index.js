@@ -75,15 +75,15 @@ app.post('/api/invoices/recheck-now', (req, res) => {
 // ─── Page Routes ──────────────────────────────────────────────────────────────
 app.get('/', (req, res) => {
   res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
-  res.sendFile(path.join(__dirname, 'public', 'landing.pages'));
+  res.sendFile(path.join(__dirname, 'public', 'landing.html'));
 });
 
 app.get('/landing', (req, res) =>
-  res.sendFile(path.join(__dirname, 'public', 'landing.pages'))
+  res.sendFile(path.join(__dirname, 'public', 'landing.html'))
 );
 
-app.get('/signup',     (req, res) => res.sendFile(path.join(__dirname, 'public', 'auth', 'signup.pages')));
-app.get('/onboarding', (req, res) => res.sendFile(path.join(__dirname, 'public', 'auth', 'onboarding.pages')));
+app.get('/signup',     (req, res) => res.sendFile(path.join(__dirname, 'public', 'auth', 'signup.html')));
+app.get('/onboarding', (req, res) => res.sendFile(path.join(__dirname, 'public', 'auth', 'onboarding.html')));
 
 app.get('/chat', (req, res) => {
   res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');

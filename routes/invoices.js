@@ -1142,13 +1142,6 @@ router.get('/ofis-ici', async (req, res) => {
     const limit = Math.min(200, parseInt(req.query.limit) || 0);
     const totalsOnly = req.query.totals === 'true';
 
-    let itemQuery = supabase.from('invoice_items').select('invoice_id').eq('is_internal', false);
-    if (category) itemQuery = itemQuery.eq('item_subcategory', category);
-    const { data: items, error: itemsErr } = await itemQuery;
-    if (itemsErr) throw itemsErr;
-    const invoiceIds = [...new Set((items || []).map(it => it.invoice_id).filter(Boolean))];
-    if (!invoiceIds.length) return res.json(limit > 0 ? { data: [], total: 0, total_pages: 0, page } : []);
-
     let companyIds = [];
     if (companies.length) {
       const { data: matched } = await supabase.from('companies').select('id').in('name', companies).eq('tenant_id', tenantId);
@@ -1156,13 +1149,13 @@ router.get('/ofis-ici', async (req, res) => {
       if (!companyIds.length) return res.json(limit > 0 ? { data: [], total: 0, total_pages: 0, page } : []);
     }
 
+    // Ofis içi = NON_INTERNAL invoices — straight from the column, no ID array
     let query = supabase
       .from('invoices')
       .select('*, companies(*), invoice_items(*)', { count: 'exact' })
       .eq('tenant_id', tenantId)
-      .in('id', invoiceIds)
+      .eq('invoice_category', 'NON_INTERNAL')
       .or('approval_status.eq.approved,approval_status.is.null')
-      .eq('invoice_category','NON_INTERNAL')
       .order('invoice_date', { ascending: false });
 
     if (search) query = query.or(`invoice_no.ilike.%${search}%`);
@@ -1190,7 +1183,7 @@ router.get('/ofis-ici', async (req, res) => {
       });
 
       return res.json({
-        count:     rows.length,     // ← derive from data, not the PostgREST count header
+        count:     rows.length,
         total_tl:  tryTotal,
         total_usd: usdTotal,
         cat_map:   catMap,

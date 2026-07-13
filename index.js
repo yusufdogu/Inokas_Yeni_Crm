@@ -89,7 +89,7 @@ app.get('/chat', (req, res) => {
   res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
   res.setHeader('Pragma', 'no-cache');
   res.setHeader('Expires', '0');
-  res.sendFile(path.join(__dirname, 'public', 'chat.pages'));
+  res.sendFile(path.join(__dirname, 'public', 'chat.html'));
 });
 
 app.get('/login', (req, res) => res.redirect('/auth/login.html'));

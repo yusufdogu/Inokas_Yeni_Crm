@@ -96,8 +96,8 @@ function goBack() {
     }
 
     window.location.href = isIn
-        ? '/faturalar/pages/faturalar.pages?tab=gelen'
-        : '/faturalar/pages/faturalar.pages?tab=giden';
+        ? '/faturalar/pages/faturalar.html?tab=gelen'
+        : '/faturalar/pages/faturalar.html?tab=giden';
 }
 
 // ─── PDF ──────────────────────────────────────────────────────────────────────

@@ -46,7 +46,7 @@
   let _giderOpen   = false;
 
   const path        = location.pathname;
-  const isFaturalar = path === '/' || path.includes('/faturalar/pages/') || path.includes('faturalar.pages');
+  const isFaturalar = path === '/' || path.includes('/faturalar/pages/') || path.includes('faturalar.html');
   const isOfisIci   = path.includes('ofis-ici');
   const isStok      = path.includes('/stok');
   const isDmo       = path.includes('/dmo');

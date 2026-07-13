@@ -117,23 +117,64 @@ function _bestMatchList(requested, available) {
     return { matched, unmatched };
 }
 
+// Returns ALL products whose normalized name contains the query token(s).
+// Falls back to _bestMatchList (single best fuzzy hit) if nothing contains it.
+function _matchAllProducts(requested, available) {
+    if (!Array.isArray(requested) || !requested.length) return { matched: [], unmatched: [] };
+
+    const matched   = [];
+    const unmatched = [];
+    const availNorm = (available || []).map(a => ({ original: a, normalized: _norm(a) }));
+
+    for (const q of requested) {
+        const qn = _norm(q);
+        if (!qn) { unmatched.push(q); continue; }
+
+        // 1. Exact
+        const exact = availNorm.filter(a => a.normalized === qn);
+        if (exact.length) {
+            exact.forEach(a => matched.push(a.original));
+            continue;
+        }
+
+        // 2. Contains — collect ALL, not just the first
+        const contains = availNorm.filter(a => a.normalized.includes(qn));
+        if (contains.length) {
+            contains.forEach(a => matched.push(a.original));
+            continue;
+        }
+
+        // 3. Token-level contains — every query token must appear somewhere in the name
+        const tokens = qn.split(' ').filter(Boolean);
+        if (tokens.length > 1) {
+            const allTokens = availNorm.filter(a => tokens.every(t => a.normalized.includes(t)));
+            if (allTokens.length) {
+                allTokens.forEach(a => matched.push(a.original));
+                continue;
+            }
+        }
+
+        // 4. Fuzzy fallback — single best hit (typo case)
+        const { matched: fuzzy } = _bestMatchList([q], available);
+        if (fuzzy.length) matched.push(...fuzzy);
+        else unmatched.push(q);
+    }
+
+    return { matched: [...new Set(matched)], unmatched };
+}
 
 // ── Fetch full filter-option lists per direction (feeds the resolver) ─────────
 async function _fetchFilterOptions(supabase, tenantId, direction) {
     // Exclude fully-internal invoices
-    const { data: excluded } = await supabase
-        .from('fully_internal_invoice_ids')
-        .select('invoice_id');
-    const excludeIds = (excluded || []).map(r => r.invoice_id);
 
     let invQuery = supabase
         .from('invoices')
         .select('id, invoice_no, companies(name)')
+        .eq('invoice_category','INTERNAL')
         .or(`tenant_id.eq.${tenantId},tenant_id.is.null`)
         .or('approval_status.neq.pending,approval_status.is.null');
 
     if (direction)         invQuery = invQuery.eq('direction', direction);
-    if (excludeIds.length) invQuery = invQuery.not('id', 'in', `(${excludeIds.join(',')})`);
 
     const { data: invRows } = await invQuery;
     const companies      = [...new Set((invRows || []).map(r => r.companies?.name).filter(Boolean))];
@@ -197,7 +238,8 @@ async function _resolveApplyFiltersArgs(args, supabase, tenantId, direction) {
 
     for (const key of ['companies', 'brands', 'categories', 'products', 'invoiceNumbers']) {
         if (Array.isArray(args[key]) && args[key].length) {
-            const { matched, unmatched } = _bestMatchList(args[key], options[key] || []);
+            const matcher = (key === 'products') ? _matchAllProducts : _bestMatchList;
+            const { matched, unmatched } = matcher(args[key], options[key] || []);
             applied[key] = matched;
             if (unmatched.length) warnings.push(`${key}: ${unmatched.join(', ')} bulunamadı`);
         } else {
@@ -539,16 +581,13 @@ async function fetchInvoiceStats(supabase, tenantId, opts = {}) {
         if (!companyIds.length) return groupBy === 'company' ? { companies: [] } : emptyTotals;
     }
 
-    // Excluded IDs
-    const { data: excluded } = await supabase
-        .from('fully_internal_invoice_ids').select('invoice_id');
-    const excludeIds = (excluded || []).map(r => r.invoice_id);
 
     // Build query
     let q = supabase
         .from('invoices')
         .select('id, company_id, base_currency, payable_amount_tl, payable_amount_cur, calculation_rate, companies(name)')
         .eq('tenant_id', tenantId)
+        .eq('invoice_category','INTERNAL')
         .or('approval_status.neq.pending,approval_status.is.null');
 
     if (direction)                q = q.eq('direction', direction);
@@ -559,7 +598,6 @@ async function fetchInvoiceStats(supabase, tenantId, opts = {}) {
     if (priceMax != null)         q = q.lte('payable_amount_tl', priceMax);
     if (companyIds?.length)       q = q.in('company_id', companyIds);
     if (invoiceNumbers?.length)   q = q.in('invoice_no', invoiceNumbers);
-    if (excludeIds.length)        q = q.not('id', 'in', `(${excludeIds.join(',')})`);
     if (itemFilter.combinedIds)   q = q.in('id', itemFilter.combinedIds);
 
     const { data: rows, error } = await q;
@@ -650,9 +688,6 @@ async function fetchInvoiceList(supabase, tenantId, opts = {}) {
         if (!companyIds.length) return [];
     }
 
-    const { data: excluded } = await supabase
-        .from('fully_internal_invoice_ids').select('invoice_id');
-    const excludeIds = (excluded || []).map(r => r.invoice_id);
 
     const sortColMap = {
         date:       'invoice_date',
@@ -666,6 +701,7 @@ async function fetchInvoiceList(supabase, tenantId, opts = {}) {
     let q = supabase
         .from(sourceTable)
         .select('id, invoice_no, invoice_date, payable_amount_tl, payable_amount_cur, base_currency, pdf_url, companies(name)')
+        .eq('invoice_category','INTERNAL')
         .or(`tenant_id.eq.${tenantId},tenant_id.is.null`)
         .or('approval_status.neq.pending,approval_status.is.null');
 
@@ -677,7 +713,6 @@ async function fetchInvoiceList(supabase, tenantId, opts = {}) {
     if (priceMax != null)       q = q.lte('payable_amount_tl', priceMax);
     if (invoiceNumbers?.length) q = q.in('invoice_no', invoiceNumbers);
     if (companyIds?.length)     q = q.in('company_id', companyIds);
-    if (excludeIds.length)      q = q.not('id', 'in', `(${excludeIds.join(',')})`);
     if (itemFilter.combinedIds) q = q.in('id', itemFilter.combinedIds);
 
     q = q.order(sortCol, { ascending: sortDir === 'asc' }).limit(cappedLimit);
@@ -709,6 +744,7 @@ async function fetchInvoiceItems(supabase, tenantId, opts = {}) {
         .from('invoices')
         .select('id, invoice_no, invoice_date')
         .eq('tenant_id', tenantId)
+        .eq('invoice_category','INTERNAL')
         .in('invoice_no', invoiceNumbers);
 
     if (direction) invQ = invQ.eq('direction', direction);
@@ -773,10 +809,6 @@ async function fetchProductBreakdown(supabase, tenantId, opts = {}) {
         if (!companyIds.length) return [];
     }
 
-    // Excluded IDs
-    const { data: excluded } = await supabase
-        .from('fully_internal_invoice_ids').select('invoice_id');
-    const excludeIds = (excluded || []).map(r => r.invoice_id);
 
     // Fetch invoices + calculation_rate
     let invQ = supabase
@@ -790,7 +822,6 @@ async function fetchProductBreakdown(supabase, tenantId, opts = {}) {
     if (dateStart)          invQ = invQ.gte('invoice_date', dateStart);
     if (dateEnd)            invQ = invQ.lte('invoice_date', dateEnd);
     if (companyIds?.length) invQ = invQ.in('company_id', companyIds);
-    if (excludeIds.length)  invQ = invQ.not('id', 'in', `(${excludeIds.join(',')})`);
 
     const { data: invRows, error: invErr } = await invQ;
     if (invErr) throw invErr;

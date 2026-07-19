@@ -13,6 +13,17 @@ const parser = new XMLParser({
 
 // ─── main export ────────────────────────────────────────────────────────────
 
+// raw XML → payload (no unzip) — for reprocessing from stored .xml
+function parseUblFromXml(xmlText, viewKey = 'gelen') {
+    try {
+        const xml = parser.parse(xmlText);
+        return buildInvoicePayload(xml, viewKey);
+    } catch (err) {
+        console.error('Parser Error (xml):', err.message);
+        return null;
+    }
+}
+
 function parseUblFromBase64(base64Content, viewKey = 'gelen') {
     try {
         const zipBuffer = Buffer.from(base64Content, 'base64');
@@ -197,7 +208,6 @@ function buildInvoicePayload(xml, viewKey) {
     const calculationRate = (() => { const r = parseFloat(kurRaw); return Number.isFinite(r) && r > 0 ? r : 1; })();
 
 
-
     const baseIso = (sourceFromRate || payableCurrencyId || 'TRY').toUpperCase();
     const targetIso = (targetFromRate || 'TRY').toUpperCase();
     const currencyUi = baseIso === 'TL' ? 'TRY' : baseIso;
@@ -235,9 +245,8 @@ function buildInvoicePayload(xml, viewKey) {
     lines.forEach(line => {
         const itemNode = line.Item;
 
-        const name = String(itemNode?.Description ?? itemNode?.Name ?? 'İsimsiz Ürün').trim();
-
-        const sku = parseProductCodeForSku(itemNode, viewKey, unresolvedSkuWarnings);
+        const description = String(itemNode?.Description).trim();
+        const name = String(itemNode?.Name ).trim();
 
         const qtyField = line.InvoicedQuantity;
         const qty      = parseFloat(qtyField?.['#text'] ?? qtyField ?? 0) || 0;
@@ -251,8 +260,12 @@ function buildInvoicePayload(xml, viewKey) {
         const taxSubtotal = [].concat(line.TaxTotal?.[0]?.TaxSubtotal || line.TaxTotal?.TaxSubtotal || [])[0];
         const taxRate = parseInt(taxSubtotal?.Percent ?? 20) || 20;
 
-        const brandName        = String(itemNode?.BrandName ?? '').trim() || null;
-        const manufacturerCode = String(itemNode?.ManufacturersItemIdentification?.ID ?? '').trim() || null;
+        const brandName        = String(itemNode?.BrandName ).trim() || '';
+        const modelName        = String(itemNode?.ModelName ).trim() || '';
+        const buyerCode = String(itemNode?.BuyersItemIdentification?.ID ?? '').trim() || '';
+        const sellerCode = String(itemNode?.SellersItemIdentification?.ID ?? '').trim() || '';
+        const manufacturerCode = String(itemNode?.ManufacturersItemIdentification?.ID ?? '').trim() || '';
+
 
         const lineNoteField = line.Note;
         const lineNote = lineNoteField != null ? String(lineNoteField).trim() || null : null;
@@ -261,9 +274,12 @@ function buildInvoicePayload(xml, viewKey) {
 
         items.push({
             line_id: lineId,
+            product_desc: description,
             product_name: name,
-            product_code: sku || null,
             brand_name: brandName,
+            model_name: modelName,
+            buyer_code: buyerCode,
+            seller_code: sellerCode,
             manufacturer_code: manufacturerCode,
             quantity: qty,
             unit_code: unitCode,
@@ -316,4 +332,4 @@ function buildInvoicePayload(xml, viewKey) {
         _kurXml: kurRaw,
     };
 }
-module.exports = { parseUblFromBase64, setProductCodeLookup };
+module.exports = { parseUblFromBase64, setProductCodeLookup,parseUblFromXml, buildInvoicePayload };

@@ -52,6 +52,7 @@ function getLast48Hours() {
   const d = new Date(Date.now() - 24 * 60 * 60 * 1000);
   return d.toISOString().substring(0, 19);
 }
+
 function getLast2Months() {
   const d = new Date();
   d.setMonth(d.getMonth() - 3);

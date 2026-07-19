@@ -268,41 +268,53 @@ async function _resolveApplyFiltersArgs(args, supabase, tenantId, direction) {
 // Returns { combinedIds } or null if the item filter is empty (no restriction).
 // Returns { empty: true } if any filter matched nothing (⇒ query returns 0 rows).
 async function _resolveItemFilterIds(supabase, tenantId, { brands, categories, products }) {
-    let brandIds = null, categoryIds = null, productIds = null;
+    // Build a single products query with whatever filters are present
+    const anyFilter = brands?.length || categories?.length || products?.length;
+    if (!anyFilter) return { combinedIds: null };
+
+    // Each filter narrows the product set independently, then we intersect invoice_ids
+    const idSets = [];
+
+    const productIdsFor = async (col, values) => {
+        const { data } = await supabase
+            .from('products')
+            .select('id')
+            .in(col, values)
+            .eq('tenant_id', tenantId);
+        return (data || []).map(r => r.id).filter(Boolean);
+    };
+
+    const invoiceIdsFor = async (productIds) => {
+        if (!productIds.length) return [];
+        const { data } = await supabase
+            .from('invoice_items')
+            .select('invoice_id')
+            .in('product_id', productIds);
+        return [...new Set((data || []).map(r => r.invoice_id).filter(Boolean))];
+    };
 
     if (brands?.length) {
-        const { data } = await supabase
-            .from('invoice_items').select('invoice_id').in('brand_name', brands);
-        brandIds = [...new Set((data || []).map(r => r.invoice_id).filter(Boolean))];
-        if (!brandIds.length) return { empty: true };
+        const ids = await invoiceIdsFor(await productIdsFor('brand', brands));
+        if (!ids.length) return { empty: true };
+        idSets.push(ids);
     }
-
     if (categories?.length) {
-        const { data: catProducts } = await supabase
-            .from('products').select('product_code').in('category', categories).eq('tenant_id', tenantId);
-        const catCodes = (catProducts || []).map(r => r.product_code).filter(Boolean);
-        if (!catCodes.length) return { empty: true };
-        const { data: catItems } = await supabase
-            .from('invoice_items').select('invoice_id').in('product_code', catCodes);
-        categoryIds = [...new Set((catItems || []).map(r => r.invoice_id).filter(Boolean))];
-        if (!categoryIds.length) return { empty: true };
+        const ids = await invoiceIdsFor(await productIdsFor('category', categories));
+        if (!ids.length) return { empty: true };
+        idSets.push(ids);
     }
-
     if (products?.length) {
-        const { data } = await supabase
-            .from('invoice_items').select('invoice_id').in('product_name', products);
-        productIds = [...new Set((data || []).map(r => r.invoice_id).filter(Boolean))];
-        if (!productIds.length) return { empty: true };
+        const ids = await invoiceIdsFor(await productIdsFor('product_name', products));
+        if (!ids.length) return { empty: true };
+        idSets.push(ids);
     }
 
-    let combinedIds = null;
-    if (brandIds !== null)     combinedIds = brandIds;
-    if (categoryIds !== null)  combinedIds = combinedIds ? combinedIds.filter(id => categoryIds.includes(id)) : categoryIds;
-    if (productIds !== null)   combinedIds = combinedIds ? combinedIds.filter(id => productIds.includes(id))  : productIds;
+    // Intersect
+    const combinedIds = idSets.reduce((acc, set) =>
+        acc === null ? set : acc.filter(id => set.includes(id)), null);
 
     return { combinedIds };
 }
-
 
 // ─── Resolve applyStockFilters args against real products (fuzzy brand/cat) ──
 // Returns { applied, warnings }. `applied` is the shape the ürünler frontend

@@ -89,11 +89,11 @@ async function syncInvoiceItemInternalMeta(supabase, invoiceId, payloadItems, te
     if (!rowId) continue;
     const src = items[i] || {};
     const isInternal = src.is_internal === true;
-    const categoryRaw = String(src.item_subcategory || '').trim();
+    const categoryRaw = String(src.item_category || '').trim();
     const internalCategory = isInternal && categoryRaw ? categoryRaw : null;
 
     const { error: updErr } = await supabase
-      .from('invoice_items').update({ is_internal: isInternal, item_subcategory: internalCategory }).eq('id', rowId);
+      .from('invoice_items').update({ is_internal: isInternal, item_category: internalCategory }).eq('id', rowId);
     if (updErr) throw updErr;
 
     if (!isInternal) {
@@ -125,22 +125,46 @@ async function syncInvoiceItemInternalMeta(supabase, invoiceId, payloadItems, te
 // ─── Helper: enrich invoice_items with product metadata ──────────────────────
 async function enrichItemsWithProductMeta(supabase, data, tenantId) {
   if (!Array.isArray(data)) return;
-  const skus = [...new Set(data.flatMap(inv => (inv.invoice_items || []).map(it => String(it.product_code || '').trim()).filter(Boolean)))];
-  if (!skus.length) return;
-  let q = supabase.from('products').select('product_code, brand, category, model').in('product_code', skus);
+
+  // collect linked product_ids (the precise FK — not raw codes)
+  const productIds = [...new Set(
+    data.flatMap(inv =>
+      (inv.invoice_items || [])
+        .map(it => it.product_id)
+        .filter(Boolean)
+    )
+  )];
+  if (!productIds.length) return;
+
+  let q = supabase
+    .from('products')
+    .select('id, product_name, brand, category, subcategory, specs')
+    .in('id', productIds);
   if (tenantId) q = q.eq('tenant_id', tenantId);
+
   const { data: products } = await q;
-  const productMap = new Map((products || []).map(p => [String(p.product_code || '').trim(), p]));
+  const productMap = new Map((products || []).map(p => [p.id, p]));
+
   data.forEach(inv => {
     (inv.invoice_items || []).forEach(item => {
-      const p = productMap.get(String(item.product_code || '').trim());
-      item.brand = p?.brand || '';
-      item.category = p?.category || '';
-      item.model = p?.model || '';
+      const p = item.product_id ? productMap.get(item.product_id) : null;
+      if (p) {
+        // enriched product data — attached under product_* so the raw item
+        // fields stay intact (invoice archival vs enriched product)
+        item.product_meta = {
+          product_name: p.product_name || '',
+          brand:        p.brand || '',
+          category:     p.category || '',
+          subcategory:  p.subcategory || '',
+          model:        p.specs?.model || '',
+          specs:        p.specs || {},
+        };
+      } else {
+        item.product_meta = null;
+      }
     });
   });
 }
-
 // ─── Helper: recalculate purchase order status ───────────────────────────────
 async function recalcOrderStatus(supabase, touchedOrderIds) {
   for (const orderId of touchedOrderIds) {
@@ -176,36 +200,17 @@ async function fetchKpiSummary(supabase, tenantId, opts = {}) {
     const emptyRes = {
         totals: { total_count: 0, company_count: 0, try_total: 0, try_count: 0, usd_total: 0, usd_count: 0, eur_total: 0, eur_count: 0 }
     };
+
     const hasItemFilter = !!(brands?.length || categories?.length || products?.length);
 
-    // ── Step 1: resolve filter IDs ──────────────────────────────────────────
-    let brandFilteredIds = null;
-    if (brands?.length) {
-        const { data: brandItems } = await supabase
-            .from('invoice_items').select('invoice_id').in('brand_name', brands);
-        brandFilteredIds = [...new Set((brandItems || []).map(r => r.invoice_id).filter(Boolean))];
-        if (!brandFilteredIds.length) return emptyRes;
-    }
+    // ── Step 1: item filters — all resolve through the products table ───────
+    const brandFilteredIds    = await invoiceIdsForProductFilter(supabase, tenantId, 'brand',        brands);
+    const categoryFilteredIds = await invoiceIdsForProductFilter(supabase, tenantId, 'category',     categories);
+    const productFilteredIds  = await invoiceIdsForProductFilter(supabase, tenantId, 'product_name', products);
 
-    let categoryFilteredIds = null;
-    if (categories?.length) {
-        const { data: catProducts } = await supabase
-            .from('products').select('product_code').in('category', categories).eq('tenant_id', tenantId);
-        const catCodes = (catProducts || []).map(r => r.product_code).filter(Boolean);
-        if (!catCodes.length) return emptyRes;
-        const { data: catItems } = await supabase
-            .from('invoice_items').select('invoice_id').in('product_code', catCodes);
-        categoryFilteredIds = [...new Set((catItems || []).map(r => r.invoice_id).filter(Boolean))];
-        if (!categoryFilteredIds.length) return emptyRes;
-    }
-
-    let productFilteredIds = null;
-    if (products?.length) {
-        const { data: prodItems } = await supabase
-            .from('invoice_items').select('invoice_id').in('product_name', products);
-        productFilteredIds = [...new Set((prodItems || []).map(r => r.invoice_id).filter(Boolean))];
-        if (!productFilteredIds.length) return emptyRes;
-    }
+    if (brandFilteredIds?.length === 0)    return emptyRes;
+    if (categoryFilteredIds?.length === 0) return emptyRes;
+    if (productFilteredIds?.length === 0)  return emptyRes;
 
     // ── Step 2: company filter ──────────────────────────────────────────────
     let companyIds = null;
@@ -216,30 +221,31 @@ async function fetchKpiSummary(supabase, tenantId, opts = {}) {
         if (!companyIds.length) return emptyRes;
     }
 
-    // ── Step 4: build query ─────────────────────────────────────────────────
-    let q = supabase
-        .from('invoices')
-        .select('id, company_id, base_currency, payable_amount_tl, payable_amount_cur')
-        .eq('tenant_id', tenantId)
-        .or('approval_status.neq.pending,approval_status.is.null')
-        .or('invoice_category.neq.NON_INTERNAL,invoice_category.is.null');
-
+    // ── Step 3: build query ─────────────────────────────────────────────────
+    let q;
     if (pending) {
         q = supabase.from('invoices')
-            .select('id, base_currency, payable_amount_tl, payable_amount_cur')
-            .eq('tenant_id', tenantId).eq('approval_status', 'pending');
+            .select('id, company_id, base_currency, payable_amount_tl, payable_amount_cur')
+            .eq('tenant_id', tenantId)
+            .eq('approval_status', 'pending');
+    } else {
+        q = supabase.from('invoices')
+            .select('id, company_id, base_currency, payable_amount_tl, payable_amount_cur')
+            .eq('tenant_id', tenantId)
+            .or('approval_status.neq.pending,approval_status.is.null')
+            .or('invoice_category.eq.INTERNAL,invoice_category.eq.MIXED,invoice_category.is.null');
     }
 
-    if (direction)                    q = q.eq('direction', direction);
-    if (currency)                     q = q.eq('base_currency', currency);
-    if (dateStart)                    q = q.gte('invoice_date', dateStart);
-    if (dateEnd)                      q = q.lte('invoice_date', dateEnd);
-    if (priceMin != null)             q = q.gte('payable_amount_tl', priceMin);
-    if (priceMax != null)             q = q.lte('payable_amount_tl', priceMax);
-    if (companyIds?.length)           q = q.in('company_id', companyIds);
-    if (invoiceNumbers?.length)       q = q.in('invoice_no', invoiceNumbers);
+    if (direction)              q = q.eq('direction', direction);
+    if (currency)               q = q.eq('base_currency', currency);
+    if (dateStart)              q = q.gte('invoice_date', dateStart);
+    if (dateEnd)                q = q.lte('invoice_date', dateEnd);
+    if (priceMin != null)       q = q.gte('payable_amount_tl', priceMin);
+    if (priceMax != null)       q = q.lte('payable_amount_tl', priceMax);
+    if (companyIds?.length)     q = q.in('company_id', companyIds);
+    if (invoiceNumbers?.length) q = q.in('invoice_no', invoiceNumbers);
 
-    // Combine item filter IDs into a single .in() call (URL-length safe)
+    // Intersect the item filters into a single .in()
     let combinedIds = null;
     if (brandFilteredIds !== null) combinedIds = brandFilteredIds;
     if (categoryFilteredIds !== null) {
@@ -254,52 +260,121 @@ async function fetchKpiSummary(supabase, tenantId, opts = {}) {
     if (error) throw error;
     if (!invoiceRows?.length) return emptyRes;
 
-    // ── Step 5: aggregate ───────────────────────────────────────────────────
+    // ── Step 4a: no item filter — aggregate at the invoice level ────────────
     if (!hasItemFilter) {
-        let try_total = 0, try_count = 0, usd_total = 0, usd_count = 0, eur_total = 0, eur_count = 0, total_count = 0;
+        let try_total = 0, try_count = 0, usd_total = 0, usd_count = 0, eur_total = 0, eur_count = 0;
         invoiceRows.forEach(r => {
-            total_count++;
             const cur = (r.base_currency || 'TRY').toUpperCase();
-            if (cur === 'USD')                      { usd_total += parseFloat(r.payable_amount_cur) || 0; usd_count++; }
-            else if (cur === 'TRY' || cur === 'TL') { try_total += parseFloat(r.payable_amount_tl)  || 0; try_count++; }
-            else if (cur === 'EUR')                 { eur_total += parseFloat(r.payable_amount_cur) || 0; eur_count++; }
+            if (cur === 'USD')      { usd_total += parseFloat(r.payable_amount_cur) || 0; usd_count++; }
+            else if (cur === 'EUR') { eur_total += parseFloat(r.payable_amount_cur) || 0; eur_count++; }
+            else                    { try_total += parseFloat(r.payable_amount_tl)  || 0; try_count++; }
         });
-        const company_count = new Set(invoiceRows.map(r => r.company_id).filter(Boolean)).size;
-        return { totals: { total_count, company_count, try_total, try_count, usd_total, usd_count, eur_total, eur_count } };
+        return {
+            totals: {
+                total_count:   invoiceRows.length,
+                company_count: new Set(invoiceRows.map(r => r.company_id).filter(Boolean)).size,
+                try_total, try_count, usd_total, usd_count, eur_total, eur_count,
+            },
+        };
     }
 
-    // Item filter path — aggregate from items, derive counts from distinct invoices
+    // ── Step 4b: item filter active — aggregate over the matching line items ─
+    // Resolve which product_ids the filter selected, so we can pick out exactly
+    // the matching lines (not every line on a matching invoice).
+    const filterProductIds = await productIdsForFilters(supabase, tenantId, { brands, categories, products });
+    if (!filterProductIds.length) return emptyRes;
+
     const validInvoiceIds = invoiceRows.map(r => r.id);
-    const { data: itemRows } = await supabase
-        .from('invoice_items')
-        .select('invoice_id, currency, total_price_cur, product_code, brand_name, product_name, is_internal')
-        .eq('is_internal', true)
-        .in('invoice_id', validInvoiceIds);
 
-    let matchingItems = itemRows || [];
-    if (brandFilteredIds)    matchingItems = matchingItems.filter(r => brands.includes(r.brand_name));
-    if (categoryFilteredIds) matchingItems = matchingItems.filter(r => categoryFilteredIds.includes(r.invoice_id));
-    if (productFilteredIds)  matchingItems = matchingItems.filter(r => products.includes(r.product_name));
+    let itemRows;
+    if (validInvoiceIds.length <= 500) {
+        const { data } = await supabase
+            .from('invoice_items')
+            .select('invoice_id, product_id, currency, total_price_cur')
+            .eq('is_internal', true)
+            .in('invoice_id', validInvoiceIds)
+            .in('product_id', filterProductIds);
+        itemRows = data || [];
+    } else {
+        const { data } = await supabase
+            .from('invoice_items')
+            .select('invoice_id, product_id, currency, total_price_cur')
+            .eq('is_internal', true)
+            .in('product_id', filterProductIds);
+        const idSet = new Set(validInvoiceIds);
+        itemRows = (data || []).filter(r => idSet.has(r.invoice_id));
+    }
 
-    if (!matchingItems.length) return emptyRes;
+    if (!itemRows.length) return emptyRes;
 
-    const matchingInvoiceIds = new Set(matchingItems.map(r => r.invoice_id));
+    const matchingInvoiceIds = new Set(itemRows.map(r => r.invoice_id));
     const matchingInvoices   = invoiceRows.filter(r => matchingInvoiceIds.has(r.id));
-    const company_count      = new Set(matchingInvoices.map(r => r.company_id).filter(Boolean)).size;
-    const total_count        = matchingInvoiceIds.size;
 
     let try_total = 0, try_count = 0, usd_total = 0, usd_count = 0, eur_total = 0, eur_count = 0;
-    matchingItems.forEach(r => {
+    itemRows.forEach(r => {
         const cur = (r.currency || 'TRY').toUpperCase();
-        if (cur === 'USD')                      { usd_total += parseFloat(r.total_price_cur) || 0; usd_count++; }
-        else if (cur === 'TRY' || cur === 'TL') { try_total += parseFloat(r.total_price_cur) || 0; try_count++; }
-        else if (cur === 'EUR')                 { eur_total += parseFloat(r.total_price_cur) || 0; eur_count++; }
+        if (cur === 'USD')      { usd_total += parseFloat(r.total_price_cur) || 0; usd_count++; }
+        else if (cur === 'EUR') { eur_total += parseFloat(r.total_price_cur) || 0; eur_count++; }
+        else                    { try_total += parseFloat(r.total_price_cur) || 0; try_count++; }
     });
 
-    return { totals: { total_count, company_count, try_total, try_count, usd_total, usd_count, eur_total, eur_count } };
+    return {
+        totals: {
+            total_count:   matchingInvoiceIds.size,
+            company_count: new Set(matchingInvoices.map(r => r.company_id).filter(Boolean)).size,
+            try_total, try_count, usd_total, usd_count, eur_total, eur_count,
+        },
+    };
 }
 
+// Resolve a products-table filter → the set of invoice IDs containing those products.
+// Returns null if no filter given (⇒ no restriction), [] if the filter matched nothing.
+async function invoiceIdsForProductFilter(supabase, tenantId, column, values) {
+  if (!values?.length) return null;
 
+  const { data: prodRows } = await supabase
+    .from('products')
+    .select('id')
+    .eq('tenant_id', tenantId)
+    .eq('is_internal', true)
+    .in(column, values);
+
+  const productIds = (prodRows || []).map(r => r.id).filter(Boolean);
+  if (!productIds.length) return [];
+
+  const { data: itemRows } = await supabase
+    .from('invoice_items')
+    .select('invoice_id')
+    .eq('is_internal', true)
+    .in('product_id', productIds);
+
+  return [...new Set((itemRows || []).map(r => r.invoice_id).filter(Boolean))];
+}
+// Resolve the intersection of brand/category/product filters → product_ids.
+// Used when we need to pick out *matching line items*, not just matching invoices.
+async function productIdsForFilters(supabase, tenantId, { brands, categories, products }) {
+  const sets = [];
+
+  const idsFor = async (column, values) => {
+    if (!values?.length) return null;
+    const { data } = await supabase
+      .from('products')
+      .select('id')
+      .eq('tenant_id', tenantId)
+      .eq('is_internal', true)
+      .in(column, values);
+    return (data || []).map(r => r.id).filter(Boolean);
+  };
+
+  const brandIds = await idsFor('brand',        brands);
+  const catIds   = await idsFor('category',     categories);
+  const prodIds  = await idsFor('product_name', products);
+
+  [brandIds, catIds, prodIds].forEach(s => { if (s !== null) sets.push(s); });
+  if (!sets.length) return [];
+
+  return sets.reduce((acc, s) => acc.filter(id => s.includes(id)));
+}
 
 // GET /api/invoices
 router.get('/', async (req, res) => {
@@ -316,6 +391,10 @@ router.get('/', async (req, res) => {
     const priceMax = req.query.price_max ? parseFloat(req.query.price_max) : null;
     const search = req.query.search;
     const invoiceNumbers = req.query.invoice_numbers ? req.query.invoice_numbers.split(',').map(s => s.trim()).filter(Boolean) : [];
+    // ── at the top, with the other query-param parsing ─────────────────────────
+    const products = req.query.products
+      ? req.query.products.split(',').map(s => decodeURIComponent(s.trim())).filter(Boolean)
+      : [];
     const companies = req.query.companies ? req.query.companies.split(',').map(s => s.trim()).filter(Boolean) : [];
     const brands = req.query.brands ? req.query.brands.split(',').map(s => s.trim()).filter(Boolean) : [];
     const categories = req.query.categories ? req.query.categories.split(',').map(s => s.trim()).filter(Boolean) : [];
@@ -344,38 +423,25 @@ router.get('/', async (req, res) => {
       if (!companyIds.length) return res.json({ data: [], total: 0, page, limit, total_pages: 0 });
     }
 
-    let brandFilteredIds = null;
-    if (brands.length) {
-      const { data: brandItems } = await supabase.from('invoice_items').select('invoice_id').in('brand_name', brands);
-      brandFilteredIds = [...new Set((brandItems || []).map(r => r.invoice_id).filter(Boolean))];
-      if (!brandFilteredIds.length) return res.json({ data: [], total: 0, page, limit, total_pages: 0 });
-    }
+    // ── Item filters — all resolve through the products table ──────────────────
+    const emptyPage = { data: [], total: 0, page, limit, total_pages: 0 };
 
-    let categoryFilteredIds = null;
-    if (categories.length) {
-      const { data: catProducts } = await supabase.from('products').select('product_code').in('category', categories).eq('tenant_id', tenantId);
-      const catCodes = (catProducts || []).map(r => r.product_code).filter(Boolean);
-      if (!catCodes.length) return res.json({ data: [], total: 0, page, limit, total_pages: 0 });
-      const { data: catItems } = await supabase.from('invoice_items').select('invoice_id').in('product_code', catCodes);
-      categoryFilteredIds = [...new Set((catItems || []).map(r => r.invoice_id).filter(Boolean))];
-      if (!categoryFilteredIds.length) return res.json({ data: [], total: 0, page, limit, total_pages: 0 });
-    }
+    const brandFilteredIds    = await invoiceIdsForProductFilter(supabase, tenantId, 'brand',        brands);
+    const categoryFilteredIds = await invoiceIdsForProductFilter(supabase, tenantId, 'category',     categories);
+    const productFilteredIds  = await invoiceIdsForProductFilter(supabase, tenantId, 'product_name', products);
 
-    const products = req.query.products ? req.query.products.split(',').map(s => decodeURIComponent(s.trim())).filter(Boolean) : [];
-    let productFilteredIds = null;
-    if (products.length) {
-      const { data: prodItems } = await supabase.from('invoice_items').select('invoice_id').in('product_name', products);
-      productFilteredIds = [...new Set((prodItems || []).map(r => r.invoice_id).filter(Boolean))];
-      if (!productFilteredIds.length) return res.json({ data: [], total: 0, page, limit, total_pages: 0 });
-    }
+    // A filter that was given but matched nothing ⇒ zero results
+    if (brandFilteredIds?.length === 0)    return res.json(emptyPage);
+    if (categoryFilteredIds?.length === 0) return res.json(emptyPage);
+    if (productFilteredIds?.length === 0)  return res.json(emptyPage);
 
 
     let query = supabase
-      .from(sourceTable)                                              // ← changed
+      .from(sourceTable)
       .select('*, companies(*), invoice_items(*)', { count: 'exact' })
       .or(`tenant_id.eq.${tenantId},tenant_id.is.null`)
       .or('approval_status.neq.pending,approval_status.is.null')
-      .or('invoice_category.neq.NON_INTERNAL,invoice_category.is.null')
+      .or('invoice_category.eq.INTERNAL,invoice_category.eq.MIXED,invoice_category.is.null')
       .order(sortCol, { ascending: sortDir === 'asc' });
 
 
@@ -413,7 +479,6 @@ router.get('/', async (req, res) => {
     const { data, error, count } = await query;
     if (error) throw error;
 
-    await enrichItemsWithProductMeta(supabase, data, tenantId);
 
     res.json({ data: data || [], total: count || 0, page, limit, total_pages: Math.ceil((count || 0) / limit) });
   } catch (err) {
@@ -424,98 +489,112 @@ router.get('/', async (req, res) => {
 
 router.get('/filter-options', async (req, res) => {
   try {
-    const supabase = req.app.get('supabase');
-    const tenantId = req.tenantId;
+    const supabase  = req.app.get('supabase');
+    const tenantId  = req.tenantId;
     const direction = req.query.direction;
 
-
+    // ── 1. Invoices in scope ────────────────────────────────────────────────
     let invQuery = supabase
       .from('invoices')
       .select('id, invoice_no, base_currency, companies(name)')
       .eq('tenant_id', tenantId)
       .or('approval_status.neq.pending,approval_status.is.null')
-      .or('invoice_category.neq.NON_INTERNAL,invoice_category.is.null');
-
+      .or('invoice_category.eq.INTERNAL,invoice_category.eq.MIXED,invoice_category.is.null');
 
     if (direction) invQuery = invQuery.eq('direction', direction);
 
-    const { data: invRows } = await invQuery;
+    const { data: invRows, error: invErr } = await invQuery;
+    if (invErr) throw invErr;
 
+    const companies      = [...new Set((invRows || []).map(r => r.companies?.name).filter(Boolean))]
+                            .sort((a, b) => a.localeCompare(b, 'tr'));
+    const currencies     = [...new Set((invRows || []).map(r => r.base_currency).filter(Boolean))].sort();
+    const invoiceNumbers = [...new Set((invRows || []).map(r => r.invoice_no).filter(Boolean))]
+                            .sort((a, b) => a.localeCompare(b, 'tr'));
 
-    const companies = [...new Set((invRows || []).map(r => r.companies?.name).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'tr'));
-    const currencies = [...new Set((invRows || []).map(r => r.base_currency).filter(Boolean))].sort();
-    const invoiceNumbers = [...new Set((invRows || []).map(r => r.invoice_no).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'tr'));   // ← add
-
-    const invoiceNoMap = {};
-    (invRows || []).forEach(r => {
-        if (r.id && r.invoice_no) invoiceNoMap[r.id] = r.invoice_no;
-    });
-    // FIX 1: build invoiceCompanyMap from invRows
+    const invoiceNoMap      = {};
     const invoiceCompanyMap = {};
     (invRows || []).forEach(r => {
+      if (r.id && r.invoice_no)      invoiceNoMap[r.id]      = r.invoice_no;
       if (r.id && r.companies?.name) invoiceCompanyMap[r.id] = r.companies.name;
     });
 
-    // Fetch ALL non-internal items (no huge .in())
-    let itemQuery = supabase
+    const scopeIds = (invRows || []).map(r => r.id).filter(Boolean);
+    const empty = { companies, brands: [], products: [], categories: [], currencies, invoiceNumbers, relationships: [] };
+    if (!scopeIds.length) return res.json(empty);
+
+    // ── 2. Line items in scope — carry product_id (the FK) ───────────────────
+    const { data: allItems, error: itemErr } = await supabase
       .from('invoice_items')
-      .select('invoice_id, brand_name, product_name, product_code')
+      .select('invoice_id, product_id')
       .eq('is_internal', true);
+    if (itemErr) throw itemErr;
 
-    const { data: allItems } = await itemQuery;
+    const scopeSet = new Set(scopeIds);
+    const itemRows = (allItems || []).filter(r => scopeSet.has(r.invoice_id));
 
-    // If direction filter is active, keep only items whose invoice matches
-    let itemRows = allItems || [];
-    if (direction) {
-      const directionInvoiceIds = new Set((invRows || []).map(r => r.id).filter(Boolean));
-      itemRows = itemRows.filter(r => directionInvoiceIds.has(r.invoice_id));
-    }
+    const productIds = [...new Set(itemRows.map(r => r.product_id).filter(Boolean))];
+    if (!productIds.length) return res.json(empty);
 
-    const products  = [...new Set((itemRows || []).map(r => r.product_name).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'tr'));
-    const productCodes = [...new Set((itemRows || []).map(r => r.product_code).filter(Boolean))];
-
-    // FIX 3: initialize to [] so they're never undefined
-    let categories    = [];
-    let relationships = [];
-    let brands              = [];
-
-    if (productCodes.length) {
-      const { data: productRows } = await supabase
+    // ── 3. Products — authoritative source for name / brand / category ───────
+    let productRows;
+    if (productIds.length <= 500) {
+      const { data } = await supabase
         .from('products')
-        .select('product_code, category,brand, model')
+        .select('id, product_name, brand, category, model')
         .eq('tenant_id', tenantId)
         .eq('is_internal', true)
-        .in('product_code', productCodes)
-        .not('category', 'is', null);
-
-      categories = [...new Set((productRows || []).map(r => r.category).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'tr'));
-      brands    = [...new Set((productRows || []).map(r => r.brand).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'tr'));
-
-      const productCodeMeta = {};
-      (productRows || []).forEach(r => {
-        productCodeMeta[r.product_code] = { category: r.category, model: r.model, brand: r.brand };
-      });
-
-      // FIX 4: deduplicate relationships
-      const seen = new Set();
-      relationships = (itemRows || [])
-        .filter(r => r.product_code && productCodeMeta[r.product_code])
-        .reduce((acc, r) => {
-          const key = `${r.invoice_id}|${r.brand_name}|${r.product_name}|${productCodeMeta[r.product_code].category}`;
-          if (!seen.has(key)) {
-            seen.add(key);
-            acc.push({
-              invoiceNo: r.invoice_id ? (invoiceNoMap[r.invoice_id] || null) : null,
-              company:  invoiceCompanyMap[r.invoice_id] || null,
-              brand:    productCodeMeta[r.product_code].brand   || null,
-              product:  r.product_name || null,
-              category: productCodeMeta[r.product_code].category,
-              model:    productCodeMeta[r.product_code].model || null,
-            });
-          }
-          return acc;
-        }, []);
+        .eq('is_hidden', false)
+        .in('id', productIds);
+      productRows = data || [];
+    } else {
+      const { data } = await supabase
+        .from('products')
+        .select('id, product_name, brand, category, model')
+        .eq('tenant_id', tenantId)
+        .eq('is_internal', true)
+        .eq('is_hidden', false);
+      const idSet = new Set(productIds);
+      productRows = (data || []).filter(r => idSet.has(r.id));
     }
+
+    const products   = [...new Set(productRows.map(r => r.product_name).filter(Boolean))]
+                         .sort((a, b) => a.localeCompare(b, 'tr'));
+    const brands     = [...new Set(productRows.map(r => r.brand).filter(Boolean))]
+                         .sort((a, b) => a.localeCompare(b, 'tr'));
+    const categories = [...new Set(productRows.map(r => r.category).filter(Boolean))]
+                         .sort((a, b) => a.localeCompare(b, 'tr'));
+
+    // ── 4. Relationships — keyed by product_id, curated values ───────────────
+    const productMeta = new Map();
+    productRows.forEach(r => {
+      productMeta.set(r.id, {
+        product:  r.product_name,
+        brand:    r.brand,
+        category: r.category,
+        model:    r.model,
+      });
+    });
+
+    const seen = new Set();
+    const relationships = [];
+    itemRows.forEach(r => {
+      const meta = productMeta.get(r.product_id);
+      if (!meta) return;
+
+      const key = `${r.invoice_id}|${meta.brand}|${meta.product}|${meta.category}`;
+      if (seen.has(key)) return;
+      seen.add(key);
+
+      relationships.push({
+        invoiceNo: invoiceNoMap[r.invoice_id]      || null,
+        company:   invoiceCompanyMap[r.invoice_id] || null,
+        brand:     meta.brand    || null,
+        product:   meta.product  || null,
+        category:  meta.category || null,
+        model:     meta.model    || null,
+      });
+    });
 
     res.json({ companies, brands, products, categories, currencies, invoiceNumbers, relationships });
 
@@ -524,75 +603,98 @@ router.get('/filter-options', async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
-
 // GET /api/invoices/totals
 router.get('/totals', async (req, res) => {
   try {
-    const supabase = req.app.get('supabase');
-    const tenantId = req.tenantId;
+    const supabase  = req.app.get('supabase');
+    const tenantId  = req.tenantId;
     const direction = req.query.direction;
-    const status = req.query.status;
-    const currency = req.query.currency;
+    const status    = req.query.status;
+    const currency  = req.query.currency;
     const dateStart = req.query.date_start;
-    const dateEnd = req.query.date_end;
-    const search = req.query.search;
-    const companies = req.query.companies ? req.query.companies.split(',').map(s => s.trim()).filter(Boolean) : [];
-    const brands = req.query.brands ? req.query.brands.split(',').map(s => s.trim()).filter(Boolean) : [];
+    const dateEnd   = req.query.date_end;
+    const search    = req.query.search;
 
-    // Companies
-    const companyIds = await resolveCompanyIds(supabase, tenantId, companies);
-    if (companyIds !== null && !companyIds.length) return res.json(/* empty */);
+    const companies  = req.query.companies  ? req.query.companies.split(',').map(s => s.trim()).filter(Boolean) : [];
+    const brands     = req.query.brands     ? req.query.brands.split(',').map(s => s.trim()).filter(Boolean) : [];
+    const categories = req.query.categories ? req.query.categories.split(',').map(s => s.trim()).filter(Boolean) : [];
+    const products   = req.query.products   ? req.query.products.split(',').map(s => decodeURIComponent(s.trim())).filter(Boolean) : [];
 
-    // Brands
-    const brandIds = await resolveInvoiceIdsByBrand(supabase, brands);
-    if (brandIds !== null && !brandIds.length) return res.json(/* empty */);
+    const emptyRes = { count: 0, total_tl: 0, total_usd: 0, unpaid_tl: 0 };
 
-    // Categories
-    const categoryIds = await resolveInvoiceIdsByCategory(supabase, tenantId, categories);
-    if (categoryIds !== null && !categoryIds.length) return res.json(/* empty */);
+    // ── Companies ───────────────────────────────────────────────────────────
+    let companyIds = null;
+    if (companies.length) {
+      const { data } = await supabase
+        .from('companies').select('id').eq('tenant_id', tenantId).in('name', companies);
+      companyIds = (data || []).map(c => c.id);
+      if (!companyIds.length) return res.json(emptyRes);
+    }
 
-    // Products
-    const productIds = await resolveInvoiceIdsByProduct(supabase, products);
-    if (productIds !== null && !productIds.length) return res.json(/* empty */);
+    // ── Item filters — all through the products table ───────────────────────
+    const brandIds    = await invoiceIdsForProductFilter(supabase, tenantId, 'brand',        brands);
+    const categoryIds = await invoiceIdsForProductFilter(supabase, tenantId, 'category',     categories);
+    const productIds  = await invoiceIdsForProductFilter(supabase, tenantId, 'product_name', products);
 
+    if (brandIds?.length === 0)    return res.json(emptyRes);
+    if (categoryIds?.length === 0) return res.json(emptyRes);
+    if (productIds?.length === 0)  return res.json(emptyRes);
+
+    // ── Query ───────────────────────────────────────────────────────────────
     const pendingOnly = req.query.pending === 'true';
+
     let query = supabase
       .from('invoices')
       .select('payable_amount_tl, payable_amount_cur, base_currency, status, paid_amount_cur, calculation_rate')
       .eq('tenant_id', tenantId)
-      .or('invoice_category.neq.NON_INTERNAL,invoice_category.is.null');
+      .or('invoice_category.eq.INTERNAL,invoice_category.eq.MIXED,invoice_category.is.null');
 
     if (pendingOnly) query = query.eq('approval_status', 'pending');
-    else query = query.or('approval_status.neq.pending,approval_status.is.null');
+    else             query = query.or('approval_status.neq.pending,approval_status.is.null');
 
-    if (direction) query = query.eq('direction', direction);
-    if (status) query = query.ilike('status', status);
-    if (currency) query = query.eq('base_currency', currency);
-    if (dateStart) query = query.gte('invoice_date', dateStart);
-    if (dateEnd) query = query.lte('invoice_date', dateEnd);
-    if (search) query = query.or(`invoice_no.ilike.%${search}%`);
+    if (direction)          query = query.eq('direction', direction);
+    if (status)             query = query.ilike('status', status);
+    if (currency)           query = query.eq('base_currency', currency);
+    if (dateStart)          query = query.gte('invoice_date', dateStart);
+    if (dateEnd)            query = query.lte('invoice_date', dateEnd);
+    if (search)             query = query.ilike('invoice_no', `%${search}%`);
     if (companyIds?.length) query = query.in('company_id', companyIds);
-    if (brandIds) query = query.in('id', brandIds);
+
+    // Intersect the item filters into a single .in()
+    let combinedIds = null;
+    if (brandIds !== null)    combinedIds = brandIds;
+    if (categoryIds !== null) combinedIds = combinedIds ? combinedIds.filter(id => categoryIds.includes(id)) : categoryIds;
+    if (productIds !== null)  combinedIds = combinedIds ? combinedIds.filter(id => productIds.includes(id))  : productIds;
+    if (combinedIds !== null) query = query.in('id', combinedIds);
 
     const { data, error } = await query;
     if (error) throw error;
 
     const rows = data || [];
-    const total_tl = rows.filter(r => (r.base_currency || 'TRY').toUpperCase() === 'TRY').reduce((s, r) => s + (parseFloat(r.payable_amount_tl) || 0), 0);
-    const total_usd = rows.filter(r => (r.base_currency || '').toUpperCase() === 'USD').reduce((s, r) => s + (parseFloat(r.payable_amount_cur) || 0), 0);
-    const unpaid_tl = rows.filter(r => r.status !== 'Paid').reduce((s, r) => {
-      const paid = parseFloat(r.paid_amount_cur) || 0;
-      const total = parseFloat(r.payable_amount_cur) || 0;
-      return s + Math.max(total - paid, 0) * (parseFloat(r.calculation_rate) || 1);
-    }, 0);
+
+    const total_tl = rows
+      .filter(r => (r.base_currency || 'TRY').toUpperCase() === 'TRY')
+      .reduce((s, r) => s + (parseFloat(r.payable_amount_tl) || 0), 0);
+
+    const total_usd = rows
+      .filter(r => (r.base_currency || '').toUpperCase() === 'USD')
+      .reduce((s, r) => s + (parseFloat(r.payable_amount_cur) || 0), 0);
+
+    const unpaid_tl = rows
+      .filter(r => r.status !== 'Paid')
+      .reduce((s, r) => {
+        const paid  = parseFloat(r.paid_amount_cur)   || 0;
+        const total = parseFloat(r.payable_amount_cur) || 0;
+        return s + Math.max(total - paid, 0) * (parseFloat(r.calculation_rate) || 1);
+      }, 0);
 
     res.json({ count: rows.length, total_tl, total_usd, unpaid_tl });
+
   } catch (err) {
     console.error('Totals hatası:', err.message);
     res.status(500).json({ error: err.message });
   }
 });
-
 
 // GET /api/invoices/price-histogram
 router.get('/price-histogram', async (req, res) => {
@@ -1129,78 +1231,6 @@ router.get('/pending', async (req, res) => {
 });
 
 // GET /api/invoices/ofis-ici
-router.get('/ofis-ici', async (req, res) => {
-  try {
-    const supabase = req.app.get('supabase');
-    const tenantId = req.tenantId;
-    const search = req.query.search || '';
-    const dateStart = req.query.date_start || '';
-    const dateEnd = req.query.date_end || '';
-    const category = req.query.category || '';
-    const companies = req.query.companies ? req.query.companies.split(',').map(s => s.trim()).filter(Boolean) : [];
-    const page = Math.max(1, parseInt(req.query.page) || 1);
-    const limit = Math.min(200, parseInt(req.query.limit) || 0);
-    const totalsOnly = req.query.totals === 'true';
-
-    let companyIds = [];
-    if (companies.length) {
-      const { data: matched } = await supabase.from('companies').select('id').in('name', companies).eq('tenant_id', tenantId);
-      companyIds = (matched || []).map(c => c.id);
-      if (!companyIds.length) return res.json(limit > 0 ? { data: [], total: 0, total_pages: 0, page } : []);
-    }
-
-    // Ofis içi = NON_INTERNAL invoices — straight from the column, no ID array
-    let query = supabase
-      .from('invoices')
-      .select('*, companies(*), invoice_items(*)', { count: 'exact' })
-      .eq('tenant_id', tenantId)
-      .eq('invoice_category', 'NON_INTERNAL')
-      .or('approval_status.eq.approved,approval_status.is.null')
-      .order('invoice_date', { ascending: false });
-
-    if (search) query = query.or(`invoice_no.ilike.%${search}%`);
-    if (dateStart) query = query.gte('invoice_date', dateStart);
-    if (dateEnd) query = query.lte('invoice_date', dateEnd);
-    if (companyIds?.length) query = query.in('company_id', companyIds);
-
-    if (totalsOnly) {
-      const { data, error } = await query;
-      if (error) throw error;
-      const rows = data || [];
-
-      let tryTotal = 0, usdTotal = 0;
-      const catMap = {};
-
-      rows.forEach(inv => {
-        const isUSD = (inv.base_currency || '').toUpperCase() === 'USD';
-        (inv.invoice_items || []).filter(it => !it.is_internal).forEach(it => {
-          const lineTotal = parseFloat(it.total_price_cur) || 0;
-          if (isUSD) usdTotal += lineTotal;
-          else       tryTotal += lineTotal;
-          const cat = it.item_subcategory || 'diğer';
-          catMap[cat] = (catMap[cat] || 0) + (parseFloat(it.quantity) || 1);
-        });
-      });
-
-      return res.json({
-        count:     rows.length,
-        total_tl:  tryTotal,
-        total_usd: usdTotal,
-        cat_map:   catMap,
-      });
-    }
-
-    if (limit > 0) query = query.range((page - 1) * limit, page * limit - 1);
-    const { data, error, count } = await query;
-    if (error) throw error;
-
-    if (limit > 0) return res.json({ data: data || [], total: count || 0, total_pages: Math.ceil((count || 0) / limit), page });
-    res.json(data || []);
-  } catch (err) {
-    console.error('Ofis içi fatura hatası:', err.message);
-    res.status(500).json({ error: err.message });
-  }
-});
 
 // GET /api/invoices/:id
 router.get('/:id([0-9a-fA-F-]{36})', async (req, res) => {
@@ -1298,6 +1328,43 @@ router.put('/:id', async (req, res) => {
   }
 });
 
+// PATCH /api/invoice-items/:id — update classification/link on a single line
+router.patch('/invoice-items/:id([0-9a-fA-F-]{36})', async (req, res) => {
+  try {
+    const supabase = req.app.get('supabase');
+    const tenantId = req.tenantId;
+    const id = String(req.params.id || '').trim();
+    if (!id) return res.status(400).json({ error: 'Kalem id zorunlu.' });
+
+    // only these fields are patchable here
+    const allowed = ['is_internal', 'item_category', 'item_subcategory', 'product_id'];
+    const fields = {};
+    for (const k of allowed) {
+      if (k in (req.body || {})) fields[k] = req.body[k];
+    }
+    if (Object.keys(fields).length === 0) {
+      return res.status(400).json({ error: 'Güncellenecek alan yok.' });
+    }
+
+    // verify the line belongs to this tenant (via its invoice) before updating
+    const { data: line, error: lineErr } = await supabase
+      .from('invoice_items')
+      .select('id, invoice_id, invoices!inner(tenant_id)')
+      .eq('id', id)
+      .eq('invoices.tenant_id', tenantId)
+      .maybeSingle();
+    if (lineErr) throw lineErr;
+    if (!line) return res.status(404).json({ error: 'Kalem bulunamadı.' });
+
+    const { error } = await supabase.from('invoice_items').update(fields).eq('id', id);
+    if (error) throw error;
+
+    res.json({ updated: true });
+  } catch (err) {
+    console.error('PATCH /api/invoice-items/:id hatası:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
 // PUT /api/invoices/:id/approve
 router.put('/:id/approve', async (req, res) => {
   try {
@@ -1504,26 +1571,16 @@ router.post('/items/normalize-sku', async (req, res) => {
 });
 
 // GET /api/invoices/ofis-ici-categories
-router.get('/ofis-ici-categories', async (req, res) => {
-  try {
-    const supabase = req.app.get('supabase');
-    const { data, error } = await supabase.from('invoice_items').select('item_subcategory').eq('is_internal', false).not('item_subcategory', 'is', null).neq('item_subcategory', '');
-    if (error) throw error;
-    const cats = [...new Set((data || []).map(r => r.item_subcategory).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'tr'));
-    res.json(cats);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
+
 
 // GET /api/invoices/internal-categories
 router.get('/internal-categories', async (req, res) => {
   try {
     const supabase = req.app.get('supabase');
-    const { data, error } = await supabase.from('invoice_items').select('item_subcategory').eq('is_internal', false).not('item_subcategory', 'is', null).neq('item_subcategory', '');
+    const { data, error } = await supabase.from('invoice_items').select('item_category').eq('is_internal', false).not('item_category', 'is', null).neq('item_category', '');
     if (error) throw error;
     const countMap = {};
-    (data || []).forEach(r => { const c = r.item_subcategory; if (c) countMap[c] = (countMap[c] || 0) + 1; });
+    (data || []).forEach(r => { const c = r.item_category; if (c) countMap[c] = (countMap[c] || 0) + 1; });
     res.json(Object.entries(countMap).map(([name, count]) => ({ name, count })).sort((a, b) => a.name.localeCompare(b.name, 'tr')));
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -1536,7 +1593,7 @@ router.put('/internal-categories/rename', async (req, res) => {
     const supabase = req.app.get('supabase');
     const { from, to } = req.body;
     if (!from || !to) return res.status(400).json({ error: 'from ve to zorunlu.' });
-    const { error } = await supabase.from('invoice_items').update({ item_subcategory: to }).eq('item_subcategory', from);
+    const { error } = await supabase.from('invoice_items').update({ item_category: to }).eq('item_category', from);
     if (error) throw error;
     res.json({ ok: true });
   } catch (err) {
@@ -1549,7 +1606,7 @@ router.delete('/internal-categories/:name', async (req, res) => {
   try {
     const supabase = req.app.get('supabase');
     const name = decodeURIComponent(req.params.name);
-    const { error } = await supabase.from('invoice_items').update({ item_subcategory: null }).eq('item_subcategory', name);
+    const { error } = await supabase.from('invoice_items').update({ item_category: null }).eq('item_category', name);
     if (error) throw error;
     res.json({ ok: true });
   } catch (err) {
@@ -1611,22 +1668,22 @@ router.put('/:id/items/batch-category', async (req, res) => {
     const productIdByItemId = new Map((itemRows || []).map(r => [r.id, r.product_id]));
 
     const errors = [];
-    await Promise.all(assignments.map(async ({ item_id, item_subcategory }) => {
+    await Promise.all(assignments.map(async ({ item_id, item_category }) => {
       if (!item_id) return;
 
       const { error: itemErr } = await supabase
         .from('invoice_items')
-        .update({ item_subcategory: item_subcategory || null, is_internal: !!item_subcategory })
+        .update({ item_category: item_category || null, is_internal: !!item_category })
         .eq('id', item_id)
         .eq('invoice_id', req.params.id);
       if (itemErr) { errors.push({ item_id, error: itemErr.message }); return; }
 
       // Also sync to products.category so the product is categorized going forward
       const productId = productIdByItemId.get(item_id);
-      if (productId && item_subcategory) {
+      if (productId && item_category) {
         await supabase
           .from('products')
-          .update({ category: item_subcategory })
+          .update({ category: item_category })
           .eq('id', productId);
       }
     }));

@@ -127,7 +127,7 @@ Additional standalone page scripts (each page loads only what it needs):
 - `genel-bakis.js` — genel-bakis.html only; uses Chart.js
 - `bekleyen-page.js` — bekleyen pages
 - `fatura-detay.js` — fatura-detay.html standalone detail page
-- `ofis-ici.js` — ofis-ici.html
+- `gider-faturalar.js` — ofis-ici.html
 - `rapor.js` — rapor.html
 
 Do not use `import`/`export`. All functions must be global scope.

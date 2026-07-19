@@ -624,76 +624,140 @@ function _makeModelDropdown(wrapEl, initialValue, getBrand) {
 async function renderUrunlerView(id, body, inv) {
     const items = inv.invoice_items || [];
 
-    let warnHtml = '';
-    try {
-        await ensureProductCodeLookupSetLoaded();
-        const missing = [...new Set(
-            items.map(it => String(it.product_code || it.sku || '').trim())
-                .filter(Boolean).filter(s => !isInProductCodeLookup(s))
-        )];
-        if (missing.length) {
-            warnHtml = `<div class="det-sku-warn"><strong>⚠️ Yeni ürün kodu olabilir</strong><br>${missing.join(', ')} — products tablosunda kayıtlı değil.</div>`;
-        }
-    } catch (e) { }
     try { await ensureProductCategoryLookupLoaded(); } catch (e) { }
 
     const fmtP = n => (parseFloat(n) || 0).toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-    const pill = (val, color = '#64748b', bg = '#f1f5f9') => val
-        ? `<span style="font-size:11px;font-weight:600;color:${color};background:${bg};border-radius:5px;padding:2px 7px;white-space:nowrap;">${val}</span>`
-        : '';
+    const esc  = s => String(s ?? '').replace(/"/g, '&quot;').replace(/</g, '&lt;');
 
-    const cards = items.map(it => {
-        const isInt = !it.is_internal;
-        const code = String(it.product_code || it.sku || '').trim();
-        const name = String(it.product_name || '').trim();
-        const cat = isInt
-            ? (it.item_subcategory || '—')
-            : (it.category || productCategoryByCodeMap?.get(normalizeProductCodeForMatch(code)) || '—');
-        const brand = it.brand_name || it.brand || '';
-        const model = it.model || '';
+    // Build the editable body for an item given its CURRENT internal state.
+    // Rebuilt on toggle. Field source: product_meta if a product exists, else raw.
+    function bodyHtml(it, isInternal) {
+        const meta = it.product_meta || null;
+        const rawCode = String(it.product_code || it.sku || '').trim();
+        const rawName = String(it.product_name || '').trim();
 
-        return `<div style="background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:11px 14px;">
-            <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
+        if (!isInternal) {
+            // NON-INTERNAL: single expense category field
+            const cat = String(it.item_category || '').trim();
+            return `
+                <label style="font-size:10px;font-weight:500;color:var(--text-muted,#94a3b8);text-transform:uppercase;letter-spacing:0.04em;display:block;margin-bottom:4px;">Gider Kategorisi</label>
+                <input type="text" class="ue-cat" value="${esc(cat)}" placeholder="Kargo, Mutfak, Kira..."
+                    style="width:100%;box-sizing:border-box;font-size:12px;padding:7px 10px;border:1px solid #e2e8f0;border-radius:8px;outline:none;">`;
+        }
+
+        // INTERNAL: code + name + category + brand (no model)
+        // product exists → pull from meta; else fall back to raw invoice fields
+        const hasProduct = !!it.product_id;
+        const code  = hasProduct ? (meta?.product_code || rawCode) : rawCode;
+        const name  = hasProduct ? (meta?.product_name || rawName) : rawName;
+        const cat   = hasProduct ? (meta?.category || '') : '';
+        const brand = hasProduct ? (meta?.brand || '') : '';
+
+        return `
+            <div style="display:grid;grid-template-columns:140px 1fr;gap:8px;margin-bottom:8px;">
+                <div>
+                    <label style="font-size:10px;font-weight:500;color:var(--text-muted,#94a3b8);text-transform:uppercase;letter-spacing:0.04em;display:block;margin-bottom:4px;">Ürün Kodu</label>
+                    <input type="text" class="ue-code" value="${esc(code)}" placeholder="Ürün kodu"
+                        style="width:100%;box-sizing:border-box;font-family:'Geist Mono',monospace;font-size:12px;padding:7px 10px;border:1px solid #e2e8f0;border-radius:8px;outline:none;">
+                </div>
+                <div>
+                    <label style="font-size:10px;font-weight:500;color:var(--text-muted,#94a3b8);text-transform:uppercase;letter-spacing:0.04em;display:block;margin-bottom:4px;">Ürün Adı</label>
+                    <input type="text" class="ue-name" value="${esc(name)}" placeholder="Ürün adı"
+                        style="width:100%;box-sizing:border-box;font-size:12px;font-weight:600;padding:7px 10px;border:1px solid #e2e8f0;border-radius:8px;outline:none;">
+                </div>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+                <div>
+                    <label style="font-size:10px;font-weight:500;color:var(--text-muted,#94a3b8);text-transform:uppercase;letter-spacing:0.04em;display:block;margin-bottom:4px;">Kategori</label>
+                    <input type="text" class="ue-cat" value="${esc(cat)}" placeholder="Kategori"
+                        style="width:100%;box-sizing:border-box;font-size:12px;padding:7px 10px;border:1px solid #e2e8f0;border-radius:8px;outline:none;">
+                </div>
+                <div>
+                    <label style="font-size:10px;font-weight:500;color:var(--text-muted,#94a3b8);text-transform:uppercase;letter-spacing:0.04em;display:block;margin-bottom:4px;">Marka</label>
+                    <input type="text" class="ue-brand" value="${esc(brand)}" placeholder="Marka"
+                        style="width:100%;box-sizing:border-box;font-size:12px;padding:7px 10px;border:1px solid #e2e8f0;border-radius:8px;outline:none;">
+                </div>
+            </div>`;
+    }
+
+    function toggleBtn(isInternal) {
+        return isInternal
+            ? `<button class="ue-toggle" data-internal="1"
+                 style="width:auto;padding:4px 9px;font-size:11px;border-radius:20px;display:flex;align-items:center;gap:4px;background:#eff6ff;border:0.5px solid #93c5fd;color:#2563eb;cursor:pointer;">
+                 <i class="ti ti-package" style="font-size:14px;"></i>Ürün</button>`
+            : `<button class="ue-toggle" data-internal="0"
+                 style="width:auto;padding:4px 9px;font-size:11px;border-radius:20px;display:flex;align-items:center;gap:4px;background:#fffbeb;border:0.5px solid #fde68a;color:#92400e;cursor:pointer;">
+                 <i class="ti ti-briefcase" style="font-size:14px;"></i>Gider</button>`;
+    }
+
+    const cardsHtml = items.map((it, idx) => {
+        const isInternal = it.is_internal === true;
+        const name  = String(it.product_meta?.product_name || it.product_name || '').trim();
+        const qty   = parseFloat(it.quantity) || 0;
+        const price = parseFloat(it.unit_price_cur) || 0;
+        const total = fmtP((parseFloat(it.total_price_cur) || 0) * (1 + (parseFloat(it.tax_rate) || 0) / 100));
+
+        return `<div class="ue-card" data-idx="${idx}"
+            style="background:#fff;border:${isInternal ? '2px solid #93c5fd' : '0.5px solid #e2e8f0'};border-radius:12px;padding:11px 13px;">
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:10px;">
                 <div style="flex:1;min-width:0;">
-                    <div style="font-size:13px;font-weight:700;color:#0f172a;margin-bottom:5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${name.replace(/</g, '&lt;') || '—'}</div>
-                    <div style="display:flex;flex-wrap:wrap;gap:4px;align-items:center;">
-                        ${code ? `<span style="font-size:11px;font-weight:700;color:#2563eb;background:#eff6ff;border-radius:5px;padding:2px 7px;font-family:'Geist Mono',monospace;">${code}</span>` : ''}
-                        ${pill(`× ${it.quantity}`)}
-                        ${pill(fmtP(it.unit_price_cur) + ' / adet')}
-                        ${isInt ? pill('Ofis İçi', '#7c3aed', '#f5f3ff') : ''}
-                        ${cat !== '—' ? pill(cat) : ''}
-                        ${brand ? pill(brand) : ''}
-                        ${model ? pill(model) : ''}
+                    <div class="ue-hdr-name" style="font-size:13px;font-weight:700;color:#0f172a;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${esc(name) || '—'}</div>
+                    <div style="display:flex;gap:6px;margin-top:4px;">
+                        <span style="font-size:11px;color:#94a3b8;">× ${qty}</span>
+                        <span style="font-size:11px;color:#94a3b8;">${fmtP(price)} / adet</span>
                     </div>
                 </div>
-                <span style="font-size:14px;font-weight:800;color:#2563eb;white-space:nowrap;flex-shrink:0;">${fmtP((parseFloat(it.total_price_cur) || 0) * (1 + (parseFloat(it.tax_rate) || 0) / 100))}</span>
+                <div style="display:flex;align-items:center;gap:8px;flex-shrink:0;">
+                    <span style="font-size:14px;font-weight:800;color:#2563eb;white-space:nowrap;">${total}</span>
+                    ${toggleBtn(isInternal)}
+                </div>
+            </div>
+            <div class="ue-body" style="border-top:0.5px solid #f1f5f9;padding-top:10px;">
+                ${bodyHtml(it, isInternal)}
             </div>
         </div>`;
     }).join('');
 
-    // When coming from a bekleyen page, go straight into batch category mode for all items
-    const _fromParam = (typeof location !== 'undefined')
-        ? (new URLSearchParams(location.search).get('from') || '')
-        : '';
-    const _isBekleyen = _fromParam === 'bekleyen-gelen';
+    body.innerHTML = `
+        <div style="margin:12px 12px 0;padding:9px 12px;background:#f8fafc;border:0.5px solid #e2e8f0;border-radius:8px;font-size:11px;color:#64748b;">
+             <strong>Sağ üstteki Ürün/Gider kartına tıklayarak ürünün bilgilerini güncelleyebilirsiniz</strong>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:6px;padding:12px;" id="ueList_${id}">
+            ${cardsHtml || '<div style="padding:20px;text-align:center;color:#94a3b8;font-size:13px;">Ürün bulunamadı</div>'}
+        </div>
+        <div class="det-actions" style="padding:0 12px 12px;">
+            <button class="fatura-action-btn fatura-action-btn--primary" onclick="saveUrunlerEdit('${id}')">💾 Kaydet</button>
+        </div>`;
 
-    if (_isBekleyen && items.length > 0) {
-        setTimeout(() => enterBatchCategoryMode(id, true), 10);
-        return;
-    }
+    // wire toggles — flip local state, prefill code from raw on first toggle-on, re-render body
+    const listEl = document.getElementById(`ueList_${id}`);
+    if (!listEl) return;
 
-    setTimeout(() => {
-        body.innerHTML = `${warnHtml}
-            <div style="display:flex;flex-direction:column;gap:6px;padding:12px;">
-                ${cards || '<div style="padding:20px;text-align:center;color:#94a3b8;font-size:13px;">Ürün bulunamadı</div>'}
-            </div>
-            <div class="det-actions" style="padding:0 12px 12px;">
-                <button class="fatura-action-btn fatura-action-btn--primary" onclick="enterUrunlerEdit('${id}')">✏️ Düzenle</button>
-            </div>`;
-    }, 10);
-}
+    listEl.querySelectorAll('.ue-card').forEach(card => {
+        const idx = parseInt(card.dataset.idx);
+        const it = items[idx] || {};
 
-// ─── 2. enterUrunlerEdit ──────────────────────────────────────────────────────
+        const wire = () => {
+            const btn = card.querySelector('.ue-toggle');
+            if (!btn) return;
+            btn.addEventListener('click', () => {
+                const nowInternal = btn.dataset.internal !== '1'; // flip
+                it.is_internal = nowInternal;                     // mutate local state
+
+                // re-render header border + toggle + body
+                card.style.border = nowInternal ? '2px solid #93c5fd' : '0.5px solid #e2e8f0';
+                const bodyEl = card.querySelector('.ue-body');
+                if (bodyEl) bodyEl.innerHTML = bodyHtml(it, nowInternal);
+
+                // swap the toggle button itself
+                const hdrRight = btn.parentElement;
+                btn.outerHTML = toggleBtn(nowInternal);
+                wire(); // re-attach to the new button
+            });
+        };
+        wire();
+    });
+}// ─── 2. enterUrunlerEdit ──────────────────────────────────────────────────────
 function enterUrunlerEdit(id) {
     const { inv, body } = _findInvAndBody(id);
     if (!inv || !body) return;
@@ -701,24 +765,40 @@ function enterUrunlerEdit(id) {
     const items = inv.invoice_items || [];
     let _openIdx = null;
 
-    // Pre-load brand/model data
     ensureBrandModelLoaded().catch(() => { });
 
     const fmtP = n => (parseFloat(n) || 0).toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
     function buildItem(it, idx) {
-        const isInt = !it.is_internal;
-        const code = String(it.product_code || it.sku || '').trim();
-        const name = String(it.product_name || '').replace(/</g, '&lt;');
-        const brand = String(it.brand_name || it.brand || '').replace(/"/g, '&quot;');
-        const model = String(it.model || '').replace(/"/g, '&quot;');
-        const qty = parseFloat(it.quantity) || 0;
+        const isInternal = it.is_internal === true;
+        const meta  = it.product_meta || null;
+        const code  = String(it.product_code || it.sku || '').trim();
+        const name  = String(meta?.product_name || it.product_name || '').replace(/</g, '&lt;');
+        const qty   = parseFloat(it.quantity) || 0;
         const price = parseFloat(it.unit_price_cur) || 0;
 
+        // ── NON-INTERNAL: display-only (no product to edit) ──
+        if (!isInternal) {
+            return `<div class="ue-acc-item ue-noedit" data-idx="${idx}"
+                style="background:#fafafa;border:1px solid #e2e8f0;border-radius:10px;padding:10px 12px;opacity:0.85;">
+                <div style="display:flex;align-items:center;gap:8px;">
+                    <div style="flex:1;min-width:0;">
+                        <div style="font-size:13px;font-weight:700;color:#0f172a;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${name || '—'}</div>
+                        <div style="display:flex;gap:6px;margin-top:3px;align-items:center;">
+                            <span style="font-size:11px;color:#94a3b8;">× ${qty}</span>
+                            <span style="font-size:11px;color:#94a3b8;">${fmtP(price)} / adet</span>
+                            <span style="font-size:10px;color:#94a3b8;font-style:italic;">(düzenlenemez)</span>
+                        </div>
+                    </div>
+                    <span style="font-size:13px;font-weight:800;color:#2563eb;white-space:nowrap;flex-shrink:0;">${fmtP(qty * price)}</span>
+                </div>
+            </div>`;
+        }
+
+        // ── INTERNAL: editable product fields, read-only invoice facts ──
         return `<div class="ue-acc-item" data-idx="${idx}"
             style="background:#fff;border:1px solid #e2e8f0;border-radius:10px;overflow:visible;transition:border-color 0.15s;">
- 
-            <!-- Collapsed header -->
+
             <div class="ue-acc-hdr" style="display:flex;align-items:center;gap:8px;padding:10px 12px;cursor:pointer;user-select:none;">
                 <i class="ti ti-chevron-right ue-chev" style="font-size:14px;color:#94a3b8;transition:transform 0.2s;flex-shrink:0;"></i>
                 <div style="flex:1;min-width:0;">
@@ -726,60 +806,43 @@ function enterUrunlerEdit(id) {
                     <div style="display:flex;gap:6px;margin-top:3px;align-items:center;">
                         ${code ? `<span style="font-size:11px;font-weight:700;color:#2563eb;font-family:'Geist Mono',monospace;">${code}</span>` : ''}
                         <span style="font-size:11px;color:#94a3b8;">× ${qty}</span>
-                        ${isInt ? `<span style="font-size:11px;color:#7c3aed;font-weight:700;">Ofis İçi</span>` : ''}
                     </div>
                 </div>
                 <span class="ue-hdr-total" style="font-size:13px;font-weight:800;color:#2563eb;white-space:nowrap;flex-shrink:0;">${fmtP(qty * price)}</span>
-                <button type="button" class="ue-del-btn"
-                    style="width:28px;height:28px;border:none;border-radius:6px;background:#fee2e2;color:#ef4444;font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-weight:700;"
-                    title="Sil">✕</button>
             </div>
- 
-            <!-- Expanded body -->
+
             <div class="ue-acc-body" style="display:none;padding:0 12px 14px;border-top:1px solid #f1f5f9;">
- 
-                <!-- Row 1: SKU + Name -->
-                <div style="display:grid;grid-template-columns:140px 1fr;gap:8px;margin-top:12px;margin-bottom:8px;">
+
+                <!-- Read-only invoice facts -->
+                <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-top:12px;margin-bottom:8px;">
                     <div>
-                        <label style="font-size:10px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:0.04em;display:block;margin-bottom:4px;">SKU / Kod</label>
-                        <input class="det-edit-input ue-code" value="${code.replace(/"/g, '&quot;')}" placeholder="Ürün kodu"
-                            style="width:100%;font-family:'Geist Mono',monospace;font-size:12px;color:#2563eb;font-weight:700;padding:7px 10px;border:1px solid #e2e8f0;border-radius:8px;outline:none;box-sizing:border-box;">
+                        <label style="font-size:10px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:0.04em;display:block;margin-bottom:4px;">Miktar (fatura)</label>
+                        <div style="font-size:12px;text-align:right;padding:7px 10px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;color:#64748b;">${qty}</div>
                     </div>
                     <div>
-                        <label style="font-size:10px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:0.04em;display:block;margin-bottom:4px;">Ürün Adı</label>
-                        <input class="det-edit-input ue-name" value="${String(it.product_name || '').replace(/"/g, '&quot;')}" placeholder="Ürün adı"
-                            style="width:100%;font-size:12px;font-weight:600;padding:7px 10px;border:1px solid #e2e8f0;border-radius:8px;outline:none;box-sizing:border-box;">
-                    </div>
-                </div>
- 
-                <!-- Row 2: Qty + Price + Total -->
-                <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:8px;">
-                    <div>
-                        <label style="font-size:10px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:0.04em;display:block;margin-bottom:4px;">Miktar</label>
-                        <input class="det-edit-input ue-qty" type="number" step="any" min="0" value="${qty}"
-                            style="width:100%;font-size:12px;text-align:right;padding:7px 10px;border:1px solid #e2e8f0;border-radius:8px;outline:none;box-sizing:border-box;">
-                    </div>
-                    <div>
-                        <label style="font-size:10px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:0.04em;display:block;margin-bottom:4px;">Birim Fiyat</label>
-                        <input class="det-edit-input ue-price" type="number" step="any" min="0" value="${price}"
-                            style="width:100%;font-size:12px;text-align:right;padding:7px 10px;border:1px solid #e2e8f0;border-radius:8px;outline:none;box-sizing:border-box;">
+                        <label style="font-size:10px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:0.04em;display:block;margin-bottom:4px;">Birim Fiyat (fatura)</label>
+                        <div style="font-size:12px;text-align:right;padding:7px 10px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;color:#64748b;">${fmtP(price)}</div>
                     </div>
                     <div>
                         <label style="font-size:10px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:0.04em;display:block;margin-bottom:4px;">Toplam</label>
-                        <div class="ue-total" style="font-size:13px;font-weight:800;color:#2563eb;padding:7px 10px;background:#eff6ff;border-radius:8px;text-align:right;">${fmtP(qty * price)}</div>
+                        <div style="font-size:13px;font-weight:800;color:#2563eb;padding:7px 10px;background:#eff6ff;border-radius:8px;text-align:right;">${fmtP(qty * price)}</div>
                     </div>
                 </div>
- 
-                <!-- Row 3: Ofis İçi + Kategori + Marka + Model -->
-                <div style="display:grid;grid-template-columns:auto 1fr 1fr 1fr;gap:8px;align-items:start;">
+
+                <!-- Editable product fields -->
+                <div style="display:grid;grid-template-columns:140px 1fr;gap:8px;margin-bottom:8px;">
                     <div>
-                        <label style="font-size:10px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:0.04em;display:block;margin-bottom:4px;">Ofis İçi</label>
-                        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;padding:7px 10px;background:#f5f3ff;border-radius:8px;white-space:nowrap;">
-                            <input type="checkbox" class="ue-isint-chk" ${isInt ? 'checked' : ''}
-                                style="width:14px;height:14px;accent-color:#7c3aed;">
-                            <span style="font-size:12px;font-weight:700;color:#7c3aed;">Ofis İçi</span>
-                        </label>
+                        <label style="font-size:10px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:0.04em;display:block;margin-bottom:4px;">Ürün Kodu (fatura)</label>
+                        <div style="font-family:'Geist Mono',monospace;font-size:12px;color:#64748b;padding:7px 10px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;">${code || '—'}</div>
                     </div>
+                    <div>
+                        <label style="font-size:10px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:0.04em;display:block;margin-bottom:4px;">Ürün Adı</label>
+                        <input class="det-edit-input ue-name" value="${String(meta?.product_name || it.product_name || '').replace(/"/g, '&quot;')}" placeholder="Ürün adı"
+                            style="width:100%;font-size:12px;font-weight:600;padding:7px 10px;border:1px solid #e2e8f0;border-radius:8px;outline:none;box-sizing:border-box;">
+                    </div>
+                </div>
+
+                <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;align-items:start;">
                     <div>
                         <label style="font-size:10px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:0.04em;display:block;margin-bottom:4px;">Kategori</label>
                         <div class="ue-cat-wrap" style="position:relative;"></div>
@@ -793,12 +856,15 @@ function enterUrunlerEdit(id) {
                         <div class="ue-model-wrap" style="position:relative;"></div>
                     </div>
                 </div>
- 
+
             </div>
         </div>`;
     }
 
     body.innerHTML = `
+        <div class="ue-warn" style="margin:12px 12px 0;padding:9px 12px;background:#fffbeb;border:1px solid #fde68a;border-radius:8px;font-size:11px;color:#92400e;">
+            ⚠️ Buradaki düzenlemeler <strong>ürün kartını</strong> günceller ve bu ürünü kullanan <strong>tüm faturaları</strong> etkiler. Miktar ve fiyat fatura kaydıdır, değiştirilemez.
+        </div>
         <div style="display:flex;flex-direction:column;gap:6px;padding:12px;" id="ueList_${id}">
             ${items.length ? items.map((it, i) => buildItem(it, i)).join('') : '<div style="padding:20px;text-align:center;color:#94a3b8;font-size:13px;">Ürün bulunamadı</div>'}
         </div>
@@ -811,120 +877,56 @@ function enterUrunlerEdit(id) {
     if (!listEl) return;
 
     listEl.querySelectorAll('.ue-acc-item').forEach(item => {
+        if (item.classList.contains('ue-noedit')) return; // non-internal: no wiring
+
         const idx = parseInt(item.dataset.idx);
         const it = items[idx] || {};
-        const isInt = !!it.is_internal;
-        const code = String(it.product_code || it.sku || '').trim();
-        const curCat = isInt
-            ? (it.item_subcategory || '')
-            : (it.category || productCategoryByCodeMap?.get(normalizeProductCodeForMatch(code)) || '');
-        const curBrand = it.brand_name || it.brand || '';
-        const curModel = it.model || '';
+        const meta = it.product_meta || null;
+        const curCat   = meta?.category || '';   // general category from product
+        const curBrand = meta?.brand || '';
+        const curModel = meta?.model || '';
 
         const hdr = item.querySelector('.ue-acc-hdr');
         const bodyEl = item.querySelector('.ue-acc-body');
         const chev = item.querySelector('.ue-chev');
-        const delBtn = item.querySelector('.ue-del-btn');
-        const chk = item.querySelector('.ue-isint-chk');
         const catWrap = item.querySelector('.ue-cat-wrap');
         const brandWrap = item.querySelector('.ue-brand-wrap');
         const modelWrap = item.querySelector('.ue-model-wrap');
-        const qtyInp = item.querySelector('.ue-qty');
-        const priceInp = item.querySelector('.ue-price');
-        const totalEl = item.querySelector('.ue-total');
-        const hdrTotal = item.querySelector('.ue-hdr-total');
         const hdrName = item.querySelector('.ue-hdr-name');
         const nameInp = item.querySelector('.ue-name');
-        const codeInp = item.querySelector('.ue-code');
 
-        // Toggle accordion
-        hdr.addEventListener('click', e => {
-            if (delBtn.contains(e.target)) return;
+        hdr.addEventListener('click', () => {
             const isOpen = bodyEl.style.display !== 'none';
             if (isOpen) {
-                bodyEl.style.display = 'none';
-                chev.style.transform = '';
-                item.style.borderColor = '#e2e8f0';
-                _openIdx = null;
+                bodyEl.style.display = 'none'; chev.style.transform = ''; item.style.borderColor = '#e2e8f0'; _openIdx = null;
             } else {
                 if (_openIdx !== null) {
                     const prev = listEl.querySelector(`.ue-acc-item[data-idx="${_openIdx}"]`);
-                    if (prev) {
+                    if (prev && !prev.classList.contains('ue-noedit')) {
                         prev.querySelector('.ue-acc-body').style.display = 'none';
                         prev.querySelector('.ue-chev').style.transform = '';
                         prev.style.borderColor = '#e2e8f0';
                     }
                 }
-                bodyEl.style.display = 'block';
-                chev.style.transform = 'rotate(90deg)';
-                item.style.borderColor = '#2563eb';
-                _openIdx = idx;
+                bodyEl.style.display = 'block'; chev.style.transform = 'rotate(90deg)'; item.style.borderColor = '#2563eb'; _openIdx = idx;
             }
         });
 
-        // Delete
-        delBtn.addEventListener('click', e => { e.stopPropagation(); item.remove(); });
-
-        // Init dropdowns
-        _makeCategoryDropdown(catWrap, isInt, curCat, () => { }, code);
-        _makeBrandDropdown(brandWrap, curBrand, (newBrand) => {
-            // When brand changes, rebuild model dropdown
+        // general category dropdown (internal products → true branch)
+        _makeCategoryDropdown(catWrap, true, curCat, () => { }, String(it.product_code || '').trim());
+        _makeBrandDropdown(brandWrap, curBrand, () => {
             if (modelWrap._getValue) {
-                const curModel2 = modelWrap._getValue();
-                _makeModelDropdown(modelWrap, curModel2, () => brandWrap._getValue?.() || '');
+                const cur = modelWrap._getValue();
+                _makeModelDropdown(modelWrap, cur, () => brandWrap._getValue?.() || '');
             }
         });
         _makeModelDropdown(modelWrap, curModel, () => brandWrap._getValue?.() || '');
 
-        // Ofis İçi toggle → rebuild category
-        chk?.addEventListener('change', () => {
-            const nowInt = chk.checked;
-            const currentCat = catWrap?._getValue?.() || '';
-            const activeSku = codeInp?.value?.trim() || '';
-            _makeCategoryDropdown(catWrap, nowInt, nowInt ? '' : currentCat, () => { }, activeSku);
-        });
-
-        // SKU blur → auto-fill name, category, brand, model from DB
-        codeInp?.addEventListener('blur', async () => {
-            const sku = codeInp.value.trim();
-            if (!sku || chk?.checked) return;
-
-            try {
-                const res = await fetch(`/api/products/by-code?code=${encodeURIComponent(sku)}`);
-                if (!res.ok) return;
-                const p = await res.json();
-
-                if (p.product_name && nameInp) {
-                    nameInp.value = p.product_name;
-                    if (hdrName) hdrName.textContent = p.product_name;
-                }
-                if (p.category && catWrap?._setValue) catWrap._setValue(p.category);
-
-                if (p.brand && brandWrap?._setValue) brandWrap._setValue(p.brand);
-                if (p.model && modelWrap?._setValue) modelWrap._setValue(p.model);
-            } catch (e) {
-                // ürün bulunamazsa sessizce geç
-            }
-        });
-
-        // Total recalc
-        const updateTotal = () => {
-            const q = parseFloat(qtyInp?.value) || 0;
-            const p = parseFloat(priceInp?.value) || 0;
-            const t = fmtP(q * p);
-            if (totalEl) totalEl.textContent = t;
-            if (hdrTotal) hdrTotal.textContent = t;
-        };
-        qtyInp?.addEventListener('input', updateTotal);
-        priceInp?.addEventListener('input', updateTotal);
-
-        // Sync header name
         nameInp?.addEventListener('input', () => {
             if (hdrName) hdrName.textContent = nameInp.value || '—';
         });
     });
 }
-
 // ─── 3. saveUrunlerEdit ───────────────────────────────────────────────────────
 async function saveUrunlerEdit(id) {
     const { inv } = _findInvAndBody(id);
@@ -933,78 +935,101 @@ async function saveUrunlerEdit(id) {
     const listEl = document.getElementById(`ueList_${id}`);
     if (!listEl) return;
 
-    const originalItems = inv.invoice_items || [];
-    const updatedItems = [];
-
-    listEl.querySelectorAll('.ue-acc-item').forEach(item => {
-        const idx = parseInt(item.dataset.idx);
-        const orig = originalItems[idx] || {};
-        const qty = parseFloat(item.querySelector('.ue-qty')?.value) || 0;
-        const price = parseFloat(item.querySelector('.ue-price')?.value) || 0;
-        const name = item.querySelector('.ue-name')?.value?.trim() || '';
-        const code = item.querySelector('.ue-code')?.value?.trim() || null;
-        const isInternal = !!item.querySelector('.ue-isint-chk')?.checked;
-        const catWrap = item.querySelector('.ue-cat-wrap');
-        const brandWrap = item.querySelector('.ue-brand-wrap');
-        const modelWrap = item.querySelector('.ue-model-wrap');
-        const catVal = catWrap?._getValue?.() || '';
-        const brandVal = brandWrap?._getValue?.() || '';
-        const modelVal = modelWrap?._getValue?.() || '';
-
-        if (qty > 0 && name) {
-            updatedItems.push({
-                ...orig,
-                product_name: name,
-                product_code: code,
-                quantity: qty,
-                unit_price_cur: price,
-                total_price_cur: qty * price,
-                is_internal: isInternal,
-                brand_name: brandVal || null,
-                model: modelVal || null,
-                product_category: isInternal ? null : (catVal || null),  // ← for syncInvoiceItemInternalMeta
-                item_subcategory: isInternal ? (catVal || null) : (orig.item_subcategory ?? null),
-            });
-        }
-    });
-
+    const items = inv.invoice_items || [];
     const btn = document.querySelector(`[onclick="saveUrunlerEdit('${id}')"]`);
     if (btn) { btn.disabled = true; btn.textContent = 'Kaydediliyor...'; }
 
+    // helper: find existing product by code (for POST 409 handling)
+    async function findProductByCode(code) {
+        try {
+            const r = await fetch(`/api/products/by-code?code=${encodeURIComponent(code)}`);
+            if (r.ok) { const d = await r.json(); return d?.id ? d : (d?.data || null); }
+        } catch { }
+        return null;
+    }
+
     try {
-        const res = await fetch(`/api/invoices/${id}`, {
+        for (const card of listEl.querySelectorAll('.ue-card')) {
+            const idx  = parseInt(card.dataset.idx);
+            const it   = items[idx] || {};
+            const itemId = it.id;
+            if (!itemId) continue;
+
+            const isInternal = it.is_internal === true;   // reflects toggle state
+
+            // ── NON-INTERNAL: just save expense category on the line ──
+            if (!isInternal) {
+                const cat = card.querySelector('.ue-cat')?.value?.trim() || null;
+                await patchItem(itemId, { is_internal: false, item_category: cat, product_id: null });
+                continue;
+            }
+
+            // ── INTERNAL: gather manual fields ──
+            const code  = card.querySelector('.ue-code')?.value?.trim() || '';
+            const name  = card.querySelector('.ue-name')?.value?.trim() || '';
+            const cat   = card.querySelector('.ue-cat')?.value?.trim() || '';
+            const brand = card.querySelector('.ue-brand')?.value?.trim() || '';
+
+            if (!code || !name) {
+                throw new Error(`Ürün kodu ve adı zorunlu (kalem ${idx + 1}).`);
+            }
+
+            let productId = it.product_id || null;
+
+            if (productId) {
+                // existing product → update it
+                await putProduct(productId, { product_name: name, brand: brand || null, category: cat || null });
+            } else {
+                // no product → try to create; on 409 link the existing one
+                const res = await fetch('/api/products', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ product_code: code, product_name: name, brand, category: cat, is_internal: true }),
+                });
+                if (res.status === 409) {
+                    const existing = await findProductByCode(code);
+                    if (!existing?.id) throw new Error(`"${code}" mevcut ama bulunamadı.`);
+                    productId = existing.id;
+                    // update its fields too
+                    await putProduct(productId, { product_name: name, brand: brand || null, category: cat || null });
+                } else if (!res.ok) {
+                    const e = await res.json().catch(() => ({}));
+                    throw new Error(e.error || `Ürün oluşturulamadı (kalem ${idx + 1}).`);
+                } else {
+                    const d = await res.json();
+                    productId = d.data?.id || d.id;
+                }
+            }
+
+            // link the line: internal + category + product_id
+            await patchItem(itemId, { is_internal: true, item_category: cat || null, product_id: productId });
+        }
+
+        // reload to reflect changes
+        if (typeof loadInvoice === 'function') await loadInvoice(id);
+        else switchFatDetailTab(id, 'urunler');
+
+    } catch (err) {
+        alert('Hata: ' + err.message);
+        if (btn) { btn.disabled = false; btn.textContent = '💾 Kaydet'; }
+    }
+
+    // ── inline helpers ──
+    async function patchItem(itemId, fields) {
+        const r = await fetch(`/api/invoice-items/${itemId}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(fields),
+        });
+        if (!r.ok) { const e = await r.json().catch(() => ({})); throw new Error(e.error || 'Kalem güncellenemedi.'); }
+    }
+    async function putProduct(pid, fields) {
+        const r = await fetch(`/api/products/${pid}`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                update_stock: true,
-                invoice: { due_date: inv.due_date, notes: inv.notes },
-                company: {
-                    vkn_tckn: inv.companies?.vkn_tckn || '',
-                    name: inv.companies?.name || '',
-                    tax_office: inv.companies?.tax_office || '',
-                    phone: inv.companies?.phone || '',
-                    email: inv.companies?.email || '',
-                    website: inv.companies?.website || '',
-                    address: inv.companies?.address || ''
-                },
-                items: updatedItems
-            })
+            body: JSON.stringify(fields),
         });
-        const result = await res.json();
-        if (!res.ok) throw new Error(result.error || 'Güncelleme hatası');
-
-        inv.invoice_items = updatedItems;
-        if (typeof clearStockCaches === 'function') clearStockCaches();
-
-        if (typeof loadInvoice === 'function') {
-            await loadInvoice(id);
-        } else {
-            switchFatDetailTab(id, 'urunler');
-            //if (typeof refreshData === 'function') refreshData(true);
-        }
-    } catch (e) {
-        alert('Hata: ' + e.message);
-        if (btn) { btn.disabled = false; btn.textContent = '💾 Kaydet'; }
+        if (!r.ok) { const e = await r.json().catch(() => ({})); throw new Error(e.error || 'Ürün güncellenemedi.'); }
     }
 }
 
@@ -1085,7 +1110,7 @@ function enterBatchCategoryMode(id, allItems) {
 
     // Seed pending state from current values
     _batchCatState[id] = {};
-    internalItems.forEach(it => { _batchCatState[id][it.id] = it.item_subcategory || ''; });
+    internalItems.forEach(it => { _batchCatState[id][it.id] = it.item_category || ''; });
 
     function buildRows() {
         return internalItems.map(it => {
@@ -1191,7 +1216,7 @@ async function saveBatchCategoryAssignments(id) {
 
     const assignments = Object.entries(state)
         .filter(([, cat]) => cat)
-        .map(([item_id, item_subcategory]) => ({ item_id, item_subcategory }));
+        .map(([item_id, item_category]) => ({ item_id, item_category }));
 
     if (!assignments.length) { alert('Kaydedilecek kategori atama bulunamadı.'); return; }
 
@@ -1212,7 +1237,7 @@ async function saveBatchCategoryAssignments(id) {
         if (inv?.invoice_items) {
             inv.invoice_items.forEach(it => {
                 if (state[it.id] !== undefined) {
-                    it.item_subcategory = state[it.id] || null;
+                    it.item_category = state[it.id] || null;
                     it.is_internal = !!state[it.id];
                 }
             });

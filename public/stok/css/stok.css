@@ -2568,3 +2568,11 @@
 }
 
 .gb-report-btn:hover { background: var(--stk-bg); color: var(--stk-ink); }
+
+.stk-btn-danger {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 8px 16px; background: var(--stk-red); color: #fff;
+  border: none; border-radius: var(--stk-r); font-size: 13px; font-weight: 500;
+  font-family: var(--stk-font-ui); cursor: pointer; transition: background 0.15s;
+}
+.stk-btn-danger:hover { background: #9a2828; }

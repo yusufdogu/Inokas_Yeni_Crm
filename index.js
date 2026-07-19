@@ -37,6 +37,7 @@ app.use('/api/invoices',            require('./routes/invoices'));
 app.use('/api/save-invoice',        require('./routes/invoices'));
 app.use('/api/invoice-items',       require('./routes/invoices'));
 app.use('/api/chat', require('./routes/fatura-chat'));
+app.use('/api/giderler', require('./routes/giderler'));
 app.use('/api/settings', require('./routes/settings'));
 app.use('/api/tenant-vkn', require('./routes/settings'));
 app.use('/api/products',            require('./routes/products'));
@@ -132,7 +133,7 @@ cron.schedule('*/360 * * * *', async () => {
 const { runElogoSync, runElogoDailyRecheck } = require('./services/elogo-sync-service');
 
 // In your existing 10-minute cron:
-cron.schedule('*/60 * * * *', async () => {
+cron.schedule('*/360 * * * *', async () => {
   await runElogoSync();   // eLogo SOAP
 });
 

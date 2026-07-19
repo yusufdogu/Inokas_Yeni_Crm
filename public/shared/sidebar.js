@@ -140,7 +140,7 @@
       <i class="ti ti-chevron-down sb-chevron" id="gider-chevron"></i>
     </button>
     <div class="sb-children" id="gider-children">
-      <a href="/giderler/pages/ofis-ici.html"
+      <a href="/giderler/pages/giderler.html"
          class="sb-child${path.includes('ofis-ici') ? ' active' : ''}">
         <i class="ti ti-home"></i>
         <span class="sb-label">Ofis İçi</span>

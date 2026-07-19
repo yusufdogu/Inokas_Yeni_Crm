@@ -28,8 +28,7 @@ router.post('/', async (req, res) => {
   try {
     const supabase = req.app.get('supabase');
     const tenantId = req.tenantId;
-    const { product_name, product_code, brand, category, dmo_code, purchase_price, purchase_currency, sales_price, sales_currency } = req.body || {};
-
+    const { product_name, product_code, brand, category, is_internal, dmo_code, purchase_price, purchase_currency, sales_price, sales_currency } = req.body || {};
     if (!product_name || !String(product_name).trim()) return res.status(400).json({ error: 'Ürün adı zorunlu' });
     if (!product_code || !String(product_code).trim()) return res.status(400).json({ error: 'Ürün kodu zorunlu' });
 
@@ -43,6 +42,7 @@ router.post('/', async (req, res) => {
     const insertPayload = { product_code: code, product_name: String(product_name).trim(), tenant_id: tenantId };
     if (brand)    insertPayload.brand    = String(brand).trim();
     if (category) insertPayload.category = String(category).trim();
+    if (is_internal != null) insertPayload.is_internal = is_internal === true;
     if (dmo_code) insertPayload.dmo_code = String(dmo_code).trim();
 
     const { data: created, error: createErr } = await supabase

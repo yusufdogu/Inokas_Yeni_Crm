@@ -957,6 +957,8 @@
                   </label>
                 </div>
               </label>
+
+
               <div id="pf-cat-wrap" style="position:relative;">
                 <input type="text" id="pf-category" placeholder="Kategori yaz veya seç..." autocomplete="off" oninput="onCatInput(this.value)" onfocus="onCatInput(this.value)">
                 <div id="pf-cat-dropdown" class="stk-autocomplete-drop" style="display:none;"></div>
@@ -964,6 +966,14 @@
               <div id="pf-internal-cat-wrap" style="display:none; position:relative;">
                 <input type="text" id="pf-internal-cat-input" placeholder="Kategori yaz veya seç..." autocomplete="off" oninput="onInternalCatInput(this.value)" onfocus="onInternalCatInput(this.value)">
                 <div id="pf-internal-cat-dropdown" class="stk-autocomplete-drop" style="display:none;"></div>
+              </div>
+              <div class="stk-modal-field">
+                <label>Alt Kategori</label>
+                <div id="pf-subcategory-wrap" style="position:relative;">
+                  <input type="text" id="pf-subcategory" placeholder="Alt kategori yaz veya seç..." autocomplete="off"
+                         oninput="onSubcategoryInput(this.value)" onfocus="onSubcategoryInput(this.value)">
+                  <div id="pf-subcategory-dropdown" class="stk-autocomplete-drop" style="display:none;"></div>
+                </div>
               </div>
             </div>
           </div>
@@ -1004,8 +1014,11 @@
 
       <div class="stk-modal-footer">
         <span id="modalMsg" class="stk-msg"></span>
-        <button class="stk-btn-secondary" onclick="closeModal()">İptal</button>
+        <button type="button" id="modalDeleteBtn" class="stk-btn-danger" onclick="deleteProduct()" style="display:none;">
+          <i class="ti ti-trash" style="font-size:14px;"></i> Sil
+        </button>
         <button class="stk-btn-primary" id="modalSaveBtn" onclick="saveProduct()">Kaydet</button>
+
       </div>
 
     </div>

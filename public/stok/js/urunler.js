@@ -834,7 +834,7 @@ const _NUMERIC_FIELDS = new Set([
 ]);
 const _READONLY_FIELDS = new Set(['created_at', 'updated_at', 'dmo_fiyat_updated']);
 const _ALL_FIELDS = [
-  'product_name', 'product_code', 'brand', 'category',
+  'product_name', 'product_code', 'brand', 'category','subcategory',
   'last_purchase_price_cur', 'last_purchase_currency', 'last_purchase_rate',
   'last_purchase_price_tl', 'avg_purchase_price_tl',
   'stock_on_hand', 'specs'
@@ -862,7 +862,32 @@ function onBrandInput(query) {
   ).join('');
   dropdown.style.display = matches.length ? 'block' : 'none';
 }
+// ─── SUBCATEGORY AUTOCOMPLETE ──────────────────────────────────────────────────
+function onSubcategoryInput(value) {
+  const drop = document.getElementById('pf-subcategory-dropdown');
+  if (!drop) return;
+  const q = String(value || '').toLocaleLowerCase('tr').trim();
 
+  // distinct subcategory values from loaded products
+  const opts = [...new Set(
+    (allProducts || []).map(p => String(p.subcategory || '').trim()).filter(Boolean)
+  )].sort((a, b) => a.localeCompare(b, 'tr'));
+
+  const matches = q ? opts.filter(o => o.toLocaleLowerCase('tr').includes(q)) : opts;
+  if (!matches.length) { drop.style.display = 'none'; return; }
+
+  drop.innerHTML = matches.slice(0, 50).map(o =>
+    `<div class="stk-autocomplete-item" onmousedown="event.preventDefault(); selectSubcategory('${esc(o).replace(/'/g, "\\'")}')">${esc(o)}</div>`
+  ).join('');
+  drop.style.display = 'block';
+}
+
+function selectSubcategory(val) {
+  const input = document.getElementById('pf-subcategory');
+  if (input) input.value = val;
+  const drop = document.getElementById('pf-subcategory-dropdown');
+  if (drop) drop.style.display = 'none';
+}
 function selectBrand(value) {
   const input    = document.getElementById('pf-brand');
   const dropdown = document.getElementById('pf-brand-dropdown');
@@ -990,12 +1015,15 @@ async function openUrunModal(productId, sku) {
   const subEl    = document.getElementById('modalSubTitle');
   const msgEl    = document.getElementById('modalMsg');
   const saveBtn  = document.getElementById('modalSaveBtn');
+  const delBtn = document.getElementById('modalDeleteBtn');
+
 
   if (avatarEl) avatarEl.textContent = '…';
   if (titleEl)  titleEl.textContent  = 'Yükleniyor...';
   if (subEl)    subEl.textContent    = '';
   if (msgEl)    msgEl.textContent    = '';
   if (saveBtn)  saveBtn.disabled     = true;
+  if (delBtn) { delBtn.style.display = 'inline-flex'; delBtn.disabled = false; }
 
   document.getElementById('productModal').style.display = 'flex';
 
@@ -1481,5 +1509,36 @@ async function saveProduct() {
     msgEl.className   = 'modal-msg error';
   } finally {
     saveBtn.disabled  = false;
+  }
+}
+
+// ─── DELETE (soft — sets is_hidden = true) ─────────────────────────────────────
+async function deleteProduct() {
+  if (_isAddMode || !_editingId) return;   // only in edit mode
+
+  const name = String(document.getElementById('pf-product_name')?.value || 'bu ürün').trim();
+  if (!confirm(`"${name}" gizlensin mi? Ürün listeden kaldırılır (silinmez, gizlenir).`)) return;
+
+  const msgEl = document.getElementById('modalMsg');
+  const delBtn = document.getElementById('modalDeleteBtn');
+  if (msgEl) { msgEl.textContent = 'Gizleniyor...'; msgEl.className = 'modal-msg'; }
+  if (delBtn) delBtn.disabled = true;
+
+  try {
+    const res = await fetch(`/api/products/${_editingId}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ is_hidden: true }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data?.error || 'Silme hatası');
+
+    if (msgEl) { msgEl.textContent = 'Ürün gizlendi ✓'; msgEl.className = 'modal-msg success'; }
+    await loadProducts();                    // refresh — hidden products drop out
+    setTimeout(() => closeModal(), 700);
+  } catch (err) {
+    if (msgEl) { msgEl.textContent = `Hata: ${err.message}`; msgEl.className = 'modal-msg error'; }
+  } finally {
+    if (delBtn) delBtn.disabled = false;
   }
 }

@@ -8,12 +8,26 @@ const { parseUblFromBase64, setProductCodeLookup } = require('./ubl-parser');
 const AdmZip  = require('adm-zip');
 const { createClient } = require('@supabase/supabase-js');
 
+const db                  = require('./helpers');
+const { enrichProducts } = require('./product-enricher');
+const {classifyInvoice} = require("./invoice-classifier");
+const {generateAndUploadPdf} =require("./pdf-service")
+
+
+
 const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_KEY);
 const sleep    = ms => new Promise(r => setTimeout(r, ms));
 
 if (!process.env.SUPABASE_URL || !process.env.SUPABASE_KEY) {
   console.error('❌ Critical Error: Supabase URL or Key is missing from .env');
   process.exit(1);
+}
+
+
+async function isInitialSync(tenantId) {
+  const { count } = await supabase
+    .from('invoices').select('id', { count: 'exact', head: true }).eq('tenant_id', tenantId);
+  return count === 0;
 }
 
 // ─── Load tenant credentials from Vault ──────────────────────────────────────
@@ -79,124 +93,317 @@ async function loadProductCodes(tenantId) {
 async function upsertCompany(companyData, tenantId) {
   const { data, error } = await supabase
     .from('companies')
-    .upsert({ ...companyData, tenant_id: tenantId }, { onConflict: 'vkn_tckn' })
+    .upsert({ ...companyData, tenant_id: tenantId }, { onConflict: 'tenant_id,vkn_tckn' })
     .select().single();
   if (error) throw new Error(`Company sync failed: ${error.message}`);
   return data;
 }
 
+
+// ─── Signature — raw fields only, so re-syncs of unchanged invoices match ─────
+function buildInvoiceSignature(invoiceFields, items) {
+    const inv = [
+        invoiceFields.invoice_no,
+        invoiceFields.invoice_date,
+        Number(invoiceFields.payable_amount_cur || 0).toFixed(2),
+        Number(invoiceFields.payable_amount_tl  || 0).toFixed(2),
+    ].join('|');
+
+    const itemSig = (items || [])
+        .map(it => `${(it.product_name || '').trim()}~${Number(it.total_price_cur || 0).toFixed(2)}`)
+        .sort()
+        .join('||');
+
+    return `${inv}##${itemSig}`;
+}
+
 async function upsertInvoice(invoiceData, tenantId) {
   const { data, error } = await supabase
     .from('invoices')
-    .upsert({ ...invoiceData, tenant_id: tenantId }, { onConflict: 'efatura_uuid' })
+    .upsert({ ...invoiceData, tenant_id: tenantId }, { onConflict: 'tenant_id,efatura_uuid' })
     .select().single();
   if (error) throw new Error(`Invoice sync failed: ${error.message}`);
   return data;
 }
 
-async function insertItems(items, invoiceId) {
-  if (!items.length) return;
-  await supabase.from('invoice_items').delete().eq('invoice_id', invoiceId);
-  const rows = items.map(item => ({ ...item, invoice_id: invoiceId, is_internal: false }));
-  const { error } = await supabase.from('invoice_items').insert(rows);
-  if (error) console.error(`❌ Items insert failed for invoice ${invoiceId}:`, error.message);
+// first (reprocess safety). No .select(), nothing mutated afterward.
+async function insertItems(rows, invoiceId) {
+    await supabase.from('invoice_items').delete().eq('invoice_id', invoiceId);
+    if (!rows.length) return;
+
+    const { error } = await supabase.from('invoice_items').insert(
+        rows.map(r => ({ ...r, invoice_id: invoiceId }))
+    );
+    if (error) throw new Error(`Items insert failed (${invoiceId}): ${error.message}`);
 }
 
-async function resolveProductId(item, tenantId) {
-  if (!item.product_code) return null;
+async function reverseInvoiceStock(invoiceId, viewKey, tenantId) {
+    const { data: oldItems } = await supabase
+        .from('invoice_items')
+        .select('product_id, quantity')
+        .eq('invoice_id', invoiceId);
 
-  const { data: existing } = await supabase
-    .from('products').select('id')
-    .eq('product_code', item.product_code)
-    .eq('tenant_id', tenantId)
-    .maybeSingle();
-
-  if (existing) return existing.id;
-
-  const { data: created, error } = await supabase
-    .from('products')
-    .insert({ product_code: item.product_code, product_name: item.product_name, brand: item.brand_name || null, needs_review: true, source: 'api', tenant_id: tenantId })
-    .select('id').single();
-
-  if (error) { console.warn(`⚠️ Could not auto-create product ${item.product_code}:`, error.message); return null; }
-  console.log(`🆕 Auto-created product: ${item.product_code} — ${item.product_name}`);
-  return created.id;
+    for (const it of (oldItems || [])) {
+        if (!it.product_id || !it.quantity) continue;
+        await db.bumpStock(it.product_id, -Number(it.quantity), viewKey, tenantId);
+    }
 }
 
-async function isInitialSync(tenantId) {
-  const { count } = await supabase
-    .from('invoices').select('id', { count: 'exact', head: true }).eq('tenant_id', tenantId);
-  return count === 0;
-}
+async function processInvoicePipeline(dbInvoice, parsedItems, viewKey, tenantId, opts = {}) {
 
-// ─── Gelen sync ───────────────────────────────────────────────────────────────
-async function syncGelenInvoices(startDate, tenantId, creds) {
-  console.log(`\n🚀 [${tenantId}] Starting Gelen Invoice Sync...`);
-  await loadProductCodes(tenantId);
+    // ── 1) classify (whole invoice, one call) ────────────────────────────────
+    // general-family vocab, split by type, fed back for wording consistency
+    const knownInternal    = await db.getKnownCategories('internal', tenantId);
+    const knownNonInternal = await db.getKnownCategories('non_internal', tenantId);
+    const classification   = await classifyInvoice(parsedItems, knownInternal, knownNonInternal);
 
-  let page = 1, hasMore = true, totalSynced = 0;
-
-  while (hasMore) {
-    console.log(`\n--- 📂 Fetching Gelen Page ${page} ---`);
-    const invoices = await logoApi.getGelenInvoiceList(page, 100, startDate, creds, tenantId);
-    console.log(`--- 📂 Got ${invoices.length} invoices ---`);
-    if (!invoices?.length) { hasMore = false; break; }
-
-    for (const inv of invoices) {
-      try {
-        const uuid = inv.uuId;
-        if (!uuid) { console.warn(`⚠️ Skipping ${inv.invoiceId || 'Unknown'}: No UUID.`); continue; }
-
-        const { data: exists } = await supabase.from('invoices').select('id, xml_url').eq('efatura_uuid', uuid).maybeSingle();
-        if (exists) {
-          if (!exists.xml_url) {
-            const base64Content = await logoApi.getInvoiceUBL(uuid, creds, tenantId);
-            if (base64Content) {
-              const xmlUrl = await uploadXmlToStorage(base64Content, uuid);
-              if (xmlUrl) await supabase.from('invoices').update({ xml_url: xmlUrl }).eq('id', exists.id);
-            }
-          } else { console.log(`⏩ Skipping ${inv.invoiceId}: Already in DB.`); }
-          continue;
-        }
-
-        const base64Content = await logoApi.getInvoiceUBL(uuid, creds, tenantId);
-        if (!base64Content) { console.warn(`⚠️ Skipping ${inv.invoiceId}: No UBL content.`); continue; }
-
-        const xmlUrl = await uploadXmlToStorage(base64Content, uuid);
-        const parsed = parseUblFromBase64(base64Content, 'gelen');
-        if (!parsed) { console.warn(`⚠️ Skipping ${inv.invoiceId}: Parse failed.`); continue; }
-
-        const { company: companyData, invoice: invoiceData, items } = parsed;
-        const company   = await upsertCompany(companyData, tenantId);
-        const dbInvoice = await upsertInvoice({
-          ...invoiceData,
-          company_id: company.id, approval_status: 'pending', source: 'api',
-          xml_url: xmlUrl, gib_status_code: inv.statusCode ?? null, gib_status_description: inv.status || null,
-        }, tenantId);
-
-        const resolvedItems = await Promise.all(items.map(async item => ({ ...item, product_id: await resolveProductId(item, tenantId) })));
-        await insertItems(resolvedItems, dbInvoice.id);
-
-        totalSynced++;
-        console.log(`✅ ${inv.invoiceId} synced.`);
-        await sleep(400);
-      } catch (err) {
-        console.error(`❌ Error processing ${inv.invoiceId}:`, err.message);
-      }
+    // classification.items is index-aligned with parsedItems.
+    // Collect each item's GENERAL family into vocab and stash its parent id
+    // (needed later when we store the SPECIFIC subcategory under it).
+    for (const it of classification.items) {
+        const isInternal = it.item_is_internal;
+        it._is_internal  = isInternal;
+        it._category_id  = it.item_category
+            ? await db.addCategory(isInternal ? 'internal' : 'non_internal', it.item_category, tenantId)
+            : null;
     }
 
-    if (invoices.length < 100) { hasMore = false; break; }
-    page++;
-    await sleep(400);
-  }
+    // ── 2) enrich INTERNAL items (in memory — writes nothing) ────────────────
+    const enriched = await enrichProducts(
+        classification.items,
+        {
+            findProductByCode:  (code)        => db.findProductByCode(code, tenantId),
+            upsertProduct:      (item)        => db.upsertProduct(item, tenantId),
+            getKnownCategories: ()            => db.getKnownSubcategories(tenantId), // specific vocab for enricher
+            isTrustedDomain:    (url, brand)  => db.isTrustedDomain(url, brand, tenantId),
+            recordBrandDomain:  (brand, urls) => db.recordBrandDomain(brand, urls, tenantId),
+        },
+        viewKey
+    );
 
-  console.log(`\n✨ Gelen sync finished. Total synced: ${totalSynced}`);
+    // ── 3) per internal line: upsert product, resolve product_id, collect subcat
+    //     (enriched is index-aligned with classification.items / parsedItems)
+    const productIdByIndex = new Array(parsedItems.length).fill(null);
+    let anyReview = false;
+
+    for (let i = 0; i < enriched.length; i++) {
+        const e   = enriched[i];
+        const src = classification.items[i];
+
+        // NON_INTERNAL lines never get a product — product_id stays null
+        if (!src._is_internal || e.skip_reason === 'NON_INTERNAL') continue;
+
+        if (e.needs_review) anyReview = true;
+
+        const code = e.product_code;
+        if (!code) { anyReview = true; continue; }   // couldn't resolve an MPN
+
+        // freeze-on-first-write; returns the product row (existing or new)
+        const product = await db.upsertProduct(e, tenantId);
+        if (product?.id) {
+            productIdByIndex[i] = product.id;
+
+            // store the SPECIFIC subcategory under its parent GENERAL family
+            if (e.item_subcategory && src._category_id) {
+                await db.addSubcategory(e.item_subcategory, src._category_id, tenantId);
+            }
+        } else {
+            anyReview = true;   // product write didn't yield an id
+        }
+    }
+
+    // ── 4) build final item rows — RAW fields + product_id + classification ──
+    //     Descriptive fields come straight from the parsed XML, never enriched.
+    const rows = parsedItems.map((raw, i) => {
+        const cls = classification.items[i] || {};
+        return {
+            // official record (as parsed)
+            product_name:      raw.product_name,
+            product_code:      raw.product_code || null,      // raw code, archival
+            brand_name:        raw.brand_name || null,
+            manufacturer_code: raw.manufacturer_code || null,
+            line_id:           raw.line_id ?? null,
+            line_note:         raw.line_note ?? null,
+            unit_code:         raw.unit_code,
+            quantity:          raw.quantity,
+            unit_price_cur:    raw.unit_price_cur,
+            total_price_cur:   raw.total_price_cur,
+            tax_rate:          raw.tax_rate,
+            currency:          raw.currency,
+            // link + classification
+            product_id:        productIdByIndex[i],
+            item_category:     cls.item_category    ?? null,   // general family
+            item_subcategory:  cls.item_subcategory ?? null,   // specific (enriched, if any)
+            is_internal:       cls._is_internal === true,
+        };
+    });
+
+    // ── 5) single insert (delete-first for reprocess safety) ─────────────────
+    await insertItems(rows, dbInvoice.id);
+
+    // ── 6) stock — keyed on product_code, only for linked (internal) lines ───
+    if (!opts.skipStock) {
+        for (let i = 0; i < rows.length; i++) {
+            const pid = productIdByIndex[i];
+            const code = rows[i].product_code;
+            const qty = Number(rows[i].quantity) || 0;
+            if (pid && code && qty) await db.bumpStock(code, qty, viewKey, tenantId);
+        }
+    }
+
+    // ── 7) invoice category + approval (trusted → approved, else pending) ────
+    await supabase.from('invoices')
+        .update({
+            invoice_category: classification.invoice_category,
+            approval_status:  anyReview ? 'pending' : 'approved',
+        })
+        .eq('id', dbInvoice.id);
+
+    console.log(`   → ${classification.invoice_category} | onay: ${anyReview ? 'pending' : 'approved'}`);
+}
+
+
+// ─── Gelen sync ───────────────────────────────────────────────────────────────
+// ─── Gelen sync — signature skip + inline pipeline ────────────────────────────
+async function syncGelenInvoices(startDate, tenantId, creds) {
+    console.log(`\n🚀 [${tenantId}] Starting Gelen Invoice Sync...`);
+
+    const viewKey = 'gelen';
+    let page = 1, hasMore = true;
+    let nNew = 0, nReprocessed = 0, nSkipped = 0;
+
+    while (hasMore) {
+        console.log(`\n--- 📂 Fetching Gelen Page ${page} ---`);
+        const invoices = await logoApi.getGelenInvoiceList(page, 100, startDate, creds, tenantId);
+        console.log(`--- 📂 Got ${invoices.length} invoices ---`);
+        if (!invoices?.length) { hasMore = false; break; }
+
+        for (const inv of invoices) {
+            try {
+                const uuid = inv.uuId;
+                if (!uuid) { console.warn(`⚠️ Skipping ${inv.invoiceId || 'Unknown'}: No UUID.`); continue; }
+
+                // Existing? Pull the fields the signature needs.
+                const { data: existing } = await supabase
+                    .from('invoices')
+                    .select('id, xml_url, invoice_no, invoice_date, payable_amount_cur, payable_amount_tl')
+                    .eq('tenant_id', tenantId)
+                    .eq('efatura_uuid', uuid)
+                    .maybeSingle();
+
+                // Must fetch + parse to know the new state.
+                const base64Content = await logoApi.getInvoiceUBL(uuid, creds, tenantId);
+                if (!base64Content) { console.warn(`⚠️ Skipping ${inv.invoiceId}: No UBL content.`); continue; }
+
+                const parsed = parseUblFromBase64(base64Content, viewKey);
+                if (!parsed) { console.warn(`⚠️ Skipping ${inv.invoiceId}: Parse failed.`); continue; }
+
+                const { company: companyData, invoice: invoiceData, items } = parsed;
+                const parsedSig = buildInvoiceSignature(invoiceData, items);
+
+                // ── Path 1 & 2: exists ──────────────────────────────────────
+                if (existing) {
+                    const { data: existingItems } = await supabase
+                        .from('invoice_items')
+                        .select('product_name, total_price_cur')
+                        .eq('invoice_id', existing.id);
+
+                    const existingSig = buildInvoiceSignature(existing, existingItems || []);
+
+                    // Path 1 — unchanged: skip (backfill xml_url only if missing)
+                    if (existingSig === parsedSig) {
+                        if (!existing.xml_url) {
+                            const xmlUrl = await uploadXmlToStorage(base64Content, uuid);
+                            if (xmlUrl) await supabase.from('invoices').update({ xml_url: xmlUrl }).eq('id', existing.id);
+
+                            if(!existing.pdf_url){
+                                // Arka planda PDF üret (response'u bekletmez)
+                                const savedId = existing.id;
+                                if (savedId && xmlUrl) {
+                                  generateAndUploadPdf(supabase, savedId, xmlUrl)
+                                    .catch(e => console.error('[pdf-service] arka plan hatası:', e.message));
+                                }
+                            }
+                        }
+
+                        nSkipped++;
+                        console.log(`⏩ ${inv.invoiceId}: unchanged, skipped.`);
+                        continue;
+                    }
+
+                    // Path 2 — changed: reverse old stock, re-upsert, reprocess
+                    console.log(`♻️  ${inv.invoiceId}: changed, reprocessing.`);
+                    await reverseInvoiceStock(existing.id, viewKey, tenantId);
+
+                    const xmlUrl  = await uploadXmlToStorage(base64Content, uuid);
+
+                    // Arka planda PDF üret (response'u bekletmez)
+                    let pdfUrl='';
+                    const savedId = existing.id;
+                    if (savedId && xmlUrl) {
+                      pdfUrl=generateAndUploadPdf(supabase, savedId, xmlUrl)
+                        .catch(e => console.error('[pdf-service] arka plan hatası:', e.message));
+                    }
+
+                    const company = await upsertCompany(companyData, tenantId);
+                    const dbInvoice = await upsertInvoice({
+                        ...invoiceData,
+                        company_id: company.id,
+                        source: 'api',
+                        xml_url: xmlUrl,
+                        pdf_url: pdfUrl,
+                        gib_status_code: inv.statusCode ?? null,
+                        gib_status_description: inv.status || null,
+                    }, tenantId);
+
+                    await processInvoicePipeline(dbInvoice, items, viewKey, tenantId);
+
+                    nReprocessed++;
+                    await sleep(400);
+                    continue;
+                }
+
+                // ── Path 3: new ─────────────────────────────────────────────
+                const xmlUrl  = await uploadXmlToStorage(base64Content, uuid);
+                // Arka planda PDF üret (response'u bekletmez)
+
+                const company = await upsertCompany(companyData, tenantId);
+                const dbInvoice = await upsertInvoice({
+                    ...invoiceData,
+                    company_id: company.id,
+                    source: 'api',
+                    xml_url: xmlUrl,
+                    gib_status_code: inv.statusCode ?? null,
+                    gib_status_description: inv.status || null,
+                }, tenantId);
+
+                const savedId = dbInvoice.id;
+                if (savedId && xmlUrl) {
+                  generateAndUploadPdf(supabase, savedId, xmlUrl)
+                    .catch(e => console.error('[pdf-service] arka plan hatası:', e.message));
+                }
+
+                await processInvoicePipeline(dbInvoice, items, viewKey, tenantId);
+                nNew++;
+                console.log(`✅ ${inv.invoiceId} synced.`);
+                await sleep(400);
+
+            } catch (err) {
+                console.error(`❌ Error processing ${inv.invoiceId}:`, err.message);
+            }
+        }
+
+        if (invoices.length < 100) { hasMore = false; break; }
+        page++;
+        await sleep(400);
+    }
+
+    console.log(`\n✨ Gelen sync finished. New: ${nNew}, reprocessed: ${nReprocessed}, skipped: ${nSkipped}`);
 }
 
 // ─── Giden sync ───────────────────────────────────────────────────────────────
 async function syncGidenInvoices(startDate, tenantId, creds) {
   console.log(`\n🚀 [${tenantId}] Starting Giden Invoice Sync...`);
-  await loadProductCodes(tenantId);
 
   let page = 1, hasMore = true, totalSynced = 0;
 
@@ -208,7 +415,14 @@ async function syncGidenInvoices(startDate, tenantId, creds) {
 
     for (const inv of invoices) {
       try {
-        const { data: exists } = await supabase.from('invoices').select('id, xml_url').eq('invoice_no', inv.invoiceNumber).maybeSingle();
+        // tenant-scoped exists check (invoice_no is per-tenant unique now)
+        const { data: exists } = await supabase
+          .from('invoices')
+          .select('id, xml_url')
+          .eq('invoice_no', inv.invoiceNumber)
+          .eq('tenant_id', tenantId)
+          .maybeSingle();
+
         if (exists) {
           if (!exists.xml_url) {
             const base64Content = await logoApi.getGidenInvoiceUBL(inv.id, creds, tenantId);
@@ -217,7 +431,9 @@ async function syncGidenInvoices(startDate, tenantId, creds) {
               const xmlUrl = await uploadXmlToStorage(base64Content, parsed?.invoice?.efatura_uuid || inv.id);
               if (xmlUrl) await supabase.from('invoices').update({ xml_url: xmlUrl }).eq('id', exists.id);
             }
-          } else { console.log(`⏩ Skipping ${inv.invoiceNumber}: Already in DB.`); }
+          } else {
+            console.log(`⏩ Skipping ${inv.invoiceNumber}: Already in DB.`);
+          }
           continue;
         }
 
@@ -237,8 +453,9 @@ async function syncGidenInvoices(startDate, tenantId, creds) {
           gib_status_description: inv.eStatusDescription || null, e_reply_status: inv.eReplyDescription || null,
         }, tenantId);
 
-        const resolvedItems = await Promise.all(items.map(async item => ({ ...item, product_id: await resolveProductId(item, tenantId) })));
-        await insertItems(resolvedItems, dbInvoice.id);
+        // same pipeline as gelen — classify → enrich → products → stock,
+        // but viewKey 'giden' makes stock SUBTRACT (may go negative — allowed).
+        await processInvoicePipeline(dbInvoice, items, 'giden', tenantId);
 
         totalSynced++;
         console.log(`✅ [Giden] ${inv.invoiceNumber} synced.`);
@@ -255,6 +472,13 @@ async function syncGidenInvoices(startDate, tenantId, creds) {
 
   console.log(`\n✨ Giden sync finished. Total synced: ${totalSynced}`);
 }
+
+
+
+
+
+
+
 
 // ─── Daily re-check ───────────────────────────────────────────────────────────
 /*async function recheckPendingGelenInvoices(tenantId, creds) {
@@ -353,8 +577,8 @@ async function runDailyRecheck() {
 module.exports = {
   runSync,
   runDailyRecheck,
-  syncGelenInvoices,
-  syncGidenInvoices,
-  //recheckPendingGelenInvoices,
-  //recheckGidenReplyStatus,
+  upsertInvoice,
+  insertItems,
+  upsertCompany,
+  processInvoicePipeline,
 };

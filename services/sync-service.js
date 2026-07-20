@@ -356,7 +356,7 @@ async function syncGelenInvoices(startDate, tenantId, creds) {
                         gib_status_description: inv.status || null,
                     }, tenantId);
 
-                    await processInvoicePipeline(dbInvoice, items, viewKey, tenantId);
+                    await processInvoicePipeline(dbInvoice, items, viewKey, tenantId,{ skipStock: false });
 
                     nReprocessed++;
                     await sleep(400);
@@ -383,7 +383,7 @@ async function syncGelenInvoices(startDate, tenantId, creds) {
                     .catch(e => console.error('[pdf-service] arka plan hatası:', e.message));
                 }
 
-                await processInvoicePipeline(dbInvoice, items, viewKey, tenantId);
+                await processInvoicePipeline(dbInvoice, items, viewKey, tenantId,{ skipStock: false });
                 nNew++;
                 console.log(`✅ ${inv.invoiceId} synced.`);
                 await sleep(400);
@@ -455,7 +455,7 @@ async function syncGidenInvoices(startDate, tenantId, creds) {
 
         // same pipeline as gelen — classify → enrich → products → stock,
         // but viewKey 'giden' makes stock SUBTRACT (may go negative — allowed).
-        await processInvoicePipeline(dbInvoice, items, 'giden', tenantId);
+        await processInvoicePipeline(dbInvoice, items, 'giden', tenantId,{ skipStock: false });
 
         totalSynced++;
         console.log(`✅ [Giden] ${inv.invoiceNumber} synced.`);

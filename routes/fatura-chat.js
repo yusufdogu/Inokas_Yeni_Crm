@@ -7,7 +7,7 @@ const Anthropic = require('@anthropic-ai/sdk');
 
 const router = express.Router();
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-const MODEL = 'claude-haiku-4-5';
+const MODEL = 'claude-sonnet-5';
 
 const {
        APPLY_FILTERS_TOOL, GET_INVOICE_STATS_TOOL, GET_INVOICES_TOOL,

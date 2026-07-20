@@ -62,7 +62,8 @@ async function classifyInvoice(items, knownInternal = [], knownNonInternal = [])
 
 function buildPrompt(items, knownInternal = [], knownNonInternal = []) {
     const itemLines = items.map((item, i) =>
-        `${i + 1}. urun_adi: "${item.product_name || '-'}" | kod: "${item.product_desc || '-'}" | marka: "${item.brand_name || '-'}"`
+        `${i + 1}. urun_adi: "${item.product_name || '-'}" | Açıklama: "${item.product_desc || '-'}" | marka: "${item.brand_name || '-'}"
+        Ürün Notu "${item.line_note}"`
     ).join('\n');
 
     // Feed back collected subcategories — SEPARATE lists for INTERNAL vs NON_INTERNAL.

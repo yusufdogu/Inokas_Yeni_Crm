@@ -274,6 +274,7 @@ function buildInvoicePayload(xml, viewKey) {
 
         items.push({
             line_id: lineId,
+            line_note: lineNote,
             product_desc: description,
             product_name: name,
             brand_name: brandName,
@@ -287,7 +288,6 @@ function buildInvoicePayload(xml, viewKey) {
             total_price_cur: lineTotal,
             tax_rate: taxRate,
             currency: currencyUi,
-            line_note: lineNote,
             item_subcategory: null,
         });
     });

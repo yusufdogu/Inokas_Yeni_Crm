@@ -15,6 +15,7 @@
   <link rel="stylesheet" href="/stok/css/stok.css">
   <link rel="stylesheet" href="/stok/css/stok-base.css">
   <link rel="stylesheet" href="/stok/css/backorder.css">
+  <link rel="stylesheet" href="/faturalar/css/calender-price.css?v=1">
   <!-- Third-party first -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js" defer></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/12.0.0/marked.min.js" defer></script>
@@ -25,9 +26,10 @@
   <script src="/stok/js/utils.js" defer></script>
   <script src="/stok/js/stok-chat-core.js" defer></script>
   <!-- Page modules -->
+  <script src="/faturalar/js/date-filter.js" defer></script>
   <script src="/stok/js/urunler.js" defer></script>
   <script src="/stok/js/urunler-chat.js" defer></script>
-  <script src="/stok/js/genel-bakis.js" defer></script>
+  <script src="/stok/js/stok-genel-bakis.js" defer></script>
   <script src="/stok/js/urun-hareketleri.js" defer></script>
   <script src="/stok/js/backorder.js" defer></script>
   <script src="/stok/js/kategori-yonetimi.js" defer></script>
@@ -154,24 +156,22 @@
                     <span class="filter-pill-label" id="gbDateDisplay">Tarih seç</span>
                     <i class="ti ti-chevron-down filter-pill-caret" style="font-size:12px;"></i>
                   </button>
-                  <div class="filter-popover" id="gbDatePop" onclick="event.stopPropagation()">
+                  <div class="filter-popover filter-popover--cal" id="gbDatePop" onclick="event.stopPropagation()">
+                    <!-- Preset chips: global quick-ranges + finer presets -->
                     <div class="filter-presets">
-                      <button type="button" class="filter-preset-chip" onclick="gbSetDatePreset(this,'day')">Bugün</button>
-                      <button type="button" class="filter-preset-chip" onclick="gbSetDatePreset(this,'week')">Bu hafta</button>
+                      <button type="button" class="filter-preset-chip" onclick="gbSetDatePreset(this,'all')">Tüm zamanlar</button>
                       <button type="button" class="filter-preset-chip" onclick="gbSetDatePreset(this,'month')">Bu ay</button>
+                      <button type="button" class="filter-preset-chip" onclick="gbSetDatePreset(this,'q')">Son 3 ay</button>
                       <button type="button" class="filter-preset-chip" onclick="gbSetDatePreset(this,'year')">Bu yıl</button>
                     </div>
-                    <div class="filter-range-inputs">
-                      <div class="filter-range-group">
-                        <label>Başlangıç</label>
-                        <input type="date" id="gbDateStart" onchange="gbOnDateInput()">
-                      </div>
-                      <span class="filter-range-sep">–</span>
-                      <div class="filter-range-group">
-                        <label>Bitiş</label>
-                        <input type="date" id="gbDateEnd" onchange="gbOnDateInput()">
-                      </div>
+
+                    <!-- Dual calendar — engine (date-filter.js) renders into these two containers -->
+                    <div class="filter-cal-wrap">
+                      <div class="filter-cal" id="gbCal1"></div>
+                      <div class="filter-cal-divider"></div>
+                      <div class="filter-cal" id="gbCal2"></div>
                     </div>
+
                     <div class="filter-popover-foot">
                       <button type="button" class="filter-popover-clear" onclick="gbClearDate()">Temizle</button>
                     </div>

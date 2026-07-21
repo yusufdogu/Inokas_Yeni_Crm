@@ -329,7 +329,7 @@ router.get('/insights', async (req, res) => {
       }
 
       // risky
-      if (stock > 0 && stock < 5) {
+      if (stock > 0 && stock < 10) {
         risky.push({ name: p.product_name || sku, code: sku, qty: stock, value_tl: valueTL });
       }
 
@@ -610,15 +610,13 @@ router.get('/movements', async (req, res) => {
     const tenantId      = req.tenantId;
     res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
 
-    const skuFilter      = String(req.query.sku             || '').trim();
-    const skuLower       = skuFilter.toLowerCase();
+    const idFilter      = String(req.query.id             || '').trim();
     const approvalFilter = String(req.query.approval_status || 'approved').trim().toLowerCase();
 
     let query = supabase
       .from('invoices')
-      .select(`invoice_no, invoice_date, direction, currency, approval_status, pdf_url, companies(name), invoice_items(id, product_name, product_code, quantity, unit_price_cur, currency, is_internal)`)
+      .select(`invoice_no, invoice_date, direction, currency, approval_status, pdf_url, companies(name), invoice_items(id, product_id, product_name, product_code, quantity, unit_price_cur, currency, is_internal)`)
       .eq('tenant_id', tenantId)
-      .or('invoice_category.neq.NON_INTERNAL,invoice_category.is.null')
       .order('invoice_date', { ascending: false });
 
     if (approvalFilter) query = query.eq('approval_status', approvalFilter);
@@ -633,33 +631,45 @@ router.get('/movements', async (req, res) => {
       const approvalStatus = String(inv.approval_status || '').toLowerCase();
 
       (inv.invoice_items || []).forEach(item => {
-        if (item.is_internal === false) return;
-        const sku = String(item.product_code || '').trim();
-        if (skuFilter && sku.toLowerCase() !== skuLower) return;
+        if (item.is_internal === false) return;        // skip internal — keep real products
+
+        if (idFilter !== item.product_id) return;
+
         movements.push({
           invoice_date: inv.invoice_date, direction, invoice_no: inv.invoice_no,
-          company_name: companyName, product_name: item.product_name, sku,
+          company_name: companyName, product_name: item.product_name, product_code:item.product_code,
+          product_id: item.product_id || null,       // ← carry the FK
           quantity: item.quantity, unit_price_cur: item.unit_price_cur,
           currency: item.currency || inv.currency, approval_status: approvalStatus, pdf_url: inv.pdf_url || null,
         });
       });
     });
 
-    const skus = [...new Set(movements.map(m => m.sku).filter(Boolean))];
-    if (skus.length > 0) {
+    // Enrich brand/category/model by PRODUCT_ID (the real FK), not SKU text.
+    const productIds = [...new Set(movements.map(m => m.product_id).filter(Boolean))];
+    if (productIds.length > 0) {
       const { data: products } = await supabase
-        .from('products').select('product_code, brand, category, model').eq('tenant_id', tenantId).eq('is_internal',true).in('product_code', skus);
+        .from('products')
+        .select('id, brand, category, model, is_internal, is_hidden')
+        .eq('tenant_id', tenantId)
+        .in('id', productIds);
 
-      const productMap          = new Map((products || []).map(p => [String(p.product_code || '').trim(), p]));
+      const productMap = new Map((products || []).map(p => [p.id, p]));
 
-      movements.forEach(m => {
-        const p = productMap.get(m.sku);
-        m.brand = p?.brand || ''; m.category = p?.category || ''; m.model = p?.model || '';
+      // drop movements whose product is internal/hidden (defensive, matches product truth)
+      const filtered = movements.filter(m => {
+        const p = m.product_id ? productMap.get(m.product_id) : null;
+        if (p && (p.is_internal === false || p.is_hidden === true)) return false;
+        if (p) { m.brand = p.brand || ''; m.category = p.category || ''; m.model = p.model || ''; }
+        else   { m.brand = ''; m.category = ''; m.model = ''; }
+        return true;
       });
 
-      return res.json(movements);
+      return res.json(filtered);
     }
 
+    // no linked products — return as-is with empty enrichment
+    movements.forEach(m => { m.brand = ''; m.category = ''; m.model = ''; });
     res.json(movements);
   } catch (err) {
     console.error('Stok Hareketleri Hatası:', err.message);

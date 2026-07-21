@@ -467,20 +467,8 @@ body {
 .gd-preset:hover, .gd-preset--active { border-color: var(--g-green); background: var(--g-green-bg); color: var(--g-green); font-weight: 500; }
 .gd-cal-wrap { display: flex; gap: 12px; }
 .gd-cal-divider { width: 0.5px; background: var(--g-border); }
-.filter-cal { min-width: 200px; }
 
-/* calendar internals (date-filter.js emits these class names) */
-.filter-cal-header { display: flex; gap: 6px; margin-bottom: 8px; }
-.filter-cal-select { flex: 1; height: 28px; border: 0.5px solid var(--g-border2); border-radius: 6px; font-size: 12px; background: var(--g-card); font-family: var(--g-font); }
-.filter-cal-grid { display: grid; grid-template-columns: repeat(7,1fr); gap: 2px; }
-.filter-cal-dow { text-align: center; font-size: 10px; color: var(--g-ink4); padding: 3px 0; }
-.filter-cal-day { text-align: center; font-size: 11.5px; padding: 5px 0; border-radius: 5px; cursor: pointer; color: var(--g-ink); }
-.filter-cal-day:hover:not(.other):not(.future) { background: var(--g-bg2); }
-.filter-cal-day.other { color: transparent; cursor: default; }
-.filter-cal-day.future { color: var(--g-border2); cursor: default; }
-.filter-cal-day.today { box-shadow: inset 0 0 0 1px var(--g-border2); }
-.filter-cal-day.inrange { background: var(--g-green-bg); color: var(--g-green); border-radius: 0; }
-.filter-cal-day.sel { background: var(--g-green); color: #fff; font-weight: 600; }
+
 
 /* price inputs */
 .gd-price-inputs { display: flex; align-items: flex-end; gap: 8px; }

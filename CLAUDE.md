@@ -124,7 +124,7 @@ All sections use the same sidebar pattern:
 7. `main.js` — init, hash routing, pending/report page orchestration
 
 Additional standalone page scripts (each page loads only what it needs):
-- `genel-bakis.js` — genel-bakis.html only; uses Chart.js
+- `stok-genel-bakis.js` — genel-bakis.html only; uses Chart.js
 - `bekleyen-page.js` — bekleyen pages
 - `fatura-detay.js` — fatura-detay.html standalone detail page
 - `gider-faturalar.js` — ofis-ici.html
@@ -151,7 +151,7 @@ Do not use `import`/`export`. All functions must be global scope.
 7. `analytics.js`
 8. `stok.js` — orchestrator / init
 
-`genel-bakis.html` loads only `genel-bakis.js` (standalone, uses Chart.js).
+`genel-bakis.html` loads only `stok-genel-bakis.js` (standalone, uses Chart.js).
 
 ### Invoice XML Flow (UBL Format)
 

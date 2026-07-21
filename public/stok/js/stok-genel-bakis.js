@@ -114,7 +114,6 @@ function _gbRenderTotals(t) {
   _gbSetText('gbTotalEUR', '€' + Number(t.eur || 0).toLocaleString('tr-TR'));
   _gbSetText('gbTotalUSD', '$' + Number(t.usd || 0).toLocaleString('tr-TR'));
   _gbSetText('gbTotalProducts',   Number(t.products   || 0).toLocaleString('tr-TR'));
-  _gbSetText('gbTotalQty',        Number(t.total_qty  || 0).toLocaleString('tr-TR'));
   _gbSetText('gbTotalCategories', String(t.categories || 0));
   _gbSetText('gbTotalBrands',     String(t.brands     || 0));
 }
@@ -325,6 +324,40 @@ function _gbRenderForecast() {
 }
 
 // ─── DATE POPOVER (reuses filter-pill / filter-popover) ────────────────────────
+// ─── DATE PICKER (dual-calendar via shared date-filter.js engine) ──────────────
+// _gbCalCtx configures the shared engine (buildCals/onCalChange/pickCalDay).
+// Default view: left = previous month, right = current month.
+const _gbCalCtx = {
+  selStart: null,
+  selEnd: null,
+  viewMonth:  _gbPrevMonth(),
+  viewMonth2: { year: new Date().getFullYear(), month: new Date().getMonth() },
+  cal1Id: 'gbCal1',
+  cal2Id: 'gbCal2',
+  pickHandler: 'pickGbDay',
+  calChangeHandler: '_onGbCalChange',
+  firstYear: 2020,
+  onRangeComplete: (start, end) => {
+    _gbDateStart = _gbISO(start);
+    _gbDateEnd   = _gbISO(end);
+    document.querySelectorAll('#gbDatePop .filter-preset-chip').forEach(c => c.classList.remove('active'));
+    _gbApplyCustomDate();
+  },
+};
+if (typeof window !== 'undefined') window._gbCalCtx = _gbCalCtx;
+
+function _gbPrevMonth() {
+  const d = new Date();
+  return d.getMonth() === 0
+    ? { year: d.getFullYear() - 1, month: 11 }
+    : { year: d.getFullYear(), month: d.getMonth() - 1 };
+}
+
+// Thin wrappers — engine calls these by the names in _gbCalCtx.
+function buildGbCals()              { if (typeof buildCals === 'function') buildCals(_gbCalCtx); }
+function _onGbCalChange(idx, t, v)  { if (typeof onCalChange === 'function') onCalChange(_gbCalCtx, idx, t, v); }
+function pickGbDay(y, m, d)         { if (typeof pickCalDay === 'function') pickCalDay(_gbCalCtx, y, m, d); }
+
 function gbToggleDatePop(e) {
   if (e) e.stopPropagation();
   const pop  = document.getElementById('gbDatePop');
@@ -334,9 +367,10 @@ function gbToggleDatePop(e) {
   _gbCloseDatePop();
   if (open) return;
   const rect = wrap.getBoundingClientRect();
-  if (rect.left + 240 > window.innerWidth - 12) pop.classList.add('align-right');
+  if (rect.left + 520 > window.innerWidth - 12) pop.classList.add('align-right');
   pop.classList.add('open');
   wrap.classList.add('open');
+  buildGbCals();
 }
 
 function _gbCloseDatePop() {
@@ -346,26 +380,29 @@ function _gbCloseDatePop() {
 
 function gbSetDatePreset(btn, kind) {
   const today = new Date();
+
+  if (kind === 'all') {
+    _gbCalCtx.selStart = _gbCalCtx.selEnd = null;
+    gbClearDate();
+    return;
+  }
+
   let start = new Date(today);
-  if (kind === 'day')   start = today;
-  if (kind === 'week')  start.setDate(today.getDate() - today.getDay());
   if (kind === 'month') start = new Date(today.getFullYear(), today.getMonth(), 1);
+  if (kind === 'q')     start.setMonth(today.getMonth() - 3);
   if (kind === 'year')  start = new Date(today.getFullYear(), 0, 1);
 
   _gbDateStart = _gbISO(start);
   _gbDateEnd   = _gbISO(today);
-  const s = document.getElementById('gbDateStart'), e = document.getElementById('gbDateEnd');
-  if (s) s.value = _gbDateStart;
-  if (e) e.value = _gbDateEnd;
+
+  _gbCalCtx.selStart = new Date(_gbDateStart);
+  _gbCalCtx.selEnd   = new Date(_gbDateEnd);
+  _gbCalCtx.viewMonth  = { year: start.getFullYear(), month: start.getMonth() };
+  _gbCalCtx.viewMonth2 = { year: today.getFullYear(), month: today.getMonth() };
+  buildGbCals();
+
   document.querySelectorAll('#gbDatePop .filter-preset-chip').forEach(c => c.classList.toggle('active', c === btn));
   _gbApplyCustomDate();
-}
-
-function gbOnDateInput() {
-  _gbDateStart = document.getElementById('gbDateStart')?.value || null;
-  _gbDateEnd   = document.getElementById('gbDateEnd')?.value   || null;
-  document.querySelectorAll('#gbDatePop .filter-preset-chip').forEach(c => c.classList.remove('active'));
-  if (_gbDateStart && _gbDateEnd) _gbApplyCustomDate();
 }
 
 function _gbApplyCustomDate() {
@@ -379,8 +416,8 @@ function _gbApplyCustomDate() {
 
 function gbClearDate() {
   _gbDateStart = _gbDateEnd = null;
-  const s = document.getElementById('gbDateStart'), e = document.getElementById('gbDateEnd');
-  if (s) s.value = ''; if (e) e.value = '';
+  _gbCalCtx.selStart = _gbCalCtx.selEnd = null;
+  buildGbCals();
   document.querySelectorAll('#gbDatePop .filter-preset-chip').forEach(c => c.classList.remove('active'));
   _gbCloseDatePop();
   gbSetPeriod('all', document.getElementById('gbChipAll'));
@@ -423,8 +460,7 @@ function _gbChatRenderAll() {
 function _gbChatBubble(role, text) {
   const d = document.createElement('div');
   d.className = 'ur-msg ur-msg--dyn ' + (role === 'user' ? 'ur-msg--user' : 'ur-msg--bot');
-  if (role === 'user') d.textContent = text;
-  else d.innerHTML = renderChatMarkdown(text);
+  d.textContent = text;
   return d;
 }
 
@@ -481,10 +517,7 @@ async function gbSendChat() {
     if (finished) return;
     finished = true;
     bubble.classList.remove('ur-msg--streaming');
-    if (acc.trim()) {
-      bubble.innerHTML = renderChatMarkdown(acc);
-      _gbChatMsgs.push({ role: 'bot', text: acc }); _gbChatSave();
-    }
+    if (acc.trim()) { _gbChatMsgs.push({ role: 'bot', text: acc }); _gbChatSave(); }
     _gbChatBusy = false;
     gbChatToggleSend();
     inp.focus();

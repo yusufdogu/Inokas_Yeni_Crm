@@ -1,0 +1,726 @@
+/* ─── Design tokens ──────────────────────────────────────────────────────── */
+:root {
+  --fat-bg:       #f5f2ec;
+  --fat-bg2: #ffffff;
+  --fat-bg3:      #e4dfd4;
+  --fat-ink:      #0e0d0b;
+  --fat-ink2:     #3a3832;
+  --fat-ink3: #000000;
+  --fat-ink4: #000000;
+  --fat-dark:     #0e0d0b;
+  --fat-dark2:    #1a1916;
+  --fat-dark3:    #252320;
+  --fat-border:   rgba(14,13,11,0.1);
+  --fat-border2:  rgba(14,13,11,0.2);
+  --fat-red:      #b83232;
+  --fat-red-bg:   rgba(184,50,50,0.08);
+  --fat-green:    #1a6b47;
+  --fat-green-bg: rgba(26,107,71,0.09);
+  --fat-amber:    #9a6318;
+  --fat-amber-bg: rgba(154,99,24,0.09);
+  --fat-font-ui:  'DM Sans', sans-serif;
+  --fat-font-data:'DM Mono', monospace;
+}
+
+/* ─── Filter pill ────────────────────────────────────────────────────────── */
+
+.filter-pill-wrap {
+  position: relative;
+  min-width: 25%;
+}
+
+.filter-pill {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  height: 36px;
+  padding: 0 11px;
+  border: 1px solid var(--fat-border);
+  border-radius: 8px;
+  background: var(--fat-bg);
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+  transition: border-color 0.15s;
+}
+
+.filter-pill:hover {
+  border-color: var(--fat-border2);
+}
+
+.filter-pill.open {
+  border-color: var(--fat-border2);
+}
+
+.filter-pill.active {
+  border-color: var(--fat-green);
+  background: var(--fat-green-bg);
+}
+
+.filter-pill > .ti {
+  font-size: 15px;
+  color: var(--fat-ink4);
+  flex-shrink: 0;
+}
+
+.filter-pill.active > .ti {
+  color: var(--fat-green);
+}
+
+.filter-histogram {
+    display: flex;
+    align-items: flex-end;
+    gap: 1px;
+    height: 50px;
+    padding: 0 14px;
+    margin-bottom: 8px;
+}
+
+
+.filter-slider-wrap {
+    position: relative;
+    height: 20px;
+    margin: 0 14px 10px;
+}
+.filter-slider-track {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    left: 0; right: 0;
+    height: 4px;
+    background: var(--fat-border);
+    border-radius: 2px;
+}
+.filter-slider-fill {
+    position: absolute;
+    top: 0;
+    height: 100%;
+    background: var(--fat-green);
+    border-radius: 2px;
+}
+.filter-slider-thumb {
+    position: absolute;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    width: 16px; height: 16px;
+    border-radius: 50%;
+    background: var(--fat-green);
+    border: 2px solid var(--fat-bg);
+    cursor: grab;
+    box-shadow: 0 0 0 1px var(--fat-green);
+}
+.filter-slider-thumb:active { cursor: grabbing; }
+
+.filter-histogram {
+    display: flex;
+    align-items: flex-end;
+    gap: 1px;
+    height: 50px;
+    padding: 0 14px;
+    margin-bottom: 8px;
+}
+.filter-hbar {
+    flex: 1;
+    background: var(--fat-ink4);
+    opacity: 0.4;
+    border-radius: 2px 2px 0 0;
+    min-height: 2px;
+}
+.filter-hbar.in {
+    background: var(--fat-green);
+    opacity: 1;
+}
+
+/* ─── Pill text (label + value stacked) ──────────────────────────────────── */
+
+.filter-pill-text {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.filter-pill-label {
+  font-size: 10px;
+  color: var(--fat-ink4);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  line-height: 1;
+}
+
+.filter-pill.active .filter-pill-label {
+  color: var(--fat-green);
+}
+
+.filter-pill-value {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--fat-ink);
+  line-height: 1;
+}
+
+.filter-pill.active .filter-pill-value {
+  color: var(--fat-green);
+}
+
+/* ─── Caret ──────────────────────────────────────────────────────────────── */
+
+.filter-pill-caret {
+  font-size: 12px;
+  color: var(--fat-ink4);
+  margin-left: 2px;
+  transition: transform 0.2s;
+}
+
+.filter-pill.active .filter-pill-caret {
+  color: var(--fat-green);
+}
+
+.filter-pill.open .filter-pill-caret {
+  transform: rotate(180deg);
+}
+
+/* ─── Popover ────────────────────────────────────────────────────────────── */
+
+.filter-popover {
+  display: none;
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);   /* ← center horizontally */
+  z-index: 200;
+  min-width: 100%;
+  background: var(--fat-bg);
+  border: 1px solid var(--fat-border);
+  border-radius: 10px;
+}
+
+.filter-popover.open {
+  display: block;
+}
+
+/* ─── Preset chips ───────────────────────────────────────────────────────── */
+
+.filter-presets {
+  display: flex;
+  justify-content: center;
+  gap: 6px;
+  padding: 12px 14px;
+}
+
+.filter-preset-chip {
+  font-size: 11px;
+  font-family: var(--fat-font-ui);
+  padding: 4px 10px;
+  border: 1px solid var(--fat-border);
+  border-radius: 4px;
+  background: var(--fat-bg2);
+  color: var(--fat-ink3);
+  cursor: pointer;
+  transition: background 0.1s, border-color 0.1s, color 0.1s;
+}
+
+.filter-preset-chip:hover {
+  background: var(--fat-bg3);
+  color: var(--fat-ink2);
+}
+
+.filter-preset-chip.active {
+  background: var(--fat-green-bg);
+  border-color: var(--fat-green);
+  color: var(--fat-green);
+}
+
+/* ─── Calendar wrapper ───────────────────────────────────────────────────── */
+
+.filter-cal-wrap {
+  display: flex;
+  align-items: flex-start;
+  padding: 0 14px 14px;
+  border-top: 1px solid var(--fat-border);
+  padding-top: 12px;
+}
+
+.filter-cal-divider {
+  width: 1px;
+  background: var(--fat-border);
+  align-self: stretch;
+  margin: 0 14px;
+  flex-shrink: 0;
+}
+
+
+
+/* ─── Calendar internals (JS-generated) ──────────────────────────────────── */
+
+.filter-cal-header {
+  text-align: center;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--fat-ink);
+  margin-bottom: 10px;
+}
+
+.filter-cal-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 2px;
+}
+
+.filter-cal-dow {
+  font-size: 10px;
+  text-align: center;
+  color: var(--fat-ink4);
+  padding-bottom: 6px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.filter-cal-day {
+  font-size: 12px;
+  text-align: center;
+  padding: 5px 2px;
+  border-radius: 4px;
+  cursor: pointer;
+  color: var(--fat-ink);
+  transition: background 0.1s;
+}
+
+.filter-cal-day:hover {
+  background: var(--fat-bg2);
+}
+
+.filter-cal-day.other {
+  color: var(--fat-ink4);
+  cursor: default;
+}
+
+.filter-cal-day.other:hover {
+  background: none;
+}
+
+.filter-cal-day.today {
+  font-weight: 500;
+  color: var(--fat-amber);
+}
+
+.filter-cal-day.inrange {
+  background: var(--fat-green-bg);
+  border-radius: 0;
+  color: var(--fat-green);
+}
+
+.filter-cal-day.sel {
+  background: var(--fat-green);
+  color: #fff;
+  border-radius: 50%;
+  font-weight: 500;
+}
+
+.filter-cal-day.sel:hover {
+  background: var(--fat-green);
+}
+
+
+.filter-cal-select {
+  font-size: 12px;
+  font-family: var(--fat-font-ui);
+  font-weight: 500;
+  color: var(--fat-ink);
+  background: var(--fat-bg2);
+  border: 1px solid var(--fat-border);
+  border-radius: 5px;
+  padding: 3px 5px;
+  cursor: pointer;
+  outline: none;
+}
+
+.filter-cal-select:hover {
+  border-color: var(--fat-border2);
+}
+
+.filter-cal-day.future {
+  color: var(--fat-ink4);
+  cursor: default;
+  pointer-events: none;
+  opacity: 0.4;
+}
+
+
+
+.filter-price-inputs {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  padding: 8px 14px 12px;
+}
+
+.filter-price-group {
+  display: flex;
+  flex-direction: column;   /* ← stacks label above input */
+  gap: 3px;
+  flex: 1;
+}
+
+.filter-price-group label {
+  font-size: 10px;
+  color: var(--fat-ink4);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-weight: 500;
+}
+
+.filter-price-group input {
+  font-family: var(--fat-font-data);
+  font-size: 13px;
+  padding: 6px 10px;
+  border: 1px solid var(--fat-border);
+  border-radius: 6px;
+  background: var(--fat-bg2);
+  color: var(--fat-ink);
+  outline: none;
+  width: 100%;
+}
+
+.filter-price-group input:focus {
+  border-color: var(--fat-border2);
+}
+
+.filter-price-sep {
+  color: var(--fat-ink4);
+  padding-bottom: 8px;   /* align with input center */
+}
+
+.skel-list {
+    display: flex;
+    flex-direction: column;
+    gap: 9px;
+}
+
+.skel-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.skel-info {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+}
+
+.skel-line {
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+.skel-box {
+    background: var(--fat-bg3);
+    flex-shrink: 0;
+    animation: skel-pulse 1s ease-in-out infinite;
+}
+
+@keyframes skel-pulse {
+    0%, 100% { opacity: 0.7; }
+    50%      { opacity: 0.3; }
+}
+
+
+.filter-pill-label {
+  font-size: 10px;
+  color: var(--fat-ink4);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  line-height: 1;
+}
+
+.filter-pill.active .filter-pill-label {
+  color: var(--fat-green);
+}
+
+.filter-pill-value {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--fat-ink);
+  line-height: 1;
+}
+
+.filter-pill.active .filter-pill-value {
+  color: var(--fat-green);
+}
+
+/* ─── Caret ──────────────────────────────────────────────────────────────── */
+
+.filter-pill-caret {
+  font-size: 12px;
+  color: var(--fat-ink4);
+  margin-left: 2px;
+  transition: transform 0.2s;
+}
+
+.filter-pill.active .filter-pill-caret {
+  color: var(--fat-green);
+}
+
+.filter-pill.open .filter-pill-caret {
+  transform: rotate(180deg);
+}
+
+/* ─── Popover ────────────────────────────────────────────────────────────── */
+
+.filter-popover {
+  display: none;
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);   /* ← center horizontally */
+  z-index: 200;
+  min-width: 100%;
+  background: var(--fat-bg);
+  border: 1px solid var(--fat-border);
+  border-radius: 10px;
+}
+
+.filter-popover.open {
+  display: block;
+}
+
+/* ─── Preset chips ───────────────────────────────────────────────────────── */
+
+.filter-presets {
+  display: flex;
+  justify-content: center;
+  gap: 6px;
+  padding: 12px 14px;
+}
+
+.filter-preset-chip {
+  font-size: 11px;
+  font-family: var(--fat-font-ui);
+  padding: 4px 10px;
+  border: 1px solid var(--fat-border);
+  border-radius: 4px;
+  background: var(--fat-bg2);
+  color: var(--fat-ink3);
+  cursor: pointer;
+  transition: background 0.1s, border-color 0.1s, color 0.1s;
+}
+
+.filter-preset-chip:hover {
+  background: var(--fat-bg3);
+  color: var(--fat-ink2);
+}
+
+.filter-preset-chip.active {
+  background: var(--fat-green-bg);
+  border-color: var(--fat-green);
+  color: var(--fat-green);
+}
+
+/* ─── Calendar wrapper ───────────────────────────────────────────────────── */
+
+.filter-cal-wrap {
+  display: flex;
+  align-items: flex-start;
+  padding: 0 14px 14px;
+  border-top: 1px solid var(--fat-border);
+  padding-top: 12px;
+}
+
+.filter-cal-divider {
+  width: 1px;
+  background: var(--fat-border);
+  align-self: stretch;
+  margin: 0 14px;
+  flex-shrink: 0;
+}
+
+
+
+/* ─── Calendar internals (JS-generated) ──────────────────────────────────── */
+
+.filter-cal-header {
+  text-align: center;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--fat-ink);
+  margin-bottom: 10px;
+}
+
+.filter-cal-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 2px;
+}
+
+.filter-cal-dow {
+  font-size: 10px;
+  text-align: center;
+  color: var(--fat-ink4);
+  padding-bottom: 6px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.filter-cal-day {
+  font-size: 12px;
+  text-align: center;
+  padding: 5px 2px;
+  border-radius: 4px;
+  cursor: pointer;
+  color: var(--fat-ink);
+  transition: background 0.1s;
+}
+
+.filter-cal-day:hover {
+  background: var(--fat-bg2);
+}
+
+.filter-cal-day.other {
+  color: var(--fat-ink4);
+  cursor: default;
+}
+
+.filter-cal-day.other:hover {
+  background: none;
+}
+
+.filter-cal-day.today {
+  font-weight: 500;
+  color: var(--fat-amber);
+}
+
+.filter-cal-day.inrange {
+  background: var(--fat-green-bg);
+  border-radius: 0;
+  color: var(--fat-green);
+}
+
+.filter-cal-day.sel {
+  background: var(--fat-green);
+  color: #fff;
+  border-radius: 50%;
+  font-weight: 500;
+}
+
+.filter-cal-day.sel:hover {
+  background: var(--fat-green);
+}
+
+
+.filter-cal-select {
+  font-size: 12px;
+  font-family: var(--fat-font-ui);
+  font-weight: 500;
+  color: var(--fat-ink);
+  background: var(--fat-bg2);
+  border: 1px solid var(--fat-border);
+  border-radius: 5px;
+  padding: 3px 5px;
+  cursor: pointer;
+  outline: none;
+}
+
+.filter-cal-select:hover {
+  border-color: var(--fat-border2);
+}
+
+.filter-cal-day.future {
+  color: var(--fat-ink4);
+  cursor: default;
+  pointer-events: none;
+  opacity: 0.4;
+}
+
+
+
+.filter-price-inputs {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  padding: 8px 14px 12px;
+}
+
+.filter-price-group {
+  display: flex;
+  flex-direction: column;   /* ← stacks label above input */
+  gap: 3px;
+  flex: 1;
+}
+
+.filter-price-group label {
+  font-size: 10px;
+  color: var(--fat-ink4);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-weight: 500;
+}
+
+.filter-price-group input {
+  font-family: var(--fat-font-data);
+  font-size: 13px;
+  padding: 6px 10px;
+  border: 1px solid var(--fat-border);
+  border-radius: 6px;
+  background: var(--fat-bg2);
+  color: var(--fat-ink);
+  outline: none;
+  width: 100%;
+}
+
+.filter-price-group input:focus {
+  border-color: var(--fat-border2);
+}
+
+.filter-price-sep {
+  color: var(--fat-ink4);
+  padding-bottom: 8px;   /* align with input center */
+}
+
+.skel-list {
+    display: flex;
+    flex-direction: column;
+    gap: 9px;
+}
+
+.skel-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.skel-info {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+}
+
+.skel-line {
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+.skel-box {
+    background: var(--fat-bg3);
+    flex-shrink: 0;
+    animation: skel-pulse 1s ease-in-out infinite;
+}
+
+@keyframes skel-pulse {
+    0%, 100% { opacity: 0.7; }
+    50%      { opacity: 0.3; }
+}
+
+.invoice-tab-empty {
+  font-size: 12px;
+  color: var(--fat-ink4);
+  font-style: italic;
+  padding: 0 4px;
+  align-self: center;
+  user-select: none;
+}

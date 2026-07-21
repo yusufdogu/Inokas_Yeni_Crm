@@ -1032,7 +1032,7 @@ async function openUrunModal(productId, sku) {
 
     const [productRes, movementsRes] = await Promise.all([
       fetch(`/api/products/${productId}`),
-      fetch(`/api/stocks/movements?sku=${encodeURIComponent(sku || '')}`),
+      fetch(`/api/stocks/movements?id=${productId}`),
     ]);
 
     if (!productRes.ok) throw new Error('Ürün verisi alınamadı.');

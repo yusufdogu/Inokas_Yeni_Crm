@@ -3,7 +3,7 @@
 const _fatCalCtx = {
     selStart: null,
     selEnd: null,
-    viewMonth:  { year: new Date().getFullYear(), month: new Date().getMonth() },
+    viewMonth:  _gbPrevMonth(),
     viewMonth2: { year: new Date().getFullYear(), month: new Date().getMonth() },
     cal1Id: 'filterCal1',
     cal2Id: 'filterCal2',
@@ -18,6 +18,12 @@ const _fatCalCtx = {
     }
 };
 window._fatCalCtx = _fatCalCtx;
+function _gbPrevMonth() {
+  const d = new Date();
+  return d.getMonth() === 0
+    ? { year: d.getFullYear() - 1, month: 11 }
+    : { year: d.getFullYear(), month: d.getMonth() - 1 };
+}
 
 // Thin wrappers — keep old function names for HTML onclick compatibility
 function buildFilterCals()                  { buildCals(_fatCalCtx); }

@@ -1356,60 +1356,7 @@
 }
 .filter-pill-wrap.open .filter-pill-caret { transform: rotate(180deg); }
 
-/* ── Popover ─────────────────────────────────────────────────────────────────── */
-.filter-popover {
-  position: absolute;
-  top: calc(100% + 6px);
-  left: 0;
-  z-index: 2100;
-  width: 240px;
-  padding: 12px;
-  background: #fff;
-  border: 0.5px solid var(--stk-border2);
-  border-radius: 10px;
-  box-shadow: 0 8px 28px rgba(14,13,11,0.14);
-  display: none;
-}
 
-.filter-popover.open { display: block; }
-
-/* flip to the right edge when the pill sits near the viewport's right side */
-.filter-popover.align-right {
-  left: auto;
-  right: 0;
-}
-
-/* ── Preset chips ────────────────────────────────────────────────────────────── */
-.filter-presets {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  margin-bottom: 10px;
-}
-
-.filter-preset-chip {
-  height: 26px;
-  padding: 0 11px;
-  background: var(--stk-bg2);
-  border: 0.5px solid var(--stk-border);
-  border-radius: 99px;
-  font-family: var(--stk-font-ui);
-  font-size: 11px;
-  color: var(--stk-ink2);
-  cursor: pointer;
-  transition: background 0.12s, color 0.12s, border-color 0.12s;
-}
-
-.filter-preset-chip:hover {
-  background: var(--stk-bg3);
-  color: var(--stk-ink);
-}
-
-.filter-preset-chip.active {
-  background: var(--stk-ink);
-  border-color: var(--stk-ink);
-  color: rgba(245,242,236,0.92);
-}
 
 /* ── Min / max inputs ────────────────────────────────────────────────────────── */
 .filter-range-inputs {

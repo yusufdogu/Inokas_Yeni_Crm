@@ -8,6 +8,23 @@ const CONFIRM_THRESHOLD = 2;
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
 
+// Business summary for a tenant — REQUIRED for classification.
+// Throws if not set; we cannot classify without knowing the tenant's business.
+async function getBusinessSummary(tenantId) {
+    const { data, error } = await supabase
+        .from('tenants')
+        .select('business_summary')
+        .eq('id', tenantId)
+        .maybeSingle();
+    if (error) throw new Error(`İşletme özeti okunamadı: ${error.message}`);
+
+    const summary = data?.business_summary?.trim();
+    if (!summary) {
+        throw new Error(`Tenant ${tenantId} için business_summary tanımlı değil — sınıflandırma yapılamaz.`);
+    }
+    return summary;
+}
+
 function normalizeBrand(s) {
     if (!s) return '';
     return s.normalize('NFD').replace(/[\u0300-\u036f]/g, '')
@@ -247,6 +264,43 @@ async function updateInvoiceItem(itemId, fields, tenantId) {
     if (error) throw new Error(`Kalem güncellenemedi (${itemId}): ${error.message}`);
 }
 
+// ═══ PRICE HISTORY ════════════════════════════════════════════════════════════
+// Insert one row per (approved, internal, linked) invoice line.
+// Idempotent via UNIQUE(invoice_item_id) → ON CONFLICT DO NOTHING.
+// rows: [{ product_id, direction, unit_price_cur, currency,
+//          calculation_rate, quantity, invoice_id, invoice_item_id, invoice_date }]
+async function insertPriceHistory(rows, tenantId) {
+    if (!Array.isArray(rows) || rows.length === 0) return;
+
+    const records = rows
+        .filter(r => r.product_id && r.invoice_item_id)   // only linked lines
+        .map(r => {
+            const rate  = (r.calculation_rate != null) ? Number(r.calculation_rate) : 1;
+            const unit  = Number(r.unit_price_cur) || 0;
+            return {
+                tenant_id:        tenantId,
+                product_id:       r.product_id,
+                direction:        r.direction,                 // 'INCOMING' | 'OUTGOING'
+                unit_price_cur:   unit,
+                currency:         r.currency || null,
+                calculation_rate: r.calculation_rate ?? null,
+                unit_price_tl:    unit * rate,
+                quantity:         r.quantity != null ? Number(r.quantity) : null,
+                invoice_id:       r.invoice_id || null,
+                invoice_item_id:  r.invoice_item_id,
+                invoice_date:     r.invoice_date || null,
+            };
+        });
+
+    if (records.length === 0) return;
+
+    const { error } = await supabase
+        .from('product_price_history')
+        .upsert(records, { onConflict: 'invoice_item_id', ignoreDuplicates: true });
+
+    if (error) throw new Error(`Fiyat geçmişi yazılamadı: ${error.message}`);
+}
+
 module.exports = {
     findProductByCode,
     upsertProduct,
@@ -257,5 +311,7 @@ module.exports = {
     addSubcategory,
     recordBrandDomain,
     isTrustedDomain,
+    insertPriceHistory,
+    getBusinessSummary,
     updateInvoiceItem,
 };

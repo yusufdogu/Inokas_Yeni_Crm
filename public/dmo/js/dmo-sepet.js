@@ -14,15 +14,36 @@ function getKey(p) {
 
 // ── LOAD DATA ─────────────────────────────────────────────────────────────────
 async function loadHHData() {
-    const { data: products } = await db
-        .from("products")
-        .select("id, product_code, product_name, model, stock_on_hand, dmo_code, dmo_fiyat_try, sozlesme_fiyat_eur, maliyet_usd")
-        .order("product_name");
-
-    hhProducts = products || [];
-    window.hhProducts = hhProducts; // expose for dmo-siparisler.js autocomplete
+    try {
+        const res = await fetch("/api/dmo/products");
+        if (!res.ok) throw new Error("HTTP " + res.status);
+        const rows = await res.json();
+        hhProducts = (rows || [])
+            .filter(dp => dp.products)   // skip any orphaned catalog row
+            .map(dp => {
+                const p = dp.products;
+                return {
+                    dmo_product_id:         dp.id,                 // dmo_products row → saved as dmo_product_id
+                    dmo_code:               dp.dmo_code,
+                    dmo_fiyat_try:          dp.dmo_fiyat_try,
+                    sozlesme_fiyat_eur:     dp.sozlesme_fiyat_eur,
+                    id:                     p.id || null,          // base product id
+                    product_code:           p.product_code || "",
+                    product_name:           p.product_name || "",
+                    model:                  p.model || "",
+                    maliyet_usd:            p.maliyet_usd || 0,
+                    stock_on_hand:          p.stock_on_hand || 0,
+                    reserved_quantity:      p.reserved_quantity || 0,
+                    last_purchase_price_tl: p.last_purchase_price_tl || 0,
+                };
+            });
+    } catch (err) {
+        console.error("Ürünler yüklenemedi:", err.message);
+        showToast("Ürünler yüklenemedi", "error");
+        hhProducts = [];
+    }
+    window.hhProducts = hhProducts;
 }
-
 // ── OPEN / CLOSE ──────────────────────────────────────────────────────────────
 async function openHizliHesap() {
     document.getElementById("hh_product_grid").innerHTML = `
@@ -60,44 +81,46 @@ async function openHizliHesapForTaslak(orderId) {
 
     await openHizliHesap();
 
-    // Pre-fill customer name
-    const { data: order } = await db
-        .from("dmo_orders")
-        .select("customer_name")
-        .eq("id", orderId)
-        .single();
+    // Load the draft (order + items) from the route
+    let order, items;
+    try {
+        const res = await fetch(`/api/dmo/orders/${encodeURIComponent(orderId)}`);
+        if (!res.ok) throw new Error("HTTP " + res.status);
+        ({ order, items } = await res.json());
+    } catch (err) {
+        console.error("Taslak yüklenemedi:", err.message);
+        showToast("Taslak yüklenemedi", "error");
+        return;
+    }
 
     if (order?.customer_name) {
         const el = document.getElementById("hh_customer_name");
         if (el) el.value = order.customer_name;
     }
 
-    // Load existing items into hhSepet
-    const { data: items } = await db
-        .from("dmo_order_items")
-        .select("*, products(id, product_name, product_code, dmo_code, dmo_fiyat_try, maliyet_usd, sozlesme_fiyat_eur, stock_on_hand, model)")
-        .eq("order_id", orderId);
-
     // Clear before loading to prevent quantity doubling
     hhSepet = {};
 
     (items || []).forEach(item => {
-        const p = item.products;
+        const dp = item.dmo_products;
+        const p  = dp?.products;
         if (!p?.product_code) return;
         const key = p.product_code;
 
         const existing = hhSepet[key] || {
-            id:                 p.id,
-            product_code:       key,
-            dmo_code:           p.dmo_code           || null,
-            product_name:       p.product_name       || "",
-            model:              p.model              || "",
-            stock_on_hand:      p.stock_on_hand      || 0,
-            dmo_fiyat_try:      p.dmo_fiyat_try      || 0,
-            sozlesme_fiyat_eur: p.sozlesme_fiyat_eur || 0,
-            maliyet_usd:        p.maliyet_usd        || 0,
-            quantity:           0,
-            giftQuantity:       0,
+            dmo_product_id:         dp.id,
+            id:                     p.id,
+            product_code:           key,
+            dmo_code:               dp.dmo_code            || null,
+            product_name:           p.product_name         || "",
+            model:                  p.model                || "",
+            stock_on_hand:          p.stock_on_hand        || 0,
+            last_purchase_price_tl: p.last_purchase_price_tl || 0,
+            dmo_fiyat_try:          dp.dmo_fiyat_try        || 0,
+            sozlesme_fiyat_eur:     dp.sozlesme_fiyat_eur   || 0,
+            maliyet_usd:            p.maliyet_usd           || 0,
+            quantity:               0,
+            giftQuantity:           0,
         };
 
         if (item.is_gift) {
@@ -137,8 +160,7 @@ function renderHHProductTable() {
                     <th style="padding:10px 8px; text-align:left;">ÜRÜN</th>
                     <th style="padding:10px 8px; text-align:left;">STOK</th>
                     <th style="padding:10px 8px; text-align:right;">DMO FİYAT</th>
-                    <th style="padding:10px 8px; text-align:right;">ALIŞ EUR→TL</th>
-                    <th style="padding:10px 8px; text-align:right;">MAL USD→TL</th>
+                    <th style="padding:10px 8px; text-align:right;">MAL TL</th>
                     <th style="padding:10px 8px; text-align:right;">MARJ %</th>
                     <th style="padding:10px 8px; text-align:center;">ADET</th>
                     <th style="padding:10px 8px; text-align:center;">🎁 ADET</th>
@@ -157,6 +179,13 @@ function renderHHProductTable() {
                 p.dmo_code?.toString().includes(search) ||
                 p.model?.toLocaleLowerCase("tr-TR").includes(search)
             );
+        }).sort((a, b) => {
+            const aHas = a.dmo_code ? 1 : 0;
+            const bHas = b.dmo_code ? 1 : 0;
+            if (aHas !== bHas) return bHas - aHas;                    // dmo_code first
+            const stockDiff = (b.stock_on_hand || 0) - (a.stock_on_hand || 0);
+            if (stockDiff !== 0) return stockDiff;                    // then more stock
+            return (a.product_name || "").localeCompare(b.product_name || "", "tr-TR");  // then A→Z
         });
 
         if (filtered.length === 0) {
@@ -179,7 +208,6 @@ function renderHHProductTable() {
             container.innerHTML = `<div style="text-align:center; padding:40px; color:#94a3b8;">Sepet boş</div>`;
             return;
         }
-
         container.innerHTML = tableHeader + filtered.map(p => renderHHRow(p, usdRate, "sepet")).join("") + `</tbody></table>`;
     }
 }
@@ -187,12 +215,8 @@ function renderHHProductTable() {
 function renderHHRow(p, usdRate, tab) {
     const key       = getKey(p);
     const dmoFiyat  = parseFloat(p.dmo_fiyat_try      || 0);
-    const alisEur   = parseFloat(p.sozlesme_fiyat_eur  || 0);
-    const malUsd    = parseFloat(p.maliyet_usd         || 0);
-    const realDMO   = dmoFiyat / 1.08;
-    const alisTL    = alisEur * getCurrentRates().eur_try;
-    const malTL     = malUsd  * usdRate;
-    const marj      = realDMO > 0 ? ((realDMO - malTL) / realDMO * 100) : 0;
+    const malTL     = p.last_purchase_price_tl;
+    const marj      = dmoFiyat > 0 ? ((dmoFiyat - malTL) / dmoFiyat * 100) : 0;
     const marjColor = marj >= 0 ? "#16a34a" : "#dc2626";
 
     let qty, giftQty, actionBtn;
@@ -227,10 +251,9 @@ function renderHHRow(p, usdRate, tab) {
             <td style="padding:8px; font-weight:700; color:#2563eb;">${p.dmo_code || "-"}</td>
             <td style="padding:8px; color:#0f172a; max-width:200px;"><div style="font-weight:600; line-height:1.3;">${p.product_name || "-"}</div><div style="font-size:10px; color:#94a3b8;">${p.product_code || ""}</div></td>
             <td style="padding:8px; color:#64748b;">${p.stock_on_hand ?? "-"}</td>
-            <td style="padding:8px; text-align:right; font-weight:600;">${dmoFiyat > 0 ? `${formatAmount(dmoFiyat)} ₺ → ${formatAmount(realDMO)} ₺` : "-"}</td>
-            <td style="padding:8px; text-align:right; color:#64748b;">${alisEur > 0 ? `€${alisEur} → ${formatAmount(alisTL)} ₺` : "-"}</td>
-            <td style="padding:8px; text-align:right; color:#64748b;">${malUsd > 0 ? `$${malUsd} → ${formatAmount(malTL)} ₺` : "-"}</td>
-            <td style="padding:8px; text-align:right; font-weight:700; color:${marjColor};">${realDMO > 0 ? "%" + marj.toFixed(1) : "-"}</td>
+            <td style="padding:8px; text-align:right; font-weight:600;">${dmoFiyat > 0 ? `${formatAmount(dmoFiyat)} ₺` : "-"}</td>
+            <td style="padding:8px; text-align:right; color:#64748b;">${malTL > 0 ? `${formatAmount(malTL)} ₺` : "-"}</td>
+            <td style="padding:8px; text-align:right; font-weight:700; color:${marjColor};">${dmoFiyat > 0 ? "%" + marj.toFixed(1) : "-"}</td>
             <td style="padding:8px; text-align:center;">
                 <input type="number" min="0" placeholder="0" value="${qty}" ${qtyInput}
                     style="width:60px; padding:4px 6px; border:1px solid #e2e8f0; border-radius:6px; text-align:center; font-size:12px;">
@@ -475,7 +498,7 @@ async function updateHHPrices() {
     const btn = document.getElementById("hhUpdateBtn");
     if (!btn) return;
 
-    const toUpdate = hhProducts.filter(p => p.dmo_code && p.id);
+    const toUpdate = hhProducts.filter(p => p.dmo_code && p.dmo_product_id);
     if (toUpdate.length === 0) { showToast("Güncellenecek DMO kodlu ürün bulunamadı", "error"); return; }
 
     btn.disabled = true;
@@ -488,7 +511,7 @@ async function updateHHPrices() {
             const res  = await fetch("/api/dmo/find-dmo-url", {
                 method:  "POST",
                 headers: { "Content-Type": "application/json" },
-                body:    JSON.stringify({ dmo_code: String(product.dmo_code), product_id: String(product.id) })
+                body:    JSON.stringify({ dmo_code: String(product.dmo_code), dmo_id: String(product.dmo_product_id) })
             });
             const data = await res.json();
 
@@ -560,63 +583,41 @@ async function saveHizliHesapAsTaslak() {
         status:               "Taslak",
     };
 
+    // Build line items (normal + gift) for the route
+    const items = [];
+    for (const item of Object.values(hhSepet)) {
+        const base = {
+            dmo_product_id:      item.dmo_product_id || null,
+            unit_price_excl_vat: parseFloat(item.dmo_fiyat_try || 0),
+            katalog_kod:         item.dmo_code?.toString() || null,
+            maliyet_usd:         parseFloat(item.maliyet_usd || 0),
+            maliyet_tl:          parseFloat(item.maliyet_usd || 0) * usdRate,
+        };
+        if (item.quantity > 0) {
+            items.push({ ...base, quantity: item.quantity,
+                line_total_excl_vat: parseFloat(item.dmo_fiyat_try || 0) * item.quantity, is_gift: false });
+        }
+        if (item.giftQuantity > 0) {
+            items.push({ ...base, quantity: item.giftQuantity,
+                line_total_excl_vat: parseFloat(item.dmo_fiyat_try || 0) * item.giftQuantity, is_gift: true });
+        }
+    }
+
     try {
         showToast("Taslak kaydediliyor...", "info");
-
-        let order;
-        if (_hhEditingTaslakId) {
-            await db.from("dmo_order_items").delete().eq("order_id", _hhEditingTaslakId);
-            const { data: updated, error: updateError } = await db
-                .from("dmo_orders").update(orderPayload)
-                .eq("id", _hhEditingTaslakId).select().single();
-            if (updateError) { showToast("Taslak güncellenemedi: " + updateError.message, "error"); return; }
-            order = updated;
-        } else {
-            const { data: inserted, error: orderError } = await db
-                .from("dmo_orders")
-                .insert({ ...orderPayload, order_date: new Date().toISOString().slice(0, 10) })
-                .select().single();
-            if (orderError) { showToast("Taslak kaydedilemedi: " + orderError.message, "error"); return; }
-            order = inserted;
+        const res = await fetch("/api/dmo/orders/taslak", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ orderId: _hhEditingTaslakId || null, order: orderPayload, items }),
+        });
+        if (!res.ok) {
+            const e = await res.json().catch(() => ({}));
+            showToast("Taslak kaydedilemedi: " + (e.error || res.status), "error");
+            return;
         }
-
-        // Insert items
-        for (const item of Object.values(hhSepet)) {
-            if (item.quantity > 0) {
-                await db.from("dmo_order_items").insert({
-                    order_id:            order.id,
-                    product_id:          item.id || null,
-                    quantity:            item.quantity,
-                    unit_price_excl_vat: parseFloat(item.dmo_fiyat_try || 0),
-                    line_total_excl_vat: parseFloat(item.dmo_fiyat_try || 0) * item.quantity,
-                    is_gift:             false,
-                    katalog_kod:         item.dmo_code?.toString() || null,
-                    maliyet_usd:         parseFloat(item.maliyet_usd || 0),
-                    maliyet_tl:          parseFloat(item.maliyet_usd || 0) * usdRate,
-                });
-            }
-            if (item.giftQuantity > 0) {
-                await db.from("dmo_order_items").insert({
-                    order_id:            order.id,
-                    product_id:          item.id || null,
-                    quantity:            item.giftQuantity,
-                    unit_price_excl_vat: parseFloat(item.dmo_fiyat_try || 0),
-                    line_total_excl_vat: parseFloat(item.dmo_fiyat_try || 0) * item.giftQuantity,
-                    is_gift:             true,
-                    katalog_kod:         item.dmo_code?.toString() || null,
-                    maliyet_usd:         parseFloat(item.maliyet_usd || 0),
-                    maliyet_tl:          parseFloat(item.maliyet_usd || 0) * usdRate,
-                });
-            }
-        }
-
         showToast("Taslak başarıyla kaydedildi!", "success");
-        if (window._onTaslakSaved) {
-            setTimeout(() => window._onTaslakSaved(), 800);
-        } else {
-            closeHizliHesap();
-        }
-
+        if (window._onTaslakSaved) { setTimeout(() => window._onTaslakSaved(), 800); }
+        else { closeHizliHesap(); }
     } catch (err) {
         showToast("Beklenmeyen hata: " + err.message, "error");
     }
@@ -641,7 +642,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         if (from === "invoice" && _hhEditingTaslakId) {
             window.location.href = `/dmo/pages/invoice.html?id=${_hhEditingTaslakId}&edit=true`;
         } else {
-            window.location.href = "../pages/siparisler.html";
+            window.location.href = "/dmo/pages/dmo.html?tab=bekleyen";
         }
     };
 });

@@ -39,7 +39,7 @@ const {
 } = require('./sync-service');
 
 
-const TENANT_ID = 'a58a2117-59be-4294-9fa7-6ef0ab8f0ba1'; // İnokas
+const TENANT_ID = 'e3b966c1-7380-4de3-8d4a-de40099cfd30'; // İnokas
 
 // header fields that do NOT come from the UBL — must survive the reparse.
 // We simply don't include them in the parsed-header update.
@@ -107,7 +107,7 @@ async function reprocessInvoice(inv) {
 
     // 6) pipeline — NO bumpStock (skipStock flag). dbInvoice must carry id.
     const dbInvoice = { ...invoiceData, id: inv.id, direction: inv.direction, tenant_id: TENANT_ID };
-    await processInvoicePipeline(dbInvoice, items, viewKey, TENANT_ID, { skipStock: true });
+    await processInvoicePipeline(dbInvoice, items, viewKey, TENANT_ID, { skipStock: false });
 
     // 7) approval_status is set inside the pipeline (trusted→approved / pending).
     //    Nothing extra here.
@@ -120,7 +120,7 @@ async function reprocessInvoice(inv) {
 }
 
 async function main() {
-    const limit = parseInt(process.argv[2], 10) || 5;
+    const limit = 100
     console.log(`🚀 İnokas reparse başlıyor — en fazla ${limit} fatura\n`);
 
     // pending İnokas invoices with a stored XML

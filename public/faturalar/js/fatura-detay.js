@@ -82,6 +82,8 @@ function goBack() {
     const params = new URLSearchParams(location.search);
     const from   = params.get('from') || '';
 
+    if (from === 'dmo') { window.location.href = '/dmo/pages/dmo.html'; return; }
+
     if (from === 'giderler') {
         window.location.href = '../../giderler/pages/giderler.html';
         return;

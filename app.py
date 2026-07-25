@@ -23,6 +23,12 @@ db = create_client(SUPABASE_URL, SUPABASE_KEY)
 app = Flask(__name__)
 CORS(app)
 
+UA_HEADERS = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+    "Accept-Language": "tr-TR,tr;q=0.9",
+    "Referer": "https://www.dmo.gov.tr/",
+}
+
 # ── HELPERS ─────────────────────────────────────────────────────────────────
 
 def fix_doubled_text(text):
@@ -186,6 +192,108 @@ def scrape_dmo_product(url, session):
     except Exception as e:
         return {"price": None, "specs": {}, "error": str(e)}
 
+def find_detail_url(session, dmo_code):
+    res  = session.get(f"https://www.dmo.gov.tr/Arama?s={dmo_code}", headers=UA_HEADERS, timeout=15)
+    soup = BeautifulSoup(res.text, "lxml")
+    cards = soup.find_all("div", class_="product-item")
+    print(f"[find_detail_url]   s={dmo_code} → HTTP {res.status_code}, {len(res.text)} bytes, {len(cards)} cards")
+    if not cards:
+        print(f"[find_detail_url]   ⚠ 0 cards — likely rate-limited/blocked or empty result page")
+
+    seen = []
+    for item in cards:
+        brand_div = item.find("div", class_="brand")
+        code_span = brand_div.find("span") if brand_div else None
+        code = code_span.get_text(strip=True) if code_span else None
+        seen.append(code)
+        if code != dmo_code:
+            continue
+        title_div = item.find("div", class_="title")
+        link = title_div.find("a", href=True) if title_div else None
+        url = "https://www.dmo.gov.tr" + link["href"] if link else None
+        price = None
+        price_span = item.find("span", class_="price-current")
+        if price_span:
+            raw = price_span.get_text(strip=True).replace("\u20ba", "").strip().replace(".", "").replace(",", ".")
+            try:
+                price = round(float(raw) / 1.20, 2)
+            except Exception:
+                pass
+        print(f"[find_detail_url]   ✓ exact match {dmo_code} → {url}")
+        return url, price
+
+    print(f"[find_detail_url]   ✗ no exact match for {dmo_code!r}. codes seen: {seen[:30]}")
+    return None, None
+def scrape_product_detail(session, url):
+    """Detail page → MPN (Orijinal Ürün Kodu), brand, model, excl-VAT unit price (Birim Fiyat)."""
+    res  = session.get(url.rstrip("#"), headers=UA_HEADERS, timeout=15)
+    soup = BeautifulSoup(res.text, "lxml")
+    text = soup.get_text("\n", strip=True)
+
+    def field(label):
+        m = re.search(rf"{re.escape(label)}\s*[:\-]\s*([^\n]+)", text)
+        return m.group(1).strip() if m else None
+
+    def parse_tl(s):
+        if not s:
+            return None
+        s = re.sub(r"[^\d.,]", "", s.replace("\xa0", " "))
+        s = s.replace(".", "").replace(",", ".")
+        try:
+            return float(s)
+        except Exception:
+            return None
+
+    mpn = field("Orijinal Ürün Kodu")
+    if mpn:
+        mpn = mpn.split()[0].strip()                 # drop trailing nbsp / stray tokens
+
+    return {
+        "mpn":   mpn,
+        "brand": field("Marka"),
+        "model": field("Model"),
+        "price": parse_tl(field("Birim Fiyat")),     # excl-VAT — NOT div.price-current
+    }
+
+@app.route("/resolve-product", methods=["POST"])
+@app.route("/resolve-product", methods=["POST"])
+def resolve_product():
+    data     = request.get_json() or {}
+    raw_code = data.get("dmo_code", "")
+    dmo_code = str(raw_code).strip()
+    print(f"[resolve-product] ⇢ incoming dmo_code={raw_code!r} (type={type(raw_code).__name__}) → normalized={dmo_code!r}")
+
+    if not dmo_code:
+        print("[resolve-product] ✗ empty code")
+        return jsonify({"error": "dmo_code zorunlu"}), 400
+    try:
+        session = requests.Session()
+        session.get("https://www.dmo.gov.tr", headers=UA_HEADERS, timeout=10)
+        time.sleep(1)
+
+        detail_url, card_price = find_detail_url(session, dmo_code)
+        print(f"[resolve-product]   find_detail_url → url={detail_url!r} card_price={card_price}")
+        if not detail_url:
+            print(f"[resolve-product] ✗ {dmo_code} — no exact card (see [find_detail_url] above)")
+            return jsonify({"found": False, "message": f"{dmo_code} DMO'da bulunamadı"})
+
+        d = scrape_product_detail(session, detail_url)
+        print(f"[resolve-product]   scraped → mpn={d['mpn']!r} brand={d['brand']!r} model={d['model']!r} price={d['price']}")
+        if not d["mpn"]:
+            print(f"[resolve-product] ⚠ {dmo_code} — detail page had no MPN")
+
+        result = {
+            "found": True, "dmo_code": dmo_code, "url": detail_url,
+            "mpn": d["mpn"], "brand": d["brand"], "model": d["model"],
+            "price": d["price"] if d["price"] is not None else card_price,
+        }
+        print(f"[resolve-product] ✓ {dmo_code} → {result}")
+        return jsonify(result)
+
+    except Exception as e:
+        print(f"[resolve-product] ‼ EXCEPTION for {dmo_code}: {e}")
+        traceback.print_exc()
+        return jsonify({"error": str(e)}), 500
 @app.route("/parse-pdf", methods=["POST"])
 def parse_pdf():
     if "pdf" not in request.files:
@@ -206,10 +314,10 @@ def parse_pdf():
 def find_dmo_url():
     data       = request.get_json()
     dmo_code   = str(data.get("dmo_code", "")).strip()
-    product_id = str(data.get("product_id", "")).strip()
+    dmo_id = str(data.get("dmo_id", "")).strip()
 
-    if not dmo_code or not product_id:
-        return jsonify({"error": "dmo_code ve product_id zorunlu"}), 400
+    if not dmo_code or not dmo_id:
+        return jsonify({"error": "dmo_code ve dmo_id zorunlu"}), 400
 
     try:
         session = requests.Session()
@@ -283,7 +391,7 @@ def find_dmo_url():
         if matched_price is not None:
             update_payload["dmo_fiyat_try"] = matched_price
 
-        db.table("products").update(update_payload).eq("id", product_id).execute()
+        db.table("dmo_products").update(update_payload).eq("id", dmo_id).execute()
 
         dmo_eur_rate=(float(matched_price)/1.08)/355
 
@@ -304,14 +412,6 @@ def find_dmo_url():
                 print(f"Database Error: {e}")
                 # This print will show up in your terminal, helping you debug!
 
-        # ── Insert price history if price found ───────────────────────────────
-        if matched_price is not None:
-            ref = db.table("products").select("sozlesme_fiyat_eur").eq("id", product_id).single().execute()
-            db.table("product_price_history").insert({
-                "product_id":         product_id,
-                "dmo_fiyat_try":      matched_price,
-                "sozlesme_fiyat_eur": ref.data.get("sozlesme_fiyat_eur") if ref.data else None,
-            }).execute()
 
         return jsonify({
             "found": True,
@@ -333,7 +433,7 @@ def scrape_dmo_prices():
     time.sleep(2)  # wait after homepage visit
 
     # ── Fetch products with URLs ──────────────────────────────────────────────
-    res      = db.table("products").select("id, dmo_code, dmo_url, sozlesme_fiyat_eur").not_.is_("dmo_url", "null").execute()
+    res      = db.table("dmo_products").select("id, dmo_code, dmo_url, sozlesme_fiyat_eur").not_.is_("dmo_url", "null").execute()
     products = res.data
     ref_price = None
 
@@ -353,23 +453,15 @@ def scrape_dmo_prices():
             results["failed"].append(product["dmo_code"])
             continue
 
-        core_keys = [
-            "Ürün Tipi", "Orijinal Ürün Kodu", "Marka", "Model",
-            "Baskı Kapasitesi", "Renk", "Kullanıldığı Yazıcı Modelleri", "Ürün Türü"
-        ]
-        dmo_specs = {k: v for k, v in scraped["specs"].items() if k in core_keys}
-        dmo_notes = {k: v for k, v in scraped["specs"].items() if k not in core_keys}
 
-        db.table("products").update({
+        db.table("dmo_products").update({
             "dmo_fiyat_try":     scraped["price"],
-            "dmo_specs":         dmo_specs,
-            "dmo_notes":         dmo_notes,
             "dmo_fiyat_updated": "now()",
             "updated_at":        "now()",
         }).eq("id", product["id"]).execute()
 
         db.table("product_price_history").insert({
-            "product_id":         product["id"],
+            "dmo_id":         product["id"],
             "dmo_fiyat_try":      scraped["price"],
             "sozlesme_fiyat_eur": product["sozlesme_fiyat_eur"],
         }).execute()
@@ -453,8 +545,6 @@ def debug_dmo():
         "prices": prices,
         "page_title": soup.title.get_text() if soup.title else None,
     })
-
-
 
 
 

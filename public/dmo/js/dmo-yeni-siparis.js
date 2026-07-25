@@ -2,30 +2,7 @@
 let pdfs           = [];
 let activePdfIndex = null;
 
-// ── LOAD URUNLER ──────────────────────────────────────────────────────────────
-async function loadUrunler() {
-    if (urunlerLoaded) return;
-    const {data, error} = await db
-        .from("products")
-        .select("dmo_code, product_name, maliyet_usd");
 
-    if (error) {
-        showToast("Ürünler yüklenemedi: " + error.message, "error");
-        return;
-    }
-
-
-    data.forEach(p => {
-        if (p.dmo_code) {
-            URUNLER[parseInt(p.dmo_code)] = {
-                urun: p.product_name,
-                maliyet_usd: p.maliyet_usd || 0,
-            };
-        }
-    });
-
-    urunlerLoaded = true;
-}
 
 
 async function handleDrop(event) {
@@ -423,18 +400,7 @@ function renderLineItems(items) {
         tbody.appendChild(buildLineItemRow(item, index));
     });
 
-    // Footer total
-    const footer = document.getElementById("lineItemsFooter");
-    if (footer) {
-        const total = regularItems.reduce((s, i) => s + (parseFloat(i["TUTARI (TL)"]) || 0), 0);
-        footer.innerHTML = `
-            <tr style="border-top:0.5px solid var(--color-border-tertiary); background:var(--color-background-secondary);">
-                <td colspan="4" style="padding:8px 12px; font-size:12px; color:#94a3b8;">${regularItems.length} kalem</td>
-                <td style="padding:8px 12px; text-align:right; font-weight:600; font-size:13px;">${formatAmount(total)} ₺</td>
-                <td></td>
-            </tr>
-        `;
-    }
+
 
     if (giftItems.length > 0) {
         const giftHeader = document.createElement("tr");
@@ -472,148 +438,63 @@ function renderLineItems(items) {
 
     calculateDMOBasket(window._lastParsedItems.filter(i => !i.is_gift));
     // Check for missing maliyet
-    const missingMaliyet = (window._lastParsedItems || [])
-        .filter(i => !i.is_gift)
-        .filter(i => {
-            const mal = getLineItemMaliyetTL(i);
-            return mal === null || mal === 0;
-        })
-        .map(i => i["KATALOG KOD NO"] || "?");
 
-    if (missingMaliyet.length > 0) {
-        showModalAlert(
-            `Şu ürünler için maliyet bulunamadı: <strong>${missingMaliyet.join(", ")}</strong> — Karlılık hesabı eksik olabilir.`,
-            "warn"
-        );
-    } else {
-        clearModalAlert();
-    }
 }
 
 function buildLineItemRow(item, index) {
     const katalogKod   = item["KATALOG KOD NO"] || "";
     const malzemeAdi   = item["MALZEMENIN CINSI(VARSA MARKA VE MODELI)"] || "";
     const malzemeKodu  = item["MALZEME_KODU"] || "";
-    const dmoFiyat     = parseFloat(item["KAT.SÖZ.FIY.(TL)"])                || 0;
-    const indirimPct   = parseFloat(item["TOPLAM"])                   || 0;
-    const indirimFiyat = parseFloat(item["ALIMA ESAS INDIRMLI BIRIM FIYAT"])  || 0;
-    const miktar       = parseFloat(item["MIKTAR"] || "0")                    || 0;
-    const toplam       = parseFloat(item["TUTARI (TL)"])                      || 0;
-    const maliyetTL    = getLineItemMaliyetTL(item);
-    const hasMaliyet   = maliyetTL !== null && maliyetTL > 0;
-    const detailId     = `line-detail-${index}`;
-    const chevronId    = `line-chevron-${index}`;
+    const indirimFiyat = parseFloat(item["ALIMA ESAS INDIRMLI BIRIM FIYAT"]) || 0;
+    const miktar       = parseFloat(item["MIKTAR"] || "0") || 0;
+    const toplam       = parseFloat(item["TUTARI (TL)"]) || 0;
 
-    const fragment = document.createDocumentFragment();
+    const cell   = "padding:9px 8px; vertical-align:middle;";
+    const inp    = "width:100%; background:transparent; border:none; outline:none; font-family:inherit; font-size:13px; color:inherit; padding:3px 4px; border-radius:4px; transition:background .12s;";
+    const inpR   = inp + " text-align:right;";
+    const focus  = "this.style.background='var(--color-background-secondary)'";
+    const blur   = "this.style.background='transparent'";
 
-    // ── MAIN ROW ──────────────────────────────────────────────────────────────
-    const mainRow = document.createElement("tr");
-    mainRow.style.cursor = "pointer";
-    mainRow.style.borderTop = "0.5px solid var(--color-border-tertiary)";
-    mainRow.onclick = () => toggleLineDetail(detailId, chevronId);
-    mainRow.innerHTML = `
-        <td style="padding:10px 8px; text-align:center;">
-            <i id="${chevronId}" class="ti ti-chevron-right"
-               style="font-size:12px; color:#64748b; transition:transform 0.15s;"
-               aria-hidden="true"></i>
+    const row = document.createElement("tr");
+    row.style.borderTop = "0.5px solid var(--color-border-tertiary)";
+    row.innerHTML = `
+        <td style="${cell}">
+            <input type="text" value="${escapeHtml(malzemeAdi)}" placeholder="Ürün adı"
+                oninput="updateLineItemField(${index}, 'adi', this.value)"
+                onfocus="${focus}" onblur="${blur}" style="${inp} font-weight:500;">
         </td>
-        <td style="padding:10px 8px; font-size:12px; color:#64748b;">${escapeHtml(katalogKod)}</td>
-        <td style="padding:10px 8px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">
-            ${escapeHtml(malzemeAdi)}
-            ${!hasMaliyet ? `<span style="margin-left:6px; font-size:11px; background:#fef3c7; color:#92400e; padding:1px 6px; border-radius:4px;">maliyet yok</span>` : ""}
+        <td style="${cell}">
+            <input type="text" value="${escapeHtml(malzemeKodu)}" placeholder="—"
+                oninput="updateLineItemField(${index}, 'kodu', this.value)"
+                onfocus="${focus}" onblur="${blur}" style="${inp} font-size:12px; color:#64748b;">
         </td>
-        <td style="padding:10px 8px; text-align:right;">${miktar}</td>
-        <td style="padding:10px 8px; text-align:right; font-weight:600;">${formatAmount(toplam)} ₺</td>
-        <td style="padding:10px 8px; text-align:center;">
-            <button type="button" onclick="event.stopPropagation(); removeLineItem(${index})"
-                style="background:none; border:none; cursor:pointer; padding:2px; color:#94a3b8;"
-                title="Sil">
+        <td style="${cell}">
+            <input type="text" value="${escapeHtml(katalogKod)}" placeholder="—"
+                oninput="updateLineItemField(${index}, 'katalog', this.value)"
+                onfocus="${focus}" onblur="${blur}" style="${inp} font-size:12px; color:#64748b;">
+        </td>
+        <td style="${cell}">
+            <input type="number" step="0.01" value="${indirimFiyat}"
+                oninput="updateLineItemField(${index}, 'indirimFiyat', this.value)"
+                onfocus="${focus}" onblur="${blur}" style="${inpR}">
+        </td>
+        <td style="${cell}">
+            <input type="number" step="1" value="${miktar}"
+                oninput="updateLineItemField(${index}, 'miktar', this.value)"
+                onfocus="${focus}" onblur="${blur}" style="${inpR}">
+        </td>
+        <td style="${cell} text-align:right; font-weight:600; white-space:nowrap;">${formatAmount(toplam)} ₺</td>
+        <td style="${cell} text-align:center;">
+            <button type="button" onclick="removeLineItem(${index})"
+                style="background:none; border:none; cursor:pointer; padding:2px; color:#94a3b8;" title="Sil">
                 <i class="ti ti-trash" style="font-size:14px;" aria-hidden="true"></i>
             </button>
         </td>
     `;
-
-    // ── DETAIL ROW ────────────────────────────────────────────────────────────
-    const detailRow = document.createElement("tr");
-    detailRow.id = detailId;
-    detailRow.style.display = "none";
-    detailRow.style.background = "var(--color-background-secondary)";
-    detailRow.innerHTML = `
-        <td colspan="6" style="padding:0 12px 12px 44px;">
-            <div style="display:grid; grid-template-columns:repeat(4,1fr); gap:10px; padding-top:12px; border-top:0.5px solid var(--color-border-tertiary);">
-                <div>
-                    <div style="font-size:11px; color:#94a3b8; margin-bottom:4px;">Ürün Kodu</div>
-                    <input type="text" value="${escapeHtml(malzemeKodu)}"
-                        oninput="updateLineItemField(${index}, 'kodu', this.value)"
-                        style="font-size:13px; font-weight:500; width:100%; background:transparent; border:none; border-bottom:1px solid #334155; color:inherit; outline:none; padding:2px 0;">
-                </div>
-                <div>
-                    <div style="font-size:11px; color:#94a3b8; margin-bottom:4px;">DMO Birim Fiyat</div>
-                    <input type="number" step="0.01" value="${dmoFiyat}"
-                        oninput="updateLineItemField(${index}, 'dmoFiyat', this.value)"
-                        style="font-size:13px; font-weight:500; width:100%; background:transparent; border:none; border-bottom:1px solid #334155; color:inherit; outline:none; padding:2px 0;">
-                </div>
-                <div>
-                    <div style="font-size:11px; color:#94a3b8; margin-bottom:4px;">İndirim %</div>
-                    <input type="number" step="0.01" value="${indirimPct}"
-                        oninput="updateLineItemField(${index}, 'indirimPct', this.value)"
-                        style="font-size:13px; font-weight:500; width:100%; background:transparent; border:none; border-bottom:1px solid #334155; color:inherit; outline:none; padding:2px 0;">
-                </div>
-                <div>
-                    <div style="font-size:11px; color:#94a3b8; margin-bottom:4px;">İndirimli Birim</div>
-                    <input type="number" step="0.01" value="${indirimFiyat}"
-                        oninput="updateLineItemField(${index}, 'indirimFiyat', this.value)"
-                        style="font-size:13px; font-weight:500; width:100%; background:transparent; border:none; border-bottom:1px solid #334155; color:inherit; outline:none; padding:2px 0;">
-                </div>
-                <div>
-                    <div style="font-size:11px; color:#94a3b8; margin-bottom:4px;">Ürün Adı</div>
-                    <input type="text" value="${escapeHtml(malzemeAdi)}"
-                        oninput="updateLineItemField(${index}, 'adi', this.value)"
-                        style="font-size:13px; font-weight:500; width:100%; background:transparent; border:none; border-bottom:1px solid #334155; color:inherit; outline:none; padding:2px 0;">
-                </div>
-                <div>
-                    <div style="font-size:11px; color:#94a3b8; margin-bottom:4px;">Katalog Kod</div>
-                    <input type="text" value="${escapeHtml(katalogKod)}"
-                        oninput="updateLineItemField(${index}, 'katalog', this.value)"
-                        style="font-size:13px; font-weight:500; width:100%; background:transparent; border:none; border-bottom:1px solid #334155; color:inherit; outline:none; padding:2px 0;">
-                </div>
-                <div>
-                    <div style="font-size:11px; color:#94a3b8; margin-bottom:4px;">Adet</div>
-                    <input type="number" step="1" value="${miktar}"
-                        oninput="updateLineItemField(${index}, 'miktar', this.value)"
-                        style="font-size:13px; font-weight:500; width:100%; background:transparent; border:none; border-bottom:1px solid #334155; color:inherit; outline:none; padding:2px 0;">
-                </div>
-                <div>
-                    <div style="font-size:11px; color:#94a3b8; margin-bottom:4px;">Maliyet (₺)</div>
-                    <div style="font-size:13px; font-weight:500; padding:2px 0; color:${hasMaliyet ? 'inherit' : '#f59e0b'};">
-                        ${hasMaliyet ? formatAmount(maliyetTL) + " ₺" : "— bulunamadı"}
-                    </div>
-                </div>
-            </div>
-        </td>
-    `;
-
-    fragment.appendChild(mainRow);
-    fragment.appendChild(detailRow);
-    return fragment;
+    return row;
 }
 
-function toggleLineDetail(detailId, chevronId) {
-    const detail  = document.getElementById(detailId);
-    const chevron = document.getElementById(chevronId);
-    if (!detail || !chevron) return;
-    const isOpen = detail.style.display !== "none";
-    detail.style.display    = isOpen ? "none" : "table-row";
-    chevron.style.transform = isOpen ? "" : "rotate(90deg)";
-}
-function getLineItemMaliyetTL(item) {
-    const katalogKodInt = parseInt(pickItemValue(item, ["KATALOG KOD NO", "SIRA NO KATALOG KOD NO"], "0") || "0", 10);
-    const miktar        = parseFloat(item["MIKTAR"] || "0") || 0;
-    const usdRate       = parseFloat(document.getElementById("usd_rate")?.value) || 45;
-    const urun          = URUNLER[katalogKodInt];
-    if (!urun || usdRate <= 0 || miktar <= 0) return null;
-    return urun.maliyet_usd * miktar * usdRate;
-}
+
 
 function updateLineItemField(index, field, value) {
     if (!Array.isArray(window._lastParsedItems) || !window._lastParsedItems[index]) return;
@@ -663,32 +544,15 @@ function addLineItem() {
     // Auto-expand the new row
     const newIndex = window._lastParsedItems.filter(i => !i.is_gift).length - 1;
     // Auto-expand the new row (always index 0 since we unshift)
-    setTimeout(() => toggleLineDetail(`line-detail-0`, `line-chevron-0`), 50);
 }
 // ── CALCULATIONS ──────────────────────────────────────────────────────────────
 function calculateDMOBasket(items) {
     const total = items.reduce((sum, item) => sum + (parseFloat(item["TUTARI (TL)"]) || 0), 0);
     if (total > 0) {
         setField("dmo_basket", total.toFixed(2));
-        calculateInokasBasket();
     }
 }
 
-function calculateInokasBasket() {
-    const usdRate = parseFloat(document.getElementById("stat-usd-rate")?.value) || 45;
-    if (!window._lastParsedItems) return;
-
-    let inokasTotal = 0;
-    window._lastParsedItems.forEach(item => {
-        const katalogKod = parseInt(item["SIRA NO KATALOG KOD NO"] || item["KATALOG KOD NO"] || "0");
-        const miktar     = parseInt(item["MIKTAR"] || "0");
-        const urun       = URUNLER[katalogKod];
-        if (urun && usdRate > 0) inokasTotal += urun.maliyet_usd * miktar * usdRate;
-    });
-
-    setField("inokas_basket", inokasTotal.toFixed(2));
-    calculateProfit();
-}
 
 function computeInvoiceMetrics(dmoBasket, inokasBasket, stampTax) {
     const kdv         = dmoBasket * 0.20;
@@ -836,20 +700,39 @@ function resetFormFields() {
 
 // ── UPLOAD PDF TO STORAGE ─────────────────────────────────────────────────────
 async function uploadPDFToStorage(file, salesOrderNo) {
-    const fileName = `${salesOrderNo}_${Date.now()}.pdf`;
-    const { data, error } = await db.storage
-        .from("dmo-pdfs")
-        .upload(fileName, file, { contentType: "application/pdf", upsert: true });
+    const fd = new FormData();
+    fd.append("pdf", file);
+    fd.append("salesOrderNo", salesOrderNo);
+    try {
+        const res = await fetch("/api/dmo/upload-pdf", { method: "POST", body: fd });
+        if (!res.ok) throw new Error("HTTP " + res.status);
+        const { url } = await res.json();
+        return url || null;
+    } catch (err) {
+        console.error("PDF upload error:", err.message);
+        return null;
+    }
+}
 
-    if (error) { console.error("PDF upload error:", error.message); return null; }
-
-    const { data: urlData } = db.storage.from("dmo-pdfs").getPublicUrl(fileName);
-    return urlData?.publicUrl || null;
+function buildOrderItems(parsedItems) {
+    return (parsedItems || []).map(item => {
+        const katalogKod = parseInt(item["KATALOG KOD NO"] || "0");
+        return {
+            product_code:        item["MALZEME_KODU"] || null,
+            product_name:        item["MALZEMENIN CINSI(VARSA MARKA VE MODELI)"] || null,
+            dmo_code:            katalogKod ? katalogKod.toString() : null,
+            quantity:            parseInt(item["MIKTAR"] || "0"),
+            unit_price_excl_vat: parseFloat(item["ALIMA ESAS INDIRMLI BIRIM FIYAT"] || "0") || 0,
+            line_total_excl_vat: parseFloat(item["TUTARI (TL)"]) || 0,
+            is_gift:             !!item.is_gift,
+            indirim_pct:         parseFloat(item["TOPLAM INDIRIM"] || item["TOPLAM"] || "0") || 0,
+        };
+    });
 }
 
 // ── SAVE ORDER ────────────────────────────────────────────────────────────────
 async function saveOrder() {
-    snapshotForm(); // flush current form state into pdfs[activePdfIndex]
+    snapshotForm();
     const salesOrderNo = document.getElementById("sales_order_no")?.value?.trim();
     if (!salesOrderNo) {
         showModalAlert("Satış Sipariş No bulunamadı!", "error");
@@ -859,53 +742,25 @@ async function saveOrder() {
     const purchaseOrderNo = document.getElementById("purchase_order_no")?.value?.trim();
     const usdRate         = parseFloat(getCurrentRates().usd_try) || 0;
 
-    // Calculate from line items directly — don't rely on DOM inputs
-    const regularItems  = (window._lastParsedItems || []).filter(i => !i.is_gift);
-    const giftItems     = (window._lastParsedItems || []).filter(i =>  i.is_gift);
+    // Price/tax side (client, PDF-derived); cost side is computed server-side
+    const regularItems = (window._lastParsedItems || []).filter(i => !i.is_gift);
 
-    // DMO basket = catalog price × qty (before discount)
     const dmoBasket = regularItems.reduce((s, i) =>
         s + (parseFloat(i["KAT.SÖZ.FIY.(TL)"] || 0) * (parseFloat(i["MIKTAR"]) || 0)), 0);
-
-    // Actual basket = discounted price × qty (what customer pays)
-    const actualBasket = regularItems.reduce((s, i) =>
-        s + (parseFloat(i["TUTARI (TL)"] || 0)), 0);
-
-    // Tutar indirimi = difference
+    const actualBasket = regularItems.reduce((s, i) => s + (parseFloat(i["TUTARI (TL)"] || 0)), 0);
     const tutarIndirimi   = dmoBasket - actualBasket;
     const tutarIndirimPct = dmoBasket > 0 ? (tutarIndirimi / dmoBasket * 100) : 0;
 
-    // Inokas basket from URUNLER
-    const inokasBasket = regularItems.reduce((s, i) => {
-        const kod  = parseInt(i["KATALOG KOD NO"] || "0");
-        const qty  = parseFloat(i["MIKTAR"] || "0");
-        const urun = URUNLER[kod];
-        return s + (urun ? urun.maliyet_usd * qty * usdRate : 0);
-    }, 0);
-
-    // Gift total
-    const giftTotal = giftItems.reduce((s, i) => {
-        const kod  = parseInt(i["KATALOG KOD NO"] || "0");
-        const qty  = parseFloat(i["MIKTAR"] || "0");
-        const urun = URUNLER[kod];
-        return s + (urun ? urun.maliyet_usd * qty * usdRate : 0);
-    }, 0);
-
-    const stampTax = parseFloat(document.getElementById("stamp_tax")?.value) || 0;
-
-    // All taxes on actualBasket
-    const kdv          = actualBasket * 0.20;
-    const tevkifat     = kdv * 0.20;
-    const gercekKdv    = kdv - tevkifat;
-    const risturn      = actualBasket * 0.01;
-    const damgaKarar   = actualBasket * 0.01517;
-    const toplamGelir  = actualBasket + gercekKdv;
-    const toplamGider  = inokasBasket + tutarIndirimi + tevkifat + risturn + damgaKarar + giftTotal;
-    const netProfit    = toplamGelir - toplamGider;
-    const profitPct    = toplamGelir > 0 ? (netProfit / toplamGelir * 100) : 0;
+    const stampTax    = parseFloat(document.getElementById("stamp_tax")?.value) || 0;
+    const kdv         = actualBasket * 0.20;
+    const tevkifat    = kdv * 0.20;
+    const gercekKdv   = kdv - tevkifat;
+    const risturn     = actualBasket * 0.01;
+    const toplamGelir = actualBasket + gercekKdv;
 
     try {
         showModalAlert("Kaydediliyor...", "info");
+
         let pdfUrl = null;
         const activePdf = pdfs[activePdfIndex];
         if (activePdf?.file) {
@@ -913,112 +768,7 @@ async function saveOrder() {
             pdfUrl = await uploadPDFToStorage(activePdf.file, salesOrderNo);
         }
 
-        // ── TASLAK MERGE ──────────────────────────────────────────────────────
-        if (_editingOrderId && _isTaslakMerge) {
-            showModalAlert("Taslak güncelleniyor...", "info");
-
-            const { data: giftItems } = await db
-                .from("dmo_order_items").select("*")
-                .eq("order_id", _editingOrderId).eq("is_gift", true);
-
-            await db.from("dmo_order_items").delete()
-                .eq("order_id", _editingOrderId).eq("is_gift", false);
-
-            const { error: updateError } = await db.from("dmo_orders").update({
-                sales_order_no:      salesOrderNo,
-                purchase_order_no:   purchaseOrderNo,
-                customer_name:       document.getElementById("customer_name")?.value,
-                customer_no:         document.getElementById("customer_no")?.value,
-                order_date:          parseOrderDate(document.getElementById("order_date")?.value),
-                due_date:            document.getElementById("last_order_date")?.value || null,
-                stamp_tax:           stampTax,
-                stamp_tax_total:     stampTax,
-                pdf_url:             pdfUrl,
-                usd_rate:            usdRate,
-                dmo_basket_total:    dmoBasket,
-                real_dmo_basket:     actualBasket,
-                tutar_indirimi:      tutarIndirimi,
-                tutar_indirimi_pct:  tutarIndirimPct,
-                inokas_basket_total: inokasBasket,
-                gift_total:          giftTotal,
-                kdv_amount:          kdv,
-                tevkifat:            tevkifat,
-                gercek_kdv:          gercekKdv,
-                risturn_amount:      risturn,
-                toplam_gelir:        toplamGelir,
-                toplam_gider:        toplamGider,
-                net_profit:          netProfit,
-                profit_percentage:   profitPct,
-                status:              "Sipariş Alındı",
-            }).eq("id", _editingOrderId);
-
-            if (updateError) { showModalAlert("Güncelleme başarısız: " + updateError.message, "error"); return; }
-
-            const items = window._lastParsedItems || [];
-            let failedItems = 0;
-            for (const item of items) {
-                const katalogKod  = parseInt(item["KATALOG KOD NO"] || "0");
-                const malzemeKodu = item["MALZEME_KODU"] || null;
-                const miktar      = parseInt(item["MIKTAR"] || "0");
-                const unitPrice   = parseFloat(item["ALIMA ESAS INDIRMLI BIRIM FIYAT"] || "0");
-                const lineTotal   = parseFloat(item["TUTARI (TL)"]) || 0;
-                let productId     = null;
-
-                if (malzemeKodu) {
-                    const { data: ep } = await db.from("products").select("id").eq("product_code", malzemeKodu).maybeSingle();
-                    if (ep) {
-                        productId = ep.id;
-                    } else {
-                        const urun = URUNLER[katalogKod];
-                        const { data: np, error: pe } = await db.from("products").insert({
-                            product_code: malzemeKodu,
-                            product_name: item["MALZEMENIN CINSI(VARSA MARKA VE MODELI)"] || malzemeKodu,
-                            dmo_code:     katalogKod.toString(),
-                            last_purchase_price_cur: urun ? urun.maliyet_usd : 0,
-                            last_purchase_currency:  "USD",
-                        }).select().single();
-                        if (!pe) productId = np.id;
-                    }
-                }
-
-                const { error: ie } = await db.from("dmo_order_items").insert({
-                    order_id: _editingOrderId, product_id: productId,
-                    quantity: miktar, unit_price_excl_vat: unitPrice,
-                    line_total_excl_vat: lineTotal, is_gift: false,
-                    katalog_kod: katalogKod.toString(),
-                    maliyet_usd: URUNLER[katalogKod]?.maliyet_usd || 0,
-                });
-                if (ie) failedItems++;
-            }
-
-            if (failedItems > 0) {
-                showModalAlert(`Güncellendi fakat ${failedItems} kalem hatalı!`, "warn");
-            } else {
-                showModalAlert("Sipariş başarıyla kaydedildi! ✓", "success");
-                setTimeout(() => {
-                    // Remove the saved PDF tab
-                    removePdf(activePdfIndex);
-
-                    // If more PDFs remain, stay on the page
-                    if (pdfs.length > 0) {
-                        showModalAlert("", "info");
-                        clearModalAlert();
-                    } else {
-                        // All PDFs saved — redirect
-                        if (window._onOrderSaved) window._onOrderSaved();
-                    }
-                }, 1000);
-            }
-            return;
-        }
-
-        // ── DUPLICATE CHECK ───────────────────────────────────────────────────
-        const { data: existing } = await db.from("dmo_orders").select("id")
-            .eq("sales_order_no", salesOrderNo).maybeSingle();
-        if (existing) { showModalAlert("Bu sipariş zaten kayıtlı: " + salesOrderNo, "error"); return; }
-
-        // ── INSERT ORDER ──────────────────────────────────────────────────────
-        const { data: order, error: orderError } = await db.from("dmo_orders").insert({
+        const orderPayload = {
             sales_order_no:        salesOrderNo,
             purchase_order_no:     purchaseOrderNo,
             customer_name:         document.getElementById("customer_name")?.value,
@@ -1033,77 +783,88 @@ async function saveOrder() {
             real_dmo_basket:       actualBasket,
             tutar_indirimi:        tutarIndirimi,
             tutar_indirimi_pct:    tutarIndirimPct,
-            inokas_basket_total:   inokasBasket,
-            gift_total:            giftTotal,
             kdv_amount:            kdv,
             tevkifat:              tevkifat,
             gercek_kdv:            gercekKdv,
             risturn_amount:        risturn,
             toplam_gelir:          toplamGelir,
-            toplam_gider:          toplamGider,
-            net_profit:            netProfit,
-            profit_percentage:     profitPct,
             total_amount_excl_vat: dmoBasket,
-            status:                "Sipariş Alındı",
-        }).select().single();
+        };
 
-        if (orderError) { showModalAlert("Sipariş kaydedilemedi: " + orderError.message, "error"); return; }
+        // Taslak merge re-inserts only regular items (gifts kept); fresh insert sends all
+        const isMerge     = !!(_editingOrderId && _isTaslakMerge);
+        const itemsSource = isMerge ? regularItems : (window._lastParsedItems || []);
+        const items       = buildOrderItems(itemsSource);
 
-        // ── INSERT LINE ITEMS ─────────────────────────────────────────────────
-        const items = window._lastParsedItems || [];
-        let failedItems = 0;
+        // Resolve/scrape unknown codes first (blocks if any can't be found on DMO)
+        const resolveResults = await resolveUnknownProducts(items);
+        const unresolved = Object.entries(resolveResults)
+            .filter(([, r]) => !r.resolved)
+            .map(([code]) => code);
 
-        for (const item of items) {
-            const katalogKod  = parseInt(item["KATALOG KOD NO"] || "0");
-            const malzemeKodu = item["MALZEME_KODU"] || null;
-            const miktar      = parseInt(item["MIKTAR"] || "0");
-            const unitPrice   = parseFloat(item["ALIMA ESAS INDIRMLI BIRIM FIYAT"] || "0") || 0;
-            const lineTotal   = parseFloat(item["TUTARI (TL)"]) || 0;
-            let productId     = null;
+        const res = await fetch("/api/dmo/orders/received", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ orderId: _editingOrderId || null, isMerge, order: orderPayload, items }),
+        });
 
-            if (malzemeKodu) {
-                const { data: ep } = await db.from("products").select("id").eq("product_code", malzemeKodu).maybeSingle();
-                if (ep) {
-                    productId = ep.id;
-                } else {
-                    const urun = URUNLER[katalogKod];
-                    const { data: np, error: pe } = await db.from("products").insert({
-                        product_code: malzemeKodu,
-                        product_name: item["MALZEMENIN CINSI(VARSA MARKA VE MODELI)"] || malzemeKodu,
-                        dmo_code:     katalogKod.toString(),
-                        last_purchase_price_cur: urun ? urun.maliyet_usd : 0,
-                        last_purchase_currency:  "USD",
-                    }).select().single();
-                    if (pe) { failedItems++; continue; }
-                    productId = np.id;
-                }
-            }
-
-            const indirimPct = parseFloat(item["TOPLAM INDIRIM"] || item["TOPLAM"] || "0") || 0;
-            await db.from("dmo_order_items").insert({
-                order_id:            order.id,
-                product_id:          productId,
-                quantity:            miktar,
-                unit_price_excl_vat: unitPrice,
-                line_total_excl_vat: lineTotal,
-                indirim_pct:         indirimPct,
-            });
+        if (res.status === 409) {
+            const e = await res.json().catch(() => ({}));
+            showModalAlert(e.error || "Bu sipariş zaten kayıtlı", "error");
+            return;
+        }
+        if (!res.ok) {
+            const e = await res.json().catch(() => ({}));
+            showModalAlert("Sipariş kaydedilemedi: " + (e.error || res.status), "error");
+            return;
         }
 
-        if (failedItems > 0) {
-            showModalAlert(`Sipariş kaydedildi fakat ${failedItems} kalem hatalı!`, "warn");
-        } else {
-            showModalAlert("Sipariş başarıyla kaydedildi! ✓", "success");
-            setTimeout(() => {
-                removePdf(activePdfIndex);
-                if (window._onOrderSaved) window._onOrderSaved();
-            }, 1000);
-        }
+        const { failed, zeroCostCodes } = await res.json();
+        const warnings = [];
+        if (failed > 0)            warnings.push(`${failed} kalem hatalı`);
+
+
+        showModalAlert(
+            warnings.length ? "Sipariş kaydedildi — " + warnings.join(", ") : "Sipariş başarıyla kaydedildi! ✓",
+            warnings.length ? "warn" : "success"
+        );
+        setTimeout(() => {
+            removePdf(activePdfIndex);
+            if (pdfs.length > 0) clearModalAlert();       // more PDFs queued → stay
+            else if (window._onOrderSaved) window._onOrderSaved();
+        }, warnings.length ? 1600 : 1000);
 
     } catch (err) {
         console.error("saveOrder error:", err);
         showModalAlert("Beklenmeyen hata: " + err.message, "error");
     }
+}
+async function resolveUnknownProducts(items) {
+    const codes = [...new Set((items || []).map(i => i.dmo_code).filter(Boolean))];
+    const results = {};
+    let done = 0;
+    showModalAlert(`Ürünler DMO'dan çekiliyor… (0/${codes.length})`, "info");
+    for (const code of codes) {
+        try {
+            const res = await fetch("/api/dmo/resolve-product", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ dmo_code: code }),
+            });
+            showModalAlert(`ürün bilgileri çekildi${await res.json()})`, "info");
+            const data = await res.json();
+            results[code] = data;
+            showModalAlert(
+                data.resolved ? `Ürün bulundu: ${code}` : `Ürün bulunamadı: ${code}`,
+                "info"
+            );
+        } catch (e) {
+            results[code] = { resolved: false, reason: "error" };
+        }
+        done++;
+        showModalAlert(`Ürünler DMO'dan çekiliyor… (${done}/${codes.length})`, "info");
+    }
+    return results;
 }
 
 function toggleYSVergiler() {
@@ -1113,161 +874,118 @@ function toggleYSVergiler() {
     detail.style.display  = isOpen ? "none" : "block";
     arrow.style.transform = isOpen ? "" : "rotate(90deg)";
 }
-function updateYSStats() {
+async function updateYSStats() {
     const items        = window._lastParsedItems || [];
     const regularItems = items.filter(i => !i.is_gift);
 
-    // Nothing to show — clear and return
+    const ids = ["ys-dmo-basket","ys-inokas-basket","ys-kdv","ys-gercek-kdv",
+        "ys-tutar-indirimi","ys-tevkifat","ys-risturn","ys-damga-karar",
+        "ys-vergiler-total","ys-gift-total","ys-toplam-gelir","ys-toplam-gider",
+        "ys-net-profit","ys-profit-pct"];
+    const set = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
+
     if (regularItems.length === 0) {
-        const ids = [
-            "ys-dmo-basket", "ys-inokas-basket", "ys-kdv", "ys-gercek-kdv",
-            "ys-tutar-indirimi", "ys-tevkifat", "ys-risturn", "ys-damga-karar",
-            "ys-vergiler-total", "ys-gift-total", "ys-toplam-gelir", "ys-toplam-gider",
-            "ys-net-profit", "ys-profit-pct"
-        ];
-        ids.forEach(id => {
-            const el = document.getElementById(id);
-            if (el) el.textContent = "—";
-        });
-        const pct = document.getElementById("ys-tutar-indirimi-pct");
-        if (pct) pct.textContent = "%0";
+        ids.forEach(id => set(id, "—"));
+        set("ys-tutar-indirimi-pct", "%0");
         return;
     }
 
-    const giftItems    = items.filter(i =>  i.is_gift);
+    // ── Price/tax side (client, PDF-derived) ──
+    const dmoBasket    = regularItems.reduce((s, i) => s + (parseFloat(i["KAT.SÖZ.FIY.(TL)"] || 0) * (parseFloat(i["MIKTAR"]) || 0)), 0);
+    const actualBasket = regularItems.reduce((s, i) => s + (parseFloat(i["TUTARI (TL)"] || 0)), 0);
+    const tutarIndirimi   = dmoBasket - actualBasket;
+    const tutarIndirimPct = dmoBasket > 0 ? (tutarIndirimi / dmoBasket * 100) : 0;
+    const kdv         = actualBasket * 0.20;
+    const tevkifat    = kdv * 0.20;
+    const gercekKdv   = kdv - tevkifat;
+    const risturn     = actualBasket * 0.01;
+    const damgaKarar  = actualBasket * 0.01517;
+    const vergiler    = tevkifat + risturn + damgaKarar;
+    const toplamGelir = actualBasket + gercekKdv;
 
-    // DMO basket = sum of catalog price × qty (before discount)
-    const dmoBasket = regularItems.reduce((s, i) =>
-        s + (parseFloat(i["KAT.SÖZ.FIY.(TL)"] || 0) * (parseFloat(i["MIKTAR"]) || 0)), 0);
+    // ── Cost side (server) ──
+    let cost = { inokas_basket_total: 0, gift_total: 0, zeroCostCodes: [] };
+    try {
+        const res = await fetch("/api/dmo/preview-cost", {
+            method: "POST", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ items: buildOrderItems(items) }),
+        });
+        if (res.ok) cost = await res.json();
+    } catch (e) { /* leave zeros */ }
 
-    // Actual basket = sum of discounted price × qty (TUTARI TL)
-    const actualBasket = regularItems.reduce((s, i) =>
-        s + (parseFloat(i["TUTARI (TL)"] || 0)), 0);
-
-    // Tutar indirimi = difference between catalog and actual
-    const tutarIndirimi    = dmoBasket - actualBasket;
-    const tutarIndirimPct  = dmoBasket > 0 ? (tutarIndirimi / dmoBasket * 100) : 0;
-
-    // Inokas basket
-    const inokasBasket = parseFloat(document.getElementById("inokas_basket")?.value) || 0;
-
-    // Gift total
-    const usdRate   = parseFloat(getCurrentRates().usd_try) || 0;
-    const giftTotal = giftItems.reduce((s, i) => {
-        const kod  = parseInt(i["KATALOG KOD NO"] || "0");
-        const qty  = parseFloat(i["MIKTAR"] || "0");
-        const urun = URUNLER[kod];
-        return s + (urun ? urun.maliyet_usd * qty * usdRate : 0);
-    }, 0);
-
-    // Taxes on actualBasket
-    const kdv          = actualBasket * 0.20;
-    const tevkifat     = kdv * 0.20;
-    const gercekKdv    = kdv - tevkifat;
-    const risturn      = actualBasket * 0.01;
-    const damgaKarar   = actualBasket * 0.01517;
-    const vergilerTotal = tevkifat + risturn + damgaKarar;
-
-    const toplamGelir  = actualBasket + gercekKdv;
-    const toplamGider  = inokasBasket + tutarIndirimi + vergilerTotal + giftTotal;
-    const netProfit    = toplamGelir - toplamGider;
-    const profitPct    = toplamGelir > 0 ? (netProfit / toplamGelir * 100) : 0;
+    const toplamGider = cost.inokas_basket_total + tutarIndirimi + vergiler + cost.gift_total;
+    const netProfit   = toplamGelir - toplamGider;
+    const profitPct   = toplamGelir > 0 ? (netProfit / toplamGelir * 100) : 0;
 
     const fmt = v => formatAmount(v.toFixed(2)) + " ₺";
-    const set = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
-
-    set("ys-dmo-basket",        fmt(dmoBasket));
-    set("ys-inokas-basket",     fmt(inokasBasket));
-    set("ys-kdv",               fmt(kdv));
-    set("ys-gercek-kdv",        fmt(gercekKdv));
-    set("ys-tutar-indirimi",    fmt(tutarIndirimi));
+    set("ys-dmo-basket",         fmt(dmoBasket));
+    set("ys-inokas-basket",      fmt(cost.inokas_basket_total));
+    set("ys-kdv",                fmt(kdv));
+    set("ys-gercek-kdv",         fmt(gercekKdv));
+    set("ys-tutar-indirimi",     fmt(tutarIndirimi));
     set("ys-tutar-indirimi-pct", "%" + tutarIndirimPct.toFixed(1));
-    set("ys-tevkifat",          fmt(tevkifat));
-    set("ys-risturn",           fmt(risturn));
-    set("ys-damga-karar",       fmt(damgaKarar));
-    set("ys-vergiler-total",    fmt(vergilerTotal));
-    set("ys-gift-total",        fmt(giftTotal));
-    set("ys-toplam-gelir",      fmt(toplamGelir));
-    set("ys-toplam-gider",      fmt(toplamGider));
+    set("ys-tevkifat",           fmt(tevkifat));
+    set("ys-risturn",            fmt(risturn));
+    set("ys-damga-karar",        fmt(damgaKarar));
+    set("ys-vergiler-total",     fmt(vergiler));
+    set("ys-gift-total",         fmt(cost.gift_total));
+    set("ys-toplam-gelir",       fmt(toplamGelir));
+    set("ys-toplam-gider",       fmt(toplamGider));
 
     const profitEl  = document.getElementById("ys-net-profit");
     const percentEl = document.getElementById("ys-profit-pct");
-    if (profitEl) {
-        profitEl.textContent = fmt(netProfit);
-        profitEl.style.color = netProfit >= 0 ? "#16a34a" : "#dc2626";
-    }
-    if (percentEl) {
-        percentEl.textContent = profitPct.toFixed(2) + "%";
-        percentEl.style.color = profitPct >= 0 ? "#16a34a" : "#dc2626";
-    }
-}
+    if (profitEl)  { profitEl.textContent  = fmt(netProfit); profitEl.style.color  = netProfit >= 0 ? "var(--fat-green, #1a6b47)" : "var(--fat-red, #b83232)"; }
+    if (percentEl) { percentEl.textContent = profitPct.toFixed(2) + "%"; percentEl.style.color = profitPct >= 0 ? "var(--fat-green, #1a6b47)" : "var(--fat-red, #b83232)"; }
 
-function switchYSTab(tab) {
-    const bilgiTab   = document.getElementById("ys-tab-bilgi");
-    const statsTab   = document.getElementById("ys-tab-stats");
-    const bilgiPane  = document.getElementById("ys-pane-bilgi");
-    const statsPane  = document.getElementById("ys-pane-stats");
-
-    if (tab === "bilgi") {
-        bilgiTab.style.borderBottom  = "2px solid #2563eb";
-        bilgiTab.style.color         = "#2563eb";
-        bilgiTab.style.fontWeight    = "700";
-        statsTab.style.borderBottom  = "2px solid transparent";
-        statsTab.style.color         = "#64748b";
-        statsTab.style.fontWeight    = "500";
-        bilgiPane.style.display      = "flex";
-        statsPane.style.display      = "none";
+    // Zero-cost warning (server truth, replaces the old URUNLER scan)
+    if (cost.zeroCostCodes && cost.zeroCostCodes.length) {
+        showModalAlert(`Maliyeti girilmemiş ürün(ler): ${cost.zeroCostCodes.join(", ")} — kâr eksik olabilir.`, "warn");
     } else {
-        statsTab.style.borderBottom  = "2px solid #2563eb";
-        statsTab.style.color         = "#2563eb";
-        statsTab.style.fontWeight    = "700";
-        bilgiTab.style.borderBottom  = "2px solid transparent";
-        bilgiTab.style.color         = "#64748b";
-        bilgiTab.style.fontWeight    = "500";
-        bilgiPane.style.display      = "none";
-        statsPane.style.display      = "block";
+        clearModalAlert();
     }
 }
+function switchYSTab(tab) {
+    const bilgiTab  = document.getElementById("ys-tab-bilgi");
+    const kalemTab  = document.getElementById("ys-tab-kalemler");
+    const bilgiPane = document.getElementById("ys-pane-bilgi");
+    const kalemPane = document.getElementById("ys-pane-kalemler");
 
-function renderYSStats() {
-    const container = document.getElementById("ys-stats-grid");
-    if (!container) return;
-    container.innerHTML = buildStatsGridHTML();
+    const on  = "padding:10px 16px; background:none; border:none; border-bottom:2px solid #2563eb; font-size:13px; font-weight:700; color:#2563eb; cursor:pointer; font-family:inherit;";
+    const off = "padding:10px 16px; background:none; border:none; border-bottom:2px solid transparent; font-size:13px; font-weight:500; color:#64748b; cursor:pointer; font-family:inherit;";
 
-    const dmoBasket    = parseFloat(document.getElementById("dmo_basket")?.value)    || 0;
-    const inokasBasket = parseFloat(document.getElementById("inokas_basket")?.value) || 0;
-    const stampTax     = parseFloat(document.getElementById("stamp_tax")?.value)     || 0;
-
-    const m = computeInvoiceMetrics(dmoBasket, inokasBasket, stampTax);
-    const fmt = v => formatAmount(v.toFixed(2)) + " ₺";
-    const set = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
-
-    set("dv-dmo-basket",    fmt(dmoBasket));
-    set("dv-inokas-basket", fmt(inokasBasket));
-    set("dv-kdv",           fmt(m.kdv));
-    set("dv-stamp",         fmt(stampTax));
-    set("dv-tevkifat",      fmt(m.tevkifat));
-    set("dv-gercek-kdv",    fmt(m.gercekKdv));
-    set("dv-risturn",       fmt(m.risturn));
-    set("dv-toplam-gelir",  fmt(m.toplamGelir));
-    set("dv-toplam-gider",  fmt(m.toplamGider));
-
-    const profitEl    = document.getElementById("dv-profit");
-    const profitPctEl = document.getElementById("dv-profit-pct");
-    if (profitEl) {
-        profitEl.textContent = fmt(m.netProfit);
-        profitEl.style.color = m.netProfit >= 0 ? "#16a34a" : "#dc2626";
+    if (tab === "kalemler") {
+      kalemTab.style.cssText  = on;
+      bilgiTab.style.cssText  = off;
+      bilgiPane.style.display = "none";
+      kalemPane.style.display = "flex";
+    } else {
+      bilgiTab.style.cssText  = on;
+      kalemTab.style.cssText  = off;
+      kalemPane.style.display = "none";
+      bilgiPane.style.display = "flex";
+      calculateProfit();   // stats live in the Bilgi pane → refresh when shown
     }
-    if (profitPctEl) {
-        profitPctEl.textContent = m.profitPct.toFixed(2) + "%";
-        profitPctEl.style.color = m.profitPct >= 0 ? "#16a34a" : "#dc2626";
     }
-}
-// ── PAGE INIT ─────────────────────────────────────────────────────────────────
 document.addEventListener("DOMContentLoaded", async () => {
-    if (!document.getElementById("dmoSiparisForm")) return;
-    await loadUrunler();
+    const taslakId = new URLSearchParams(window.location.search).get("taslak");
 
-    // Wire stamp_tax input to recalculate
-    document.getElementById("stamp_tax")?.addEventListener("input", calculateProfit);
+    if (taslakId) {
+        // Pre-set editing state for taslak merge
+        _editingOrderId = taslakId;
+        _isTaslakMerge  = true;
+
+        // Update header to show editing context
+        const titleEl = document.querySelector(".page-header-title");
+        if (titleEl) titleEl.textContent = "Taslak PDF Ekle";
+
+        // Update save button
+        const saveBtn = document.getElementById("btnSaveOrder");
+        if (saveBtn) saveBtn.textContent = "✓ Siparişi Tamamla";
+    }
+
+    window._onOrderSaved = () => {
+        if (pdfs.length === 0) {
+            window.location.href = "/dmo/pages/dmo.html?tab=bekleyen";
+        }
+    };
 });

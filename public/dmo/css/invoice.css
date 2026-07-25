@@ -6,21 +6,21 @@
     border-bottom: 2px solid transparent;
     font-size: 13px;
     font-weight: 600;
-    color: #64748b;
+    color: #8a857c;
     cursor: pointer;
     transition: all 0.15s;
 }
 
 .dv-tab-active {
-    color: #2563eb;
-    border-bottom-color: #2563eb;
+    color: #0e0d0b;
+    border-bottom-color: #0e0d0b;
     font-weight: 800;
 }
 
 /* ── DETAIL INFO CARDS ───────────────────────────────────────────────────── */
 .dv-info-card {
-    background: #f8fafc;
-    border: 1px solid #e2e8f0;
+    background: #faf8f3;
+    border: 1px solid #e4dfd4;
     border-radius: 10px;
     padding: 10px 14px;
     display: flex;
@@ -31,7 +31,7 @@
 .dv-info-label {
     font-size: 10px;
     font-weight: 800;
-    color: #94a3b8;
+    color: #8a857c;
     text-transform: uppercase;
     letter-spacing: 0.05em;
 }
@@ -39,13 +39,13 @@
 .dv-info-val {
     font-size: 13px;
     font-weight: 700;
-    color: #0f172a;
+    color: #0e0d0b;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
 }
 
-/* ── DETAIL SIDES ────────────────────────────────────────────────────────── */
+/* ── DETAIL SIDES / TABBED CONTAINERS ────────────────────────────────────── */
 #detail-pdf-side,
 #detail-taslak-side {
     width: 100%;
@@ -53,29 +53,16 @@
     overflow: hidden;
 }
 
-#detail-pdf-side > div,
-#detail-taslak-side > div {
-    height: 100%;
-    overflow-y: auto;
-    box-sizing: border-box;
-}
-
-#detail-right-tabbed {
+#detail-right-tabbed,
+#detail-taslak-tabbed {
     display: flex;
     flex-direction: column;
     height: 100%;
     overflow: hidden;
 }
 
-#detail-right-tabbed > div:last-child {
-    flex: 1;
-    overflow: hidden;
-    position: relative;
-}
-
-/* ── SLIDING PANES ───────────────────────────────────────────────────────── */
-#dv-pane-bilgi,
-#dv-pane-stats {
+/* ── PANES (tab content) — show/hide via inline display toggled by switchDetailTab ── */
+.dv-pane {
     position: absolute;
     inset: 0;
     overflow-y: auto;
@@ -87,11 +74,11 @@
     width: 100%;
     margin-top: 4px;
     padding: 4px 8px;
-    border: 1px solid #2563eb;
+    border: 1px solid #0e0d0b;
     border-radius: 6px;
     font-size: 13px;
     font-weight: 600;
-    color: #0f172a;
+    color: #0e0d0b;
     outline: none;
     box-sizing: border-box;
 }

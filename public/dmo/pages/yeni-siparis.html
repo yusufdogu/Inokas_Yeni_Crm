@@ -5,19 +5,21 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Yeni Sipariş — İnokas CRM</title>
-  <script>
-    if (!sessionStorage.getItem('login_auth_token')) window.location.href = '/auth/login.html';
-  </script>
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="/shared/supabase-client.js"></script>
-  <script src="/dmo/js/dmo-core.js"></script>
-  <script src="/dmo/js/dmo-yeni-siparis.js"></script>
-  <script src="/dmo/js/dmo-invoice.js"></script>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.x/dist/tabler-icons.min.css">
   <link rel="stylesheet" href="/dmo/css/core.css">
   <link rel="stylesheet" href="/shared/sidebar.css">
   <link rel="stylesheet" href="/dmo/css/yeni-siparis.css">
+  <script>
+    if (!sessionStorage.getItem('login_auth_token')) window.location.href = '/auth/login.html';
+  </script>
+  <script src="/shared/auth-interceptor.js" defer></script>  <!-- no defer -->
+  <script src="/shared/sidebar.js" defer></script>      <!-- defer is fine -->
+  <script src="/dmo/js/dmo-core.js" defer></script>
+  <script src="/dmo/js/dmo-yeni-siparis.js" defer></script>
+  <script src="/dmo/js/dmo-invoice.js" defer></script>
+
+
 </head>
 
 <body>
@@ -28,17 +30,8 @@
   <div class="page-area">
 
     <!-- Header -->
-    <div class="page-header">
-      <div class="page-header-left">
-        <button class="sb-toggle-btn" onclick="toggleSidebar()">
-          <i class="ti ti-menu-2"></i>
-        </button>
-        <div>
-          <p class="page-header-title">Yeni Sipariş Ekle</p>
-          <p class="page-header-sub">PDF yükleyerek sipariş oluştur</p>
-        </div>
-      </div>
-      <button type="button" id="btnSaveOrder" class="page-action-btn" onclick="saveOrder()">
+    <div class="header">
+      <button type="button" id="btnSaveOrder" class="action-btn" onclick="saveOrder()">
         <i class="ti ti-device-floppy"></i>
         Kaydet
       </button>
@@ -80,180 +73,159 @@
             style="padding:10px 16px; background:none; border:none; border-bottom:2px solid #2563eb; font-size:13px; font-weight:700; color:#2563eb; cursor:pointer; font-family:inherit;">
             <i class="ti ti-info-circle" style="font-size:14px; margin-right:4px;"></i>Bilgi
           </button>
-          <button id="ys-tab-stats" onclick="switchYSTab('stats')"
+          <button id="ys-tab-kalemler" onclick="switchYSTab('kalemler')"
             style="padding:10px 16px; background:none; border:none; border-bottom:2px solid transparent; font-size:13px; font-weight:500; color:#64748b; cursor:pointer; font-family:inherit;">
-            <i class="ti ti-chart-bar" style="font-size:14px; margin-right:4px;"></i>İstatistik
+            <i class="ti ti-package" style="font-size:14px; margin-right:4px;"></i>Kalemler
           </button>
         </div>
 
-        <!-- BİLGİ PANE -->
-        <div id="ys-pane-bilgi" style="flex:1; overflow:hidden; display:flex; flex-direction:column;">
+        <!-- BİLGİ PANE: form + stats -->
+        <div id="ys-pane-bilgi" style="flex:1; overflow-y:auto; display:flex; flex-direction:column;">
 
           <div id="modalAlert" style="display:none; padding:12px 16px; margin:12px 16px 0; border-radius:8px; font-weight:600; font-size:13px; align-items:center; gap:8px;"></div>
 
           <form id="dmoSiparisForm" class="grid-form">
+            <div class="form-group"><label>Satış Sipariş No</label><input type="text" id="sales_order_no" class="input-highlight"></div>
+            <div class="form-group"><label>Satın Alma Sipariş No</label><input type="text" id="purchase_order_no" class="input-highlight"></div>
+            <div class="form-group"><label>Müşteri (Kurum)</label><input type="text" id="customer_name"></div>
+            <div class="form-group"><label>Müşteri No</label><input type="text" id="customer_no"></div>
+            <div class="form-group"><label>Sipariş Tarihi</label><input type="date" id="order_date"></div>
+            <div class="form-group"><label>Son Gönderim Tarihi</label><input type="date" id="last_order_date"></div>
 
-            <div class="form-group">
-              <label>Satış Sipariş No</label>
-              <input type="text" id="sales_order_no" class="input-highlight">
-            </div>
-
-            <div class="form-group">
-              <label>Satın Alma Sipariş No</label>
-              <input type="text" id="purchase_order_no" class="input-highlight">
-            </div>
-
-            <div class="form-group">
-              <label>Müşteri (Kurum)</label>
-              <input type="text" id="customer_name">
-            </div>
-
-            <div class="form-group">
-              <label>Müşteri No</label>
-              <input type="text" id="customer_no">
-            </div>
-
-            <div class="form-group">
-              <label>Sipariş Tarihi</label>
-              <input type="date" id="order_date">
-            </div>
-
-            <div class="form-group">
-              <label>Son Gönderim Tarihi</label>
-              <input type="date" id="last_order_date">
-            </div>
-
-            <!-- Line Items -->
-            <div class="form-section span-2" style="margin-top:8px;">
-              <div class="section-header">
-                <h3 style="font-size:13px; font-weight:700; color:#0f172a;">
-                  <i class="ti ti-package" style="font-size:14px; margin-right:6px;"></i>Sipariş Kalemleri
-                </h3>
-                <button type="button" class="btn btn-secondary"
-                  style="padding:5px 10px; font-size:12px; display:flex; align-items:center; gap:4px;"
-                  onclick="addLineItem()">
-                  <i class="ti ti-plus" style="font-size:13px;"></i>Kalem Ekle
-                </button>
-              </div>
-              <table class="line-table" style="table-layout:fixed;">
-                <thead>
-                  <tr>
-                    <th style="width:28px;"></th>
-                    <th style="width:90px;">Katalog Kod</th>
-                    <th>Ürün Adı</th>
-                    <th style="width:60px; text-align:right;">Adet</th>
-                    <th style="width:110px; text-align:right;">Toplam</th>
-                    <th style="width:40px;"></th>
-                  </tr>
-                </thead>
-                <tbody id="lineItemsBody"></tbody>
-                <tfoot id="lineItemsFooter"></tfoot>
-              </table>
-            </div>
-          <!-- Hidden calculation fields - written by calculateProfit(), read by saveOrder() -->
-          <input type="hidden" id="dmo_basket">
-          <input type="hidden" id="inokas_basket">
-          <input type="hidden" id="stamp_tax">
-          <input type="hidden" id="kdv_tax">
-          <input type="hidden" id="inv_tevkifat">
-          <input type="hidden" id="inv_gercek_kdv">
-          <input type="hidden" id="inv_risturn">
-          <input type="hidden" id="inv_toplam_gelir">
-          <input type="hidden" id="inv_toplam_gider">
-          <input type="hidden" id="inv_indirim_kaybi">
+            <!-- Hidden calculation fields -->
+            <input type="hidden" id="dmo_basket">
+            <input type="hidden" id="inokas_basket">
+            <input type="hidden" id="stamp_tax">
+            <input type="hidden" id="kdv_tax">
+            <input type="hidden" id="inv_tevkifat">
+            <input type="hidden" id="inv_gercek_kdv">
+            <input type="hidden" id="inv_risturn">
+            <input type="hidden" id="inv_toplam_gelir">
+            <input type="hidden" id="inv_toplam_gider">
+            <input type="hidden" id="inv_indirim_kaybi">
           </form>
+
+          <!-- Stats grid -->
+          <div style="padding:4px 16px 20px;">
+            <div style="display:grid; grid-template-columns:1fr 1fr; border:1px solid #e2e8f0; border-radius:12px; overflow:hidden;">
+
+              <div style="background:#f8fafc; padding:8px 14px; font-size:11px; font-weight:700; color:#64748b; letter-spacing:0.5px; border-bottom:1px solid #e2e8f0; text-transform:uppercase;">GELİR</div>
+              <div style="background:#f8fafc; padding:8px 14px; font-size:11px; font-weight:700; color:#64748b; letter-spacing:0.5px; border-bottom:1px solid #e2e8f0; border-left:2px solid #e2e8f0; text-transform:uppercase;">GİDER</div>
+
+              <div style="padding:8px 14px; border-bottom:1px solid #e2e8f0; display:flex; justify-content:space-between; align-items:center;">
+                <label style="font-size:12px; font-weight:600; color:#64748b;">DMO Sepet</label>
+                <span id="ys-dmo-basket" style="font-weight:700; font-size:13px; color:#0f172a;">—</span>
+              </div>
+              <div style="padding:8px 14px; border-bottom:1px solid #e2e8f0; border-left:2px solid #e2e8f0; display:flex; justify-content:space-between; align-items:center;">
+                <label style="font-size:12px; font-weight:600; color:#64748b;">İnokas Maliyet</label>
+                <span id="ys-inokas-basket" style="font-weight:700; font-size:13px; color:#0f172a;">—</span>
+              </div>
+
+              <div style="padding:8px 14px; border-bottom:1px solid #e2e8f0; display:flex; flex-direction:column; gap:3px;">
+                <div style="display:flex; justify-content:space-between; align-items:center;">
+                  <label style="font-size:11px; font-weight:600; color:#94a3b8;">KDV (%20)</label>
+                  <span id="ys-kdv" style="font-weight:600; font-size:12px; color:#64748b;">—</span>
+                </div>
+                <div style="display:flex; justify-content:space-between; align-items:center;">
+                  <label style="font-size:12px; font-weight:700; color:#0f172a;">Gerçek KDV</label>
+                  <span id="ys-gercek-kdv" style="font-weight:700; font-size:13px; color:#0f172a;">—</span>
+                </div>
+              </div>
+              <div style="padding:8px 14px; border-bottom:1px solid #e2e8f0; border-left:2px solid #e2e8f0; display:flex; justify-content:space-between; align-items:center;">
+                <label style="font-size:12px; font-weight:600; color:#dc2626;">Tutar İndirimi</label>
+                <div style="text-align:right;">
+                  <span id="ys-tutar-indirimi-pct" style="font-size:11px; font-weight:700; color:#dc2626; margin-right:4px;">%0</span>
+                  <span id="ys-tutar-indirimi" style="font-weight:700; font-size:13px; color:#dc2626;">—</span>
+                </div>
+              </div>
+
+              <div style="border-bottom:1px solid #e2e8f0; background:#fafafa;"></div>
+              <div style="border-bottom:1px solid #e2e8f0; border-left:2px solid #e2e8f0;">
+                <div onclick="toggleYSVergiler()"
+                  style="padding:8px 14px; display:flex; justify-content:space-between; align-items:center; cursor:pointer; user-select:none;">
+                  <label style="font-size:12px; font-weight:600; color:#64748b; cursor:pointer; display:flex; align-items:center; gap:4px;">
+                    <i class="ti ti-chevron-right" id="ys-vergiler-arrow" style="font-size:11px; transition:transform 0.2s;"></i>Vergiler
+                  </label>
+                  <span id="ys-vergiler-total" style="font-weight:700; font-size:13px; color:#0f172a;">—</span>
+                </div>
+                <div id="ys-vergiler-detail" style="display:none; border-top:1px solid #f1f5f9; background:#f8fafc;">
+                  <div style="padding:5px 14px 5px 26px; display:flex; justify-content:space-between;">
+                    <label style="font-size:11px; font-weight:600; color:#94a3b8;">Tevkifat (%20)</label>
+                    <span id="ys-tevkifat" style="font-size:12px; font-weight:600; color:#64748b;">—</span>
+                  </div>
+                  <div style="padding:5px 14px 5px 26px; display:flex; justify-content:space-between;">
+                    <label style="font-size:11px; font-weight:600; color:#94a3b8;">Risturn (%1)</label>
+                    <span id="ys-risturn" style="font-size:12px; font-weight:600; color:#64748b;">—</span>
+                  </div>
+                  <div style="padding:5px 14px 5px 26px; display:flex; justify-content:space-between; border-bottom:1px solid #f1f5f9;">
+                    <label style="font-size:11px; font-weight:600; color:#94a3b8;">Damga + Karar</label>
+                    <span id="ys-damga-karar" style="font-size:12px; font-weight:600; color:#64748b;">—</span>
+                  </div>
+                </div>
+              </div>
+
+              <div style="border-bottom:1px solid #e2e8f0; background:#fafafa;"></div>
+              <div style="padding:8px 14px; border-bottom:1px solid #e2e8f0; border-left:2px solid #e2e8f0; display:flex; justify-content:space-between; align-items:center;">
+                <label style="font-size:12px; font-weight:600; color:#64748b;">🎁 Hediye Toplam</label>
+                <span id="ys-gift-total" style="font-weight:700; font-size:13px; color:#0f172a;">—</span>
+              </div>
+
+              <div style="padding:10px 14px; border-bottom:1px solid #e2e8f0; display:flex; justify-content:space-between; align-items:center; background:#f1f5f9;">
+                <label style="font-size:12px; font-weight:800; color:#0f172a;">Toplam Gelir</label>
+                <span id="ys-toplam-gelir" style="font-weight:800; font-size:14px; color:#0f172a;">—</span>
+              </div>
+              <div style="padding:10px 14px; border-bottom:1px solid #e2e8f0; border-left:2px solid #e2e8f0; display:flex; justify-content:space-between; align-items:center; background:#f1f5f9;">
+                <label style="font-size:12px; font-weight:800; color:#0f172a;">Toplam Gider</label>
+                <span id="ys-toplam-gider" style="font-weight:800; font-size:14px; color:#0f172a;">—</span>
+              </div>
+
+              <div style="grid-column:span 2; padding:12px 14px; display:grid; grid-template-columns:1fr 1fr; gap:10px; background:#f8fafc;">
+                <div style="border:1px solid #e2e8f0; border-radius:8px; padding:10px 14px; background:white; display:flex; justify-content:space-between; align-items:center;">
+                  <label style="font-size:12px; font-weight:800; color:#0f172a;">Net Kar</label>
+                  <div id="ys-net-profit" style="font-size:15px; font-weight:800;">—</div>
+                </div>
+                <div style="border:1px solid #e2e8f0; border-radius:8px; padding:10px 14px; background:white; display:flex; justify-content:space-between; align-items:center;">
+                  <label style="font-size:12px; font-weight:800; color:#0f172a;">Kar %</label>
+                  <div id="ys-profit-pct" style="font-size:15px; font-weight:800;">—</div>
+                </div>
+              </div>
+
+            </div>
+          </div>
+
         </div>
         <!-- END BİLGİ PANE -->
 
-        <!-- İSTATİSTİK PANE -->
-        <div id="ys-pane-stats" style="display:none; flex:1; overflow-y:auto; padding:20px;">
-
-          <div style="display:grid; grid-template-columns:1fr 1fr; border:1px solid #e2e8f0; border-radius:12px; overflow:hidden;">
-
-            <div style="background:#f8fafc; padding:8px 14px; font-size:11px; font-weight:700; color:#64748b; letter-spacing:0.5px; border-bottom:1px solid #e2e8f0; text-transform:uppercase;">GELİR</div>
-            <div style="background:#f8fafc; padding:8px 14px; font-size:11px; font-weight:700; color:#64748b; letter-spacing:0.5px; border-bottom:1px solid #e2e8f0; border-left:2px solid #e2e8f0; text-transform:uppercase;">GİDER</div>
-
-            <div style="padding:8px 14px; border-bottom:1px solid #e2e8f0; display:flex; justify-content:space-between; align-items:center;">
-              <label style="font-size:12px; font-weight:600; color:#64748b;">DMO Sepet</label>
-              <span id="ys-dmo-basket" style="font-weight:700; font-size:13px; color:#0f172a;">—</span>
-            </div>
-            <div style="padding:8px 14px; border-bottom:1px solid #e2e8f0; border-left:2px solid #e2e8f0; display:flex; justify-content:space-between; align-items:center;">
-              <label style="font-size:12px; font-weight:600; color:#64748b;">İnokas Maliyet</label>
-              <span id="ys-inokas-basket" style="font-weight:700; font-size:13px; color:#0f172a;">—</span>
-            </div>
-
-            <div style="padding:8px 14px; border-bottom:1px solid #e2e8f0; display:flex; flex-direction:column; gap:3px;">
-              <div style="display:flex; justify-content:space-between; align-items:center;">
-                <label style="font-size:11px; font-weight:600; color:#94a3b8;">KDV (%20)</label>
-                <span id="ys-kdv" style="font-weight:600; font-size:12px; color:#64748b;">—</span>
-              </div>
-              <div style="display:flex; justify-content:space-between; align-items:center;">
-                <label style="font-size:12px; font-weight:700; color:#0f172a;">Gerçek KDV</label>
-                <span id="ys-gercek-kdv" style="font-weight:700; font-size:13px; color:#0f172a;">—</span>
-              </div>
-            </div>
-            <div style="padding:8px 14px; border-bottom:1px solid #e2e8f0; border-left:2px solid #e2e8f0; display:flex; justify-content:space-between; align-items:center;">
-              <label style="font-size:12px; font-weight:600; color:#dc2626;">Tutar İndirimi</label>
-              <div style="text-align:right;">
-                <span id="ys-tutar-indirimi-pct" style="font-size:11px; font-weight:700; color:#dc2626; margin-right:4px;">%0</span>
-                <span id="ys-tutar-indirimi" style="font-weight:700; font-size:13px; color:#dc2626;">—</span>
-              </div>
-            </div>
-
-            <div style="border-bottom:1px solid #e2e8f0; background:#fafafa;"></div>
-            <div style="border-bottom:1px solid #e2e8f0; border-left:2px solid #e2e8f0;">
-              <div onclick="toggleYSVergiler()"
-                style="padding:8px 14px; display:flex; justify-content:space-between; align-items:center; cursor:pointer; user-select:none;">
-                <label style="font-size:12px; font-weight:600; color:#64748b; cursor:pointer; display:flex; align-items:center; gap:4px;">
-                  <i class="ti ti-chevron-right" id="ys-vergiler-arrow" style="font-size:11px; transition:transform 0.2s;"></i>Vergiler
-                </label>
-                <span id="ys-vergiler-total" style="font-weight:700; font-size:13px; color:#0f172a;">—</span>
-              </div>
-              <div id="ys-vergiler-detail" style="display:none; border-top:1px solid #f1f5f9; background:#f8fafc;">
-                <div style="padding:5px 14px 5px 26px; display:flex; justify-content:space-between;">
-                  <label style="font-size:11px; font-weight:600; color:#94a3b8;">Tevkifat (%20)</label>
-                  <span id="ys-tevkifat" style="font-size:12px; font-weight:600; color:#64748b;">—</span>
-                </div>
-                <div style="padding:5px 14px 5px 26px; display:flex; justify-content:space-between;">
-                  <label style="font-size:11px; font-weight:600; color:#94a3b8;">Risturn (%1)</label>
-                  <span id="ys-risturn" style="font-size:12px; font-weight:600; color:#64748b;">—</span>
-                </div>
-                <div style="padding:5px 14px 5px 26px; display:flex; justify-content:space-between; border-bottom:1px solid #f1f5f9;">
-                  <label style="font-size:11px; font-weight:600; color:#94a3b8;">Damga + Karar</label>
-                  <span id="ys-damga-karar" style="font-size:12px; font-weight:600; color:#64748b;">—</span>
-                </div>
-              </div>
-            </div>
-
-            <div style="border-bottom:1px solid #e2e8f0; background:#fafafa;"></div>
-            <div style="padding:8px 14px; border-bottom:1px solid #e2e8f0; border-left:2px solid #e2e8f0; display:flex; justify-content:space-between; align-items:center;">
-              <label style="font-size:12px; font-weight:600; color:#64748b;">🎁 Hediye Toplam</label>
-              <span id="ys-gift-total" style="font-weight:700; font-size:13px; color:#0f172a;">—</span>
-            </div>
-
-            <div style="padding:10px 14px; border-bottom:1px solid #e2e8f0; display:flex; justify-content:space-between; align-items:center; background:#f1f5f9;">
-              <label style="font-size:12px; font-weight:800; color:#0f172a;">Toplam Gelir</label>
-              <span id="ys-toplam-gelir" style="font-weight:800; font-size:14px; color:#0f172a;">—</span>
-            </div>
-            <div style="padding:10px 14px; border-bottom:1px solid #e2e8f0; border-left:2px solid #e2e8f0; display:flex; justify-content:space-between; align-items:center; background:#f1f5f9;">
-              <label style="font-size:12px; font-weight:800; color:#0f172a;">Toplam Gider</label>
-              <span id="ys-toplam-gider" style="font-weight:800; font-size:14px; color:#0f172a;">—</span>
-            </div>
-
-            <div style="grid-column:span 2; padding:12px 14px; display:grid; grid-template-columns:1fr 1fr; gap:10px; background:#f8fafc;">
-              <div style="border:1px solid #e2e8f0; border-radius:8px; padding:10px 14px; background:white; display:flex; justify-content:space-between; align-items:center;">
-                <label style="font-size:12px; font-weight:800; color:#0f172a;">Net Kar</label>
-                <div id="ys-net-profit" style="font-size:15px; font-weight:800;">—</div>
-              </div>
-              <div style="border:1px solid #e2e8f0; border-radius:8px; padding:10px 14px; background:white; display:flex; justify-content:space-between; align-items:center;">
-                <label style="font-size:12px; font-weight:800; color:#0f172a;">Kar %</label>
-                <div id="ys-profit-pct" style="font-size:15px; font-weight:800;">—</div>
-              </div>
-            </div>
-
+        <!-- KALEMLER PANE: line items full-height -->
+        <div id="ys-pane-kalemler" style="display:none; flex:1; overflow:hidden; flex-direction:column;">
+          <div class="section-header" style="padding:12px 16px; flex-shrink:0;">
+            <h3 style="font-size:13px; font-weight:700; color:#0f172a;">
+              <i class="ti ti-package" style="font-size:14px; margin-right:6px;"></i>Sipariş Kalemleri
+            </h3>
+            <button type="button" class="btn btn-secondary"
+              style="padding:5px 10px; font-size:12px; display:flex; align-items:center; gap:4px;" onclick="addLineItem()">
+              <i class="ti ti-plus" style="font-size:13px;"></i>Kalem Ekle
+            </button>
+          </div>
+          <div style="flex:1; overflow-y:auto; padding:0 16px 16px;">
+            <table class="line-table" style="table-layout:fixed; width:100%;">
+              <thead>
+                <tr>
+                  <th>Ürün Adı</th>
+                  <th style="width:120px;">Kodu</th>
+                  <th style="width:90px;">DMO Kodu</th>
+                  <th style="width:120px; text-align:right;">İnd. Birim Fiyat</th>
+                  <th style="width:64px; text-align:right;">Adet</th>
+                  <th style="width:120px; text-align:right;">Toplam</th>
+                  <th style="width:40px;"></th>
+                </tr>
+              </thead>
+              <tbody id="lineItemsBody"></tbody>
+              <tfoot id="lineItemsFooter"></tfoot>
+            </table>
           </div>
         </div>
-        <!-- END İSTATİSTİK PANE -->
+        <!-- END KALEMLER PANE -->
 
       </div>
       <!-- END RIGHT -->
@@ -268,52 +240,9 @@
 <!-- END app-shell -->
 
 <div id="toast-container"></div>
-<script src="/shared/auth-interceptor.js"></script>  <!-- no defer -->
-<script src="/shared/sidebar.js" defer></script>      <!-- defer is fine -->
+
 <script>
-  function switchYSTab(tab) {
-    const bilgiTab  = document.getElementById("ys-tab-bilgi");
-    const statsTab  = document.getElementById("ys-tab-stats");
-    const bilgiPane = document.getElementById("ys-pane-bilgi");
-    const statsPane = document.getElementById("ys-pane-stats");
 
-    if (tab === "bilgi") {
-      bilgiTab.style.cssText  = "padding:10px 16px; background:none; border:none; border-bottom:2px solid #2563eb; font-size:13px; font-weight:700; color:#2563eb; cursor:pointer; font-family:inherit;";
-      statsTab.style.cssText  = "padding:10px 16px; background:none; border:none; border-bottom:2px solid transparent; font-size:13px; font-weight:500; color:#64748b; cursor:pointer; font-family:inherit;";
-      bilgiPane.style.display = "flex";
-      statsPane.style.display = "none";
-    } else {
-      statsTab.style.cssText  = "padding:10px 16px; background:none; border:none; border-bottom:2px solid #2563eb; font-size:13px; font-weight:700; color:#2563eb; cursor:pointer; font-family:inherit;";
-      bilgiTab.style.cssText  = "padding:10px 16px; background:none; border:none; border-bottom:2px solid transparent; font-size:13px; font-weight:500; color:#64748b; cursor:pointer; font-family:inherit;";
-      bilgiPane.style.display = "none";
-      statsPane.style.display = "block";
-      // Trigger recalculation so stats pane shows latest values
-      calculateProfit();
-    }
-  }
-  document.addEventListener("DOMContentLoaded", async () => {
-    const taslakId = new URLSearchParams(window.location.search).get("taslak");
-
-    if (taslakId) {
-        // Pre-set editing state for taslak merge
-        _editingOrderId = taslakId;
-        _isTaslakMerge  = true;
-
-        // Update header to show editing context
-        const titleEl = document.querySelector(".page-header-title");
-        if (titleEl) titleEl.textContent = "Taslak PDF Ekle";
-
-        // Update save button
-        const saveBtn = document.getElementById("btnSaveOrder");
-        if (saveBtn) saveBtn.textContent = "✓ Siparişi Tamamla";
-    }
-
-    window._onOrderSaved = () => {
-        if (pdfs.length === 0) {
-            window.location.href = "/dmo/pages/siparisler.html";
-        }
-    };
-  });
 
 </script>
 

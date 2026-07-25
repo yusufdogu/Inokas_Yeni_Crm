@@ -1,15 +1,15 @@
 /* ── VARIABLES ───────────────────────────────────────────────────────────── */
 :root {
-  --primary: #2563eb;
-  --success: #059669;
-  --danger: #dc2626;
-  --warn: #d97706;
-  --bg: #f8fafc;
+  --primary: #0e0d0b;
+  --success: #1a6b47;
+  --danger: #b83232;
+  --warn: #9a6318;
+  --bg: #0e0d0b;
   --card: #ffffff;
-  --border: #e2e8f0;
-  --text-main: #1e293b;
-  --text-sub: #64748b;
-  --accent-light: #eff6ff;
+  --border: #e4dfd4;
+  --text-main: #252320;
+  --text-sub: #8a857c;
+  --accent-light: #f5f2ec;
 }
 
 /* ── RESET ───────────────────────────────────────────────────────────────── */
@@ -28,15 +28,15 @@ body {
 /* ── BUTTONS ─────────────────────────────────────────────────────────────── */
 .btn { border: none; padding: 10px 20px; border-radius: 8px; font-weight: 700; cursor: pointer; transition: 0.2s; }
 .btn-primary { background: var(--primary); color: white; }
-.btn-primary:hover { background: #1d4ed8; }
-.btn-secondary { background: #f1f5f9; color: var(--text-main); }
+.btn-primary:hover { background: #252320; }
+.btn-secondary { background: #ece6db; color: var(--text-main); }
 .btn-success { background: var(--success); color: white; }
 .btn-lg { padding: 14px 28px; font-size: 15px; }
 
 /* ── STAT CARD HIGHLIGHTS ────────────────────────────────────────────────── */
-.stat-card.highlight-warn    { border-left: 4px solid #d97706; }
-.stat-card.highlight-tax     { border-left: 4px solid #d97706; }
-.stat-card.highlight-success { border-left: 4px solid #059669; }
+.stat-card.highlight-warn    { border-left: 4px solid #9a6318; }
+.stat-card.highlight-tax     { border-left: 4px solid #9a6318; }
+.stat-card.highlight-success { border-left: 4px solid #1a6b47; }
 
 .text-danger  { color: var(--danger); }
 .text-success { color: var(--success); }
@@ -63,10 +63,10 @@ body {
     animation: slideIn 0.2s ease;
 }
 
-.toast-info    { background: #2563eb; }
-.toast-success { background: #16a34a; }
-.toast-error   { background: #dc2626; }
-.toast-warn    { background: #d97706; }
+.toast-info    { background: #0e0d0b; }
+.toast-success { background: #1a6b47; }
+.toast-error   { background: #b83232; }
+.toast-warn    { background: #9a6318; }
 
 @keyframes slideIn {
     from { transform: translateX(100%); opacity: 0; }

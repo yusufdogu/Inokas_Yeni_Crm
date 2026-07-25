@@ -7,7 +7,7 @@
 /* ── PRODUCT GRID ────────────────────────────────────────────────────────── */
 .hh-product-card {
     background: white;
-    border: 1px solid #e2e8f0;
+    border: 1px solid #e4dfd4;
     border-radius: 12px;
     padding: 14px;
     display: flex;
@@ -18,38 +18,38 @@
 }
 
 .hh-product-card:hover {
-    border-color: #2563eb;
-    box-shadow: 0 4px 12px rgba(37,99,235,0.1);
+    border-color: #0e0d0b;
+    box-shadow: 0 4px 12px rgba(14,13,11,0.08);
 }
 
 .hh-product-card.in-sepet {
-    border-color: #16a34a;
-    background: #f0fdf4;
+    border-color: #1a6b47;
+    background: #eef3ec;
 }
 
 .hh-product-name {
     font-size: 12px;
     font-weight: 700;
-    color: #0f172a;
+    color: #0e0d0b;
     line-height: 1.4;
 }
 
 .hh-product-code {
     font-size: 11px;
     font-weight: 600;
-    color: #94a3b8;
+    color: #b4b0a6;
 }
 
 .hh-product-price {
     font-size: 13px;
     font-weight: 800;
-    color: #2563eb;
+    color: #0e0d0b;
 }
 
 /* ── SEPET ITEM ──────────────────────────────────────────────────────────── */
 .hh-sepet-item {
     background: white;
-    border: 1px solid #e2e8f0;
+    border: 1px solid #e4dfd4;
     border-radius: 10px;
     padding: 12px 14px;
     display: flex;
@@ -61,7 +61,7 @@
     flex: 1;
     font-size: 12px;
     font-weight: 700;
-    color: #0f172a;
+    color: #0e0d0b;
     min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -78,8 +78,8 @@
     width: 24px;
     height: 24px;
     border-radius: 6px;
-    border: 1px solid #e2e8f0;
-    background: #f1f5f9;
+    border: 1px solid #e4dfd4;
+    background: #ece6db;
     font-size: 14px;
     font-weight: 700;
     cursor: pointer;
@@ -90,15 +90,15 @@
 }
 
 .hh-qty-btn:hover {
-    background: #2563eb;
+    background: #0e0d0b;
     color: white;
-    border-color: #2563eb;
+    border-color: #0e0d0b;
 }
 
 .hh-qty-input {
     width: 40px;
     text-align: center;
-    border: 1px solid #e2e8f0;
+    border: 1px solid #e4dfd4;
     border-radius: 6px;
     padding: 2px 4px;
     font-size: 13px;
@@ -109,19 +109,56 @@
 .hh-sepet-remove {
     background: none;
     border: none;
-    color: #94a3b8;
+    color: #b4b0a6;
     cursor: pointer;
     font-size: 16px;
     padding: 0;
     transition: color 0.15s;
 }
 
-.hh-sepet-remove:hover { color: #dc2626; }
+.hh-sepet-remove:hover { color: #b83232; }
 
 /* ── PROFIT VALUE ────────────────────────────────────────────────────────── */
 .profit-value {
     font-size: 15px;
     font-weight: 800;
-    color: #0f172a;
+    color: #0e0d0b;
     padding: 4px 0;
 }
+
+
+/* ── UNIFIED DMO HEADER (matches dmo.html) ─────────────────────────────── */
+.dmo-header {
+  flex-shrink: 0; height: 54px; background: #0e0d0b;
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 16px; padding: 0 18px;
+}
+.dmo-header-left { display: flex; align-items: center; gap: 12px; }
+.dmo-menu-btn {
+  background: none; border: none; color: #8a857c; font-size: 19px;
+  cursor: pointer; padding: 4px; border-radius: 6px; display: flex;
+  transition: background .15s, color .15s;
+}
+.dmo-menu-btn:hover { background: rgba(255,255,255,0.06); color: #f5f2ec; }
+.dmo-brand { font-size: 15px; font-weight: 800; color: #f5f2ec; letter-spacing: 0.03em; }
+
+.dmo-rates { display: flex; align-items: center; gap: 6px; }
+.dmo-rate {
+  background: rgba(245,242,236,0.05); border: 0.5px solid rgba(245,242,236,0.10);
+  border-radius: 7px; padding: 5px 10px; text-align: center; min-width: 62px;
+}
+.dmo-rate-label {
+  font-size: 8.5px; font-weight: 700; letter-spacing: 0.05em;
+  text-transform: uppercase; color: #8a857c;
+}
+.dmo-rate-val { font-family: 'DM Mono', ui-monospace, monospace; font-size: 12px; font-weight: 500; color: #f5f2ec; }
+.dmo-rate--dmo .dmo-rate-label { color: #d9a55a; }
+.dmo-rate--dmo .dmo-rate-val   { color: #e6b877; }
+.dmo-rate-btn {
+  display: flex; align-items: center; gap: 5px;
+  background: rgba(245,242,236,0.06); border: 0.5px solid rgba(245,242,236,0.10);
+  color: #d8d3ca; border-radius: 7px; padding: 6px 10px;
+  font-family: inherit; font-size: 11px; font-weight: 600; cursor: pointer;
+  white-space: nowrap; transition: background .15s;
+}
+.dmo-rate-btn:hover { background: rgba(245,242,236,0.10); }

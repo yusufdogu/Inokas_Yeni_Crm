@@ -1865,7 +1865,6 @@
 
 /* ── Empty-state placeholder ─────────────────────────────────────────────────── */
 .stock-tab-empty {
-
   font-size: 12px;
   font-style: italic;
   color: var(--stk-ink4);
@@ -2256,6 +2255,8 @@
 .gb-chart-controls {
   display: flex;
   align-items: center;
+  margin-left:auto;
+  margin-right: auto;
   gap: 6px;
   margin-left: auto;
 }

@@ -70,7 +70,7 @@ Routes are split into separate files under `routes/`. `index.js` mounts them:
 | `/api/payments` | `routes/payments.js` |
 | `/api/companies` | `routes/companies.js` |
 | `/api/cari` | `routes/cari.js` |
-| `/api/dmo` | `routes/dmo.js` (also proxies to Python) |
+| `/api/dmo` | `routes/dmo-main.js` (also proxies to Python) |
 | `/api/quotes`, `/api/product-groups` | `routes/quotes.js` |
 | `/api/chat` | `routes/chat.js` |
 | `/api/transcribe` | `routes/transcribe.js` |

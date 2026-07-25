@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="tr">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DMO — İnokas CRM</title>
+
+  <!-- Auth guard -->
+  <script>
+    if (!sessionStorage.getItem('login_auth_token')) window.location.href = '/auth/login.html';
+  </script>
+
+   <!-- Fonts + icons -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.x/dist/tabler-icons.min.css">
+
+  <!-- Styles -->
+  <link rel="stylesheet" href="/dmo/css/dmo.css">
+  <link rel="stylesheet" href="/shared/sidebar.css">
+  <script src="/shared/auth-interceptor.js" defer></script>
+  <script src="/shared/sidebar.js" defer></script>
+
+  <!-- Data + shared -->
+  <script src="/dmo/js/dmo-core.js" defer></script>
+  <script src="/dmo/js/dmo-main.js" defer></script>       <!-- tab switching, rates, filters, AI rail -->
+  <script src="/dmo/js/dmo-faturalar.js" defer></script>   <!-- invoices WHERE dmo_invoice=true -->
+  <script src="/dmo/js/dmo-bekleyen.js" defer></script>
+
+  <!-- Libs used by later tabs (Genel Bakış charts, Bekleyen range) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/noUiSlider/15.7.1/nouislider.min.js"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/noUiSlider/15.7.1/nouislider.min.css">
+
+
+</head>
+
+<body>
+<div class="app-shell">
+
+  <!-- Left sidebar (injected by sidebar.js) -->
+  <div id="sidebar-container"></div>
+
+  <!-- DMO app -->
+  <div class="dmo-app">
+
+    <!-- ══════════════════ HEADER ══════════════════ -->
+    <header class="dmo-header">
+      <div class="dmo-header-left">
+        <span class="dmo-brand">DMO</span>
+      </div>
+
+      <!-- Tab nav -->
+      <nav class="dmo-nav">
+        <button class="dmo-navpill" id="nav-genel" onclick="switchMainTab('genel')">
+          <i class="ti ti-chart-pie"></i>Genel Bakış
+        </button>
+        <button class="dmo-navpill active" id="nav-faturalar" onclick="switchMainTab('faturalar')">
+          <i class="ti ti-file-invoice"></i>Faturalar
+        </button>
+        <button class="dmo-navpill" id="nav-sepet" onclick="switchMainTab('sepet')">
+          <i class="ti ti-shopping-cart"></i>Sepet Hazırla
+        </button>
+        <button class="dmo-navpill" id="nav-bekleyen" onclick="switchMainTab('bekleyen')">
+          <i class="ti ti-clock"></i>Bekleyen
+          <span class="dmo-navpill-badge" id="nav-bekleyen-count"></span>
+        </button>
+      </nav>
+
+
+    </header>
+
+    <!-- ══════════════════ BODY (main + AI rail) ══════════════════ -->
+    <div class="dmo-body">
+
+      <!-- ───────── MAIN COLUMN ───────── -->
+      <div class="dmo-main">
+
+        <!-- ========================================================= -->
+        <!-- PANEL: GENEL BAKIŞ  (built in phase 2)                    -->
+        <!-- ========================================================= -->
+        <section class="dmo-panel" id="panel-genel">
+          <div class="dmo-panel-stub">
+            <i class="ti ti-chart-pie"></i> Genel Bakış — sıradaki fazda
+          </div>
+        </section>
+
+        <!-- ========================================================= -->
+        <!-- PANEL: FATURALAR                                          -->
+        <!-- Binds to: invoices WHERE dmo_invoice = true (by tenant)   -->
+        <!-- ========================================================= -->
+        <section class="dmo-panel active" id="panel-faturalar">
+
+          <!-- ── Filter bar ── -->
+          <div class="dmo-filterbar">
+            <div class="dmo-filter-row">
+
+              <!-- Fatura No -->
+              <div class="dmo-tagbox" id="tagbox-faturano" onclick="document.getElementById('input-faturano').focus()">
+                <i class="ti ti-hash dmo-tagbox-ico"></i>
+                <div class="dmo-tags" id="tags-faturano"></div>
+                <input type="text" class="dmo-tag-input" id="input-faturano"
+                       placeholder="Fatura no…" autocomplete="off">
+              </div>
+
+              <!-- Firma -->
+              <div class="dmo-tagbox" id="tagbox-firma" onclick="document.getElementById('input-firma').focus()">
+                <i class="ti ti-building dmo-tagbox-ico"></i>
+                <div class="dmo-tags" id="tags-firma"></div>
+                <input type="text" class="dmo-tag-input" id="input-firma"
+                       placeholder="Firma…" autocomplete="off">
+              </div>
+
+              <!-- Tarih pill + popover -->
+              <div class="dmo-pill" id="pill-date" onclick="toggleFilterPopover('date')">
+                <i class="ti ti-calendar"></i>
+                <span id="pill-date-label">Tüm zamanlar</span>
+                <i class="ti ti-chevron-down dmo-pill-caret"></i>
+                <div class="dmo-popover" id="popover-date" onclick="event.stopPropagation()">
+                  <div class="dmo-popover-title">Hızlı seçim</div>
+                  <div class="dmo-preset-row">
+                    <button class="dmo-preset" onclick="applyDatePreset('today')">Bugün</button>
+                    <button class="dmo-preset" onclick="applyDatePreset('week')">Bu hafta</button>
+                    <button class="dmo-preset" onclick="applyDatePreset('month')">Bu ay</button>
+                    <button class="dmo-preset" onclick="applyDatePreset('90')">Son 90 gün</button>
+                  </div>
+                  <div class="dmo-popover-title">Aralık</div>
+                  <div class="dmo-mini-grid">
+                    <input type="date" class="dmo-mini-input" id="filter-date-start">
+                    <span class="dmo-mini-dash">—</span>
+                    <input type="date" class="dmo-mini-input" id="filter-date-end">
+                  </div>
+                </div>
+              </div>
+
+              <!-- Tutar pill + popover -->
+              <div class="dmo-pill" id="pill-amount" onclick="toggleFilterPopover('amount')">
+                <i class="ti ti-currency-lira"></i>
+                <span id="pill-amount-label">Tüm tutarlar</span>
+                <i class="ti ti-chevron-down dmo-pill-caret"></i>
+                <div class="dmo-popover" id="popover-amount" onclick="event.stopPropagation()">
+                  <div class="dmo-popover-title">Aralık (₺)</div>
+                  <div class="dmo-preset-row">
+                    <button class="dmo-preset" onclick="applyAmountPreset(0,100000)">0–100K</button>
+                    <button class="dmo-preset" onclick="applyAmountPreset(100000,500000)">100–500K</button>
+                    <button class="dmo-preset" onclick="applyAmountPreset(500000,1000000)">500K–1M</button>
+                    <button class="dmo-preset" onclick="applyAmountPreset(1000000,3000000)">1M+</button>
+                  </div>
+                  <div class="dmo-mini-grid">
+                    <input type="number" class="dmo-mini-input" id="filter-amount-min" placeholder="Min">
+                    <span class="dmo-mini-dash">—</span>
+                    <input type="number" class="dmo-mini-input" id="filter-amount-max" placeholder="Maks">
+                  </div>
+                </div>
+              </div>
+
+              <!-- Advanced toggle pill -->
+              <div class="dmo-pill dmo-pill--advanced" id="pill-advanced" onclick="toggleAdvancedFilters()">
+                <i class="ti ti-adjustments-horizontal"></i>
+                <span>Gelişmiş</span>
+                <span class="dmo-advanced-badge" id="advanced-badge">!</span>
+              </div>
+
+              <!-- Clear -->
+              <button class="dmo-clear-btn" onclick="clearAllFilters()" title="Temizle" aria-label="Filtreleri temizle">
+                <i class="ti ti-trash"></i>
+              </button>
+            </div>
+
+            <!-- Advanced panel -->
+            <div class="dmo-advanced" id="advanced-panel">
+              <div class="dmo-advanced-row">
+                <select class="dmo-select" id="filter-status" onchange="updateAdvancedBadge()">
+                  <option value="">Tüm Durumlar</option>
+                  <option value="Paid">Ödendi</option>
+                  <option value="Unpaid">Ödenmedi</option>
+                  <option value="Partial">Kısmi</option>
+                </select>
+                <select class="dmo-select" id="filter-category" onchange="updateAdvancedBadge()">
+                  <option value="">Tüm Kategoriler</option>
+                  <option value="KARTUŞ">Kartuş</option>
+                  <option value="YAZICI">Yazıcı</option>
+                  <option value="TARAYICI">Tarayıcı</option>
+                </select>
+                <select class="dmo-select" id="filter-source" onchange="updateAdvancedBadge()">
+                  <option value="">Tüm Kaynaklar</option>
+                  <option value="api">API</option>
+                  <option value="manual">Manuel</option>
+                  <option value="logo">Logo</option>
+                  <option value="elogo">e-Logo</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          <!-- ── KPI bar ── -->
+          <div class="dmo-kpis">
+            <div class="dmo-kpi">
+              <div class="dmo-kpi-label">Fatura Adedi</div>
+              <div class="dmo-kpi-value-row">
+                <span class="dmo-kpi-value" id="kpi-count">—</span>
+              </div>
+            </div>
+            <div class="dmo-kpi">
+              <div class="dmo-kpi-label">Firma Adedi</div>
+              <div class="dmo-kpi-value-row">
+                <span class="dmo-kpi-value" id="kpi-companies">—</span>
+              </div>
+            </div>
+            <div class="dmo-kpi dmo-kpi--total">
+              <div class="dmo-kpi-label">Toplam Tutar</div>
+              <div class="dmo-currency-row">
+                <div class="dmo-currency-cell">
+                  <div class="dmo-currency-val" id="kpi-total-try">—</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- ── Faturalar line (opened invoice tabs) ── -->
+          <div class="dmo-invtabbar">
+            <span class="dmo-invtabbar-label">Faturalar</span>
+            <div class="dmo-invtabbar-divider"></div>
+            <div class="dmo-invtabs" id="invoice-tabs"><!-- opened invoices become tabs (JS) --></div>
+          </div>
+
+          <!-- ── List ── -->
+          <div class="dmo-list-wrap" id="faturalar-list-wrap">
+            <table class="dmo-table">
+              <thead>
+                <tr>
+                  <th>Fatura No</th>
+                  <th>Sipariş No</th>
+                  <th>Firma</th>
+                  <th>Tarih</th>
+                  <th class="num">Tutar</th>
+                </tr>
+              </thead>
+              <!-- rows rendered by dmo-faturalar.js from invoices WHERE dmo_invoice = true -->
+              <tbody id="faturalar-tbody"></tbody>
+            </table>
+            <p class="dmo-empty" id="faturalar-empty">Fatura bulunamadı</p>
+          </div>
+
+
+        </section>
+
+        <!-- ========================================================= -->
+        <!-- PANEL: SEPET HAZIRLA  (built in later phase)              -->
+        <!-- ========================================================= -->
+        <section class="dmo-panel" id="panel-sepet">
+          <div class="dmo-panel-stub">
+            <i class="ti ti-shopping-cart"></i> Sepet Hazırla — sıradaki fazlarda
+          </div>
+        </section>
+
+        <!-- ========================================================= -->
+        <!-- PANEL: BEKLEYEN  (PDF yükle + açık siparişler)            -->
+        <!-- ========================================================= -->
+        <section class="dmo-panel" id="panel-bekleyen">
+
+          <div class="dmo-bekleyen-toolbar">
+            <div class="dmo-bekleyen-tabs">
+              <button class="bekleyen-tab active" data-status="" onclick="filterBekleyenStatus('')">Tümü</button>
+              <button class="bekleyen-tab" data-status="Taslak" onclick="filterBekleyenStatus('Taslak')">Taslak</button>
+              <button class="bekleyen-tab" data-status="Sipariş Alındı" onclick="filterBekleyenStatus('Sipariş Alındı')">Sipariş Alındı</button>
+            </div>
+            <button class="dmo-upload-btn" onclick="uploadBekleyenPdf()">
+              <i class="ti ti-file-upload"></i>PDF Yükle
+            </button>
+          </div>
+
+          <div class="dmo-list-wrap">
+            <table class="dmo-table">
+              <thead>
+                <tr>
+                  <th>Sipariş No</th>
+                  <th>Firma</th>
+                  <th>Tarih</th>
+                  <th>Durum</th>
+                  <th class="num">DMO Tutar</th>
+                  <th class="num">Net Kâr</th>
+                </tr>
+              </thead>
+              <tbody id="bekleyen-tbody"></tbody>
+            </table>
+            <p class="dmo-empty" id="bekleyen-empty">Bekleyen sipariş yok</p>
+          </div>
+
+        </section>
+
+      </div><!-- /.dmo-main -->
+
+      <!-- ───────── AI RAIL (mounted once; shown on Genel Bakış + Faturalar) ───────── -->
+      <aside class="dmo-ai" id="dmo-ai">
+        <div class="dmo-ai-head">
+          <div class="dmo-ai-title"><i class="ti ti-sparkles"></i>DMO Asistanı</div>
+          <button class="dmo-ai-newbtn" onclick="newAiChat()" aria-label="Yeni sohbet"><i class="ti ti-plus"></i></button>
+        </div>
+
+        <div class="dmo-ai-activity">
+          <div class="dmo-ai-activity-head" onclick="toggleAiActivity()">
+            <span>Son Aktivite</span>
+            <i class="ti ti-chevron-down" id="ai-activity-caret"></i>
+          </div>
+        </div>
+
+        <div class="dmo-ai-messages" id="dmo-ai-messages">
+          <div class="dmo-msg dmo-msg-card">
+            DMO faturaları hakkında soru sorabilirsin — örneğin firma, kategori veya döneme göre tutarlar.
+          </div>
+        </div>
+
+        <div class="dmo-ai-suggest">
+          <div class="dmo-ai-suggest-label">Öneriler</div>
+          <button class="dmo-chip-suggest" onclick="sendAiSuggestion(this)">En yüksek tutarlı firma hangisi?</button>
+          <button class="dmo-chip-suggest" onclick="sendAiSuggestion(this)">Yazıcı vs kartuş tutar dağılımı</button>
+        </div>
+
+        <div class="dmo-ai-input-row">
+          <textarea class="dmo-ai-input" id="dmo-ai-input" rows="1" placeholder="Bir şey sor…"></textarea>
+          <button class="dmo-ai-send" onclick="sendAiMessage()" aria-label="Gönder"><i class="ti ti-arrow-up"></i></button>
+        </div>
+      </aside>
+
+    </div><!-- /.dmo-body -->
+  </div><!-- /.dmo-app -->
+</div><!-- /.app-shell -->
+
+<div id="toast-container"></div>
+
+
+
+
+</body>
+</html>

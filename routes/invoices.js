@@ -4,6 +4,7 @@
 const express = require('express');
 const router = express.Router();
 const { generateAndUploadPdf } = require('../services/pdf-service');
+const {insertPriceHistory} = require("../services/helpers");
 
 
 // ── Case-insensitive filter helpers ───────────────────────────────────────────
@@ -1370,16 +1371,15 @@ router.put('/:id/approve', async (req, res) => {
   try {
     const supabase = req.app.get('supabase');
     const { id } = req.params;
+    const tenantId = req.tenantId;
 
-    // Try with tenant filter first; fall back to id-only if tenant_id is missing on older rows
+    // approve (tenant-filtered, with fallback for older rows)
     let { data, error } = await supabase
       .from('invoices').update({ approval_status: 'approved' }, { count: 'exact' })
-      .eq('id', id).eq('tenant_id', req.tenantId)
+      .eq('id', id).eq('tenant_id', tenantId)
       .select('id');
-
     if (error) throw error;
 
-    // If no rows matched (tenant_id mismatch on older data), retry without tenant filter
     if (!data || data.length === 0) {
       const fallback = await supabase
         .from('invoices').update({ approval_status: 'approved' })
@@ -1387,6 +1387,44 @@ router.put('/:id/approve', async (req, res) => {
       if (fallback.error) throw fallback.error;
       if (!fallback.data || fallback.data.length === 0)
         return res.status(404).json({ error: 'Fatura bulunamadı veya zaten onaylı.' });
+    }
+
+    // ── write price history for this invoice's internal, linked lines ──
+    // idempotent (UNIQUE invoice_item_id + ON CONFLICT DO NOTHING) so
+    // re-approving or overlap with the pipeline won't duplicate.
+    try {
+      const { data: invRow } = await supabase
+        .from('invoices')
+        .select('id, direction, calculation_rate, invoice_date, tenant_id')
+        .eq('id', id)
+        .single();
+
+      if (invRow && invRow.direction) {   // need valid direction for the CHECK constraint
+        const { data: lines } = await supabase
+          .from('invoice_items')
+          .select('id, product_id, unit_price_cur, currency, quantity')
+          .eq('invoice_id', id)
+          .eq('is_internal', true)
+          .not('product_id', 'is', null);
+
+        if (lines && lines.length) {
+          const rows = lines.map(it => ({
+            product_id:       it.product_id,
+            direction:        invRow.direction,
+            unit_price_cur:   it.unit_price_cur,
+            currency:         it.currency,
+            calculation_rate: invRow.calculation_rate ?? null,
+            quantity:         it.quantity,
+            invoice_id:       id,
+            invoice_item_id:  it.id,
+            invoice_date:     invRow.invoice_date ?? null,
+          }));
+          await insertPriceHistory(rows, invRow.tenant_id || tenantId);
+        }
+      }
+    } catch (histErr) {
+      // don't fail the approval if history writing hiccups — log and continue
+      console.error('Fiyat geçmişi yazılamadı (onay):', histErr.message);
     }
 
     res.json({ message: 'Fatura onaylandı' });

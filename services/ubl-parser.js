@@ -332,4 +332,4 @@ function buildInvoicePayload(xml, viewKey) {
         _kurXml: kurRaw,
     };
 }
-module.exports = { parseUblFromBase64, setProductCodeLookup,parseUblFromXml, buildInvoicePayload };
+module.exports = { parseUblFromBase64, setProductCodeLookup,parseUblFromXml, buildInvoicePayload,parser };

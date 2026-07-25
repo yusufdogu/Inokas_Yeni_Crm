@@ -104,6 +104,7 @@ async function upsertCompany(companyData, tenantId) {
 function buildInvoiceSignature(invoiceFields, items) {
     const inv = [
         invoiceFields.invoice_no,
+        invoiceFields.direction,
         invoiceFields.invoice_date,
         Number(invoiceFields.payable_amount_cur || 0).toFixed(2),
         Number(invoiceFields.payable_amount_tl  || 0).toFixed(2),
@@ -153,17 +154,22 @@ async function processInvoicePipeline(dbInvoice, parsedItems, viewKey, tenantId,
 
     // ── 1) classify (whole invoice, one call) ────────────────────────────────
     // general-family vocab, split by type, fed back for wording consistency
+    const businessSummary  = await db.getBusinessSummary(tenantId);   // throws if unset
     const knownInternal    = await db.getKnownCategories('internal', tenantId);
     const knownNonInternal = await db.getKnownCategories('non_internal', tenantId);
-    const classification   = await classifyInvoice(parsedItems, knownInternal, knownNonInternal);
+    const classification   = await classifyInvoice(parsedItems, businessSummary, knownInternal, knownNonInternal);
 
-    // classification.items is index-aligned with parsedItems.
-    // Collect each item's GENERAL family into vocab and stash its parent id
-    // (needed later when we store the SPECIFIC subcategory under it).
+    const isOutgoing = viewKey === 'giden';
     for (const it of classification.items) {
-        const isInternal = it.item_is_internal;
-        it._is_internal  = isInternal;
-        it._category_id  = it.item_category
+        // OUTGOING → everything is internal (we sold it, we made money).
+        // INCOMING → use the classifier's judgment.
+        const isInternal = isOutgoing ? true : (it.item_is_internal === true);
+        const isProduct  = it.is_product === true;   // classifier judges enrichability
+
+        it._is_internal = isInternal;
+        it._is_product  = isProduct;
+
+        it._category_id = it.item_category
             ? await db.addCategory(isInternal ? 'internal' : 'non_internal', it.item_category, tenantId)
             : null;
     }
@@ -187,30 +193,35 @@ async function processInvoicePipeline(dbInvoice, parsedItems, viewKey, tenantId,
     let anyReview = false;
 
     for (let i = 0; i < enriched.length; i++) {
+
+
+
         const e   = enriched[i];
         const src = classification.items[i];
 
-        // NON_INTERNAL lines never get a product — product_id stays null
-        if (!src._is_internal || e.skip_reason === 'NON_INTERNAL') continue;
+        // skip: non-internal, OR not-a-product (service/adjustment), OR enricher skipped
+        if (!src._is_internal || !src._is_product ||
+            e.skip_reason === 'NON_INTERNAL' || e.skip_reason === 'NOT_PRODUCT'){
+            console.log("skip for something");
+            continue;
+        }
 
+        // from here, it's an internal PRODUCT line that was enriched
         if (e.needs_review) anyReview = true;
 
-        const code = e.product_code;
-        if (!code) { anyReview = true; continue; }   // couldn't resolve an MPN
+        console.log(anyReview)
 
-        // freeze-on-first-write; returns the product row (existing or new)
         const product = await db.upsertProduct(e, tenantId);
         if (product?.id) {
             productIdByIndex[i] = product.id;
-
-            // store the SPECIFIC subcategory under its parent GENERAL family
             if (e.item_subcategory && src._category_id) {
                 await db.addSubcategory(e.item_subcategory, src._category_id, tenantId);
             }
         } else {
-            anyReview = true;   // product write didn't yield an id
+            anyReview = true;
         }
     }
+
 
     // ── 4) build final item rows — RAW fields + product_id + classification ──
     //     Descriptive fields come straight from the parsed XML, never enriched.
@@ -235,6 +246,7 @@ async function processInvoicePipeline(dbInvoice, parsedItems, viewKey, tenantId,
             item_category:     cls.item_category    ?? null,   // general family
             item_subcategory:  cls.item_subcategory ?? null,   // specific (enriched, if any)
             is_internal:       cls._is_internal === true,
+            is_product:        cls._is_product === true,
         };
     });
 
@@ -251,14 +263,44 @@ async function processInvoicePipeline(dbInvoice, parsedItems, viewKey, tenantId,
         }
     }
 
-    // ── 7) invoice category + approval (trusted → approved, else pending) ────
+    // ── 7) invoice category + approval ──
+    // For outgoing, all lines are internal → category is INTERNAL, not the
+    // classifier's pre-override value.
+    console.log(anyReview)
+    const invoiceCategory = isOutgoing ? 'INTERNAL' : classification.invoice_category;
+    const approved = !anyReview;
     await supabase.from('invoices')
         .update({
-            invoice_category: classification.invoice_category,
-            approval_status:  anyReview ? 'pending' : 'approved',
+            invoice_category: invoiceCategory,
+            approval_status:  approved ? 'approved' : 'pending',
         })
         .eq('id', dbInvoice.id);
 
+
+    // ── 8) price history — ONLY when approved (pending handled later by trigger)
+    if (approved) {
+        // read back inserted items to get their ids, matched by product_id
+        const {data: insertedItems} = await supabase
+            .from('invoice_items')
+            .select('id, product_id, unit_price_cur, currency, quantity')
+            .eq('invoice_id', dbInvoice.id)
+            .not('product_id', 'is', null);
+
+        if (insertedItems && insertedItems.length) {
+            const historyRows = insertedItems.map(it => ({
+                product_id: it.product_id,
+                direction: dbInvoice.direction,          // INCOMING/OUTGOING
+                unit_price_cur: it.unit_price_cur,
+                currency: it.currency,
+                calculation_rate: dbInvoice.calculation_rate ?? null,
+                quantity: it.quantity,
+                invoice_id: dbInvoice.id,
+                invoice_item_id: it.id,
+                invoice_date: dbInvoice.invoice_date ?? null,
+            }));
+            await db.insertPriceHistory(historyRows, tenantId);
+        }
+    }
     console.log(`   → ${classification.invoice_category} | onay: ${anyReview ? 'pending' : 'approved'}`);
 }
 

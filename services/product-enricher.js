@@ -166,10 +166,16 @@ async function enrichProducts(items, store = {}, direction = 'gelen') {
 
     for (const item of items) {
 
-        // 1) skip non-internal
-        if (item.item_is_internal !== true) {
+        // skip non-internal lines
+        if (item._is_internal !== true) {
             console.log(`⏭️  NON_INTERNAL, atlanıyor: "${item.product_name}"`);
             results.push({ ...item, enriched: false, skip_reason: 'NON_INTERNAL' });
+            continue;
+        }
+        // skip internal-but-not-a-product lines (services, financial adjustments)
+        if (item._is_product !== true) {
+            console.log(`⏭️  Ürün değil (hizmet/finansal), atlanıyor: "${item.product_name}"`);
+            results.push({ ...item, enriched: false, skip_reason: 'NOT_PRODUCT' });
             continue;
         }
 
@@ -437,6 +443,7 @@ function parseResponse(text, citations, originalItem, trust = {}) {
             trust.recordBrandDomain(brand, allUrls);
         }
 
+
         // did we actually identify the product? (at least one core field present)
         const identified = Boolean(
             parsed.product_name || parsed.product_code || parsed.brand
@@ -466,6 +473,7 @@ function parseResponse(text, citations, originalItem, trust = {}) {
         console.log(`✅ Tamamlandı — inceleme gerekli: ${needs_review ? 'EVET' : 'HAYIR'}`);
         if (result.brand)    console.log(`   Marka    : ${result.brand}`);
         if (result.specs?.model) console.log(`   Model    : ${result.specs.model}`);
+        if (result.product_code) console.log(`   product_code : ${result.product_code}`);
         if (result.category) console.log(`   Kategori : ${result.category}`);
         if (trustedMatch)    console.log(`   ✓ Güvenilir kaynak: ${trustedMatch}`);
         if (sources.length)  console.log(`   Kaynaklar: ${sources.map(s => s.type).join(', ')}`);

@@ -1,4 +1,4 @@
-// routes/dmo.js
+// routes/dmo-main.js
 'use strict';
 
 const express = require('express');
@@ -7,6 +7,9 @@ const router  = express.Router();
 
 const DMO_PY_HOST = process.env.DMO_PY_HOST || '127.0.0.1';
 const DMO_PY_PORT = Number(process.env.DMO_PY_PORT || 5000);
+
+const multer = require('multer');
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 } });
 
 // ─── TCMB helpers (shared — no tenant_id) ────────────────────────────────────
 async function fetchAndSaveTCMBRates(supabase) {
@@ -85,6 +88,88 @@ async function fetchAndSaveDMORate(supabase) {
 module.exports.fetchAndSaveTCMBRates = fetchAndSaveTCMBRates;
 module.exports.fetchAndSaveDMORate   = fetchAndSaveDMORate;
 
+// each item: { dmo_code, quantity, is_gift }
+async function computeCostTotals(supabase, tenantId, items) {
+  let inokas = 0, gift = 0;
+  const zeroCostCodes = [];
+  for (const it of (items || [])) {
+    if (!it.dmo_code) continue;
+    const r = await resolveDmoProduct(supabase, tenantId, it.dmo_code, { product_name: it.product_name });
+    const unit = r.maliyet_tl_unit || 0;
+    const line = unit * (Number(it.quantity) || 0);
+    if (unit === 0) zeroCostCodes.push(it.dmo_code);
+    if (it.is_gift) gift += line; else inokas += line;
+  }
+  return { inokas_basket_total: inokas, gift_total: gift, zeroCostCodes };
+}
+
+async function resolveDmoProduct(supabase, tenantId, dmoCode, hints = {}) {
+  const { data: existing } = await supabase.from('dmo_products')
+    .select('id, products(last_purchase_price_tl)')
+    .eq('dmo_code', dmoCode).eq('tenant_id', tenantId).maybeSingle();
+  if (existing) return { id: existing.id, maliyet_tl_unit: Number(existing.products?.last_purchase_price_tl) || 0 };
+
+  let scraped;
+  try {
+    scraped = await postToFlask('/resolve-product', { dmo_code: dmoCode });   // your http.request helper
+  } catch (e) {
+    return { error: 'scrape-failed: ' + e.message };
+  }
+  if (!scraped || !scraped.found || !scraped.mpn) return { error: 'not-found' };
+  const mpn = scraped.mpn;
+
+  let { data: prod } = await supabase.from('products')
+    .select('id, last_purchase_price_tl').eq('product_code', mpn).eq('tenant_id', tenantId).maybeSingle();
+  if (!prod) {
+    const { data: np, error: pe } = await supabase.from('products').insert({
+      product_code: mpn, product_name: hints.product_name || `${scraped.brand || ''} ${scraped.model || mpn}`.trim(),
+      brand: scraped.brand || null, model: scraped.model || null, tenant_id: tenantId,
+    }).select('id, last_purchase_price_tl').single();
+    if (pe) return { error: pe.message };
+    prod = np;
+  }
+
+  const { data: dp, error: de } = await supabase.from('dmo_products').insert({
+    tenant_id: tenantId, product_id: prod.id, dmo_code: dmoCode,
+    dmo_fiyat_try: scraped.price || 0, dmo_url: scraped.url || null,
+  }).select('id').single();
+  if (de) return { error: de.message };
+  return { id: dp.id, created: true, maliyet_tl_unit: Number(prod.last_purchase_price_tl) || 0 };
+}
+// POST /api/dmo/resolve-product — Node bridge → resolveDmoProduct → Flask /resolve-product
+router.post('/resolve-product', async (req, res) => {
+  console.log('[NODE resolve-product] HIT — body:', req.body);
+  try {
+    const supabase = req.app.get('supabase');
+    const tenantId = req.tenantId;
+    if (!tenantId) return res.status(401).json({ error: 'tenant yok' });
+
+    const dmoCode = String(req.body.dmo_code || '').trim();
+    if (!dmoCode) return res.status(400).json({ error: 'dmo_code zorunlu' });
+
+    const r = await resolveDmoProduct(supabase, tenantId, dmoCode, { product_name: req.body.product_name });
+    if (r.id) return res.json({ resolved: true, dmo_code: dmoCode, dmo_product_id: r.id, created: !!r.created });
+    return res.json({ resolved: false, dmo_code: dmoCode, reason: r.error || 'not-found' });
+  } catch (err) {
+    console.error('POST /api/dmo/resolve-product hatası:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/dmo/preview-cost — live cost totals for the yeni-siparis screen
+router.post('/preview-cost', async (req, res) => {
+  try {
+    const supabase = req.app.get('supabase');
+    const tenantId = req.tenantId;
+    if (!tenantId) return res.status(401).json({ error: 'tenant yok' });
+    const totals = await computeCostTotals(supabase, tenantId, req.body.items || []);
+    res.json(totals);
+  } catch (err) {
+    console.error('preview-cost hatası:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // POST /api/dmo/parse-pdf
 router.post('/parse-pdf', (req, res) => {
   const proxyReq = http.request({
@@ -101,7 +186,189 @@ router.post('/parse-pdf', (req, res) => {
   });
   req.pipe(proxyReq);
 });
+// POST /api/dmo/orders/received — create (or merge into a taslak) a received order + items
+router.post('/orders/received', async (req, res) => {
+  try {
+    const supabase = req.app.get('supabase');
+    const tenantId = req.tenantId;
+    if (!tenantId) return res.status(401).json({ error: 'tenant yok' });
 
+    const { orderId, isMerge, order, items } = req.body;
+    const orderRow = { ...order, tenant_id: tenantId, status: 'Sipariş Alındı' };
+
+    let savedId;
+    if (orderId && isMerge) {
+      // keep gift rows, replace the regular ones, update the order
+      await supabase.from('dmo_order_items').delete().eq('order_id', orderId).eq('is_gift', false);
+      const { error } = await supabase.from('dmo_orders').update(orderRow).eq('id', orderId).eq('tenant_id', tenantId);
+      if (error) throw error;
+      savedId = orderId;
+    } else {
+      if (order.sales_order_no) {
+        const { data: dup } = await supabase.from('dmo_orders')
+          .select('id').eq('sales_order_no', order.sales_order_no).eq('tenant_id', tenantId).maybeSingle();
+        if (dup) return res.status(409).json({ error: 'Bu sipariş zaten kayıtlı: ' + order.sales_order_no });
+      }
+      const { data, error } = await supabase.from('dmo_orders').insert(orderRow).select('id').single();
+      if (error) throw error;
+      savedId = data.id;
+    }
+
+    let failed = 0, inokasTotal = 0, giftTotal = 0;
+    const zeroCostCodes = [];
+
+    for (const it of (items || [])) {
+      let dmoProductId = null, unitCost = 0;
+      if (it.dmo_code) {
+        const { data: dp } = await supabase.from('dmo_products')
+          .select('id, products(last_purchase_price_tl)')
+          .eq('dmo_code', it.dmo_code).eq('tenant_id', tenantId).maybeSingle();
+        if (dp) { dmoProductId = dp.id; unitCost = Number(dp.products?.last_purchase_price_tl) || 0; }
+      }
+      const qty = Number(it.quantity) || 0;
+      const lineCost = unitCost * qty;
+      if (it.dmo_code && unitCost === 0) zeroCostCodes.push(it.dmo_code);
+      if (it.is_gift) giftTotal += lineCost; else inokasTotal += lineCost;
+
+      const { error: ie } = await supabase.from('dmo_order_items').insert({
+        order_id: savedId, dmo_product_id: dmoProductId, tenant_id: tenantId,
+        quantity: qty, unit_price_excl_vat: it.unit_price_excl_vat, line_total_excl_vat: it.line_total_excl_vat,
+        is_gift: !!it.is_gift, katalog_kod: it.dmo_code || null,
+        maliyet_tl: lineCost, indirim_pct: it.indirim_pct || 0,
+      });
+      if (ie) {
+        console.error('[received] item insert FAILED:', ie.message, '| details:', ie.details, '| hint:', ie.hint, '| code:', ie.code);
+        failed++;
+      }
+    }
+
+    // Cost-derived fields: server cost + client's tax/price fields (damga recomputed here)
+    const actualBasket = Number(order.real_dmo_basket) || 0;
+    const damgaKarar   = actualBasket * 0.01517;
+    const toplamGelir  = Number(order.toplam_gelir) || 0;
+    const toplamGider  = inokasTotal + (Number(order.tutar_indirimi) || 0) + (Number(order.tevkifat) || 0)
+                       + (Number(order.risturn_amount) || 0) + damgaKarar + giftTotal;
+    const netProfit    = toplamGelir - toplamGider;
+    const profitPct    = toplamGelir > 0 ? (netProfit / toplamGelir * 100) : 0;
+
+    await supabase.from('dmo_orders').update({
+      inokas_basket_total: inokasTotal, gift_total: giftTotal,
+      toplam_gider: toplamGider, net_profit: netProfit, profit_percentage: profitPct,
+      needs_cost_review: zeroCostCodes.length > 0,
+    }).eq('id', savedId).eq('tenant_id', tenantId);
+
+    res.json({ ok: true, orderId: savedId, failed, zeroCostCodes });
+  } catch (err) {
+    console.error('POST /api/dmo/orders/received hatası:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+// DELETE /api/dmo/orders/:id — reverse stock, restore gift stock, then delete (+ items via cascade)
+router.delete('/orders/:id', async (req, res) => {
+  try {
+    const supabase = req.app.get('supabase');
+    const tenantId = req.tenantId;
+    if (!tenantId) return res.status(401).json({ error: 'tenant yok' });
+    const orderId = req.params.id;
+
+    // Ensure the order belongs to this tenant, and read its status while it still exists
+    const { data: order, error: oe } = await supabase.from('dmo_orders')
+      .select('id, status').eq('id', orderId).eq('tenant_id', tenantId).maybeSingle();
+    if (oe) throw oe;
+    if (!order) return res.status(404).json({ error: 'Sipariş bulunamadı' });
+
+    // Reverse the reservation only if stock was actually reserved (Sipariş Alındı)
+    if (order.status === 'Sipariş Alındı') {
+      const { data: rows } = await supabase.from('dmo_order_items')
+        .select('quantity, dmo_products(product_id)')
+        .eq('order_id', orderId).eq('is_gift', false);
+
+      for (const r of (rows || [])) {
+        const pid = r.dmo_products?.product_id;
+        if (!pid) continue;                          // unresolved line — nothing to reverse
+        const { data: p } = await supabase.from('products')
+          .select('stock_on_hand, reserved_quantity').eq('id', pid).maybeSingle();
+        if (!p) continue;
+        await supabase.from('products').update({
+          stock_on_hand:     (Number(p.stock_on_hand) || 0)     + (Number(r.quantity) || 0),
+          reserved_quantity: (Number(p.reserved_quantity) || 0) - (Number(r.quantity) || 0),
+          updated_at:        new Date().toISOString(),
+        }).eq('id', pid);
+      }
+    }
+
+    // Return gift quantities to dmo_products before deleting
+    const { data: gifts } = await supabase.from('dmo_order_items')
+      .select('dmo_product_id, quantity').eq('order_id', orderId).eq('is_gift', true);
+
+    for (const g of (gifts || [])) {
+      if (!g.dmo_product_id) continue;
+      const { data: dp } = await supabase.from('dmo_products')
+        .select('gift_quantity').eq('id', g.dmo_product_id).eq('tenant_id', tenantId).maybeSingle();
+      if (!dp) continue;
+      const restored = (Number(dp.gift_quantity) || 0) + (Number(g.quantity) || 0);
+      await supabase.from('dmo_products')
+        .update({ gift_quantity: restored })
+        .eq('id', g.dmo_product_id).eq('tenant_id', tenantId);
+    }
+
+    // Delete the order — dmo_order_items cascade via FK
+    const { error: de } = await supabase.from('dmo_orders')
+      .delete().eq('id', orderId).eq('tenant_id', tenantId);
+    if (de) throw de;
+
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('DELETE /api/dmo/orders/:id hatası:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+// PUT /api/dmo/orders/:id — update editable order fields
+router.put('/orders/:id', async (req, res) => {
+  try {
+    const supabase = req.app.get('supabase');
+    const tenantId = req.tenantId;
+    if (!tenantId) return res.status(401).json({ error: 'tenant yok' });
+
+    const patch = { ...(req.body || {}) };
+    delete patch.id;          // never let the client change identity/ownership
+    delete patch.tenant_id;
+
+    const { error } = await supabase.from('dmo_orders')
+      .update(patch)
+      .eq('id', req.params.id).eq('tenant_id', tenantId);
+    if (error) throw error;
+
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('PUT /api/dmo/orders/:id hatası:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/dmo/upload-pdf — order PDF → storage (service-role), returns public URL
+router.post('/upload-pdf', upload.single('pdf'), async (req, res) => {
+  try {
+    const supabase = req.app.get('supabase');
+    const tenantId = req.tenantId;
+    if (!tenantId) return res.status(401).json({ error: 'tenant yok' });
+    if (!req.file)  return res.status(400).json({ error: 'PDF bulunamadı' });
+
+    const safeNo   = String(req.body.salesOrderNo || 'order').replace(/[^a-zA-Z0-9_-]/g, '');
+    const fileName = `${tenantId}/${safeNo}_${Date.now()}.pdf`;
+
+    const { error } = await supabase.storage
+      .from('dmo-pdfs')
+      .upload(fileName, req.file.buffer, { contentType: 'application/pdf', upsert: true });
+    if (error) throw error;
+
+    const { data } = supabase.storage.from('dmo-pdfs').getPublicUrl(fileName);
+    res.json({ url: data?.publicUrl || null });
+  } catch (err) {
+    console.error('DMO upload-pdf hatası:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
 // GET /api/dmo/rates — shared, no tenant filter
 router.get('/rates', async (req, res) => {
   try {
@@ -163,6 +430,163 @@ router.get('/debug-tcmb', async (req, res) => {
     res.send(`<pre>STATUS: ${r.status}\n\nBODY:\n${text.slice(0, 3000)}</pre>`);
   } catch (err) {
     res.send('ERROR: ' + err.message);
+  }
+});
+
+// GET /api/dmo/invoices — DMO invoices for the current tenant
+router.get('/invoices', async (req, res) => {
+  try {
+    const supabase = req.app.get('supabase');
+    const tenantId = req.tenantId;
+    if (!tenantId) return res.status(401).json({ error: 'tenant yok' });
+
+    const { data, error } = await supabase
+      .from('invoices')
+      .select('*, companies(name)')
+      .eq('dmo_invoice', true)
+      .eq('tenant_id', tenantId)
+      .order('invoice_date', { ascending: false });
+
+    if (error) throw error;
+    res.json(data || []);
+  } catch (err) {
+    console.error('DMO invoices hatası:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/dmo/invoices/:id/items — line items (scoped to the tenant's invoice)
+router.get('/invoices/:id/items', async (req, res) => {
+  try {
+    const supabase = req.app.get('supabase');
+    const tenantId = req.tenantId;
+    if (!tenantId) return res.status(401).json({ error: 'tenant yok' });
+
+    const { data, error } = await supabase
+      .from('invoice_items')
+      .select('*, invoices!inner(tenant_id)')
+      .eq('invoice_id', req.params.id)
+      .eq('invoices.tenant_id', tenantId)
+      .order('line_id', { ascending: true });
+
+    if (error) throw error;
+    res.json(data || []);
+  } catch (err) {
+    console.error('DMO invoice items hatası:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/dmo/orders/:id — draft order + its items (Sepet taslak edit)
+router.get('/orders/:id', async (req, res) => {
+  try {
+    const supabase = req.app.get('supabase');
+    const { data: order, error: e1 } = await supabase
+      .from('dmo_orders')
+      .select('*')
+      .eq('id', req.params.id)
+      .eq('tenant_id', req.tenantId)          // ← drop if dmo_orders has no tenant_id
+      .single();
+    if (e1) throw e1;
+
+    const { data: items, error: e2 } = await supabase
+      .from('dmo_order_items')
+      .select(`
+        *,
+        dmo_products (
+          id, dmo_code, dmo_fiyat_try, sozlesme_fiyat_eur,
+          products ( id, product_name, product_code, maliyet_usd, stock_on_hand, model )
+        )
+      `)
+      .eq('order_id', req.params.id);
+    if (e2) throw e2;
+
+    res.json({ order, items: items || [] });
+  } catch (err) {
+    console.error('GET /api/dmo/orders/:id hatası:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/dmo/orders/taslak — create or update a draft, then replace its items
+router.post('/orders/taslak', async (req, res) => {
+  try {
+    const supabase = req.app.get('supabase');
+    const { orderId, order, items } = req.body;
+
+    let saved;
+    if (orderId) {
+      await supabase.from('dmo_order_items').delete().eq('order_id', orderId);
+      const { data, error } = await supabase
+        .from('dmo_orders').update(order)
+        .eq('id', orderId).eq('tenant_id', req.tenantId)     // ← drop tenant eq if no column
+        .select().single();
+      if (error) throw error;
+      saved = data;
+    } else {
+      const { data, error } = await supabase
+        .from('dmo_orders')
+        .insert({ ...order, tenant_id: req.tenantId, order_date: new Date().toISOString().slice(0, 10) })  // ← drop tenant_id if no column
+        .select().single();
+      if (error) throw error;
+      saved = data;
+    }
+
+    if (Array.isArray(items) && items.length) {
+      const rows = items.map(it => ({ ...it, order_id: saved.id, tenant_id: req.tenantId }));
+      const { error } = await supabase.from('dmo_order_items').insert(rows);
+      if (error) throw error;
+    }
+
+    res.json({ ok: true, order: saved });
+  } catch (err) {
+    console.error('POST /api/dmo/orders/taslak hatası:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+// GET /api/dmo/products — the tenant's DMO catalog (dmo_products + base product)
+
+router.get('/products', async (req, res) => {
+  try {
+    const supabase = req.app.get('supabase');
+    const tenantId = req.tenantId;
+    if (!tenantId) return res.status(401).json({ error: 'tenant yok' });
+
+    const { data, error } = await supabase
+      .from('dmo_products')
+      .select(`
+        id, dmo_code, dmo_fiyat_try, sozlesme_fiyat_eur,
+        products ( id, product_code, product_name, model, maliyet_usd, stock_on_hand, reserved_quantity, last_purchase_price_tl )
+      `)
+      .eq('tenant_id', tenantId);
+    if (error) throw error;
+    res.json(data || []);
+  } catch (err) {
+    console.error('GET /api/dmo/products hatası:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/dmo/orders — open orders (Bekleyen): Taslak + Sipariş Alındı by default
+router.get('/orders', async (req, res) => {
+  try {
+    const supabase = req.app.get('supabase');
+    const tenantId = req.tenantId;
+    if (!tenantId) return res.status(401).json({ error: 'tenant yok' });
+
+    const statuses = req.query.status ? [req.query.status] : ['Taslak', 'Sipariş Alındı'];
+
+    const { data, error } = await supabase
+      .from('dmo_orders')
+      .select('id, sales_order_no, customer_name, order_date, status, dmo_basket_total, net_profit')
+      .eq('tenant_id', tenantId)
+      .in('status', statuses)
+      .order('order_date', { ascending: false });
+    if (error) throw error;
+    res.json(data || []);
+  } catch (err) {
+    console.error('GET /api/dmo/orders hatası:', err.message);
+    res.status(500).json({ error: err.message });
   }
 });
 

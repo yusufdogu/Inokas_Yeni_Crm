@@ -10,7 +10,7 @@ router.get('/', async (req, res) => {
     const supabase = req.app.get('supabase');
     const { data, error } = await supabase
       .from('products')
-      .select('id, product_code, product_name, brand, category, model, maliyet_usd, sozlesme_fiyat_eur, last_purchase_price_cur, last_purchase_currency, last_purchase_rate, last_purchase_price_tl, avg_purchase_price_tl, dmo_code, dmo_fiyat_try, dmo_url, gift_quantity, stock_on_hand, reserved_quantity, is_internal')
+      .select('id, product_code, product_name, brand, category, model, maliyet_usd, last_purchase_price_cur, last_purchase_currency, last_purchase_rate, last_purchase_price_tl, avg_purchase_price_tl, stock_on_hand, reserved_quantity, is_internal')
       .eq('tenant_id', req.tenantId)
       .eq('is_internal', true)
       .eq('is_hidden', false)
@@ -28,7 +28,7 @@ router.post('/', async (req, res) => {
   try {
     const supabase = req.app.get('supabase');
     const tenantId = req.tenantId;
-    const { product_name, product_code, brand, category, is_internal, dmo_code, purchase_price, purchase_currency, sales_price, sales_currency } = req.body || {};
+    const { product_name, product_code, brand, category, is_internal, purchase_price, purchase_currency, sales_price, sales_currency } = req.body || {};
     if (!product_name || !String(product_name).trim()) return res.status(400).json({ error: 'Ürün adı zorunlu' });
     if (!product_code || !String(product_code).trim()) return res.status(400).json({ error: 'Ürün kodu zorunlu' });
 
@@ -43,7 +43,6 @@ router.post('/', async (req, res) => {
     if (brand)    insertPayload.brand    = String(brand).trim();
     if (category) insertPayload.category = String(category).trim();
     if (is_internal != null) insertPayload.is_internal = is_internal === true;
-    if (dmo_code) insertPayload.dmo_code = String(dmo_code).trim();
 
     const { data: created, error: createErr } = await supabase
       .from('products').insert(insertPayload).select('id, product_code, product_name').single();
@@ -201,7 +200,7 @@ router.put('/:id([0-9a-fA-F-]{36})', async (req, res) => {
     const id       = String(req.params.id || '').trim();
     if (!id) return res.status(400).json({ error: 'Ürün id zorunlu.' });
 
-    const { id: _id, created_at, updated_at, dmo_fiyat_updated, tenant_id, ...fields } = req.body || {};
+    const { id: _id, created_at, updated_at, tenant_id, ...fields } = req.body || {};
     if (Object.keys(fields).length === 0) return res.status(400).json({ error: 'Güncellenecek alan bulunamadı.' });
 
     fields.updated_at = new Date().toISOString();

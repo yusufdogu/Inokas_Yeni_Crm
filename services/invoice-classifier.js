@@ -8,16 +8,13 @@ require('dotenv').config({ path: require('path').resolve(__dirname, '../.env') }
 const PERPLEXITY_API_URL = 'https://api.perplexity.ai/chat/completions';
 const MODEL              = 'sonar-pro';
 
-// ─── hardcoded for testing — will come from tenant record later ──────────────
-const TENANT_BUSINESS_SUMMARY =
-    "Yazıcı, tarayıcı, BT donanımı ve sarf malzemeleri (mürekkep, toner, kartuş vb.) satıyoruz.";
 
 // ─── main function ────────────────────────────────────────────────────────────
 
-async function classifyInvoice(items, knownInternal = [], knownNonInternal = []) {
+async function classifyInvoice(items,businessSummary, knownInternal = [], knownNonInternal = []) {
     console.log(`\n🏷️  Fatura sınıflandırılıyor... (${items.length} kalem)`);
 
-    const prompt = buildPrompt(items, knownInternal, knownNonInternal);
+    const prompt = buildPrompt(items,businessSummary, knownInternal, knownNonInternal);
 
     try {
         const response = await fetch(PERPLEXITY_API_URL, {
@@ -60,7 +57,7 @@ async function classifyInvoice(items, knownInternal = [], knownNonInternal = [])
 
 // ─── prompt builder ───────────────────────────────────────────────────────────
 
-function buildPrompt(items, knownInternal = [], knownNonInternal = []) {
+function buildPrompt(items, businessSummary, knownInternal = [], knownNonInternal = []) {
     const itemLines = items.map((item, i) =>
         `${i + 1}. urun_adi: "${item.product_name || '-'}" | Açıklama: "${item.product_desc || '-'}" | marka: "${item.brand_name || '-'}"
         Ürün Notu "${item.line_note}"`
@@ -89,7 +86,7 @@ Sen bir fatura analiz asistanısın. Fatura kalemlerini inceleyerek her birinin
 bizim işimizle ilgili olup olmadığını belirle.
 
 BİZİM İŞİMİZ:
-${TENANT_BUSINESS_SUMMARY}
+${businessSummary}
 
 FATURA KALEMLERİ:
 ${itemLines}
@@ -104,6 +101,22 @@ fazla spesifik ürün türü girebilecek kadar GENİŞ; ama "BT Donanımı" gibi
 GÖREV:
 Her kalem için item_is_internal ve item_category belirle.
 Sonra faturanın genel invoice_category'sini belirle.
+
+
+ÜRÜN MÜ, DEĞİL Mİ (item_is_product):
+Her INTERNAL kalem için ayrıca bunun FİZİKSEL BİR ÜRÜN mü yoksa
+hizmet/işçilik/finansal kalem mi olduğunu belirle:
+  - item_is_product = true  → fiziksel, üretici parça numarası (MPN) ile
+    aranabilecek somut bir ürün (toner, yazıcı, bilgisayar, kablo vb.)
+  - item_is_product = false → hizmet, işçilik veya finansal kalem — fiziksel
+    ürün DEĞİL. Örnekler: "TEKNİK SERVİS HİZMETİ", "MONTAJ", "KURULUM",
+    "BAKIM", "DANIŞMANLIK", "FİYAT FARKI", "KUR FARKI", "VADE FARKI",
+    "İSKONTO", "NAVLUN". Bunlar bizim işimizle ilgili olabilir (INTERNAL)
+    ama üründe DEĞİLDİR — aranmaz, ürün kartı oluşturulmaz.
+
+ÖNEMLİ: item_is_product sadece "bu bir ürün mü" sorusudur. is_internal'dan
+BAĞIMSIZDIR. Bir kalem hem INTERNAL (bizim işimiz) hem de item_is_product=false
+(ürün değil, hizmet) olabilir — örneğin sattığımız teknik servis hizmeti.
 
 KURALLAR:
 - Bizim işimizle doğrudan ilgili ürünler → INTERNAL
@@ -149,6 +162,7 @@ Sadece JSON döndür, başka hiçbir şey yazma:
     {
       "index": 1,
       "item_is_internal": true,
+      "item_is_product": true,
       "item_category": "Toner"
     }
   ]
@@ -179,8 +193,9 @@ function parseResponse(text, items) {
             const match = (parsed.items || []).find(r => r.index === i + 1);
             return {
                 ...item,
-                item_is_internal:    match?.item_is_internal    === true,
-                item_category: match?.item_category || 'Belirsiz',
+                item_is_internal: match?.item_is_internal === true,
+                is_product:       match?.item_is_product === true,   // NEW — strict boolean
+                item_category:    match?.item_category || 'Belirsiz',
             };
         });
 
@@ -201,8 +216,9 @@ function buildFallback(items) {
         invoice_category: 'MIXED',
         items: items.map(item => ({
             ...item,
-            item_is_internal:    false,
-            item_category: 'Belirsiz',
+            item_is_internal: false,
+            is_product:       false,      // NEW — fallback: treat as non-product (safe)
+            item_category:    'Belirsiz',
         })),
     };
 }

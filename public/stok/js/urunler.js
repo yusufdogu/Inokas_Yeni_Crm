@@ -27,7 +27,7 @@ let _productNameFilter;
 let _currencyFilter;
 
 // quick-filter chip state
-let _filterInStock  = true;   // default ON — depoda
+let _filterInStock  = false;   // default ON — depoda
 
 // ─── Adet / Stok değeri aralık filtreleri ──────────────────────────────────────
 let _qtyMin = 0,  _qtyMax = Infinity;   // active quantity range
@@ -457,7 +457,10 @@ function renderUrunlerKpis(subset) {
   });
 
   const categories = new Set(src.map(p => String(p.category || '').trim()).filter(Boolean));
-  const totalQty   = src.reduce((s, p) => s + Number(p.stock_on_hand || 0), 0);
+  const totalQty = src.reduce((s, p) => {
+    const q = Number(p.stock_on_hand || 0);
+    return s + (q > 0 ? q : 0);
+  }, 0);
 
   const setEl = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
 

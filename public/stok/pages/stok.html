@@ -224,8 +224,8 @@
             <!-- Top markalar -->
             <div class="gb-top-card">
               <div class="gb-top-head">
+                <span class="gb-top-head-title"><i class="ti ti-building-factory-2"></i> Top markalar</span>
                 <div class="gb-top-pager" id="gbTopBrandsPager" style="display:none;">
-                  <span class="gb-top-head-title"><i class="ti ti-building-factory-2"></i> Top markalar</span>
                   <button class="gb-top-pager-btn" onclick="gbTopPage('brands',-1)" aria-label="Önceki"><i class="ti ti-chevron-left"></i></button>
                   <span class="gb-top-pager-info" id="gbTopBrandsInfo">1 / 1</span>
                   <button class="gb-top-pager-btn" onclick="gbTopPage('brands',1)" aria-label="Sonraki"><i class="ti ti-chevron-right"></i></button>
@@ -390,6 +390,12 @@
               <button class="stk-filter-clear" onclick="_clearUrunlerFilters()" title="Temizle">
                 <i class="ti ti-trash" style="font-size:13px;"></i>
               </button>
+
+              <!-- Depoda chip -->
+              <button class="stk-chip stk-chip--active" id="chipInStock" onclick="toggleChip('inStock')">
+                <i class="ti ti-check" style="font-size:12px;"></i> Depoda olanlar
+              </button>
+
               <button class="stk-btn-primary" onclick="openAddModal()">
                 <i class="ti ti-plus" style="font-size:13px;"></i> Ürün Ekle
               </button>
@@ -398,10 +404,7 @@
             <!-- ── Row 3: Advanced panel (hidden until toggled) ────────────────────────── -->
             <div class="stk-adv-panel" id="urAdvancedFiltersPanel">
 
-              <!-- Depoda chip -->
-              <button class="stk-chip stk-chip--active" id="chipInStock" onclick="toggleChip('inStock')">
-                <i class="ti ti-check" style="font-size:12px;"></i> Depoda olanlar
-              </button>
+
 
               <!-- Marka tag filter -->
               <div class="filter-tags-wrap" id="urBrandTagsWrap" onclick="document.getElementById('urBrandTagInput').focus()">

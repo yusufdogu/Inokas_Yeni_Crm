@@ -70,9 +70,29 @@ function createTagFilter({ wrapId, inputId, dropdownId, placeholder, getOptions,
   if (!wrap || !input || !dropdown) return { getSelected: () => [] };
 
   let selected = [];
+  let visibleOpts = [];   // options currently shown in the dropdown (for bulk-select)
+
+  const _COLLAPSE_AFTER = 3;   // >3 selected → collapse to a summary chip
 
   function renderTags() {
-    wrap.querySelectorAll('.filter-tag').forEach(el => el.remove());
+    wrap.querySelectorAll('.filter-tag, .filter-tag-summary').forEach(el => el.remove());
+
+    // Many selected → single summary chip ("N seçili ×"), keeps the bar one line.
+    if (selected.length > _COLLAPSE_AFTER) {
+      const chip = document.createElement('span');
+      chip.className = 'filter-tag filter-tag-summary';
+      chip.innerHTML = `${selected.length} seçili <span class="filter-tag-remove" title="Tümünü kaldır">×</span>`;
+      chip.querySelector('.filter-tag-remove').addEventListener('click', (e) => {
+        e.stopPropagation();
+        selected = [];
+        renderTags();
+        onChange(selected);
+      });
+      wrap.insertBefore(chip, input);
+      return;
+    }
+
+    // Few selected → individual removable tags (unchanged behavior).
     selected.forEach(val => {
       const tag = document.createElement('span');
       tag.className = 'filter-tag';
@@ -96,6 +116,7 @@ function createTagFilter({ wrapId, inputId, dropdownId, placeholder, getOptions,
         !selected.includes(o) &&
         (!query || _normalizeForSearch(o).includes(normalizedQuery))
     );
+    visibleOpts = opts;   // remember for Enter bulk-select
 
     const list = dropdown.querySelector('.filter-dropdown-list') || (() => {
       const ul = document.createElement('ul');
@@ -147,11 +168,24 @@ function createTagFilter({ wrapId, inputId, dropdownId, placeholder, getOptions,
     } else if (e.key === 'ArrowUp') {
       e.preventDefault();
       setHighlight(Math.max(highlightIdx - 1, 0));
-    } else if (e.key === 'Enter') {
+    }  else if (e.key === 'Enter') {
+      e.preventDefault();
       if (highlightIdx >= 0 && items[highlightIdx]) {
-        e.preventDefault();
+        // an item is highlighted (user arrowed to it) → select just that one
         items[highlightIdx].click();
+      } else if (input.value.trim() && visibleOpts.length) {
+        // typed a query, nothing highlighted → bulk-add ALL visible matches
+        const toAdd = visibleOpts.filter(o => !selected.includes(o));
+        if (toAdd.length) {
+          selected.push(...toAdd);
+          input.value = '';
+          dropdown.classList.remove('open');
+          highlightIdx = -1;
+          renderTags();
+          onChange(selected);
+        }
       }
+      // empty input + Enter → do nothing (guard)
     } else if (e.key === 'Backspace' && !input.value && selected.length) {
       selected.pop();
       renderTags();

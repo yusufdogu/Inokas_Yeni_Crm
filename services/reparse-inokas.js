@@ -39,7 +39,7 @@ const {
 } = require('./sync-service');
 
 
-const TENANT_ID = 'e3b966c1-7380-4de3-8d4a-de40099cfd30'; // İnokas
+const TENANT_ID = 'a58a2117-59be-4294-9fa7-6ef0ab8f0ba1'; // İnokas
 
 // header fields that do NOT come from the UBL — must survive the reparse.
 // We simply don't include them in the parsed-header update.

@@ -24,6 +24,29 @@ async function getBusinessSummary(tenantId) {
     }
     return summary;
 }
+async function isDmoCompany(tenantId) {
+    const { data, error } = await supabase
+        .from('tenants')
+        .select('is_dmo_company')
+        .eq('id', tenantId)
+        .maybeSingle();
+    if (error) throw new Error(`is_dmo_company okunamadı: ${error.message}`);
+    return data?.is_dmo_company === true;
+}
+
+async function linkDmoProduct(productId, dmoCode, tenantId) {
+    if (!productId) return;
+    const record = {
+        tenant_id:  tenantId,
+        product_id: productId,
+        dmo_code:   dmoCode || null,
+    };
+    // unique(tenant_id, product_id) → on conflict do nothing (already linked)
+    const { error } = await supabase
+        .from('dmo_products')
+        .upsert(record, { onConflict: 'tenant_id,product_id', ignoreDuplicates: true });
+    if (error) throw new Error(`dmo_products bağlanamadı (${productId}): ${error.message}`);
+}
 
 function normalizeBrand(s) {
     if (!s) return '';
@@ -281,10 +304,10 @@ async function insertPriceHistory(rows, tenantId) {
                 tenant_id:        tenantId,
                 product_id:       r.product_id,
                 direction:        r.direction,                 // 'INCOMING' | 'OUTGOING'
-                unit_price_cur:   unit,
+                price_cur:        unit,
                 currency:         r.currency || null,
                 calculation_rate: r.calculation_rate ?? null,
-                unit_price_tl:    unit * rate,
+                price_tl:         unit * rate,
                 quantity:         r.quantity != null ? Number(r.quantity) : null,
                 invoice_id:       r.invoice_id || null,
                 invoice_item_id:  r.invoice_item_id,
@@ -313,5 +336,7 @@ module.exports = {
     isTrustedDomain,
     insertPriceHistory,
     getBusinessSummary,
+    linkDmoProduct,
+    isDmoCompany,
     updateInvoiceItem,
 };

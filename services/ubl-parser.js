@@ -242,6 +242,11 @@ function buildInvoicePayload(xml, viewKey) {
     const items = [];
     const unresolvedSkuWarnings = [];
 
+    // in buildInvoicePayload, after other invoice fields:
+    const orderRefs = [].concat(inv.OrderReference || []).map(r => String(r?.ID ?? '').trim());
+    const dmoMatch = orderRefs.map(id => id.match(/(Y_K\d+(?:_\d+)+|M\d{10,})/)).find(Boolean);
+    const dmoOrderNo = dmoMatch ? dmoMatch[1] : null;
+
     lines.forEach(line => {
         const itemNode = line.Item;
 
@@ -325,6 +330,7 @@ function buildInvoicePayload(xml, viewKey) {
             tax_amount_tl: taxTl,
             payable_amount_tl: payableTl,
             notes: notesArray.join('\n') || null,
+            dmo_order_no: dmoOrderNo
         },
         xml_context: { supplier_vkn: supplierVKN, customer_vkn: customerVKN },
         items,

@@ -222,6 +222,19 @@ async function processInvoicePipeline(dbInvoice, parsedItems, viewKey, tenantId,
         }
     }
 
+    const dmoOrderNo =  dbInvoice.dmo_order_no || null;
+    const isDmoInvoice = Boolean(dmoOrderNo);
+
+    if (isDmoInvoice && await db.isDmoCompany(tenantId)) {
+        // link each product line to dmo_products using its buyer_code as dmo_code
+        for (let i = 0; i < parsedItems.length; i++) {
+            const pid = productIdByIndex[i];
+            if (!pid) continue;                          // only linked products
+            const dmoCode = parsedItems[i].buyer_code || null;  // DMO product number
+            await db.linkDmoProduct(pid, dmoCode, tenantId);
+        }
+    }
+
 
     // ── 4) build final item rows — RAW fields + product_id + classification ──
     //     Descriptive fields come straight from the parsed XML, never enriched.
@@ -273,8 +286,25 @@ async function processInvoicePipeline(dbInvoice, parsedItems, viewKey, tenantId,
         .update({
             invoice_category: invoiceCategory,
             approval_status:  approved ? 'approved' : 'pending',
+            dmo_invoice:      isDmoInvoice,  // ← but see note
+            dmo_order_no:     isDmoInvoice ? dmoOrderNo : null,
         })
         .eq('id', dbInvoice.id);
+
+    if (isDmoInvoice && dmoOrderNo) {
+        const { data: updated, error } = await supabase
+            .from('dmo_orders')
+            .update({ status: 'Tamamlandı' })
+            .eq('purchase_order_no', dmoOrderNo)
+            .eq('tenant_id', tenantId)
+            .select('id');
+        if (error) {
+            console.error(`   ⚠️ DMO sipariş güncellenemedi (${dmoOrderNo}): ${error.message}`);
+        } else if (updated && updated.length) {
+            console.log(`   🏛️ DMO sipariş tamamlandı: ${dmoOrderNo}`);
+        }
+        // if no row matched, the order isn't in dmo_orders — silently skip (expected)
+    }
 
 
     // ── 8) price history — ONLY when approved (pending handled later by trigger)

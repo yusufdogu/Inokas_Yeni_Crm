@@ -48,6 +48,11 @@ function switchMainTab(tab) {
         _tabInit.bekleyen = true;
         if (typeof initBekleyen === "function") initBekleyen();
     }
+
+    if (tab === "genel" && !_tabInit.genel) {
+        _tabInit.genel = true;
+        if (typeof initGenel === "function") initGenel();
+    }
 }
 
 /* ── RATES ─────────────────────────────────────────────────────────────── */

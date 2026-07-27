@@ -455,6 +455,109 @@ router.get('/invoices', async (req, res) => {
   }
 });
 
+// GET /api/dmo/overview — aggregates for Genel Bakış
+// completed invoices (dmo_invoice=true) + orders in 'Sipariş Alındı'
+// GET /api/dmo/overview — aggregates for Genel Bakış
+// completed invoices (dmo_invoice=true) + orders in 'Sipariş Alındı'
+router.get('/overview', async (req, res) => {
+  try {
+    const supabase = req.app.get('supabase');
+    const tenantId = req.tenantId;
+    if (!tenantId) return res.status(401).json({ error: 'tenant yok' });
+
+    // ── Invoices ──
+    const { data: invoices, error: ie } = await supabase
+      .from('invoices')
+      .select('id, invoice_date, payable_amount_tl, company_id, companies(name)')
+      .eq('dmo_invoice', true)
+      .eq('tenant_id', tenantId);
+    if (ie) throw ie;
+
+    // ── Orders (Sipariş Alındı only) ──
+    const { data: orders, error: oe } = await supabase
+      .from('dmo_orders')
+      .select('id, order_date, dmo_basket_total')
+      .eq('tenant_id', tenantId)
+      .eq('status', 'Sipariş Alındı');
+    if (oe) throw oe;
+
+    // ── Line items for completed invoices (top products) ──
+    const invIds = (invoices || []).map(i => i.id);
+    let items = [];
+    if (invIds.length) {
+      const { data: it, error: itErr } = await supabase
+        .from('invoice_items')
+        .select('invoice_id, product_name, quantity, total_price_cur')
+        .in('invoice_id', invIds);
+      if (itErr) throw itErr;
+      items = it || [];
+    }
+
+    // ── Monthly buckets: { 'YYYY-MM': { invoice, order } } ──
+    const monthly = {};
+    const bucket = (key) => (monthly[key] || (monthly[key] = { invoice: 0, order: 0 }));
+    for (const inv of (invoices || [])) {
+      if (!inv.invoice_date) continue;
+      bucket(inv.invoice_date.slice(0, 7)).invoice += Number(inv.payable_amount_tl) || 0;
+    }
+    for (const ord of (orders || [])) {
+      if (!ord.order_date) continue;
+      bucket(ord.order_date.slice(0, 7)).order += Number(ord.dmo_basket_total) || 0;
+    }
+    const months = Object.keys(monthly).sort();
+    const series = months.map(m => ({
+      month: m,
+      invoice: monthly[m].invoice,
+      order: monthly[m].order,
+    }));
+
+    // ── Top companies by invoice revenue ──
+    const companyMap = {};
+    for (const inv of (invoices || [])) {
+      const name = inv.companies?.name || 'Bilinmeyen';
+      const c = companyMap[name] || (companyMap[name] = { name, total: 0, count: 0 });
+      c.total += Number(inv.payable_amount_tl) || 0;
+      c.count += 1;
+    }
+    const topCompanies = Object.values(companyMap)
+      .sort((a, b) => b.total - a.total)
+      .slice(0, 8);
+
+    // ── Top products by quantity (grouped by product_name) ──
+    const productMap = {};
+    for (const it of items) {
+      const name = (it.product_name || '').trim() || 'Bilinmeyen';
+      const p = productMap[name] || (productMap[name] = { name, qty: 0, revenue: 0 });
+      p.qty     += Number(it.quantity) || 0;
+      p.revenue += Number(it.total_price_cur) || 0;
+    }
+    const topProducts = Object.values(productMap)
+      .sort((a, b) => b.qty - a.qty)
+      .slice(0, 8);
+
+    // ── Totals ──
+    const invTotal = (invoices || []).reduce((s, i) => s + (Number(i.payable_amount_tl) || 0), 0);
+    const ordTotal = (orders   || []).reduce((s, o) => s + (Number(o.dmo_basket_total) || 0), 0);
+
+    res.json({
+      stats: {
+        invoiceCount:  (invoices || []).length,
+        invoiceTotal:  invTotal,
+        orderCount:    (orders || []).length,
+        orderTotal:    ordTotal,
+        companyCount:  Object.keys(companyMap).length,
+        grandTotal:    invTotal + ordTotal,
+      },
+      series,
+      topCompanies,
+      topProducts,
+    });
+  } catch (err) {
+    console.error('GET /api/dmo/overview hatası:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // GET /api/dmo/invoices/:id/items — line items (scoped to the tenant's invoice)
 router.get('/invoices/:id/items', async (req, res) => {
   try {
@@ -574,7 +677,7 @@ router.get('/orders', async (req, res) => {
     const tenantId = req.tenantId;
     if (!tenantId) return res.status(401).json({ error: 'tenant yok' });
 
-    const statuses = req.query.status ? [req.query.status] : ['Taslak', 'Sipariş Alındı'];
+    const statuses = req.query.status ? [req.query.status] : ['Taslak', 'Sipariş Alındı','Tamamlandı'];
 
     const { data, error } = await supabase
       .from('dmo_orders')

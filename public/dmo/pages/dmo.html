@@ -24,6 +24,7 @@
   <script src="/shared/sidebar.js" defer></script>
 
   <!-- Data + shared -->
+  <script src="/dmo/js/dmo-genel-bakis.js" defer></script>
   <script src="/dmo/js/dmo-core.js" defer></script>
   <script src="/dmo/js/dmo-main.js" defer></script>       <!-- tab switching, rates, filters, AI rail -->
   <script src="/dmo/js/dmo-faturalar.js" defer></script>   <!-- invoices WHERE dmo_invoice=true -->
@@ -82,9 +83,84 @@
         <!-- PANEL: GENEL BAKIŞ  (built in phase 2)                    -->
         <!-- ========================================================= -->
         <section class="dmo-panel" id="panel-genel">
-          <div class="dmo-panel-stub">
-            <i class="ti ti-chart-pie"></i> Genel Bakış — sıradaki fazda
+
+          <!-- ── Insights: stat cards ── -->
+          <div class="dmo-gb-stats">
+            <div class="dmo-gb-stat">
+              <div class="dmo-gb-stat-ico"><i class="ti ti-file-invoice"></i></div>
+              <div class="dmo-gb-stat-body">
+                <div class="dmo-gb-stat-label">Fatura Adedi</div>
+                <div class="dmo-gb-stat-value" id="gb-inv-count">—</div>
+                <div class="dmo-gb-stat-sub" id="gb-inv-total">—</div>
+              </div>
+            </div>
+
+            <div class="dmo-gb-stat">
+              <div class="dmo-gb-stat-ico"><i class="ti ti-clock-check"></i></div>
+              <div class="dmo-gb-stat-body">
+                <div class="dmo-gb-stat-label">Sipariş Alındı</div>
+                <div class="dmo-gb-stat-value" id="gb-ord-count">—</div>
+                <div class="dmo-gb-stat-sub" id="gb-ord-total">—</div>
+              </div>
+            </div>
+
+            <div class="dmo-gb-stat">
+              <div class="dmo-gb-stat-ico"><i class="ti ti-building"></i></div>
+              <div class="dmo-gb-stat-body">
+                <div class="dmo-gb-stat-label">Firma Adedi</div>
+                <div class="dmo-gb-stat-value" id="gb-company-count">—</div>
+                <div class="dmo-gb-stat-sub">faturalı firma</div>
+              </div>
+            </div>
+
+            <div class="dmo-gb-stat dmo-gb-stat--accent">
+              <div class="dmo-gb-stat-ico"><i class="ti ti-cash"></i></div>
+              <div class="dmo-gb-stat-body">
+                <div class="dmo-gb-stat-label">Toplam Ciro</div>
+                <div class="dmo-gb-stat-value" id="gb-grand-total">—</div>
+                <div class="dmo-gb-stat-sub">fatura + sipariş</div>
+              </div>
+            </div>
           </div>
+
+          <!-- ── Time-series chart ── -->
+          <div class="dmo-gb-chartcard">
+            <div class="dmo-gb-chartcard-head">
+              <div class="dmo-gb-chartcard-title">
+                <i class="ti ti-chart-line"></i> Aylık Tutar
+              </div>
+              <div class="dmo-gb-legend">
+                <span class="dmo-gb-legend-item"><i class="dmo-gb-dot dmo-gb-dot--inv"></i>Fatura</span>
+                <span class="dmo-gb-legend-item"><i class="dmo-gb-dot dmo-gb-dot--ord"></i>Sipariş Alındı</span>
+              </div>
+            </div>
+            <div class="dmo-gb-chart-wrap">
+              <canvas id="gb-trend-chart"></canvas>
+            </div>
+            <p class="dmo-empty" id="gb-chart-empty" hidden>Grafik için veri yok</p>
+          </div>
+
+          <!-- ── Bottom cards: top companies + top products ── -->
+          <div class="dmo-gb-cards">
+
+            <div class="dmo-gb-card">
+              <div class="dmo-gb-card-head">
+                <i class="ti ti-building-store"></i> En Çok Ciro — Firmalar
+              </div>
+              <div class="dmo-gb-ranklist" id="gb-top-companies"></div>
+              <p class="dmo-empty" id="gb-companies-empty" hidden>Firma verisi yok</p>
+            </div>
+
+            <div class="dmo-gb-card">
+              <div class="dmo-gb-card-head">
+                <i class="ti ti-package"></i> En Çok Satan — Ürünler
+              </div>
+              <div class="dmo-gb-ranklist" id="gb-top-products"></div>
+              <p class="dmo-empty" id="gb-products-empty" hidden>Ürün verisi yok</p>
+            </div>
+
+          </div>
+
         </section>
 
         <!-- ========================================================= -->
@@ -266,6 +342,7 @@
               <button class="bekleyen-tab active" data-status="" onclick="filterBekleyenStatus('')">Tümü</button>
               <button class="bekleyen-tab" data-status="Taslak" onclick="filterBekleyenStatus('Taslak')">Taslak</button>
               <button class="bekleyen-tab" data-status="Sipariş Alındı" onclick="filterBekleyenStatus('Sipariş Alındı')">Sipariş Alındı</button>
+              <button class="bekleyen-tab" data-status="Tamamlandı" onclick="filterBekleyenStatus('Tamamlandı')">Tamamlandı</button>
             </div>
             <button class="dmo-upload-btn" onclick="uploadBekleyenPdf()">
               <i class="ti ti-file-upload"></i>PDF Yükle

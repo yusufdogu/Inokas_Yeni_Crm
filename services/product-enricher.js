@@ -104,7 +104,7 @@ async function enrichProduct(item, knownCategories = [], trust = {}) {
     console.log(`   Kod      : ${item.product_code || '-'}`);
     console.log(`   Marka    : ${item.brand_name   || '-'}`);
 
-    const prompt = buildPrompt(item, knownCategories);
+    const prompt = buildPromptForBackfill(item, knownCategories);
 
     try {
         const response = await fetch(PERPLEXITY_API_URL, {
@@ -223,6 +223,98 @@ async function enrichProducts(items, store = {}, direction = 'gelen') {
 }
 // ─── prompt builder ───────────────────────────────────────────────────────────
 
+
+function buildPromptForBackfill(item, knownCategories = []) {
+    const fields = [];
+    if (item.product_name) fields.push(`urun_adi        : "${item.product_name}"`);
+    if (item.product_code) fields.push(`mevcut_kod      : "${item.product_code}"`);
+    if (item.brand_name)   fields.push(`marka           : "${item.brand_name}"`);
+    const productInfo = fields.join('\n');
+
+    const categoryVocab = knownCategories.length
+        ? `\nMEVCUT KATEGORİLER (uygunsa BİRİNİ kullan, yenisini uydurma):\n${knownCategories.map(c => `  - ${c}`).join('\n')}\n`
+        : '';
+
+    return `Sen bir ürün araştırma asistanısın. Aşağıdaki ürünü web'de araştırıp
+doğrulanmış bilgilerini bul. SADECE JSON döndür, başka hiçbir şey yazma.
+
+ÜRÜN BİLGİSİ:
+${productInfo}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+GÖREV: Bu ürünün MARKASINI, gerçek MPN'ini (üretici parça numarası),
+spesifik KATEGORİSİNİ ve teknik ÖZELLİKLERİNİ (specs) bul.
+
+MARKAYI BELİRLE:
+Ürün adından markayı çıkar (genelde ilk kelime). Markanın KENDİ resmi
+sitesine giderek ürünü doğrula.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+MPN (product_code) — EN ÖNEMLİ KISIM:
+
+⛔ MODEL ADI, MPN DEĞİLDİR — EN SIK YAPILAN HATA:
+Bir ürünün MODEL/SERİ ADI ile MPN'i (üretici parça numarası) FARKLI şeylerdir:
+  - MODEL/SERİ ADI: ürünün ait olduğu ürün ailesi (örn. "WF-C20590",
+    "P1403CVA", "OMEN 32c") — bu bir MPN DEĞİLDİR.
+  - MPN: o spesifik ürünün/parçanın TAM üretici kodu (örn. "C13T858200",
+    "P1403CVA-C516512G0D").
+
+⛔ ÖZELLİKLE SARF MALZEMELERİNDE (toner, kartuş, mürekkep):
+Kartuşun uyduğu YAZICI MODELİ (örn. WF-C20590), kartuşun MPN'i DEĞİLDİR.
+Kartuşun KENDİ parça numarası (örn. C13T858200) MPN'dir. Ürün adında hem
+yazıcı modeli hem kartuş kodu geçebilir — MPN olarak KARTUŞ KODUNU seç,
+yazıcı modelini DEĞİL.
+
+Örnek:
+  urun_adi: "EPSON WF-C20590 MAVİ 50.000 SYF", mevcut_kod: "C13T858200"
+    → YANLIŞ MPN: "WF-C20590"  (bu yazıcı modeli, kartuşun kodu değil)
+    → DOĞRU MPN:  "C13T858200" (kartuşun kendi parça numarası)
+
+  urun_adi: "EPSON WF-M5799 XXL SİYAH 40.000 SYF", mevcut_kod: "C13T966140"
+    → YANLIŞ MPN: "T9661"      (kısa aile kodu)
+    → DOĞRU MPN:  "C13T966140" (tam parça numarası)
+
+⛔ MEVCUT KODU GERİYE DÜŞÜRME:
+Eğer mevcut_kod zaten geçerli, spesifik, tam bir MPN gibi görünüyorsa
+(uzun bir üretici kodu) ve sen sadece daha KISA / daha genel bir model
+adı veya aile kodu bulabiliyorsan → MEVCUT KODU AYNEN KORU.
+Daha az spesifik bir koda ASLA düşürme.
+
+MPN'i yalnızca mevcut_kod açıkça YANLIŞ veya eksikse ve sen gerçekten
+daha doğru/tam bir üretici kodu bulduysan değiştir. Emin değilsen
+mevcut_kod'u koru.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+KATEGORİ (item_subcategory):
+Ürünün spesifik kategorisini belirle — EN FAZLA 2-3 kelime, bir ETİKET
+(açıklama DEĞİL). Ürünü ayırt edici olmalı (örn. "Lazer Toner",
+"Dizüstü Bilgisayar", "Tarayıcı"). Genel değil spesifik ol.
+${categoryVocab}
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ÖZELLİKLER (specs):
+Ürünün teknik özelliklerini JSON nesnesi olarak döndür (ürüne göre değişir).
+Model bilgisini specs İÇİNE koy. Örnekler:
+  - Toner:  {"model": "WF-C20590", "renk": "Mavi", "sayfa": "50000", "tip": "Orijinal"}
+  - Laptop: {"model": "P1403CVA", "islemci": "Core 5 210H", "ram": "16GB", "depolama": "512GB SSD"}
+  - Tarayıcı: {"model": "DS-790WN", "cozunurluk": "600x600 dpi", "hiz": "45 syf/dk", "baglanti": "Wi-Fi, USB 3.0, Ethernet"}
+Bulabildiğin kadar özellik ekle; bulamadığını ekleme.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+KAYNAK GÜVENİLİRLİĞİ:
+Mümkünse markanın resmi sitesinden doğrula. Hangi kaynakları kullandığını
+belirt. Bilgiyi doğrulayamıyorsan uydurma — o alanı boş bırak.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SADECE şu JSON formatında yanıt ver:
+{
+  "product_code": "doğrulanmış MPN (veya emin değilsen mevcut_kod)",
+  "brand": "marka",
+  "item_subcategory": "spesifik kategori (2-3 kelime)",
+  "specs": { ... },
+  "official_source_used": true veya false,
+  "confidence": "high | medium | low"
+}`;
+}
 
 function buildPrompt(item, knownCategories = []) {
     // All raw fields from the invoice line. name + description are highest

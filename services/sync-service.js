@@ -6,7 +6,6 @@ require('dotenv').config();
 const logoApi = require('../logo-api');
 const { parseUblFromBase64, setProductCodeLookup } = require('./ubl-parser');
 const AdmZip  = require('adm-zip');
-const { createClient } = require('@supabase/supabase-js');
 
 const db                  = require('./helpers');
 const { enrichProducts } = require('./product-enricher');
@@ -14,7 +13,7 @@ const {classifyInvoice} = require("./invoice-classifier");
 const {generateAndUploadPdf} =require("./pdf-service")
 
 
-
+const { createClient } = require('@supabase/supabase-js');
 const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_KEY);
 const sleep    = ms => new Promise(r => setTimeout(r, ms));
 

@@ -1,30 +1,18 @@
 // services/pdf-service.js
 // XML (Turkish UBL e-invoice) → PDF via Puppeteer + XSLT
 
-const puppeteer = require('puppeteer-core');
-const { execSync } = require('child_process');
+const puppeteer = require('puppeteer');       // full — bundles Chromium ✓
+
 
 function getChromePath() {
-    if (process.env.PUPPETEER_EXECUTABLE_PATH) return process.env.PUPPETEER_EXECUTABLE_PATH;
-    const candidates = [
-        '/run/current-system/sw/bin/chromium',
-        '/usr/bin/chromium',
-        '/usr/bin/chromium-browser',
-        '/usr/bin/google-chrome',
-        '/nix/var/nix/profiles/default/bin/chromium',
-    ];
-    for (const c of candidates) {
-        try { execSync(`test -f ${c}`); return c; } catch { }
-    }
-    try { return execSync('which chromium 2>/dev/null || which chromium-browser 2>/dev/null', { encoding: 'utf8' }).trim(); } catch { }
-    return null;
+    return process.env.PUPPETEER_EXECUTABLE_PATH || undefined;
 }
-
 async function xmlToPdfBuffer(xmlText) {
-    const chromePath = getChromePath();
+    const executablePath = getChromePath();
     const browser = await puppeteer.launch({
-        executablePath: chromePath,
-        args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'],
+        headless: true,
+        ...(executablePath ? { executablePath } : {}),   // only set if we have one
+        args: ['--no-sandbox', '--disable-setuid-sandbox'],
     });
     try {
         const page = await browser.newPage();

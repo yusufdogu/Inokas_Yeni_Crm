@@ -33,6 +33,7 @@
     "node-fetch": "^3.3.2",
     "nodemailer": "^8.0.7",
     "openai": "^6.37.0",
+    "puppeteer": "^25.4.0",
     "puppeteer-core": "^25.0.3",
     "twilio": "^6.0.2"
   },

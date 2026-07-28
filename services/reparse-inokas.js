@@ -107,7 +107,7 @@ async function reprocessInvoice(inv) {
 
     // 6) pipeline — NO bumpStock (skipStock flag). dbInvoice must carry id.
     const dbInvoice = { ...invoiceData, id: inv.id, direction: inv.direction, tenant_id: TENANT_ID };
-    await processInvoicePipeline(dbInvoice, items, viewKey, TENANT_ID, { skipStock: false });
+    await processInvoicePipeline(dbInvoice, items, viewKey, TENANT_ID, { skipStock: true });
 
     // 7) approval_status is set inside the pipeline (trusted→approved / pending).
     //    Nothing extra here.

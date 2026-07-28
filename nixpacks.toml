@@ -6,6 +6,7 @@ cmds = ["PUPPETEER_SKIP_DOWNLOAD=true npm ci", "pip install -r requirements.txt 
 
 [variables]
 LD_LIBRARY_PATH = "${stdenv.cc.cc.lib}/lib"
+PUPPETEER_SKIP_DOWNLOAD = "true"
 
 [start]
-cmd = "which chromium || which chromium-browser || find /nix -name chromium -type f 2>/dev/null | head -5; node index.js"
+cmd = "export PUPPETEER_EXECUTABLE_PATH=$(which chromium || which chromium-browser || find /nix -name chromium -type f 2>/dev/null | head -1) && echo \"Chromium: $PUPPETEER_EXECUTABLE_PATH\" && node index.js"

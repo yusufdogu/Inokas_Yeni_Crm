@@ -109,12 +109,7 @@ function buildInvoiceSignature(invoiceFields, items) {
         Number(invoiceFields.payable_amount_tl  || 0).toFixed(2),
     ].join('|');
 
-    const itemSig = (items || [])
-        .map(it => `${(it.product_name || '').trim()}~${Number(it.total_price_cur || 0).toFixed(2)}`)
-        .sort()
-        .join('||');
-
-    return `${inv}##${itemSig}`;
+    return `${inv}`;
 }
 
 async function upsertInvoice(invoiceData, tenantId) {
@@ -192,7 +187,6 @@ async function processInvoicePipeline(dbInvoice, parsedItems, viewKey, tenantId,
     let anyReview = false;
 
     for (let i = 0; i < enriched.length; i++) {
-
 
 
         const e   = enriched[i];

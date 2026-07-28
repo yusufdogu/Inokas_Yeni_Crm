@@ -314,10 +314,9 @@ def parse_pdf():
 def find_dmo_url():
     data       = request.get_json()
     dmo_code   = str(data.get("dmo_code", "")).strip()
-    dmo_id = str(data.get("dmo_id", "")).strip()
 
-    if not dmo_code or not dmo_id:
-        return jsonify({"error": "dmo_code ve dmo_id zorunlu"}), 400
+    if not dmo_code:
+        return jsonify({"error": "dmo_codenzorunlu"}), 400
 
     try:
         session = requests.Session()
@@ -391,7 +390,6 @@ def find_dmo_url():
         if matched_price is not None:
             update_payload["dmo_fiyat_try"] = matched_price
 
-        db.table("dmo_products").update(update_payload).eq("id", dmo_id).execute()
 
         dmo_eur_rate=(float(matched_price)/1.08)/355
 

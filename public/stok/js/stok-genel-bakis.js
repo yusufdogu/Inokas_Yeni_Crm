@@ -36,12 +36,14 @@ async function initGenelBakis() {
   _gbReady = true;
 
   _gbChatLoad();
+  erevLoad();
 
   document.addEventListener('click', _gbCloseDatePop);
   document.addEventListener('keydown', e => { if (e.key === 'Escape') _gbCloseDatePop(); });
 
   _gbLoadInsights();   // snapshot, filter-independent
   _gbApplyPeriod();    // totals + chart for the initial period
+
 }
 
 // ─── PERIOD → date range ───────────────────────────────────────────────────────

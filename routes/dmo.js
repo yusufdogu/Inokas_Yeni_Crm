@@ -61,12 +61,10 @@ async function fetchAndSaveTCMBRates(supabase) {
 
 async function fetchAndSaveDMORate(supabase) {
   try {
-    const { data: product } = await supabase.from('products').select('id').eq('dmo_code', '106776').maybeSingle();
-    if (!product) { console.error('DMO rate: 106776 ürünü bulunamadı'); return; }
 
     const res  = await fetch(`http://${DMO_PY_HOST}:${DMO_PY_PORT}/find-dmo-url`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ dmo_code: '106776', product_id: product.id })
+      body: JSON.stringify({ dmo_code: '106776'})
     });
     const data = await res.json();
     if (!data.price) { console.error('DMO rate: fiyat alınamadı', data); return; }
@@ -84,9 +82,6 @@ async function fetchAndSaveDMORate(supabase) {
     console.error('DMO rate fetch hatası:', err.message);
   }
 }
-
-module.exports.fetchAndSaveTCMBRates = fetchAndSaveTCMBRates;
-module.exports.fetchAndSaveDMORate   = fetchAndSaveDMORate;
 
 // each item: { dmo_code, quantity, is_gift }
 async function computeCostTotals(supabase, tenantId, items) {
@@ -681,7 +676,7 @@ router.get('/orders', async (req, res) => {
 
     const { data, error } = await supabase
       .from('dmo_orders')
-      .select('id, sales_order_no, customer_name, order_date, status, dmo_basket_total, net_profit')
+      .select('id, sales_order_no, customer_name, order_date, status, dmo_basket_total, net_profit, tutar_indirimi')
       .eq('tenant_id', tenantId)
       .in('status', statuses)
       .order('order_date', { ascending: false });
@@ -693,4 +688,7 @@ router.get('/orders', async (req, res) => {
   }
 });
 
+
+router.fetchAndSaveDMORate = fetchAndSaveDMORate;
+router.fetchAndSaveTCMBRates = fetchAndSaveTCMBRates;
 module.exports = router;

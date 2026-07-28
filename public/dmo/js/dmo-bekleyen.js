@@ -39,12 +39,15 @@ function renderBekleyen(orders) {
     const empty = document.getElementById("bekleyen-empty");
     if (!tbody) return;
 
+
+
     if (!orders.length) {
         tbody.innerHTML = "";
         if (empty) empty.style.display = "block";
     } else {
         if (empty) empty.style.display = "none";
         tbody.innerHTML = orders.map(o => {
+            const dmo_disc_total=o.dmo_basket_total - o.tutar_indirimi;
             const profit = Number(o.net_profit) || 0;
             return `
             <tr onclick="openBekleyenOrder('${o.id}')">
@@ -52,7 +55,7 @@ function renderBekleyen(orders) {
               <td class="dmo-td-firma">${escapeHtml(o.customer_name || "—")}</td>
               <td class="dmo-td-date">${formatDate(o.order_date)}</td>
               <td>${statusChip(o.status)}</td>
-              <td class="dmo-td-amount">${formatAmount(o.dmo_basket_total)} ₺</td>
+              <td class="dmo-td-amount">${formatAmount(dmo_disc_total)} ₺</td>
               <td class="dmo-td-amount" style="color:${profit >= 0 ? "var(--fat-green)" : "var(--fat-red)"};">${formatAmount(o.net_profit)} ₺</td>
             </tr>`;
         }).join("");

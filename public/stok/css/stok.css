@@ -2525,3 +2525,116 @@
   font-family: var(--stk-font-ui); cursor: pointer; transition: background 0.15s;
 }
 .stk-btn-danger:hover { background: #9a2828; }
+
+
+/* ── Ürün düzeltme kartı ─────────────────────────────────────────────────── */
+.erev-card {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 10px 12px 0;
+  padding: 10px 12px;
+  background: var(--stk-amber-bg);
+  border: 0.5px solid var(--stk-amber);
+  border-radius: var(--stk-r);
+  cursor: pointer;
+  transition: background 0.12s, transform 0.12s;
+}
+.erev-card:hover { background: rgba(154,99,24,0.15); transform: translateY(-1px); }
+.erev-card-icon {
+  width: 30px; height: 30px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--stk-amber); color: #fff;
+  border-radius: 7px; font-size: 15px;
+}
+.erev-card-txt { flex: 1; min-width: 0; }
+.erev-card-title {
+  margin: 0; font-family: var(--stk-font-ui); font-size: 12.5px;
+  font-weight: 600; color: var(--stk-ink); line-height: 1.3;
+}
+.erev-card-sub {
+  margin: 1px 0 0; font-family: var(--stk-font-data); font-size: 10.5px;
+  color: var(--stk-amber); letter-spacing: 0.02em;
+}
+.erev-card-arrow { color: var(--stk-amber); font-size: 16px; flex-shrink: 0; }
+
+/* ── İnceleme listesi (modal içi) ────────────────────────────────────────── */
+.erev-list { padding: 8px 20px 20px; overflow-y: auto; max-height: 60vh; }
+
+.erev-row {
+  padding: 14px 0;
+  border-bottom: 0.5px solid var(--stk-border);
+}
+.erev-row:last-child { border-bottom: none; }
+
+.erev-row-top {
+  display: flex; align-items: center; gap: 10px; margin-bottom: 4px;
+}
+.erev-row-name {
+  flex: 1; font-family: var(--stk-font-ui); font-size: 13px;
+  font-weight: 600; color: var(--stk-ink); min-width: 0;
+}
+.erev-badge {
+  flex-shrink: 0; font-family: var(--stk-font-data); font-size: 9.5px;
+  padding: 2px 7px; border-radius: 20px; letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+.erev-badge--merge  { background: var(--stk-red-bg);   color: var(--stk-red); }
+.erev-badge--change { background: var(--stk-amber-bg); color: var(--stk-amber); }
+.erev-badge--src    { background: var(--stk-green-bg); color: var(--stk-green); }
+
+/* code change line */
+.erev-codes {
+  display: flex; align-items: center; gap: 8px;
+  font-family: var(--stk-font-data); font-size: 12px; margin: 6px 0;
+}
+.erev-code-old { color: var(--stk-ink3); text-decoration: line-through; }
+.erev-code-arrow { color: var(--stk-ink3); font-size: 13px; }
+.erev-code-new { color: var(--stk-ink); font-weight: 600; }
+
+/* merge explanation */
+.erev-merge-note {
+  font-family: var(--stk-font-ui); font-size: 11.5px; color: var(--stk-red);
+  background: var(--stk-red-bg); border-radius: 6px;
+  padding: 6px 9px; margin: 6px 0;
+}
+
+/* actions */
+.erev-actions { display: flex; align-items: center; gap: 7px; margin-top: 10px; }
+.erev-btn {
+  height: 30px; padding: 0 13px; font-size: 11.5px;
+  font-family: var(--stk-font-ui); font-weight: 500;
+  border-radius: var(--stk-r); cursor: pointer;
+  border: 0.5px solid var(--stk-border2); background: #fff; color: var(--stk-ink2);
+  transition: background 0.12s, color 0.12s, border-color 0.12s;
+}
+.erev-btn:hover { background: var(--stk-bg2); }
+.erev-btn--accept {
+  background: var(--stk-green); color: #fff; border-color: var(--stk-green);
+}
+.erev-btn--accept:hover { background: #14563a; }
+.erev-btn--deny:hover { background: var(--stk-red-bg); color: var(--stk-red); border-color: var(--stk-red); }
+.erev-btn:disabled { opacity: 0.5; cursor: default; }
+
+/* inline edit */
+.erev-edit-wrap { display: none; align-items: center; gap: 7px; margin-top: 10px; }
+.erev-edit-wrap.open { display: flex; }
+.erev-edit-input {
+  flex: 1; height: 30px; padding: 0 10px;
+  font-family: var(--stk-font-data); font-size: 12px;
+  border: 0.5px solid var(--stk-border2); border-radius: var(--stk-r);
+  background: #fff; color: var(--stk-ink);
+}
+.erev-edit-input:focus { outline: none; border-color: var(--stk-ink3); }
+
+.erev-row-msg {
+  font-family: var(--stk-font-ui); font-size: 11px; margin-top: 8px;
+}
+.erev-row-msg--ok  { color: var(--stk-green); }
+.erev-row-msg--err { color: var(--stk-red); }
+
+.erev-empty {
+  display: flex; flex-direction: column; align-items: center; gap: 10px;
+  padding: 50px 20px; color: var(--stk-ink3);
+  font-family: var(--stk-font-ui); font-size: 13px;
+}

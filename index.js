@@ -36,10 +36,11 @@ app.use('/api/auth',                require('./routes/auth'));
 app.use('/api/invoices',            require('./routes/invoices'));
 app.use('/api/save-invoice',        require('./routes/invoices'));
 app.use('/api/invoice-items',       require('./routes/invoices'));
-app.use('/api/chat', require('./routes/fatura-chat'));
-app.use('/api/giderler', require('./routes/giderler'));
-app.use('/api/settings', require('./routes/settings'));
-app.use('/api/tenant-vkn', require('./routes/settings'));
+app.use('/api/chat',                require('./routes/fatura-chat'));
+app.use('/api/enrichment-reviews',  require('./routes/enrichment-reviews'));
+app.use('/api/giderler',            require('./routes/giderler'));
+app.use('/api/settings',            require('./routes/settings'));
+app.use('/api/tenant-vkn',          require('./routes/settings'));
 app.use('/api/products',            require('./routes/products'));
 app.use('/api/category-templates',  require('./routes/products'));
 app.use('/api/category-attributes', require('./routes/products'));
@@ -55,8 +56,8 @@ app.use('/api/debug-tcmb',          require('./routes/dmo'));
 app.use('/api/quotes',              require('./routes/quotes'));
 app.use('/api/product-groups',      require('./routes/quotes'));
 app.use('/api/transcribe',          require('./routes/transcribe'));
-app.use('/api/whatsapp', require('./routes/whatsapp'));
-app.use('/api/integrations', require('./routes/integrations'));
+app.use('/api/whatsapp',            require('./routes/whatsapp'));
+app.use('/api/integrations',        require('./routes/integrations'));
 
 
 

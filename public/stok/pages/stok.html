@@ -30,6 +30,7 @@
   <script src="/stok/js/urunler.js" defer></script>
   <script src="/stok/js/urunler-chat.js" defer></script>
   <script src="/stok/js/stok-genel-bakis.js" defer></script>
+  <script src="/stok/js/edit-enriched-products.js" defer></script>
   <script src="/stok/js/urun-hareketleri.js" defer></script>
   <script src="/stok/js/backorder.js" defer></script>
   <script src="/stok/js/kategori-yonetimi.js" defer></script>
@@ -246,6 +247,16 @@
               <p class="ur-chat-title">Stok Asistanı</p>
               <p class="ur-chat-sub">genel bakış hakkında sor</p>
             </div>
+          </div>
+
+          <!-- Ürün düzeltme kartı — pending enrichment reviews -->
+          <div class="erev-card" id="erevCard" style="display:none;" onclick="erevOpen()">
+            <div class="erev-card-icon"><i class="ti ti-wand"></i></div>
+            <div class="erev-card-txt">
+              <p class="erev-card-title" id="erevCardTitle">Ürün düzeltmelerini kontrol edin</p>
+              <p class="erev-card-sub" id="erevCardSub">— öneri bekliyor</p>
+            </div>
+            <i class="ti ti-chevron-right erev-card-arrow"></i>
           </div>
 
           <div class="ur-chat-body" id="gbChatBody">
@@ -1012,6 +1023,31 @@
 
       </div>
 
+    </div>
+
+  </div>
+</div>
+
+<!-- Ürün düzeltme inceleme modalı -->
+<div id="erevModal" class="stk-modal-overlay" style="display:none;" onclick="if(event.target===this) erevClose()">
+  <div class="stk-modal-box stk-modal-box--large">
+
+    <div class="stk-urun-modal-header">
+      <div class="stk-urun-modal-avatar"><i class="ti ti-wand" style="font-size:18px;"></i></div>
+      <div class="stk-urun-modal-title-wrap">
+        <h2 class="stk-urun-modal-title">Ürün Düzeltmeleri</h2>
+        <div class="stk-urun-modal-sub" id="erevModalSub">Yapay zekânın önerdiği kod düzeltmeleri</div>
+      </div>
+      <button class="stk-modal-close" onclick="erevClose()">✕</button>
+    </div>
+
+    <div class="erev-list" id="erevList">
+      <!-- rows injected here -->
+    </div>
+
+    <div class="erev-empty" id="erevEmpty" style="display:none;">
+      <i class="ti ti-circle-check" style="font-size:32px; color:var(--stk-green);"></i>
+      <p>Düzeltme yok — her şey yolunda.</p>
     </div>
 
   </div>

@@ -206,6 +206,7 @@ function fillDetailStats(order) {
     const inokasBasket = order.inokas_basket_total || 0;
     const stampTax     = order.stamp_tax           || 0;
     const tutarIndirimi    = order.tutar_indirimi      || 0;
+    const dmoDiscBasket = dmoBasket - tutarIndirimi;
     const tutarIndirimPct  = order.tutar_indirimi_pct  || 0;
     const realDmoBasket    = dmoBasket - tutarIndirimi;
 
@@ -225,6 +226,7 @@ function fillDetailStats(order) {
     const set = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
 
     set("dv-dmo-basket",        fmt(dmoBasket));
+    set("dv-dmo-discount-basket",      fmt(dmoDiscBasket));
     set("dv-inokas-basket",     fmt(inokasBasket));
     set("dv-kdv",               fmt(kdv));
     set("dv-gercek-kdv",        fmt(gercekKdv));
@@ -237,6 +239,7 @@ function fillDetailStats(order) {
     set("dv-gift-total",        fmt(giftTotal));
     set("dv-toplam-gelir",      fmt(toplamGelir));
     set("dv-toplam-gider",      fmt(toplamGider));
+
 
     const profitEl  = document.getElementById("dv-profit");
     const percentEl = document.getElementById("dv-profit-pct");
@@ -395,9 +398,22 @@ function buildStatsGridHTML() {
                 <label style="font-size:12px; font-weight:600; color:#64748b;">DMO Sepet</label>
                 <span id="dv-dmo-basket" style="font-weight:700; font-size:13px; color:#0f172a;">—</span>
             </div>
+            
             <div style="padding:8px 14px; border-bottom:1px solid #e2e8f0; border-left:2px solid #e2e8f0; display:flex; justify-content:space-between; align-items:center;">
                 <label style="font-size:12px; font-weight:600; color:#64748b;">İnokas Maliyet</label>
                 <span id="dv-inokas-basket" style="font-weight:700; font-size:13px; color:#0f172a;">—</span>
+            </div>
+            
+            <div style="padding:8px 14px; border-bottom:1px solid #e2e8f0; display:flex; justify-content:space-between; align-items:center;">
+                <label style="font-size:12px; font-weight:600; color:#64748b;">DMO İndirimli Sepet</label>
+                <span id="dv-dmo-discount-basket" style="font-weight:700; font-size:13px; color:#0f172a;">—</span>
+            </div>
+            <div style="padding:8px 14px; border-bottom:1px solid #e2e8f0; border-left:2px solid #e2e8f0; display:flex; justify-content:space-between; align-items:center;">
+                <label style="font-size:12px; font-weight:600; color:#dc2626;">Tutar İndirimi</label>
+                <div style="text-align:right;">
+                    <span id="dv-tutar-indirimi-pct" style="font-size:11px; font-weight:700; color:#dc2626; margin-right:4px;">—</span>
+                    <span id="dv-tutar-indirimi" style="font-weight:700; font-size:13px; color:#dc2626;">—</span>
+                </div>
             </div>
 
             <div style="padding:8px 14px; border-bottom:1px solid #e2e8f0; display:flex; flex-direction:column; gap:3px;">
@@ -410,15 +426,7 @@ function buildStatsGridHTML() {
                     <span id="dv-gercek-kdv" style="font-weight:700; font-size:13px; color:#0f172a;">—</span>
                 </div>
             </div>
-            <div style="padding:8px 14px; border-bottom:1px solid #e2e8f0; border-left:2px solid #e2e8f0; display:flex; justify-content:space-between; align-items:center;">
-                <label style="font-size:12px; font-weight:600; color:#dc2626;">Tutar İndirimi</label>
-                <div style="text-align:right;">
-                    <span id="dv-tutar-indirimi-pct" style="font-size:11px; font-weight:700; color:#dc2626; margin-right:4px;">—</span>
-                    <span id="dv-tutar-indirimi" style="font-weight:700; font-size:13px; color:#dc2626;">—</span>
-                </div>
-            </div>
-
-            <div style="border-bottom:1px solid #e2e8f0; background:#fafafa;"></div>
+            
             <div style="border-bottom:1px solid #e2e8f0; border-left:2px solid #e2e8f0;">
                 <div onclick="toggleDVVergiler()"
                     style="padding:8px 14px; display:flex; justify-content:space-between; align-items:center; cursor:pointer; user-select:none;">
@@ -442,17 +450,21 @@ function buildStatsGridHTML() {
                     </div>
                 </div>
             </div>
+            
 
             <div style="border-bottom:1px solid #e2e8f0; background:#fafafa;"></div>
+            
+            
             <div style="padding:8px 14px; border-bottom:1px solid #e2e8f0; border-left:2px solid #e2e8f0; display:flex; justify-content:space-between; align-items:center;">
                 <label style="font-size:12px; font-weight:600; color:#64748b;">🎁 Hediye Toplam</label>
                 <span id="dv-gift-total" style="font-weight:700; font-size:13px; color:#0f172a;">—</span>
             </div>
-
+            
             <div style="padding:10px 14px; border-bottom:1px solid #e2e8f0; display:flex; justify-content:space-between; align-items:center; background:#f1f5f9;">
                 <label style="font-size:12px; font-weight:800; color:#0f172a;">Toplam Gelir</label>
                 <span id="dv-toplam-gelir" style="font-weight:800; font-size:14px; color:#0f172a;">—</span>
             </div>
+            
             <div style="padding:10px 14px; border-bottom:1px solid #e2e8f0; border-left:2px solid #e2e8f0; display:flex; justify-content:space-between; align-items:center; background:#f1f5f9;">
                 <label style="font-size:12px; font-weight:800; color:#0f172a;">Toplam Gider</label>
                 <span id="dv-toplam-gider" style="font-weight:800; font-size:14px; color:#0f172a;">—</span>

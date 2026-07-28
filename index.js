@@ -36,7 +36,6 @@ app.use('/api/auth',                require('./routes/auth'));
 app.use('/api/invoices',            require('./routes/invoices'));
 app.use('/api/save-invoice',        require('./routes/invoices'));
 app.use('/api/invoice-items',       require('./routes/invoices'));
-app.use('/api/chat', require('./routes/fatura-chat'));
 app.use('/api/giderler', require('./routes/giderler'));
 app.use('/api/settings', require('./routes/settings'));
 app.use('/api/tenant-vkn', require('./routes/settings'));
@@ -86,11 +85,11 @@ app.get('/landing', (req, res) =>
 app.get('/signup',     (req, res) => res.sendFile(path.join(__dirname, 'public', 'auth', 'signup.html')));
 app.get('/onboarding', (req, res) => res.sendFile(path.join(__dirname, 'public', 'auth', 'onboarding.html')));
 
-app.get('/chat', (req, res) => {
+app.get('/invoices', (req, res) => {
   res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
   res.setHeader('Pragma', 'no-cache');
   res.setHeader('Expires', '0');
-  res.sendFile(path.join(__dirname, 'public', 'chat.html'));
+  res.sendFile(path.join(__dirname, 'public', '/faturalar/pages/faturalar.html'));
 });
 
 app.get('/login', (req, res) => res.redirect('/auth/login.html'));
@@ -124,7 +123,7 @@ cron.schedule('40 12 * * *', () => {
 });
 
 // Every 5 minutes — invoice sync
-cron.schedule('*/360 * * * *', async () => {
+cron.schedule('*/240 * * * *', async () => {
   console.log('Cron: Invoice sync starting...');
   try { await runSync(); }
   catch (err) { console.error('Cron: Invoice sync failed:', err.message); }

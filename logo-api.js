@@ -49,7 +49,7 @@ function clearAuthCache(tenantId) {
 const FULL_SYNC_START = '2026-01-01T00:00:00';
 
 function getLast48Hours() {
-  const d = new Date(Date.now() - 24 * 60 * 60 * 1000);
+  const d = new Date(Date.now() - 96 * 60 * 60 * 1000);
   return d.toISOString().substring(0, 19);
 }
 

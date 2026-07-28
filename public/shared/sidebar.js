@@ -53,7 +53,6 @@
   const isCari      = path.includes('/cari');
   const isQuotes    = path.includes('/quotes');
   const isBekleyen  = path.includes('bekleyen');
-  const isChat      = path === '/chat' || path.startsWith('/chat?');
   const isGider     = path.includes('ofis-ici');
 
 
@@ -95,23 +94,14 @@
   // ─── HTML ─────────────────────────────────────────────────────────────────
   function buildHtml() {
     return `<aside id="sidebar">
-  <a href="/chat" class="sb-brand" style="text-decoration:none;">
+  <a href="/faturalar/pages/faturalar.html" class="sb-brand" style="text-decoration:none;">
     <div class="sb-brand-icon"><i class="ti ti-bolt"></i></div>
     <span class="sb-brand-text">İnokas <span>CRM</span></span>
   </a>
 
   <nav class="sb-nav">
 
-    
-    <!-- AI Asistan 
-    <a href="/chat" class="sb-item${isChat ? ' active' : ''}" style="position:relative;">
-      <i class="ti ti-message-bolt" style="color:${isChat ? '#93c5fd' : 'rgba(255,255,255,0.45)'}"></i>
-      <span class="sb-label">AI Asistan</span>
-      <span style="position:absolute;right:10px;top:50%;transform:translateY(-50%);width:7px;height:7px;border-radius:50%;background:#22c55e;box-shadow:0 0 6px rgba(34,197,94,0.7);"></span>
-    </a>
-
-    <div class="sb-divider"></div>
-    -->
+   
 
     <!-- Faturalar -->
     <a href="/faturalar/pages/faturalar.html"

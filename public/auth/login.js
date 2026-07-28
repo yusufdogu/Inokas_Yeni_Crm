@@ -1,4 +1,4 @@
-if(sessionStorage.getItem('login_auth_token')) window.location.href='/chat';
+if(sessionStorage.getItem('login_auth_token')) window.location.href='/faturalar/pages/faturalar.html';
 document.addEventListener('keydown',e=>{if(e.key==='Enter')handleLogin();});
 
 function togglePw(){
@@ -83,7 +83,7 @@ async function handleLogin(){
       if(!data.onboarding_complete){
         window.location.replace('/auth/onboarding.html');
       } else {
-        window.location.replace('/chat');
+        window.location.replace('/faturalar/pages/faturalar.html');
       }
     },700);
   } catch(err){

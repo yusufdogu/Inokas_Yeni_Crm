@@ -593,7 +593,8 @@ router.get('/orders/:id', async (req, res) => {
         *,
         dmo_products (
           id, dmo_code, dmo_fiyat_try, sozlesme_fiyat_eur,
-          products ( id, product_name, product_code, maliyet_usd, stock_on_hand, model )
+          products ( id, product_name, product_code, last_purchase_price_tl, last_purchase_currency, last_purchase_rate, last_purchase_price_cur,
+           maliyet_usd, stock_on_hand, model )
         )
       `)
       .eq('order_id', req.params.id);
@@ -672,16 +673,64 @@ router.get('/orders', async (req, res) => {
     const tenantId = req.tenantId;
     if (!tenantId) return res.status(401).json({ error: 'tenant yok' });
 
-    const statuses = req.query.status ? [req.query.status] : ['Taslak', 'Sipariş Alındı','Tamamlandı'];
+    const statuses = req.query.status ? [req.query.status] : ['Taslak', 'Sipariş Alındı', 'Tamamlandı'];
 
-    const { data, error } = await supabase
+    const { data: orders, error } = await supabase
       .from('dmo_orders')
-      .select('id, sales_order_no, customer_name, order_date, status, dmo_basket_total, net_profit, tutar_indirimi')
+      .select('id, sales_order_no, customer_name, order_date, status, dmo_basket_total, net_profit, tutar_indirimi, real_dmo_basket, gift_total')
       .eq('tenant_id', tenantId)
       .in('status', statuses)
       .order('order_date', { ascending: false });
     if (error) throw error;
-    res.json(data || []);
+
+    const orderIds = (orders || []).map(o => o.id);
+    if (!orderIds.length) return res.json([]);
+
+    // Live cost per order: sum of last_purchase_price_tl × qty over non-gift items
+    const { data: items, error: itErr } = await supabase
+      .from('dmo_order_items')
+      .select('order_id, quantity, is_gift, dmo_products(products(last_purchase_price_tl))')
+      .in('order_id', orderIds)
+      .eq('is_gift', false);
+    if (itErr) throw itErr;
+
+    const liveBasketByOrder = {};
+    for (const it of (items || [])) {
+      const unit = Number(it.dmo_products?.products?.last_purchase_price_tl) || 0;
+      liveBasketByOrder[it.order_id] =
+        (liveBasketByOrder[it.order_id] || 0) + unit * (Number(it.quantity) || 0);
+    }
+
+    const result = (orders || []).map(o => {
+      const inokasBasket = liveBasketByOrder[o.id] || 0;
+      const realDmoBasket = Number(o.real_dmo_basket) || (Number(o.dmo_basket_total) || 0) - (Number(o.tutar_indirimi) || 0);
+
+      // Non-cost terms derived from DMO basket (same formula as fillDetailStats)
+      const kdv        = realDmoBasket * 0.20;
+      const tevkifat   = kdv * 0.20;
+      const gercekKdv  = kdv - tevkifat;
+      const risturn    = realDmoBasket * 0.01;
+      const damgaKarar = realDmoBasket * 0.01517;
+      const vergiler   = tevkifat + risturn + damgaKarar;
+      const giftTotal  = Number(o.gift_total) || 0;
+
+      const toplamGelir = realDmoBasket + gercekKdv;
+      const toplamGider = inokasBasket + (Number(o.tutar_indirimi) || 0) + vergiler + giftTotal;
+      const netProfit   = toplamGelir - toplamGider;
+
+      return {
+        id: o.id,
+        sales_order_no: o.sales_order_no,
+        customer_name: o.customer_name,
+        order_date: o.order_date,
+        status: o.status,
+        dmo_basket_total: o.dmo_basket_total,
+        tutar_indirimi: o.tutar_indirimi,
+        net_profit: netProfit,          // ← live, overrides stored
+      };
+    });
+
+    res.json(result);
   } catch (err) {
     console.error('GET /api/dmo/orders hatası:', err.message);
     res.status(500).json({ error: err.message });

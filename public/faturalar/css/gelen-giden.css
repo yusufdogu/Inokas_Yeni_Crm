@@ -1326,8 +1326,6 @@ body {
 /* ===== checkbox column ===== */
 .fat-tbl-check {
     text-align: center;
-    padding-left: 12px !important;
-    padding-right: 4px !important;
 }
 .fat-tbl-check input[type="checkbox"] {
     width: 16px;

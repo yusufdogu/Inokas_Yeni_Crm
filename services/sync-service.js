@@ -259,8 +259,10 @@ async function processInvoicePipeline(dbInvoice, parsedItems, viewKey, tenantId,
     // ── 5) single insert (delete-first for reprocess safety) ─────────────────
     await insertItems(rows, dbInvoice.id);
 
+    const approved = !anyReview;
+
     // ── 6) stock — keyed on product_code, only for linked (internal) lines ───
-    if (!opts.skipStock) {
+    if (approved && !opts.skipStock) {
         for (let i = 0; i < rows.length; i++) {
             const pid = productIdByIndex[i];
             const code = rows[i].product_code;
@@ -274,7 +276,6 @@ async function processInvoicePipeline(dbInvoice, parsedItems, viewKey, tenantId,
     // classifier's pre-override value.
     console.log(anyReview)
     const invoiceCategory = isOutgoing ? 'INTERNAL' : classification.invoice_category;
-    const approved = !anyReview;
     await supabase.from('invoices')
         .update({
             invoice_category: invoiceCategory,

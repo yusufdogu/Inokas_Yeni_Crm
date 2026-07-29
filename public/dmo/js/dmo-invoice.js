@@ -90,7 +90,11 @@ async function loadDetailView(orderId) {
                     </div>
                     <div>
                         <div style="font-size:11px; color:#8a857c; margin-bottom:3px;">Maliyet TL</div>
-                        <div style="font-size:13px; font-weight:500; color:#0e0d0b;">${i.maliyet_tl ? formatAmount(i.maliyet_tl) + " ₺" : "—"}</div>
+                        <div style="font-size:13px; font-weight:500; color:#0e0d0b;">${(() => {
+                            const unit = Number(i.dmo_products?.products?.last_purchase_price_tl) || 0;
+                            const line = unit * (Number(i.quantity) || 0);
+                            return line > 0 ? formatAmount(line) + " ₺" : "—";
+                        })()}</div>
                     </div>
                     <div>
                         <div style="font-size:11px; color:#8a857c; margin-bottom:3px;">Toplam</div>
@@ -193,7 +197,7 @@ async function loadDetailView(orderId) {
         const statsGrid = document.getElementById("dv-stats-grid");
         if (statsGrid) {
             statsGrid.innerHTML = buildStatsGridHTML();
-            fillDetailStats(order);
+            fillDetailStats(order,regularItems);
         }
 
         switchDetailTab("bilgi");
@@ -201,9 +205,12 @@ async function loadDetailView(orderId) {
 }
 
 // ── FILL DETAIL STATS ─────────────────────────────────────────────────────────
-function fillDetailStats(order) {
+function fillDetailStats(order,regularItems) {
     const dmoBasket    = order.dmo_basket_total    || 0;
-    const inokasBasket = order.inokas_basket_total || 0;
+    const inokasBasket = (regularItems || []).reduce((sum, i) => {
+        const unit = Number(i.dmo_products?.products?.last_purchase_price_tl) || 0;
+        return sum + unit * (Number(i.quantity) || 0);
+    }, 0);
     const stampTax     = order.stamp_tax           || 0;
     const tutarIndirimi    = order.tutar_indirimi      || 0;
     const dmoDiscBasket = dmoBasket - tutarIndirimi;
@@ -219,8 +226,8 @@ function fillDetailStats(order) {
     const giftTotal    = order.gift_total || 0;
     const toplamGelir  = realDmoBasket + gercekKdv;
     const toplamGider  = inokasBasket + tutarIndirimi + vergilerTotal + giftTotal;
-    const netProfit    = order.net_profit          || (toplamGelir - toplamGider);
-    const profitPct    = order.profit_percentage   || (toplamGelir > 0 ? (netProfit / toplamGelir) * 100 : 0);
+    const netProfit    = toplamGelir - toplamGider;
+    const profitPct    = toplamGelir > 0 ? (netProfit / toplamGelir) * 100 : 0;
 
     const fmt = v => formatAmount(v.toFixed(2)) + " ₺";
     const set = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };

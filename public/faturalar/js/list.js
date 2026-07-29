@@ -38,20 +38,20 @@ function renderListView(invoices) {
         content.innerHTML = `<div style="flex:1; display:flex; align-items:center; justify-content:center; color:#94a3b8; font-size:14px; font-weight:500;">
             Fatura bulunamadı. Filtreleri değiştirin.
         </div>`;
+        // hide any lingering select bar since list is empty
+        const bar = document.getElementById('fatSelectBar');
+        if (bar) bar.style.display = 'none';
         return;
     }
 
-
     const thHtml = (col, label, extraStyle = '') => {
-        // In bekleyen mode → static, non-clickable header
         if (window._FAT_PENDING) {
             return `<th style="${extraStyle}">
                 <span class="fat-th-inner">${label}</span>
             </th>`;
         }
-
         const isActive = fatListSort.col === col;
-        const iconCls  = isActive
+        const iconCls = isActive
             ? (fatListSort.dir === 'desc' ? 'ti-arrow-up' : 'ti-arrow-down')
             : 'ti-arrows-sort';
         const iconColor = isActive ? '' : 'opacity:0.35;';
@@ -65,34 +65,51 @@ function renderListView(invoices) {
 
     _fatDetailList = invoices;
 
+    // saveFilterState moved here — runs ONCE, not per row
+    saveFilterState();
+
     const rows = invoices.map(inv => {
         const total = formatMoneyDisplay(inv, invNonInternalPayableAmountSrc(inv));
         const comp = (inv.companies?.name || 'Bilinmeyen').replace(/</g, '&lt;');
         const no = (inv.invoice_no || '-').replace(/</g, '&lt;');
-        saveFilterState();
+        const checked = window._fatSelected.has(inv.id) ? 'checked' : '';
         return `<tr onclick="openFatDetailPage('${inv.id}')">
+            <td class="fat-tbl-check" onclick="event.stopPropagation()">
+                <input type="checkbox" class="fat-row-check" data-id="${inv.id}"
+                       ${checked} onclick="fatToggleRow('${inv.id}', event)">
+            </td>
             <td><span class="fat-tbl-no">${no}</span></td>
             <td>${comp}</td>
             <td class="fat-tbl-date">${inv.invoice_date || '-'}</td>
-            <td <span class="fat-tbl-amount">${total}</span></td>
+            <td><span class="fat-tbl-amount">${total}</span></td>
         </tr>`;
     }).join('');
+
+    // Master checkbox header — hidden in pending mode to match static headers
+    const checkTh = window._FAT_PENDING
+        ? `<th style="width:44px;"></th>`
+        : `<th class="fat-tbl-check" style="width:44px;">
+               <input type="checkbox" class="fat-check-all" onclick="fatToggleAll(this)">
+           </th>`;
 
     content.innerHTML = `<div class="fat-list-view">
         <div class="fat-tbl-wrap">
             <table class="fat-tbl" style="table-layout:fixed; width:100%;">
                 <thead><tr>
-                    ${thHtml('invoice_no',      '<i class="ti ti-hash fat-th-col-icon"></i> FATURA NO', 'width:180px;')}
-                    ${thHtml('company', '<i class="ti ti-building fat-th-col-icon"></i> FİRMA',  'width:45%;')}
-                    ${thHtml('date',    '<i class="ti ti-calendar fat-th-col-icon"></i> TARİH', 'width:120px;')}
-                    ${thHtml('total',   '<i class="ti ti-currency-lira fat-th-col-icon"></i> TOPLAM', 'text-align:right; width:160px;')}
+                    ${checkTh}
+                    ${thHtml('invoice_no', '<i class="ti ti-hash fat-th-col-icon"></i> FATURA NO', 'width:180px;')}
+                    ${thHtml('company', '<i class="ti ti-building fat-th-col-icon"></i> FİRMA', 'width:45%;')}
+                    ${thHtml('date', '<i class="ti ti-calendar fat-th-col-icon"></i> TARİH', 'width:120px;')}
+                    ${thHtml('total', '<i class="ti ti-currency-lira fat-th-col-icon"></i> TOPLAM', 'text-align:right; width:160px;')}
                 </tr></thead>
                 <tbody>${rows}</tbody>
             </table>
         </div>
     </div>`;
-}
 
+    fatEnsureSelectBar();
+    fatSyncSelectionUI();
+}
 // ─── Tam ekran detay sayfası ──────────────────────────────────────────────────
 
 function openFatDetailPage(id) {

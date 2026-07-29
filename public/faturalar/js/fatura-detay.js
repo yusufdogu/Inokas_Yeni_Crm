@@ -107,6 +107,7 @@ function renderPdf(id, inv) {
     const iframe = document.getElementById('detayPdfIframe');
     const empty  = document.getElementById('detayPdfEmpty');
     loadDetailPdfInto(id, inv, iframe, empty);
+    setupDetayDownloadBar(inv);
 }
 
 // ─── TABS ─────────────────────────────────────────────────────────────────────
@@ -230,4 +231,68 @@ function applySkuBasedProductCategory(row, skuRaw) {
     if ([...categorySelect.options].some(o => o.value === category)) {
         categorySelect.value = category;
     }
+}
+
+
+// ─── DOWNLOAD (PDF / XML) ─────────────────────────────────────────────────────
+function setupDetayDownloadBar(inv) {
+    const bar    = document.getElementById('detayDlBar');
+    const pdfBtn = document.getElementById('detayDlPdf');
+    const xmlBtn = document.getElementById('detayDlXml');
+    if (!bar) return;
+
+    const hasPdf = !!inv?.pdf_url;
+    const hasXml = !!inv?.xml_url;
+
+    // Nothing to download → keep bar hidden
+    if (!hasPdf && !hasXml) { bar.style.display = 'none'; return; }
+
+    bar.style.display = 'flex';
+
+    if (pdfBtn) {
+        pdfBtn.style.display = hasPdf ? 'inline-flex' : 'none';
+    }
+    if (xmlBtn) {
+        xmlBtn.style.display = hasXml ? 'inline-flex' : 'none';
+    }
+}
+
+async function downloadDetayFile(kind /* 'pdf' | 'xml' */) {
+    const inv = _detayInv;
+    if (!inv) return;
+
+    const url = kind === 'pdf' ? inv.pdf_url : inv.xml_url;
+    const ext = kind === 'pdf' ? 'pdf' : 'xml';
+    if (!url) return;
+
+    const btn = document.getElementById(kind === 'pdf' ? 'detayDlPdf' : 'detayDlXml');
+    const originalHtml = btn ? btn.innerHTML : '';
+    if (btn) { btn.disabled = true; btn.innerHTML = `<i class="ti ti-loader-2 detay-dl-spin"></i> İndiriliyor...`; }
+
+    try {
+        const resp = await fetch(url);
+        if (!resp.ok) throw new Error(resp.status);
+        const blob = await resp.blob();
+
+        const a = document.createElement('a');
+        const objUrl = URL.createObjectURL(blob);
+        a.href = objUrl;
+        a.download = `${detaySafeFileName(inv)}.${ext}`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        setTimeout(() => URL.revokeObjectURL(objUrl), 1000);
+    } catch (e) {
+        console.error('İndirme hatası:', e);
+        alert('Dosya indirilemedi.');
+    } finally {
+        if (btn) { btn.disabled = false; btn.innerHTML = originalHtml; }
+    }
+}
+
+function detaySafeFileName(inv) {
+    const no   = (inv.invoice_no || 'fatura').toString();
+    const comp = (inv.companies?.name || '').toString();
+    const raw  = comp ? `${no}_${comp}` : no;
+    return raw.replace(/[^\p{L}\p{N}_\-]+/gu, '_').slice(0, 80);
 }

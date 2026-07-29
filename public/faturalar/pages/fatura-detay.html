@@ -13,6 +13,7 @@
   <link rel="stylesheet" href="/shared/shared-filters.css?v=1">
   <link rel="stylesheet" href="/faturalar/css/gelen-giden.css?v=1">
   <link rel="stylesheet" href="/faturalar/css/faturalar.css?v=1">
+  <link rel="stylesheet" href="/faturalar/css/fatura-detay.css?v=1">
 
   <script src="/shared/auth-interceptor.js" defer></script>
   <script src="/faturalar/js/utils.js?v=1" defer></script>
@@ -60,6 +61,18 @@
             </svg>
             <p style="font-size:13px; font-weight:600;">PDF bulunamadı</p>
           </div>
+
+            <!-- download bar -->
+            <div class="detay-dl-bar" id="detayDlBar" style="display:none;">
+              <button type="button" class="detay-dl-btn" id="detayDlPdf"
+                      onclick="downloadDetayFile('pdf')">
+                <i class="ti ti-file-type-pdf"></i> PDF indir
+              </button>
+              <button type="button" class="detay-dl-btn" id="detayDlXml"
+                      onclick="downloadDetayFile('xml')">
+                <i class="ti ti-file-code"></i> XML indir
+              </button>
+            </div>
         </div>
 
         <!-- Info tabs -->

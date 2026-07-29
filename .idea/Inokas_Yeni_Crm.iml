@@ -11,6 +11,7 @@
     <orderEntry type="library" name="noUiSlider" level="application" />
     <orderEntry type="library" name="chart.js" level="application" />
     <orderEntry type="library" name="marked" level="application" />
+    <orderEntry type="library" name="jszip" level="application" />
   </component>
   <component name="TemplatesService">
     <option name="TEMPLATE_FOLDERS">

@@ -400,3 +400,42 @@
     font-size: 11px;
     color: var(--fat-ink3);
 }
+
+/* ===== PDF pane download bar ===== */
+.detay-pdf-pane { position: relative; }
+
+.detay-dl-bar {
+    position: absolute;
+    left: 50%;
+    bottom: 16px;
+    transform: translateX(-50%);
+    z-index: 5;
+    display: flex;
+    gap: 8px;
+    padding: 6px;
+    background: rgba(15, 23, 42, 0.92);
+    backdrop-filter: blur(6px);
+    border-radius: 10px;
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.22);
+}
+.detay-dl-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 14px;
+    background: #1e293b;
+    color: #fff;
+    border: 1px solid #334155;
+    border-radius: 7px;
+    font-family: inherit;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.15s;
+    white-space: nowrap;
+}
+.detay-dl-btn:hover:not(:disabled) { background: #334155; }
+.detay-dl-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+
+.detay-dl-spin { animation: detay-dl-rot 0.8s linear infinite; }
+@keyframes detay-dl-rot { to { transform: rotate(360deg); } }

@@ -179,12 +179,7 @@ body {
 
 .fat-tab-close:hover { background: var(--red-bg); color: var(--red); }
 
-.fat-content {
-  flex: 1;
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
-}
+
 
 /* ─── Invoice list table ─────────────────────────────────────────────────── */
 .fat-list-view {
@@ -1073,7 +1068,6 @@ body {
 .fat-content {
     flex: 1;
     overflow-y: auto;
-    padding: 8px 16px 16px;
     min-height: 0;
     display: flex;
     flex-direction: column;
@@ -1326,4 +1320,80 @@ body {
 
 .ofis-pag-limit-select:focus {
     border-color: var(--fat-green);
+}
+
+
+/* ===== checkbox column ===== */
+.fat-tbl-check {
+    text-align: center;
+    padding-left: 12px !important;
+    padding-right: 4px !important;
+}
+.fat-tbl-check input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+    cursor: pointer;
+    accent-color: #2563eb;      /* match your brand blue if different */
+    vertical-align: middle;
+    margin: 0;
+}
+
+/* ===== floating action bar ===== */
+.fat-select-bar {
+    position: fixed;
+    bottom: 24px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    padding: 12px 20px;
+    background: #0f172a;
+    color: #fff;
+    border-radius: 12px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
+    font-size: 14px;
+    font-weight: 500;
+}
+.fat-select-count {
+    white-space: nowrap;
+}
+.fat-select-actions {
+    display: flex;
+    gap: 8px;
+}
+.fat-select-bar button {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 7px 14px;
+    background: #1e293b;
+    color: #fff;
+    border: 1px solid #334155;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background 0.15s;
+}
+.fat-select-bar button:hover:not(:disabled) {
+    background: #334155;
+}
+.fat-select-bar button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+.fat-select-clear {
+    background: transparent !important;
+    border-color: transparent !important;
+    color: #94a3b8 !important;
+}
+.fat-select-clear:hover:not(:disabled) {
+    color: #fff !important;
+    background: #1e293b !important;
+}
+.fat-select-bar--busy {
+    opacity: 0.7;
+    pointer-events: none;
 }

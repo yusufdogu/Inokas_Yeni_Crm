@@ -395,35 +395,6 @@ async function syncGelenInvoices(startDate, tenantId, creds) {
                         console.log(`⏩ ${inv.invoiceId}: unchanged, skipped.`);
                         continue;
                     }
-
-                    // Path 2 — changed: reverse old stock, re-upsert, reprocess
-                    console.log(`♻️  ${inv.invoiceId}: changed, reprocessing.`);
-                    await reverseInvoiceStock(existing.id, viewKey, tenantId);
-
-                    const xmlUrl  = await uploadXmlToStorage(base64Content, uuid);
-
-                    // Arka planda PDF üret (response'u bekletmez)
-                    let pdfUrl='';
-                    const savedId = existing.id;
-                    if (savedId && xmlUrl) {
-                      pdfUrl=generateAndUploadPdf(supabase, savedId, xmlUrl)
-                        .catch(e => console.error('[pdf-service] arka plan hatası:', e.message));
-                    }
-
-                    const company = await upsertCompany(companyData, tenantId);
-                    const dbInvoice = await upsertInvoice({
-                        ...invoiceData,
-                        company_id: company.id,
-                        source: 'api',
-                        xml_url: xmlUrl,
-                        pdf_url: pdfUrl,
-                        gib_status_code: inv.statusCode ?? null,
-                        gib_status_description: inv.status || null,
-                    }, tenantId);
-
-                    await processInvoicePipeline(dbInvoice, items, viewKey, tenantId,{ skipStock: false });
-
-                    nReprocessed++;
                     await sleep(400);
                     continue;
                 }

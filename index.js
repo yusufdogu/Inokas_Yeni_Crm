@@ -125,7 +125,7 @@ cron.schedule('40 12 * * *', () => {
 });
 
 // Every 5 minutes — invoice sync
-cron.schedule('*/10 * * * *', async () => {
+cron.schedule('*/240 * * * *', async () => {
   console.log('Cron: Invoice sync starting...');
   try { await runSync(); }
   catch (err) { console.error('Cron: Invoice sync failed:', err.message); }

@@ -471,6 +471,7 @@ function recalcHizliHesap() {
     const set = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
 
     set("hh_dmo_basket",         fmt(dmoBasket));
+    set("hh_dmo_disc_basket",    fmt(realDmoBasket));
     set("hh_inokas_basket",      fmt(inokasBasket));
     set("hh_kdv",                fmt(f.kdv));
     set("hh_gercek_kdv",         fmt(f.gercekKdv));

@@ -513,18 +513,6 @@ function calculateDMOBasket(items) {
 }
 
 
-function computeInvoiceMetrics(dmoBasket, inokasBasket, stampTax) {
-    const kdv         = dmoBasket * 0.20;
-    const tevkifat    = kdv * 0.20;
-    const gercekKdv   = kdv - tevkifat;
-    const risturn     = dmoBasket * 0.01;
-    const toplamGelir = dmoBasket + kdv;
-    const toplamGider = inokasBasket + stampTax + tevkifat + risturn;
-    const netProfit   = toplamGelir - toplamGider;
-    const profitPct   = dmoBasket > 0 ? (netProfit / dmoBasket) * 100 : 0;
-    return { kdv, tevkifat, gercekKdv, risturn, toplamGelir, toplamGider, netProfit, profitPct };
-}
-
 function calculateProfit() {
     const dmoBasket    = parseFloat(document.getElementById("dmo_basket")?.value)    || 0;
     const inokasBasket = parseFloat(document.getElementById("inokas_basket")?.value) || 0;
@@ -624,10 +612,8 @@ function resetFormFields() {
     });
     const profitStat  = document.getElementById("ys-net-profit");
     const pctStat     = document.getElementById("ys-profit-pct");
-    const pctBadge    = document.getElementById("ys-tutar-indirimi-pct");
     if (profitStat) profitStat.textContent = "—";
     if (pctStat)    pctStat.textContent    = "—";
-    if (pctBadge)   pctBadge.textContent   = "%0";
 
     clearModalAlert();
     window._lastParsedItems = null;
@@ -810,7 +796,6 @@ async function updateYSStats() {
 
     if (regularItems.length === 0) {
         ids.forEach(id => set(id, "—"));
-        set("ys-tutar-indirimi-pct", "%0");
         return;
     }
 
@@ -818,7 +803,7 @@ async function updateYSStats() {
     const dmoBasket    = regularItems.reduce((s, i) => s + (parseFloat(i["KAT.SÖZ.FIY.(TL)"] || 0) * (parseFloat(i["MIKTAR"]) || 0)), 0);
     const actualBasket = regularItems.reduce((s, i) => s + (parseFloat(i["TUTARI (TL)"] || 0)), 0);
     const tutarIndirimi   = dmoBasket - actualBasket;
-    const tutarIndirimPct = dmoBasket > 0 ? (tutarIndirimi / dmoBasket * 100) : 0;
+    const dmoDiscBasket = dmoBasket - tutarIndirimi;
     const kdv         = actualBasket * 0.20;
     const tevkifat    = kdv * 0.20;
     const gercekKdv   = kdv - tevkifat;
@@ -843,11 +828,11 @@ async function updateYSStats() {
 
     const fmt = v => formatAmount(v.toFixed(2)) + " ₺";
     set("ys-dmo-basket",         fmt(dmoBasket));
+    set("ys-dmo-disc-basket",    fmt(dmoDiscBasket));
     set("ys-inokas-basket",      fmt(cost.inokas_basket_total));
     set("ys-kdv",                fmt(kdv));
     set("ys-gercek-kdv",         fmt(gercekKdv));
     set("ys-tutar-indirimi",     fmt(tutarIndirimi));
-    set("ys-tutar-indirimi-pct", "%" + tutarIndirimPct.toFixed(1));
     set("ys-tevkifat",           fmt(tevkifat));
     set("ys-risturn",            fmt(risturn));
     set("ys-damga-karar",        fmt(damgaKarar));

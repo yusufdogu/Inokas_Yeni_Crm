@@ -150,7 +150,7 @@ async function loadDetailView(orderId) {
         const statsContainer = document.getElementById("detail-right-stats");
         if (statsContainer) {
             statsContainer.innerHTML = buildStatsGridHTML();
-            fillDetailStats(order);
+            fillDetailStats(order,regularItems);
         }
 
     } else {
@@ -293,14 +293,6 @@ function activateInlineEdit(order) {
     document.getElementById("dv-btn-bar").style.display  = "none";
     document.getElementById("dv-edit-bar").style.display = "flex";
 
-    // Show gift button
-    const giftBtn = document.getElementById("dv-btn-gift");
-    if (giftBtn) {
-        giftBtn.style.display = "flex";
-        giftBtn.onclick = () => {
-            window.location.href = `/dmo/pages/sepet-hesapla.html?taslak=${order.id}&from=invoice`;
-        };
-    }
 
     document.getElementById("dv-btn-save-edit").onclick   = () => saveInlineEdit(order.id, order);
     document.getElementById("dv-btn-cancel-edit").onclick = () => loadDetailView(order.id);
@@ -370,7 +362,7 @@ function resetEditMode() {
     const giftBtn = document.getElementById("dv-btn-gift");
     if (btnBar)  btnBar.style.display  = "flex";
     if (editBar) editBar.style.display = "none";
-    if (giftBtn) giftBtn.style.display = "none";
+    if (giftBtn) giftBtn.style.display = "flex";
 }
 
 // ── DELETE ORDER ──────────────────────────────────────────────────────────────

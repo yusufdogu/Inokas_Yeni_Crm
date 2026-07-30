@@ -12,7 +12,7 @@ async function xmlToPdfBuffer(xmlText) {
     const browser = await puppeteer.launch({
         headless: true,
         ...(executablePath ? { executablePath } : {}),   // only set if we have one
-        args: ['--no-sandbox', '--disable-setuid-sandbox'],
+        args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'],
     });
     try {
         const page = await browser.newPage();

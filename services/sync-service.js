@@ -349,6 +349,12 @@ async function syncGelenInvoices(startDate, tenantId, creds) {
                 const uuid = inv.uuId;
                 if (!uuid) { console.warn(`⚠️ Skipping ${inv.invoiceId || 'Unknown'}: No UUID.`); continue; }
 
+                const status = (inv.gib_status_description || "").trim().toUpperCase();
+                if (status === "WILL BE SENT TO GIB") {
+                    console.log("this is a draft invoice wont process", inv.gib_status_description);
+                    continue;
+                }
+
                 // Existing? Pull the fields the signature needs.
                 const { data: existing } = await supabase
                     .from('invoices')
@@ -451,6 +457,13 @@ async function syncGidenInvoices(startDate, tenantId, creds) {
     if (!invoices?.length) { hasMore = false; break; }
 
     for (const inv of invoices) {
+      console.log("gib status of the invoice", inv.eStatusDescription);
+      const status = (inv.eStatusDescription || "").trim().toUpperCase();
+      if (status === "WILL BE SENT TO GIB") {
+        console.log("this is a draft invoice wont process", inv.eStatusDescription);
+        continue;
+      }
+
       try {
         // tenant-scoped exists check (invoice_no is per-tenant unique now)
         const { data: exists } = await supabase
@@ -492,7 +505,7 @@ async function syncGidenInvoices(startDate, tenantId, creds) {
 
         // same pipeline as gelen — classify → enrich → products → stock,
         // but viewKey 'giden' makes stock SUBTRACT (may go negative — allowed).
-        await processInvoicePipeline(dbInvoice, items, 'giden', tenantId,{ skipStock: false });
+        await processInvoicePipeline(dbInvoice, items, 'giden', tenantId, { skipStock: false });
 
         totalSynced++;
         console.log(`✅ [Giden] ${inv.invoiceNumber} synced.`);
@@ -509,9 +522,6 @@ async function syncGidenInvoices(startDate, tenantId, creds) {
 
   console.log(`\n✨ Giden sync finished. Total synced: ${totalSynced}`);
 }
-
-
-
 
 
 

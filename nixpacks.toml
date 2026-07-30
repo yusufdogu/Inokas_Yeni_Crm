@@ -1,12 +1,15 @@
 [phases.setup]
-nixPkgs = ["nodejs_20", "python311", "python311Packages.pip", "stdenv.cc.cc.lib", "chromium", "nss", "freetype", "harfbuzz", "liberation_ttf"]
+nixPkgs = ["nodejs_20", "python311", "python311Packages.pip", "stdenv.cc.cc.lib", "nss", "freetype", "harfbuzz", "liberation_ttf", "glib", "nspr", "at-spi2-atk", "cups", "dbus", "libdrm", "expat", "libxkbcommon", "mesa", "alsa-lib"]
 
 [phases.install]
-cmds = ["PUPPETEER_SKIP_DOWNLOAD=true npm ci", "pip install -r requirements.txt --break-system-packages"]
+cmds = [
+  "npm ci",
+  "pip install -r requirements.txt --break-system-packages"
+]
 
 [variables]
 LD_LIBRARY_PATH = "${stdenv.cc.cc.lib}/lib"
-PUPPETEER_SKIP_DOWNLOAD = "true"
+PUPPETEER_CACHE_DIR = "/app/.cache/puppeteer"
 
 [start]
-cmd = "export PUPPETEER_EXECUTABLE_PATH=$(which chromium || which chromium-browser || find /nix -name chromium -type f 2>/dev/null | head -1) && echo \"Chromium: $PUPPETEER_EXECUTABLE_PATH\" && node index.js"
+cmd = "node index.js"

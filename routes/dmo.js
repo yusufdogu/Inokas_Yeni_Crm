@@ -193,7 +193,6 @@ router.post('/preview-cost', async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
-
 // POST /api/dmo/parse-pdf
 router.post('/parse-pdf', (req, res) => {
   const proxyReq = http.request({
@@ -266,18 +265,7 @@ router.post('/orders/received', async (req, res) => {
       }
     }
 
-    // Cost-derived fields: server cost + client's tax/price fields (damga recomputed here)
-    const actualBasket = Number(order.real_dmo_basket) || 0;
-    const damgaKarar   = actualBasket * 0.01517;
-    const toplamGelir  = Number(order.toplam_gelir) || 0;
-    const toplamGider  = inokasTotal + (Number(order.tutar_indirimi) || 0) + (Number(order.tevkifat) || 0)
-                       + (Number(order.risturn_amount) || 0) + damgaKarar + giftTotal;
-    const netProfit    = toplamGelir - toplamGider;
-    const profitPct    = toplamGelir > 0 ? (netProfit / toplamGelir * 100) : 0;
-
     await supabase.from('dmo_orders').update({
-      inokas_basket_total: inokasTotal, gift_total: giftTotal,
-      toplam_gider: toplamGider, net_profit: netProfit, profit_percentage: profitPct,
       needs_cost_review: zeroCostCodes.length > 0,
     }).eq('id', savedId).eq('tenant_id', tenantId);
 
@@ -640,21 +628,36 @@ router.get('/orders/:id', async (req, res) => {
 router.post('/orders/taslak', async (req, res) => {
   try {
     const supabase = req.app.get('supabase');
-    const { orderId, order, items } = req.body;
+    const { orderId, order = {}, items } = req.body;
+
+    // Allow-list: only real, surviving columns get written. Anything else the client
+    // sends (legacy derived fields) is ignored, so a stray key can't break the insert.
+    const clean = {
+      customer_name:         order.customer_name ?? null,
+      customer_no:           order.customer_no ?? null,
+      sales_order_no:        order.sales_order_no ?? null,
+      purchase_order_no:     order.purchase_order_no ?? null,
+      usd_rate:              order.usd_rate ?? null,
+      total_amount_excl_vat: order.total_amount_excl_vat ?? 0,
+      tutar_indirimi:        order.tutar_indirimi ?? null,
+      stamp_tax:             order.stamp_tax ?? 0,
+      due_date:              order.due_date ?? null,
+      status:                order.status ?? 'Taslak',
+    };
 
     let saved;
     if (orderId) {
       await supabase.from('dmo_order_items').delete().eq('order_id', orderId);
       const { data, error } = await supabase
-        .from('dmo_orders').update(order)
-        .eq('id', orderId).eq('tenant_id', req.tenantId)     // ← drop tenant eq if no column
+        .from('dmo_orders').update(clean)
+        .eq('id', orderId).eq('tenant_id', req.tenantId)
         .select().single();
       if (error) throw error;
       saved = data;
     } else {
       const { data, error } = await supabase
         .from('dmo_orders')
-        .insert({ ...order, tenant_id: req.tenantId, order_date: new Date().toISOString().slice(0, 10) })  // ← drop tenant_id if no column
+        .insert({ ...clean, tenant_id: req.tenantId, order_date: new Date().toISOString().slice(0, 10) })
         .select().single();
       if (error) throw error;
       saved = data;
@@ -672,6 +675,7 @@ router.post('/orders/taslak', async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
+
 // GET /api/dmo/products — the tenant's DMO catalog (dmo_products + base product)
 
 router.get('/products', async (req, res) => {

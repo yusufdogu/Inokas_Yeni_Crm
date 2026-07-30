@@ -214,7 +214,6 @@ function fillDetailStats(order,regularItems) {
     const stampTax     = order.stamp_tax           || 0;
     const tutarIndirimi    = order.tutar_indirimi      || 0;
     const dmoDiscBasket = dmoBasket - tutarIndirimi;
-    const tutarIndirimPct  = order.tutar_indirimi_pct  || 0;
     const realDmoBasket    = dmoBasket - tutarIndirimi;
 
     const kdv          = realDmoBasket * 0.20;
@@ -238,7 +237,6 @@ function fillDetailStats(order,regularItems) {
     set("dv-kdv",               fmt(kdv));
     set("dv-gercek-kdv",        fmt(gercekKdv));
     set("dv-tutar-indirimi",    fmt(tutarIndirimi));
-    set("dv-tutar-indirimi-pct", tutarIndirimPct > 0 ? "%" + tutarIndirimPct.toFixed(1) : "—");
     set("dv-tevkifat",          fmt(tevkifat));
     set("dv-risturn",           fmt(risturn));
     set("dv-damga-karar",       fmt(damgaKarar));
@@ -418,7 +416,6 @@ function buildStatsGridHTML() {
             <div style="padding:8px 14px; border-bottom:1px solid #e2e8f0; border-left:2px solid #e2e8f0; display:flex; justify-content:space-between; align-items:center;">
                 <label style="font-size:12px; font-weight:600; color:#dc2626;">Tutar İndirimi</label>
                 <div style="text-align:right;">
-                    <span id="dv-tutar-indirimi-pct" style="font-size:11px; font-weight:700; color:#dc2626; margin-right:4px;">—</span>
                     <span id="dv-tutar-indirimi" style="font-weight:700; font-size:13px; color:#dc2626;">—</span>
                 </div>
             </div>

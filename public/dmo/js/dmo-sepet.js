@@ -406,9 +406,37 @@ function toggleVergiler() {
 }
 
 // ── RECALCULATE ───────────────────────────────────────────────────────────────
+function computeDmoFinancials({
+  basket,            // total_amount_excl_vat (raw DMO basket, from PDF)
+  tutarIndirimi = 0, // discount (from PDF)
+  stampTax = 0,      // damga (from PDF for saved orders; estimated upstream for live calc)
+  inokasBasket = 0,  // live cost: Σ last_purchase_price_tl × qty over non-gift items
+  giftTotal = 0,     // live cost of gift items
+}) {
+  const b            = Number(basket) || 0;
+  const disc         = Number(tutarIndirimi) || 0;
+  const realBasket   = b - disc;
+
+  const kdv          = realBasket * 0.20;
+  const tevkifat     = kdv * 0.20;
+  const gercekKdv    = kdv - tevkifat;
+  const risturn      = realBasket * 0.01;
+  const damga        = Number(stampTax) || 0;      // ← read, not computed
+  const vergiler     = tevkifat + risturn + damga;
+
+  const toplamGelir  = realBasket + gercekKdv;
+  const toplamGider  = (Number(inokasBasket) || 0) + disc + vergiler + (Number(giftTotal) || 0);
+  const netProfit    = toplamGelir - toplamGider;
+  const profitPct    = toplamGelir > 0 ? (netProfit / toplamGelir) * 100 : 0;
+
+  return {
+    realBasket, kdv, tevkifat, gercekKdv, risturn, damga, vergiler,
+    toplamGelir, toplamGider, netProfit, profitPct,
+  };
+}
+
 function recalcHizliHesap() {
     const rates   = getCurrentRates();
-    const usdRate = parseFloat(rates.usd_try) || 0;
 
     let dmoBasket    = 0;
     let inokasBasket = 0;
@@ -416,49 +444,50 @@ function recalcHizliHesap() {
 
     Object.values(hhSepet).forEach(item => {
         const dmoFiyat = parseFloat(item.dmo_fiyat_try || 0);
-        const malUsd   = parseFloat(item.maliyet_usd   || 0);
-        const malTL    = malUsd * usdRate;
+        const malTL    = item.last_purchase_price_tl;
 
         dmoBasket    += dmoFiyat * (item.quantity     || 0);
         inokasBasket += malTL   * (item.quantity     || 0);
         giftTotal    += malTL   * (item.giftQuantity || 0);
     });
 
-    const tutarIndirimPct  = getTutarIndirimPct(dmoBasket);
-    const tutarIndirimi    = dmoBasket * tutarIndirimPct;
-    const realDmoBasket    = dmoBasket - tutarIndirimi;
-    const kdv              = realDmoBasket * 0.20;
-    const tevkifat         = kdv * 0.20;
-    const gercekKdv        = kdv - tevkifat;
-    const risturn          = realDmoBasket * 0.01;
-    const damgaKarar       = realDmoBasket * 0.01517;
-    const vergilerTotal    = tevkifat + risturn + damgaKarar;
-    const toplamGelir      = realDmoBasket + gercekKdv;
-    const toplamGider      = inokasBasket + tutarIndirimi + vergilerTotal + giftTotal;
-    const netProfit        = toplamGelir - toplamGider;
-    const profitPct        = toplamGelir > 0 ? (netProfit / toplamGelir) * 100 : 0;
+    const tutarIndirimPct = getTutarIndirimPct(dmoBasket);
+    const tutarIndirimi   = dmoBasket * tutarIndirimPct;
+    const realDmoBasket   = dmoBasket - tutarIndirimi;
+
+    // No PDF here → estimate damga from the rate, then pass it in as an input.
+    // (The shared function reads stampTax; it does NOT compute it.)
+    const stampTaxEstimate = realDmoBasket * 0.01517;
+
+    const f = computeDmoFinancials({
+        basket:        dmoBasket,
+        tutarIndirimi: tutarIndirimi,
+        stampTax:      stampTaxEstimate,
+        inokasBasket:  inokasBasket,
+        giftTotal:     giftTotal,
+    });
 
     const fmt = v => formatAmount(v.toFixed(2)) + " ₺";
     const set = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
 
     set("hh_dmo_basket",         fmt(dmoBasket));
     set("hh_inokas_basket",      fmt(inokasBasket));
-    set("hh_kdv",                fmt(kdv));
-    set("hh_gercek_kdv",         fmt(gercekKdv));
+    set("hh_kdv",                fmt(f.kdv));
+    set("hh_gercek_kdv",         fmt(f.gercekKdv));
     set("hh_tutar_indirimi",     fmt(tutarIndirimi));
     set("hh_tutar_indirimi_pct", "%" + (tutarIndirimPct * 100).toFixed(0));
-    set("hh_tevkifat",           fmt(tevkifat));
-    set("hh_risturn",            fmt(risturn));
-    set("hh_damga_karar",        fmt(damgaKarar));
-    set("hh_vergiler_total",     fmt(vergilerTotal));
+    set("hh_tevkifat",           fmt(f.tevkifat));
+    set("hh_risturn",            fmt(f.risturn));
+    set("hh_damga_karar",        fmt(f.damga));
+    set("hh_vergiler_total",     fmt(f.vergiler));
     set("hh_gift_total",         fmt(giftTotal));
-    set("hh_toplam_gelir",       fmt(toplamGelir));
-    set("hh_toplam_gider",       fmt(toplamGider));
+    set("hh_toplam_gelir",       fmt(f.toplamGelir));
+    set("hh_toplam_gider",       fmt(f.toplamGider));
 
     const profitEl  = document.getElementById("hh_net_profit");
     const percentEl = document.getElementById("hh_profit_pct");
-    if (profitEl)  { profitEl.textContent  = fmt(netProfit);              profitEl.style.color  = netProfit  >= 0 ? "#16a34a" : "#dc2626"; }
-    if (percentEl) { percentEl.textContent = profitPct.toFixed(2) + "%"; percentEl.style.color = profitPct  >= 0 ? "#16a34a" : "#dc2626"; }
+    if (profitEl)  { profitEl.textContent  = fmt(f.netProfit);              profitEl.style.color  = f.netProfit >= 0 ? "#16a34a" : "#dc2626"; }
+    if (percentEl) { percentEl.textContent = f.profitPct.toFixed(2) + "%"; percentEl.style.color = f.profitPct >= 0 ? "#16a34a" : "#dc2626"; }
 
     const usdEl = document.getElementById("hh_rate_usd");
     const eurEl = document.getElementById("hh_rate_eur");
@@ -541,46 +570,31 @@ async function updateHHPrices() {
     showToast(`Güncelleme tamamlandı: ${done}/${total}`, "success");
 }
 
-// ── SAVE AS TASLAK ────────────────────────────────────────────────────────────
 async function saveHizliHesapAsTaslak() {
     if (Object.keys(hhSepet).length === 0) {
         showToast("Lütfen en az bir ürün ekleyin", "error");
         return;
     }
 
-    const usdRate         = getCurrentRates().usd_try;
-    const getText         = id => parseFloat(document.getElementById(id)?.textContent?.replace(/\./g, "").replace(",", ".").replace(" ₺", "")) || 0;
-    const dmoBasket       = getText("hh_dmo_basket");
-    const inokasBasket    = getText("hh_inokas_basket");
-    const kdv             = getText("hh_kdv");
-    const tevkifat        = getText("hh_tevkifat");
-    const gercekKdv       = getText("hh_gercek_kdv");
-    const risturn         = getText("hh_risturn");
-    const tutarIndirimi   = getText("hh_tutar_indirimi");
-    const toplamGelir     = getText("hh_toplam_gelir");
-    const toplamGider     = getText("hh_toplam_gider");
-    const netProfit       = toplamGelir - toplamGider;
-    const profitPct       = toplamGelir > 0 ? (netProfit / toplamGelir) * 100 : 0;
+    const usdRate = parseFloat(getCurrentRates().usd_try) || 0;
+
+    // Only the PDF/user inputs are stored; everything derived is computed on read.
+    // Recompute basket + discount here just to persist the two inputs (basket, discount).
+    let dmoBasket = 0;
+    Object.values(hhSepet).forEach(item => {
+        dmoBasket += parseFloat(item.dmo_fiyat_try || 0) * (item.quantity || 0);
+    });
     const tutarIndirimPct = getTutarIndirimPct(dmoBasket);
-    const realDmoBasket   = dmoBasket - tutarIndirimi;
+    const tutarIndirimi   = dmoBasket * tutarIndirimPct;
 
     const orderPayload = {
-        customer_name:        document.getElementById("hh_customer_name")?.value || null,
-        usd_rate:             usdRate,
-        dmo_basket_total:     dmoBasket,
-        real_dmo_basket:      realDmoBasket,
-        tutar_indirimi:       tutarIndirimi,
-        tutar_indirimi_pct:   tutarIndirimPct * 100,
-        inokas_basket_total:  inokasBasket,
-        kdv_amount:           kdv,
-        tevkifat:             tevkifat,
-        gercek_kdv:           gercekKdv,
-        risturn_amount:       risturn,
-        toplam_gelir:         toplamGelir,
-        toplam_gider:         toplamGider,
-        net_profit:           netProfit,
-        profit_percentage:    profitPct,
-        status:               "Taslak",
+        customer_name:         document.getElementById("hh_customer_name")?.value || null,
+        usd_rate:              usdRate,
+        total_amount_excl_vat: dmoBasket,        // ← the surviving basket column
+        tutar_indirimi:        tutarIndirimi,
+        status:                "Taslak",
+        // no stamp_tax here — sepet has no PDF; damga is estimated live, not stored.
+        // net_profit / kdv_amount / toplam_gelir / etc. are GONE — computed on read.
     };
 
     // Build line items (normal + gift) for the route

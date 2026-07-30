@@ -132,47 +132,6 @@ let _pdfDoc      = null;
 let _highlights  = [];
 let _pageSizes   = [];
 
-
-
-async function renderSinglePage(pageNum, container) {
-    const page     = await _pdfDoc.getPage(pageNum);
-    const dpr      = window.devicePixelRatio || 1;
-
-    // Fit to container width
-    const containerWidth = document.getElementById("pdfViewer").clientWidth - 16;
-    const unscaledVp     = page.getViewport({ scale: 1 });
-    const scale          = containerWidth / unscaledVp.width;
-    const viewport       = page.getViewport({ scale });
-
-    // Wrapper div for positioning canvas + highlight canvas
-    const wrapper = document.createElement("div");
-    wrapper.style.cssText = `position:relative; width:${viewport.width}px; height:${viewport.height}px; flex-shrink:0;`;
-
-    // PDF canvas
-    const canvas    = document.createElement("canvas");
-    canvas.width    = viewport.width  * dpr;
-    canvas.height   = viewport.height * dpr;
-    canvas.style.cssText = `display:block; width:${viewport.width}px; height:${viewport.height}px;`;
-
-    // Highlight canvas
-    const hlCanvas    = document.createElement("canvas");
-    hlCanvas.width    = viewport.width  * dpr;
-    hlCanvas.height   = viewport.height * dpr;
-    hlCanvas.style.cssText = `position:absolute; top:0; left:0; width:${viewport.width}px; height:${viewport.height}px; pointer-events:none;`;
-
-    wrapper.appendChild(canvas);
-    wrapper.appendChild(hlCanvas);
-    container.appendChild(wrapper);
-
-    // Render PDF page
-    const ctx = canvas.getContext("2d");
-    ctx.scale(dpr, dpr);
-    await page.render({ canvasContext: ctx, viewport }).promise;
-
-    // Draw highlights for this page
-    drawHighlightsOnCanvas(hlCanvas, pageNum - 1, viewport, dpr);
-}
-
 function drawHighlightsOnCanvas(hlCanvas, pageIndex, viewport, dpr) {
     const ctx       = hlCanvas.getContext("2d");
     const pdfHeight = _pageSizes[pageIndex]?.height || (viewport.height / viewport.scale);
@@ -639,30 +598,6 @@ function clearModalAlert() {
 }
 
 // ── RESET FORM ────────────────────────────────────────────────────────────────
-function resetForm() {
-    pdfs.forEach(p => URL.revokeObjectURL(p.blobUrl));
-    pdfs           = [];
-    activePdfIndex = null;
-
-    document.getElementById("dmoSiparisForm")?.reset();
-    const lineItems = document.getElementById("lineItemsBody");
-    if (lineItems) lineItems.innerHTML = "";
-    const profitEl  = document.getElementById("net_profit_display");
-    const percentEl = document.getElementById("profit_percent_display");
-    if (profitEl)  profitEl.textContent  = "";
-    if (percentEl) percentEl.textContent = "";
-
-    const pdfViewer      = document.getElementById("pdfViewer");
-    const pdfPlaceholder = document.getElementById("pdfPlaceholder");
-    if (pdfViewer)      { pdfViewer.style.display = "none"; pdfViewer.src = ""; }
-    if (pdfPlaceholder)   pdfPlaceholder.style.display = "flex";
-
-    renderPdfTabs();
-    clearModalAlert();
-    window._lastParsedItems = null;
-    _editingOrderId         = null;
-    _isTaslakMerge          = false;
-}
 
 function resetFormFields() {
     document.getElementById("dmoSiparisForm")?.reset();
@@ -742,21 +677,17 @@ async function saveOrder() {
     const purchaseOrderNo = document.getElementById("purchase_order_no")?.value?.trim();
     const usdRate         = parseFloat(getCurrentRates().usd_try) || 0;
 
-    // Price/tax side (client, PDF-derived); cost side is computed server-side
+    // PDF-derived inputs only. Basket = catalog price × qty; discounted basket
+    // ("actual") = Σ line totals. We store the RAW basket + the discount; every
+    // derived figure (KDV, tevkifat, risturn, gelir, gider, profit) is computed on read.
     const regularItems = (window._lastParsedItems || []).filter(i => !i.is_gift);
 
-    const dmoBasket = regularItems.reduce((s, i) =>
+    const dmoBasket    = regularItems.reduce((s, i) =>
         s + (parseFloat(i["KAT.SÖZ.FIY.(TL)"] || 0) * (parseFloat(i["MIKTAR"]) || 0)), 0);
     const actualBasket = regularItems.reduce((s, i) => s + (parseFloat(i["TUTARI (TL)"] || 0)), 0);
-    const tutarIndirimi   = dmoBasket - actualBasket;
-    const tutarIndirimPct = dmoBasket > 0 ? (tutarIndirimi / dmoBasket * 100) : 0;
+    const tutarIndirimi = dmoBasket - actualBasket;
 
-    const stampTax    = parseFloat(document.getElementById("stamp_tax")?.value) || 0;
-    const kdv         = actualBasket * 0.20;
-    const tevkifat    = kdv * 0.20;
-    const gercekKdv   = kdv - tevkifat;
-    const risturn     = actualBasket * 0.01;
-    const toplamGelir = actualBasket + gercekKdv;
+    const stampTax = parseFloat(document.getElementById("stamp_tax")?.value) || 0;
 
     try {
         showModalAlert("Kaydediliyor...", "info");
@@ -775,20 +706,13 @@ async function saveOrder() {
             customer_no:           document.getElementById("customer_no")?.value,
             order_date:            parseOrderDate(document.getElementById("order_date")?.value),
             due_date:              document.getElementById("last_order_date")?.value || null,
-            stamp_tax:             stampTax,
-            stamp_tax_total:       stampTax,
+            stamp_tax:             stampTax,               // real PDF damga
             pdf_url:               pdfUrl,
             usd_rate:              usdRate,
-            dmo_basket_total:      dmoBasket,
-            real_dmo_basket:       actualBasket,
-            tutar_indirimi:        tutarIndirimi,
-            tutar_indirimi_pct:    tutarIndirimPct,
-            kdv_amount:            kdv,
-            tevkifat:              tevkifat,
-            gercek_kdv:            gercekKdv,
-            risturn_amount:        risturn,
-            toplam_gelir:          toplamGelir,
-            total_amount_excl_vat: dmoBasket,
+            total_amount_excl_vat: dmoBasket,              // raw DMO basket (from PDF)
+            tutar_indirimi:        tutarIndirimi,          // discount (from PDF)
+            // dmo_basket_total / real_dmo_basket / kdv_amount / tevkifat / gercek_kdv /
+            // risturn_amount / toplam_gelir / tutar_indirimi_pct / stamp_tax_total → GONE.
         };
 
         // Taslak merge re-inserts only regular items (gifts kept); fresh insert sends all
@@ -822,7 +746,6 @@ async function saveOrder() {
         const { failed, zeroCostCodes } = await res.json();
         const warnings = [];
         if (failed > 0)            warnings.push(`${failed} kalem hatalı`);
-
 
         showModalAlert(
             warnings.length ? "Sipariş kaydedildi — " + warnings.join(", ") : "Sipariş başarıyla kaydedildi! ✓",

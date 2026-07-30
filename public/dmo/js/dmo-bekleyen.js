@@ -39,15 +39,13 @@ function renderBekleyen(orders) {
     const empty = document.getElementById("bekleyen-empty");
     if (!tbody) return;
 
-
-
     if (!orders.length) {
         tbody.innerHTML = "";
         if (empty) empty.style.display = "block";
     } else {
         if (empty) empty.style.display = "none";
         tbody.innerHTML = orders.map(o => {
-            const dmo_disc_total=o.dmo_basket_total - o.tutar_indirimi;
+            const dmo_disc_total=o.total_amount_excl_vat - o.tutar_indirimi;
             const profit = Number(o.net_profit) || 0;
             return `
             <tr onclick="openBekleyenOrder('${o.id}')">

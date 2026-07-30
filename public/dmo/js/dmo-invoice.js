@@ -206,7 +206,7 @@ async function loadDetailView(orderId) {
 
 // ── FILL DETAIL STATS ─────────────────────────────────────────────────────────
 function fillDetailStats(order,regularItems) {
-    const dmoBasket    = order.dmo_basket_total    || 0;
+    const dmoBasket    = order.total_amount_excl_vat || 0;
     const inokasBasket = (regularItems || []).reduce((sum, i) => {
         const unit = Number(i.dmo_products?.products?.last_purchase_price_tl) || 0;
         return sum + unit * (Number(i.quantity) || 0);

@@ -82,7 +82,6 @@ async function fetchAndSaveDMORate(supabase) {
     console.error('DMO rate fetch hatası:', err.message);
   }
 }
-
 // each item: { dmo_code, quantity, is_gift }
 async function computeCostTotals(supabase, tenantId, items) {
   let inokas = 0, gift = 0;
@@ -132,6 +131,36 @@ async function resolveDmoProduct(supabase, tenantId, dmoCode, hints = {}) {
   return { id: dp.id, created: true, maliyet_tl_unit: Number(prod.last_purchase_price_tl) || 0 };
 }
 // POST /api/dmo/resolve-product — Node bridge → resolveDmoProduct → Flask /resolve-product
+
+function computeDmoFinancials({
+  basket,            // total_amount_excl_vat (raw DMO basket, from PDF)
+  tutarIndirimi = 0, // discount (from PDF)
+  stampTax = 0,      // damga (from PDF for saved orders; estimated upstream for live calc)
+  inokasBasket = 0,  // live cost: Σ last_purchase_price_tl × qty over non-gift items
+  giftTotal = 0,     // live cost of gift items
+}) {
+  const b            = Number(basket) || 0;
+  const disc         = Number(tutarIndirimi) || 0;
+  const realBasket   = b - disc;
+
+  const kdv          = realBasket * 0.20;
+  const tevkifat     = kdv * 0.20;
+  const gercekKdv    = kdv - tevkifat;
+  const risturn      = realBasket * 0.01;
+  const damga        = Number(stampTax) || 0;      // ← read, not computed
+  const vergiler     = tevkifat + risturn + damga;
+
+  const toplamGelir  = realBasket + gercekKdv;
+  const toplamGider  = (Number(inokasBasket) || 0) + disc + vergiler + (Number(giftTotal) || 0);
+  const netProfit    = toplamGelir - toplamGider;
+  const profitPct    = toplamGelir > 0 ? (netProfit / toplamGelir) * 100 : 0;
+
+  return {
+    realBasket, kdv, tevkifat, gercekKdv, risturn, damga, vergiler,
+    toplamGelir, toplamGider, netProfit, profitPct,
+  };
+}
+
 router.post('/resolve-product', async (req, res) => {
   console.log('[NODE resolve-product] HIT — body:', req.body);
   try {
@@ -666,7 +695,7 @@ router.get('/products', async (req, res) => {
   }
 });
 
-// GET /api/dmo/orders — open orders (Bekleyen): Taslak + Sipariş Alındı by default
+
 router.get('/orders', async (req, res) => {
   try {
     const supabase = req.app.get('supabase');
@@ -677,7 +706,7 @@ router.get('/orders', async (req, res) => {
 
     const { data: orders, error } = await supabase
       .from('dmo_orders')
-      .select('id, sales_order_no, customer_name, order_date, status, dmo_basket_total, net_profit, tutar_indirimi, real_dmo_basket, gift_total')
+      .select('id, sales_order_no, total_amount_excl_vat, customer_name, order_date, status, tutar_indirimi, stamp_tax')
       .eq('tenant_id', tenantId)
       .in('status', statuses)
       .order('order_date', { ascending: false });
@@ -686,47 +715,40 @@ router.get('/orders', async (req, res) => {
     const orderIds = (orders || []).map(o => o.id);
     if (!orderIds.length) return res.json([]);
 
-    // Live cost per order: sum of last_purchase_price_tl × qty over non-gift items
+    // Live cost per order, split gift vs non-gift
     const { data: items, error: itErr } = await supabase
       .from('dmo_order_items')
       .select('order_id, quantity, is_gift, dmo_products(products(last_purchase_price_tl))')
-      .in('order_id', orderIds)
-      .eq('is_gift', false);
+      .in('order_id', orderIds);
     if (itErr) throw itErr;
 
-    const liveBasketByOrder = {};
+    const costByOrder = {};
     for (const it of (items || [])) {
       const unit = Number(it.dmo_products?.products?.last_purchase_price_tl) || 0;
-      liveBasketByOrder[it.order_id] =
-        (liveBasketByOrder[it.order_id] || 0) + unit * (Number(it.quantity) || 0);
+      const line = unit * (Number(it.quantity) || 0);
+      const c = costByOrder[it.order_id] || (costByOrder[it.order_id] = { inokas: 0, gift: 0 });
+      if (it.is_gift) c.gift += line; else c.inokas += line;
     }
 
     const result = (orders || []).map(o => {
-      const inokasBasket = liveBasketByOrder[o.id] || 0;
-      const realDmoBasket = Number(o.real_dmo_basket) || (Number(o.dmo_basket_total) || 0) - (Number(o.tutar_indirimi) || 0);
-
-      // Non-cost terms derived from DMO basket (same formula as fillDetailStats)
-      const kdv        = realDmoBasket * 0.20;
-      const tevkifat   = kdv * 0.20;
-      const gercekKdv  = kdv - tevkifat;
-      const risturn    = realDmoBasket * 0.01;
-      const damgaKarar = realDmoBasket * 0.01517;
-      const vergiler   = tevkifat + risturn + damgaKarar;
-      const giftTotal  = Number(o.gift_total) || 0;
-
-      const toplamGelir = realDmoBasket + gercekKdv;
-      const toplamGider = inokasBasket + (Number(o.tutar_indirimi) || 0) + vergiler + giftTotal;
-      const netProfit   = toplamGelir - toplamGider;
-
+      const c = costByOrder[o.id] || { inokas: 0, gift: 0 };
+      const f = computeDmoFinancials({
+        basket:        o.total_amount_excl_vat,
+        tutarIndirimi: o.tutar_indirimi,
+        stampTax:      o.stamp_tax,
+        inokasBasket:  c.inokas,
+        giftTotal:     c.gift,
+      });
       return {
         id: o.id,
         sales_order_no: o.sales_order_no,
         customer_name: o.customer_name,
         order_date: o.order_date,
         status: o.status,
-        dmo_basket_total: o.dmo_basket_total,
+        total_amount_excl_vat: o.total_amount_excl_vat,
         tutar_indirimi: o.tutar_indirimi,
-        net_profit: netProfit,          // ← live, overrides stored
+        net_profit: f.netProfit,   // computed, not stored
+        dmo_basket_total: o.total_amount_excl_vat, // alias if renderBekleyen still reads this name
       };
     });
 
@@ -736,7 +758,6 @@ router.get('/orders', async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
-
 
 router.fetchAndSaveDMORate = fetchAndSaveDMORate;
 router.fetchAndSaveTCMBRates = fetchAndSaveTCMBRates;

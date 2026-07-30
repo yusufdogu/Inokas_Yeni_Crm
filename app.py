@@ -66,6 +66,8 @@ def extract_data(pdf_file):
         m = re.search(r"([\d.,]+)\s*TL\s*Karar ve Sipariş Damga Vergisi", page1_text)
         results["karar_siparis_damga_vergisi"] = m.group(1) if m else None
 
+        print("damga vergisi ",results["karar_siparis_damga_vergisi"])
+
         # 2. Satış Sipariş No
         m = re.search(r"Satış Sipariş No\s*[:\-]?\s*(\S+)", page1_text)
         results["satis_siparis_no"] = m.group(1) if m else None

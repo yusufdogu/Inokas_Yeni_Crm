@@ -839,6 +839,7 @@ async function saveOrder() {
         showModalAlert("Beklenmeyen hata: " + err.message, "error");
     }
 }
+
 async function resolveUnknownProducts(items) {
     const codes = [...new Set((items || []).map(i => i.dmo_code).filter(Boolean))];
     const results = {};

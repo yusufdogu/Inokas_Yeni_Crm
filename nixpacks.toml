@@ -1,9 +1,10 @@
 [phases.setup]
-nixPkgs = ["nodejs_20", "python311", "python311Packages.pip", "stdenv.cc.cc.lib", "nss", "freetype", "harfbuzz", "liberation_ttf", "glib", "nspr", "at-spi2-atk", "cups", "dbus", "libdrm", "expat", "libxkbcommon", "mesa", "alsa-lib"]
+nixPkgs = ["nodejs_22", "python311", "python311Packages.pip", "stdenv.cc.cc.lib", "unzip", "nss", "freetype", "harfbuzz", "liberation_ttf", "glib", "nspr", "at-spi2-atk", "cups", "dbus", "libdrm", "expat", "libxkbcommon", "mesa", "alsa-lib"]
 
 [phases.install]
 cmds = [
   "npm ci",
+  "npx puppeteer browsers install chrome",
   "pip install -r requirements.txt --break-system-packages"
 ]
 

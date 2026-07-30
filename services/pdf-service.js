@@ -8,10 +8,8 @@ function getChromePath() {
     return process.env.PUPPETEER_EXECUTABLE_PATH || undefined;
 }
 async function xmlToPdfBuffer(xmlText) {
-    const executablePath = getChromePath();
     const browser = await puppeteer.launch({
         headless: true,
-        ...(executablePath ? { executablePath } : {}),   // only set if we have one
         args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'],
     });
     try {

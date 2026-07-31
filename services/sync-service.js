@@ -264,13 +264,11 @@ async function processInvoicePipeline(dbInvoice, parsedItems, viewKey, tenantId,
     console.log("Invoice status is",approved);
 
     // ── 6) stock — keyed on product_code, only for linked (internal) lines ───
-    if (approved ) {
-        console.log("Stock is going to change");
+    if (approved) {
         for (let i = 0; i < rows.length; i++) {
             const pid = productIdByIndex[i];
-            const code = rows[i].product_code;
             const qty = Number(rows[i].quantity) || 0;
-            if (pid && code && qty) await db.bumpStock(code, qty, viewKey, tenantId);
+            if (pid && qty) await db.bumpStock(pid, qty, viewKey, tenantId);
         }
     }
 

@@ -114,10 +114,17 @@ async function upsertProduct(item, tenantId) {
 // Move stock. ALWAYS applies (every invoice line).
 //   incoming (gelen)  → stock_on_hand += qty
 //   outgoing (giden)  → stock_on_hand -= qty
-async function bumpStock(code, qty, direction, tenantId) {
-    if (!code || !qty) return null;
+async function bumpStock(productId, qty, direction, tenantId) {
+    if (!productId || !qty) return null;
 
-    const current = await findProductByCode(code, tenantId);
+    // read current stock by id
+    const { data: current, error: findErr } = await supabase
+        .from('products')
+        .select('id, stock_on_hand')
+        .eq('id', productId)
+        .eq('tenant_id', tenantId)
+        .maybeSingle();
+    if (findErr) throw new Error(`Ürün bulunamadı (${productId}): ${findErr.message}`);
     if (!current) return null;
 
     const delta    = direction === 'gelen' ? Number(qty) : -Number(qty);
@@ -126,10 +133,10 @@ async function bumpStock(code, qty, direction, tenantId) {
     const { error } = await supabase
         .from('products')
         .update({ stock_on_hand: newStock, updated_at: new Date().toISOString() })
-        .eq('tenant_id', tenantId)
-        .eq('product_code', code);
+        .eq('id', productId)
+        .eq('tenant_id', tenantId);
 
-    if (error) throw new Error(`Stok güncellenemedi (${code}): ${error.message}`);
+    if (error) throw new Error(`Stok güncellenemedi (${productId}): ${error.message}`);
     return newStock;
 }
 

@@ -139,7 +139,7 @@ async function enrichItemsWithProductMeta(supabase, data, tenantId) {
 
   let q = supabase
     .from('products')
-    .select('id, product_name, brand, category, subcategory, specs')
+    .select('id, product_name, product_code, brand, category, subcategory, specs')
     .in('id', productIds);
   if (tenantId) q = q.eq('tenant_id', tenantId);
 
@@ -154,6 +154,7 @@ async function enrichItemsWithProductMeta(supabase, data, tenantId) {
         // fields stay intact (invoice archival vs enriched product)
         item.product_meta = {
           product_name: p.product_name || '',
+          product_code: p.product_code || '',
           brand:        p.brand || '',
           category:     p.category || '',
           subcategory:  p.subcategory || '',
@@ -1328,6 +1329,36 @@ router.put('/:id', async (req, res) => {
     res.status(500).json({ error: error.message || 'Sunucu hatası', errorCode: error.code });
   }
 });
+// PATCH /api/invoices/:id/category — update only invoice_category
+router.patch('/:id/category', async (req, res) => {
+  try {
+    const supabase = req.app.get('supabase');
+    const tenantId = req.tenantId;
+    const { id } = req.params;
+    const { invoice_category } = req.body || {};
+
+    const allowed = ['INTERNAL', 'NON_INTERNAL', 'MIXED'];
+    if (!allowed.includes(invoice_category)) {
+      return res.status(400).json({ error: 'Geçersiz invoice_category.' });
+    }
+
+    const { data, error } = await supabase
+      .from('invoices')
+      .update({ invoice_category })
+      .eq('id', id)
+      .eq('tenant_id', tenantId)
+      .select('id')
+      .single();
+
+    if (error) throw error;
+    if (!data) return res.status(404).json({ error: 'Fatura bulunamadı.' });
+
+    res.json({ message: 'Kategori güncellendi.', invoice_category });
+  } catch (err) {
+    console.error('PATCH /api/invoices/:id/category hatası:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
 
 // PATCH /api/invoice-items/:id — update classification/link on a single line
 router.patch('/invoice-items/:id([0-9a-fA-F-]{36})', async (req, res) => {
@@ -1366,6 +1397,43 @@ router.patch('/invoice-items/:id([0-9a-fA-F-]{36})', async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
+
+// PATCH /api/invoice-items/:id — update a single invoice line
+router.patch('/:id', async (req, res) => {
+  try {
+    const supabase = req.app.get('supabase');
+    const tenantId = req.tenantId;
+    const { id } = req.params;
+
+    // whitelist updatable fields
+    const allowed = ['is_internal', 'item_category', 'item_subcategory', 'product_id', 'is_product'];
+    const fields = {};
+    for (const k of allowed) {
+      if (k in (req.body || {})) fields[k] = req.body[k];
+    }
+    if (Object.keys(fields).length === 0) {
+      return res.status(400).json({ error: 'Güncellenecek alan yok.' });
+    }
+
+    // update the item — scoped to the tenant via its invoice
+    const { data, error } = await supabase
+      .from('invoice_items')
+      .update(fields)
+      .eq('id', id)
+      .select('id')
+      .single();
+
+    if (error) throw error;
+    if (!data) return res.status(404).json({ error: 'Kalem bulunamadı.' });
+
+    res.json({ message: 'Kalem güncellendi.', data });
+  } catch (err) {
+    console.error('PATCH /api/invoice-items/:id hatası:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+
 // PUT /api/invoices/:id/approve
 router.put('/:id/approve', async (req, res) => {
   try {

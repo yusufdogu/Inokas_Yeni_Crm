@@ -1,86 +1,6 @@
 // ─── FATURALAR — FATURA DETAY PANELİ ─────────────────────────────────────────
 // Detay görünümü, PDF, Bilgiler/Ürünler sekmeleri, inline düzenleme
 
-// ─── Detay görünümü (PDF + 2 sekme) ──────────────────────────────────────────
-
-function renderDetailView(id) {
-    const sid = String(id);
-    let inv = (allInvoicesCache || []).find(i => String(i.id) === sid) || (typeof bekleyenCache !== 'undefined' ? bekleyenCache : []).find(i => String(i.id) === sid);
-    if (!inv) return;
-    const content = document.getElementById('fatContent');
-    if (!content) return;
-
-    const curTab = activeDetailTab[id] || 'bilgiler';
-
-    content.innerHTML = `<div class="fat-detail-view">
-        <div class="fat-detail-pdf" id="fatDetailPdfPane_${id}">
-            <div class="fat-detail-pdf-empty" id="fatDetailPdfEmpty_${id}">
-                <svg width="48" height="48" fill="none" stroke="#cbd5e1" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
-                        d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
-                </svg>
-                <p style="font-size:14px; font-weight:600;">XML bulunamadı</p>
-                <span style="font-size:12px; color:#cbd5e1;">Bu faturaya ait XML kayıtlı değil.</span>
-            </div>
-            <iframe id="fatDetailIframe_${id}" style="display:none; flex:1; width:100%; border:none;"></iframe>
-        </div>
-        <div class="fat-detail-right">
-            <div class="fat-dtab-bar">
-                <button class="fat-dtab${curTab === 'bilgiler' ? ' fat-dtab--active' : ''}" onclick="switchFatDetailTab('${id}','bilgiler')">Fatura Bilgileri</button>
-                <button class="fat-dtab${curTab === 'urunler' ? ' fat-dtab--active' : ''}" onclick="switchFatDetailTab('${id}','urunler')">Fatura Ürünleri</button>
-            </div>
-            <div class="fat-dtab-body" id="fatDtabBody_${id}"></div>
-        </div>
-    </div>`;
-
-    loadDetailPdf(id, inv);
-    renderDetailTabContent(id, curTab, inv);
-}
-
-async function loadDetailPdf(id, inv) {
-    const empty = document.getElementById(`fatDetailPdfEmpty_${id}`);
-    const iframe = document.getElementById(`fatDetailIframe_${id}`);
-    if (!iframe) return;
-
-    // pdf_url varsa direkt native PDF viewer
-    if (inv?.pdf_url) {
-        iframe.src = inv.pdf_url;
-        if (empty) empty.style.display = 'none';
-        iframe.style.display = 'block';
-        return;
-    }
-
-    if (!inv?.xml_url) return;
-
-    if (_detailXmlCache[id]) {
-        try {
-            await renderXmlToPdfIframe(_detailXmlCache[id], iframe);
-            if (empty) empty.style.display = 'none';
-            iframe.style.display = 'block';
-        } catch (e) { /* sessiz geç */ }
-        return;
-    }
-
-    if (empty) empty.innerHTML = `
-        <div style="width:36px;height:36px;border:3px solid #e2e8f0;border-top-color:#2563eb;border-radius:50%;animation:pdf-spin 0.7s linear infinite;"></div>
-        <p style="font-size:13px;font-weight:600;color:#2563eb;margin-top:10px;">XML yükleniyor...</p>`;
-
-    try {
-        const res = await fetch(inv.xml_url);
-        if (!res.ok) throw new Error('XML alınamadı (' + res.status + ')');
-        const xmlText = await res.text();
-        _detailXmlCache[id] = xmlText;
-        await renderXmlToPdfIframe(xmlText, iframe);
-        if (empty) empty.style.display = 'none';
-        iframe.style.display = 'block';
-    } catch (e) {
-        if (empty) empty.innerHTML = `
-            <svg width="40" height="40" fill="none" stroke="#fca5a5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/></svg>
-            <p style="font-size:13px;font-weight:600;color:#ef4444;margin-top:8px;">PDF yüklenemedi</p>
-            <span style="font-size:11px;color:#94a3b8;">${e.message}</span>`;
-    }
-}
-
 function switchFatDetailTab(id, tab) {
     activeDetailTab[id] = tab;
     // Eski tab bar (fatDtabBody sistemi)
@@ -621,60 +541,84 @@ function _makeModelDropdown(wrapEl, initialValue, getBrand) {
 }
 
 // ─── 1. renderUrunlerView ─────────────────────────────────────────────────────
-async function renderUrunlerView(id, body, inv) {
+// ─── renderUrunlerView — read-only by default, editable when editable=true ────
+async function renderUrunlerView(id, body, inv, editable = false) {
     const items = inv.invoice_items || [];
-
     try { await ensureProductCategoryLookupLoaded(); } catch (e) { }
 
     const fmtP = n => (parseFloat(n) || 0).toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     const esc  = s => String(s ?? '').replace(/"/g, '&quot;').replace(/</g, '&lt;');
 
-    // Build the editable body for an item given its CURRENT internal state.
-    // Rebuilt on toggle. Field source: product_meta if a product exists, else raw.
-    function bodyHtml(it, isInternal) {
+    // Product fields come from product_meta (products table). Falls back to raw
+    // invoice fields only when there's no linked product.
+    function fieldVals(it) {
         const meta = it.product_meta || null;
-        const rawCode = String(it.product_code || it.sku || '').trim();
-        const rawName = String(it.product_name || '').trim();
+        const hasProduct = !!it.product_id;
+        return {
+            code:        hasProduct ? (meta?.product_code || '') : String(it.product_code || it.sku || '').trim(),
+            name:        hasProduct ? (meta?.product_name || '') : String(it.product_name || '').trim(),
+            category:    hasProduct ? (meta?.category || '') : String(it.item_category || '').trim(),
+            brand:       hasProduct ? (meta?.brand || '') : '',
+            subcategory: hasProduct ? (meta?.subcategory || '') : '',
+        };
+    }
 
+    // ── READ-ONLY body ──
+    function bodyReadonly(it, isInternal) {
+        const v = fieldVals(it);
         if (!isInternal) {
-            // NON-INTERNAL: single expense category field
-            const cat = String(it.item_category || '').trim();
+            return `<div style="font-size:11px;color:#64748b;">
+                <span style="font-weight:600;">Gider Kategorisi:</span> ${esc(v.category) || '—'}
+            </div>`;
+        }
+        const row = (label, val, mono) => `
+            <div>
+                <label style="font-size:10px;font-weight:600;color:#94a3b8;text-transform:uppercase;letter-spacing:0.04em;display:block;margin-bottom:3px;">${label}</label>
+                <div style="font-size:12px;color:#0f172a;${mono ? "font-family:'Geist Mono',monospace;" : ''}padding:6px 9px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:7px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(val) || '—'}</div>
+            </div>`;
+        return `
+            <div style="display:grid;grid-template-columns:140px 1fr;gap:8px;margin-bottom:8px;">
+                ${row('Ürün Kodu', v.code, true)}
+                ${row('Ürün Adı', v.name, false)}
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;">
+                ${row('Kategori', v.category, false)}
+                ${row('Alt Kategori', v.subcategory, false)}
+                ${row('Marka', v.brand, false)}
+            </div>`;
+    }
+
+    // ── EDITABLE body (classes match saveUrunlerEdit) ──
+    function bodyEditable(it, isInternal) {
+        const v = fieldVals(it);
+        if (!isInternal) {
             return `
-                <label style="font-size:10px;font-weight:500;color:var(--text-muted,#94a3b8);text-transform:uppercase;letter-spacing:0.04em;display:block;margin-bottom:4px;">Gider Kategorisi</label>
-                <input type="text" class="ue-cat" value="${esc(cat)}" placeholder="Kargo, Mutfak, Kira..."
+                <label style="font-size:10px;font-weight:600;color:#94a3b8;text-transform:uppercase;letter-spacing:0.04em;display:block;margin-bottom:4px;">Gider Kategorisi</label>
+                <input type="text" class="ue-cat" value="${esc(v.category)}" placeholder="Kargo, Mutfak, Kira..."
                     style="width:100%;box-sizing:border-box;font-size:12px;padding:7px 10px;border:1px solid #e2e8f0;border-radius:8px;outline:none;">`;
         }
-
-        // INTERNAL: code + name + category + brand (no model)
-        // product exists → pull from meta; else fall back to raw invoice fields
-        const hasProduct = !!it.product_id;
-        const code  = hasProduct ? (meta?.product_code || rawCode) : rawCode;
-        const name  = hasProduct ? (meta?.product_name || rawName) : rawName;
-        const cat   = hasProduct ? (meta?.category || '') : '';
-        const brand = hasProduct ? (meta?.brand || '') : '';
-
         return `
             <div style="display:grid;grid-template-columns:140px 1fr;gap:8px;margin-bottom:8px;">
                 <div>
-                    <label style="font-size:10px;font-weight:500;color:var(--text-muted,#94a3b8);text-transform:uppercase;letter-spacing:0.04em;display:block;margin-bottom:4px;">Ürün Kodu</label>
-                    <input type="text" class="ue-code" value="${esc(code)}" placeholder="Ürün kodu"
+                    <label style="font-size:10px;font-weight:600;color:#94a3b8;text-transform:uppercase;letter-spacing:0.04em;display:block;margin-bottom:4px;">Ürün Kodu</label>
+                    <input type="text" class="ue-code" value="${esc(v.code)}" placeholder="Ürün kodu"
                         style="width:100%;box-sizing:border-box;font-family:'Geist Mono',monospace;font-size:12px;padding:7px 10px;border:1px solid #e2e8f0;border-radius:8px;outline:none;">
                 </div>
                 <div>
-                    <label style="font-size:10px;font-weight:500;color:var(--text-muted,#94a3b8);text-transform:uppercase;letter-spacing:0.04em;display:block;margin-bottom:4px;">Ürün Adı</label>
-                    <input type="text" class="ue-name" value="${esc(name)}" placeholder="Ürün adı"
+                    <label style="font-size:10px;font-weight:600;color:#94a3b8;text-transform:uppercase;letter-spacing:0.04em;display:block;margin-bottom:4px;">Ürün Adı</label>
+                    <input type="text" class="ue-name" value="${esc(v.name)}" placeholder="Ürün adı"
                         style="width:100%;box-sizing:border-box;font-size:12px;font-weight:600;padding:7px 10px;border:1px solid #e2e8f0;border-radius:8px;outline:none;">
                 </div>
             </div>
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
                 <div>
-                    <label style="font-size:10px;font-weight:500;color:var(--text-muted,#94a3b8);text-transform:uppercase;letter-spacing:0.04em;display:block;margin-bottom:4px;">Kategori</label>
-                    <input type="text" class="ue-cat" value="${esc(cat)}" placeholder="Kategori"
+                    <label style="font-size:10px;font-weight:600;color:#94a3b8;text-transform:uppercase;letter-spacing:0.04em;display:block;margin-bottom:4px;">Kategori</label>
+                    <input type="text" class="ue-cat" value="${esc(v.category)}" placeholder="Kategori"
                         style="width:100%;box-sizing:border-box;font-size:12px;padding:7px 10px;border:1px solid #e2e8f0;border-radius:8px;outline:none;">
                 </div>
                 <div>
-                    <label style="font-size:10px;font-weight:500;color:var(--text-muted,#94a3b8);text-transform:uppercase;letter-spacing:0.04em;display:block;margin-bottom:4px;">Marka</label>
-                    <input type="text" class="ue-brand" value="${esc(brand)}" placeholder="Marka"
+                    <label style="font-size:10px;font-weight:600;color:#94a3b8;text-transform:uppercase;letter-spacing:0.04em;display:block;margin-bottom:4px;">Marka</label>
+                    <input type="text" class="ue-brand" value="${esc(v.brand)}" placeholder="Marka"
                         style="width:100%;box-sizing:border-box;font-size:12px;padding:7px 10px;border:1px solid #e2e8f0;border-radius:8px;outline:none;">
                 </div>
             </div>`;
@@ -682,17 +626,20 @@ async function renderUrunlerView(id, body, inv) {
 
     function toggleBtn(isInternal) {
         return isInternal
-            ? `<button class="ue-toggle" data-internal="1"
-                 style="width:auto;padding:4px 9px;font-size:11px;border-radius:20px;display:flex;align-items:center;gap:4px;background:#eff6ff;border:0.5px solid #93c5fd;color:#2563eb;cursor:pointer;">
+            ? `<button class="ue-toggle" data-internal="1" ${editable ? '' : 'disabled'}
+                 style="width:auto;padding:4px 9px;font-size:11px;border-radius:20px;display:flex;align-items:center;gap:4px;background:#eff6ff;border:0.5px solid #93c5fd;color:#2563eb;cursor:${editable ? 'pointer' : 'default'};opacity:${editable ? 1 : 0.7};">
                  <i class="ti ti-package" style="font-size:14px;"></i>Ürün</button>`
-            : `<button class="ue-toggle" data-internal="0"
-                 style="width:auto;padding:4px 9px;font-size:11px;border-radius:20px;display:flex;align-items:center;gap:4px;background:#fffbeb;border:0.5px solid #fde68a;color:#92400e;cursor:pointer;">
+            : `<button class="ue-toggle" data-internal="0" ${editable ? '' : 'disabled'}
+                 style="width:auto;padding:4px 9px;font-size:11px;border-radius:20px;display:flex;align-items:center;gap:4px;background:#fffbeb;border:0.5px solid #fde68a;color:#92400e;cursor:${editable ? 'pointer' : 'default'};opacity:${editable ? 1 : 0.7};">
                  <i class="ti ti-briefcase" style="font-size:14px;"></i>Gider</button>`;
     }
 
+    const bodyFn = editable ? bodyEditable : bodyReadonly;
+
     const cardsHtml = items.map((it, idx) => {
         const isInternal = it.is_internal === true;
-        const name  = String(it.product_meta?.product_name || it.product_name || '').trim();
+        const v = fieldVals(it);
+        const name  = v.name || String(it.product_name || '').trim();
         const qty   = parseFloat(it.quantity) || 0;
         const price = parseFloat(it.unit_price_cur) || 0;
         const total = fmtP((parseFloat(it.total_price_cur) || 0) * (1 + (parseFloat(it.tax_rate) || 0) / 100));
@@ -713,51 +660,69 @@ async function renderUrunlerView(id, body, inv) {
                 </div>
             </div>
             <div class="ue-body" style="border-top:0.5px solid #f1f5f9;padding-top:10px;">
-                ${bodyHtml(it, isInternal)}
+                ${bodyFn(it, isInternal)}
             </div>
         </div>`;
     }).join('');
 
+    // action bar differs by mode
+    const actions = editable
+        ? `<div class="det-actions" style="padding:0 12px 12px;justify-content:space-between;">
+             <button class="fatura-action-btn" onclick="switchDetayTab('urunler')">İptal</button>
+             <button class="fatura-action-btn fatura-action-btn--primary" onclick="saveUrunlerEdit('${id}')">💾 Kaydet</button>
+           </div>`
+        : `<div class="det-actions" style="padding:0 12px 12px;">
+             <button ... onclick="enterUrunlerEditMode('${id}')">✏️ Düzenle</button>
+           </div>`;
+
+    const hint = editable
+        ? `<div style="margin:12px 12px 0;padding:9px 12px;background:#fffbeb;border:1px solid #fde68a;border-radius:8px;font-size:11px;color:#92400e;">
+             ⚠️ Buradaki düzenlemeler <strong>ürün kartını</strong> ve bu ürünü kullanan <strong>tüm faturaları</strong> etkiler.
+           </div>`
+        : `<div style="margin:12px 12px 0;padding:9px 12px;background:#f8fafc;border:0.5px solid #e2e8f0;border-radius:8px;font-size:11px;color:#64748b;">
+             Ürün bilgileri. Düzenlemek için <strong>Düzenle</strong>'ye tıklayın.
+           </div>`;
+
     body.innerHTML = `
-        <div style="margin:12px 12px 0;padding:9px 12px;background:#f8fafc;border:0.5px solid #e2e8f0;border-radius:8px;font-size:11px;color:#64748b;">
-             <strong>Sağ üstteki Ürün/Gider kartına tıklayarak ürünün bilgilerini güncelleyebilirsiniz</strong>
-        </div>
+        ${hint}
         <div style="display:flex;flex-direction:column;gap:6px;padding:12px;" id="ueList_${id}">
             ${cardsHtml || '<div style="padding:20px;text-align:center;color:#94a3b8;font-size:13px;">Ürün bulunamadı</div>'}
         </div>
-        <div class="det-actions" style="padding:0 12px 12px;">
-            <button class="fatura-action-btn fatura-action-btn--primary" onclick="saveUrunlerEdit('${id}')">💾 Kaydet</button>
-        </div>`;
+        ${actions}`;
 
-    // wire toggles — flip local state, prefill code from raw on first toggle-on, re-render body
-    const listEl = document.getElementById(`ueList_${id}`);
-    if (!listEl) return;
+    // wire toggles ONLY in editable mode
+    if (editable) {
+        const listEl = document.getElementById(`ueList_${id}`);
+        if (!listEl) return;
+        listEl.querySelectorAll('.ue-card').forEach(card => {
+            const idx = parseInt(card.dataset.idx);
+            const it = items[idx] || {};
+            const wire = () => {
+                const btn = card.querySelector('.ue-toggle');
+                if (!btn) return;
+                btn.addEventListener('click', () => {
+                    const nowInternal = btn.dataset.internal !== '1';
+                    it.is_internal = nowInternal;
+                    card.style.border = nowInternal ? '2px solid #93c5fd' : '0.5px solid #e2e8f0';
+                    const bodyEl = card.querySelector('.ue-body');
+                    if (bodyEl) bodyEl.innerHTML = bodyEditable(it, nowInternal);
+                    btn.outerHTML = toggleBtn(nowInternal);
+                    wire();
+                });
+            };
+            wire();
+        });
+    }
+}
 
-    listEl.querySelectorAll('.ue-card').forEach(card => {
-        const idx = parseInt(card.dataset.idx);
-        const it = items[idx] || {};
+// Look up the current invoice + body, then re-render in editable mode.
+function enterUrunlerEditMode(id) {
+    const { inv, body } = _findInvAndBody(id);
+    if (!inv || !body) { console.error('Fatura bulunamadı:', id); return; }
+    renderUrunlerView(id, body, inv, true);
+}
 
-        const wire = () => {
-            const btn = card.querySelector('.ue-toggle');
-            if (!btn) return;
-            btn.addEventListener('click', () => {
-                const nowInternal = btn.dataset.internal !== '1'; // flip
-                it.is_internal = nowInternal;                     // mutate local state
-
-                // re-render header border + toggle + body
-                card.style.border = nowInternal ? '2px solid #93c5fd' : '0.5px solid #e2e8f0';
-                const bodyEl = card.querySelector('.ue-body');
-                if (bodyEl) bodyEl.innerHTML = bodyHtml(it, nowInternal);
-
-                // swap the toggle button itself
-                const hdrRight = btn.parentElement;
-                btn.outerHTML = toggleBtn(nowInternal);
-                wire(); // re-attach to the new button
-            });
-        };
-        wire();
-    });
-}// ─── 2. enterUrunlerEdit ──────────────────────────────────────────────────────
+// ─── 2. enterUrunlerEdit ──────────────────────────────────────────────────────
 function enterUrunlerEdit(id) {
     const { inv, body } = _findInvAndBody(id);
     if (!inv || !body) return;
@@ -1023,6 +988,25 @@ async function saveUrunlerEdit(id) {
         });
         if (!r.ok) { const e = await r.json().catch(() => ({})); throw new Error(e.error || 'Kalem güncellenemedi.'); }
     }
+
+    // after all items patched — recompute invoice_category from their states
+    const allInternal    = items.every(it => it.is_internal === true);
+    const allNonInternal = items.every(it => it.is_internal === false);
+    const newCategory = allInternal ? 'INTERNAL'
+                      : allNonInternal ? 'NON_INTERNAL'
+                      : 'MIXED';
+
+    try {
+      await fetch(`/api/invoices/${id}/category`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ invoice_category: newCategory }),
+      });
+    } catch (e) {
+      console.error('Kategori güncellenemedi:', e);
+      // don't fail the whole save on this
+    }
+
     async function putProduct(pid, fields) {
         const r = await fetch(`/api/products/${pid}`, {
             method: 'PUT',
@@ -1033,38 +1017,6 @@ async function saveUrunlerEdit(id) {
     }
 }
 
-
-async function loadPdfTab() {
-    const inv = currentDetailInvId ? (allInvoicesCache || []).find(i => i.id === currentDetailInvId) : null;
-    const noXml = document.getElementById('pdfNoXml');
-    const loading = document.getElementById('pdfLoading');
-    const iframe = document.getElementById('pdfDetailIframe');
-    if (!noXml || !loading || !iframe) return;
-
-    noXml.style.display = 'none';
-    loading.style.display = 'none';
-    iframe.style.display = 'none';
-
-    if (!inv || !inv.xml_url || inv.approval_status !== 'pending') {
-        noXml.style.display = 'flex';
-        return;
-    }
-
-    loading.style.display = 'flex';
-    try {
-        const res = await fetch(inv.xml_url);
-        if (!res.ok) throw new Error('XML dosyası alınamadı (' + res.status + ')');
-        const xmlText = await res.text();
-        await renderXmlToPdfIframe(xmlText, iframe);
-        loading.style.display = 'none';
-        iframe.style.display = 'block';
-    } catch (err) {
-        loading.style.display = 'none';
-        const msgEl = noXml.querySelector('p');
-        if (msgEl) msgEl.textContent = 'Hata: ' + err.message;
-        noXml.style.display = 'flex';
-    }
-}
 
 // ─── XML → PDF render ─────────────────────────────────────────────────────────
 

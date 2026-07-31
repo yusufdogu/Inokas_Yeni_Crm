@@ -261,8 +261,11 @@ async function processInvoicePipeline(dbInvoice, parsedItems, viewKey, tenantId,
 
     const approved = !anyReview;
 
+    console.log("Invoice status is",approved);
+
     // ── 6) stock — keyed on product_code, only for linked (internal) lines ───
-    if (approved && !opts.skipStock) {
+    if (approved ) {
+        console.log("Stock is going to change");
         for (let i = 0; i < rows.length; i++) {
             const pid = productIdByIndex[i];
             const code = rows[i].product_code;

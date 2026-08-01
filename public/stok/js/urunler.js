@@ -833,13 +833,13 @@ function setPageSize(n) {
 // ─── MODAL ────────────────────────────────────────────────────────────────────
 const _NUMERIC_FIELDS = new Set([
   'maliyet_usd', 'sozlesme_fiyat_eur', 'last_purchase_price_cur', 'last_purchase_rate',
-  'last_purchase_price_tl', 'avg_purchase_price_tl', 'dmo_fiyat_try', 'gift_quantity',
+  'last_purchase_price_tl', 'avg_purchase_price_tl', 'dmo_fiyat_try', 'gift_count',
 ]);
 const _READONLY_FIELDS = new Set(['created_at', 'updated_at', 'dmo_fiyat_updated']);
 const _ALL_FIELDS = [
   'product_name', 'product_code', 'brand', 'category','subcategory',
   'last_purchase_price_cur', 'last_purchase_currency', 'last_purchase_rate',
-  'last_purchase_price_tl', 'avg_purchase_price_tl',
+  'last_purchase_price_tl', 'avg_purchase_price_tl', 'gift_count',
   'stock_on_hand', 'specs'
 ];
 
@@ -1484,6 +1484,8 @@ async function saveProduct() {
   if (!name) { msgEl.textContent = 'Ürün adı zorunludur.'; msgEl.className = 'modal-msg error'; saveBtn.disabled = false; return; }
   if (!code) { msgEl.textContent = 'Ürün kodu zorunludur.'; msgEl.className = 'modal-msg error'; saveBtn.disabled = false; return; }
 
+  console.log(payload)
+
   try {
     const res = await fetch(
       _isAddMode ? '/api/products' : `/api/products/${_editingId}`,
@@ -1494,6 +1496,8 @@ async function saveProduct() {
 
     const savedId     = _isAddMode ? (data.data?.id || data.id) : (data.merged ? data.data?.id : _editingId);
     const attrPayload = collectAttrValues();
+
+
     if (savedId && attrPayload.length) {
       await fetch(`/api/products/${savedId}/attributes`, {
         method: 'PUT', headers: { 'Content-Type': 'application/json' },

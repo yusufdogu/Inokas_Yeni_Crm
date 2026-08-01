@@ -12,7 +12,7 @@ router.get('/', async (req, res) => {
     const supabase = req.app.get('supabase');
     const { data, error } = await supabase
       .from('products')
-      .select('id, product_code, product_name, brand, category, model, maliyet_usd, last_purchase_price_cur, last_purchase_currency, last_purchase_rate, last_purchase_price_tl, avg_purchase_price_tl, stock_on_hand, reserved_quantity, is_internal')
+      .select('id, product_code, product_name, brand, category, model, maliyet_usd, last_purchase_price_cur, last_purchase_currency, last_purchase_rate, last_purchase_price_tl, avg_purchase_price_tl, stock_on_hand, reserved_quantity, gift_count, is_internal')
       .eq('tenant_id', req.tenantId)
       .eq('is_internal', true)
       .eq('is_hidden', false)
@@ -33,6 +33,8 @@ router.post('/', async (req, res) => {
     const { product_name, product_code, brand, category, is_internal, purchase_price, purchase_currency, sales_price, sales_currency } = req.body || {};
     if (!product_name || !String(product_name).trim()) return res.status(400).json({ error: 'Ürün adı zorunlu' });
     if (!product_code || !String(product_code).trim()) return res.status(400).json({ error: 'Ürün kodu zorunlu' });
+
+
 
     const code = String(product_code).trim();
 
@@ -241,9 +243,25 @@ router.put('/:id([0-9a-fA-F-]{36})', async (req, res) => {
 
           await supabase.from('product_attribute_values').delete().eq('product_id', id);
 
+          const { data: srcProd } = await supabase
+            .from('products').select('stock_on_hand').eq('id', id).eq('tenant_id', tenantId).single();
+          const { data: dstProd } = await supabase
+            .from('products').select('stock_on_hand').eq('id', targetId).eq('tenant_id', tenantId).single();
+
+          const combinedStock = Number(srcProd?.stock_on_hand || 0) + Number(dstProd?.stock_on_hand || 0);
+
+          await supabase.from('products')
+            .update({ stock_on_hand: combinedStock, updated_at: new Date().toISOString() })
+            .eq('id', targetId).eq('tenant_id', tenantId);
+
+          // zero out the source so its stock isn't stranded/double-counted if referenced
+          await supabase.from('products')
+            .update({ stock_on_hand: 0, updated_at: new Date().toISOString() })
+            .eq('id', id).eq('tenant_id', tenantId);
 
           const { data: merged } = await supabase.from('products').select('*').eq('id', targetId).single();
           return res.json({ message: 'Ürün birleştirildi.', merged: true, data: merged });
+
         }
 
         await Promise.all([
@@ -252,6 +270,23 @@ router.put('/:id([0-9a-fA-F-]{36})', async (req, res) => {
           supabase.from('quote_items').update({ product_code: newCode }).eq('product_code', oldCode),
         ]);
       }
+    }
+
+    const { data: stock_gift, error: Err } = await supabase
+      .from('products').select('stock_on_hand, gift_count').eq('id', id).eq('tenant_id', tenantId).single();
+    if (Err) throw Err;
+
+    // coerce everything to numbers up front — inputs may arrive as strings
+    const oldGift  = Number(stock_gift.gift_count || 0);
+    const newGift  = Number(fields.gift_count ?? oldGift);
+    const oldStock = Number(stock_gift.stock_on_hand || 0);
+
+    console.log("gift counts — new:", newGift, "old:", oldGift);
+
+    // if gift_count changed, adjust stock by the same delta (more gifts out → less stock)
+    if (newGift !== oldGift) {
+      fields.gift_count    = newGift;                    // store as a number
+      fields.stock_on_hand = fields.stock_on_hand - (newGift - oldGift);
     }
 
     const { data, error } = await supabase.from('products').update(fields).eq('id', id).eq('tenant_id', tenantId).select().single();

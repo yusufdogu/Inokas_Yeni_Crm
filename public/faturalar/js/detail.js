@@ -778,7 +778,7 @@ async function saveUrunlerEdit(id) {
 
             if (productId) {
                 // existing product → update it
-                await putProduct(productId, { product_name: name, brand: brand || null, category: cat || null });
+                await putProduct(productId, {product_code:code, product_name: name, brand: brand || null, category: cat || null });
             } else {
                 // no product → try to create; on 409 link the existing one
                 const res = await fetch('/api/products', {
@@ -791,7 +791,7 @@ async function saveUrunlerEdit(id) {
                     if (!existing?.id) throw new Error(`"${code}" mevcut ama bulunamadı.`);
                     productId = existing.id;
                     // update its fields too
-                    await putProduct(productId, { product_name: name, brand: brand || null, category: cat || null });
+                    await putProduct(productId, {product_code:code, product_name: name, brand: brand || null, category: cat || null });
                 } else if (!res.ok) {
                     const e = await res.json().catch(() => ({}));
                     throw new Error(e.error || `Ürün oluşturulamadı (kalem ${idx + 1}).`);

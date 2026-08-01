@@ -1529,6 +1529,85 @@ router.put('/:id/approve', async (req, res) => {
         return res.status(404).json({ error: 'Fatura bulunamadı veya zaten onaylı.' });
     }
 
+    // ── SAFETY NET: ensure internal product lines are linked to products ──────
+    // The pipeline normally creates products at upload. This backfills any
+    // internal line that reached approval WITHOUT a product_id (product missing
+    // or never linked), so stock/price/history below have a product to hit.
+    try {
+      const { data: invForLink } = await supabase
+        .from('invoices')
+        .select('tenant_id')
+        .eq('id', id)
+        .single();
+
+      // internal lines with NO product_id yet — these are the gaps
+      const { data: unlinked } = await supabase
+        .from('invoice_items')
+        .select('id, product_name, product_code, brand_name, item_category, item_subcategory')
+        .eq('invoice_id', id)
+        .eq('is_internal', true)
+        .is('product_id', null);
+
+      for (const line of (unlinked || [])) {
+        const code = String(line.product_code || '').trim();
+        if (!code) continue;   // no SKU → can't safely upsert/dedupe; skip
+
+        // 1) does a product with this code already exist? (link, don't create)
+        const { data: existing } = await supabase
+          .from('products')
+          .select('id')
+          .eq('tenant_id', tenantId)
+          .eq('product_code', code)
+          .maybeSingle();
+
+        let productId = existing?.id || null;
+
+        // 2) not found → create a minimal product row
+        if (!productId) {
+          const { data: created, error: createErr } = await supabase
+            .from('products')
+            .insert({
+              product_code: code,
+              product_name: line.product_name || code,
+              brand:        line.brand_name || null,
+              category:     line.item_category || null,
+              subcategory:  line.item_subcategory || null,
+              is_internal:  true,
+              is_hidden:    false,
+              source:       'invoice_approve',
+              tenant_id:    tenantId,
+              stock_on_hand: 0,        // stock is applied by the block below
+            })
+            .select('id')
+            .single();
+
+          if (createErr) {
+            // unique-violation race → someone/thing created it; re-fetch
+            const { data: raced } = await supabase
+              .from('products')
+              .select('id')
+              .eq('tenant_id', tenantId)
+              .eq('product_code', code)
+              .maybeSingle();
+            productId = raced?.id || null;
+            if (!productId) { console.error('Ürün oluşturulamadı:', code, createErr.message); continue; }
+          } else {
+            productId = created.id;
+            console.log('Onayda eksik ürün oluşturuldu:', code, productId);
+          }
+        }
+
+        // 3) link the invoice line to the product
+        await supabase
+          .from('invoice_items')
+          .update({ product_id: productId })
+          .eq('id', line.id);
+      }
+    } catch (linkErr) {
+      // don't fail approval if backfill hiccups — log and continue
+      console.error('Ürün bağlama (onay) hatası:', linkErr.message);
+    }
+
     // ── write price history for this invoice's internal, linked lines ──
     // idempotent (UNIQUE invoice_item_id + ON CONFLICT DO NOTHING) so
     // re-approving or overlap with the pipeline won't duplicate.
@@ -1546,6 +1625,29 @@ router.put('/:id/approve', async (req, res) => {
           .eq('invoice_id', id)
           .eq('is_internal', true)
           .not('product_id', 'is', null);
+
+        if (invRow.direction === "INCOMING" && lines) {
+          for (const it of lines) {
+            // approve (tenant-filtered, with fallback for older rows)
+            const { data, error } = await supabase
+              .from('products')
+              .update(
+                {
+                  last_purchase_price_cur: it.unit_price_cur,
+                  last_purchase_currency:  it.currency,
+                  last_purchase_rate:      invRow.calculation_rate,
+                  last_purchase_price_tl:  invRow.calculation_rate * it.unit_price_cur
+                },
+                { count: 'exact' }
+              )
+              .eq('id', it.product_id)
+              .eq('tenant_id', tenantId)
+              .select('id');
+            if (error) throw error;
+
+            console.log("We updated the last purchase price of", data.id)
+          }
+        }
 
         if (lines && lines.length) {
           const rows = lines.map(it => ({

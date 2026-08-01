@@ -1,6 +1,6 @@
 // ── TAB STATE ────────────────────────────────────────────────────────────────
 let _activeMainTab  = 'genel';
-let _activeBekTab   = 'genel';
+let _activeBekTab   = 'giden';
 
 // ── LOADING OVERLAY ──────────────────────────────────────────────────────────
 function showLoadingOverlay() {
@@ -77,7 +77,7 @@ function switchMainTab(tab) {
     kpiBar.style.display = 'none' ;
     window._FAT_PENDING = true;
     loadBekleyenCounts();
-    switchBekleyenTab('giden'); // ← delegates everything cleanly
+    switchBekleyenTab(_activeBekTab); // ← delegates everything cleanly
     renderInvoiceTabBar();
     return; // switchBekleyenTab calls initInvoiceView itself
   }

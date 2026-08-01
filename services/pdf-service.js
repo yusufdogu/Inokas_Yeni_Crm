@@ -3,10 +3,6 @@
 
 const puppeteer = require('puppeteer');       // full — bundles Chromium ✓
 
-
-function getChromePath() {
-    return process.env.PUPPETEER_EXECUTABLE_PATH || undefined;
-}
 async function xmlToPdfBuffer(xmlText) {
     const browser = await puppeteer.launch({
         headless: true,

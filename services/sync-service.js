@@ -305,11 +305,34 @@ async function processInvoicePipeline(dbInvoice, parsedItems, viewKey, tenantId,
     // ── 8) price history — ONLY when approved (pending handled later by trigger)
     if (approved) {
         // read back inserted items to get their ids, matched by product_id
-        const {data: insertedItems} = await supabase
-            .from('invoice_items')
-            .select('id, product_id, unit_price_cur, currency, quantity')
-            .eq('invoice_id', dbInvoice.id)
-            .not('product_id', 'is', null);
+        const { data: insertedItems } = await supabase
+          .from('invoice_items')
+          .select('id, product_id, unit_price_cur, currency, quantity')
+          .eq('invoice_id', dbInvoice.id)
+          .not('product_id', 'is', null);
+
+        if (dbInvoice.direction === "INCOMING" && insertedItems) {
+          for (const it of insertedItems) {
+            // approve (tenant-filtered, with fallback for older rows)
+            const { data, error } = await supabase
+              .from('products')
+              .update(
+                {
+                  last_purchase_price_cur: it.unit_price_cur,
+                  last_purchase_currency:  it.currency,
+                  last_purchase_rate:      dbInvoice.calculation_rate,
+                  last_purchase_price_tl:  dbInvoice.calculation_rate * it.unit_price_cur
+                },
+                { count: 'exact' }
+              )
+              .eq('id', it.product_id)
+              .eq('tenant_id', tenantId)
+              .select('id');
+            if (error) throw error;
+
+            console.log("We updated the last purchase price of", data.id)
+          }
+        }
 
         if (insertedItems && insertedItems.length) {
             const historyRows = insertedItems.map(it => ({

@@ -168,22 +168,16 @@ if (typeof approveDetailInvoice === 'undefined') {
             const freshRes = await fetch(`/api/invoices/${encodeURIComponent(id)}`);
             const freshInv = freshRes.ok ? await freshRes.json() : _detayInv;
 
-            const items = freshInv?.invoice_items || [];
-            const totalItems = items.length;
-            const internalCount = items.filter(it => it.is_internal).length;
             const isIncoming = String(freshInv?.direction || _detayInv?.direction || '').toUpperCase() === 'INCOMING';
+
+            console.log(isIncoming);
 
             alert('Fatura başarıyla aktarıldı.');
 
-            if (totalItems > 0 && internalCount === totalItems) {
-                window.location.href = '../../giderler/pages/ofis-ici.html';
-            } else if (internalCount > 0) {
-                _activeMainTab = isIncoming ? 'gelen' : 'giden';
-                window.location.href = '/faturalar/pages/faturalar.html';
-            } else {
-                _activeMainTab = isIncoming ? 'gelen' : 'giden';
-                window.location.href = '/faturalar/pages/faturalar.html';
-            }
+            _activeMainTab = 'bekleyen'
+            _activeBekTab = isIncoming ? 'gelen' : 'giden';
+            window.location.href = '/faturalar/pages/faturalar.html?tab=bekleyen';
+
         } catch (err) {
             alert(`Hata: ${err.message}`);
             if (btn) { btn.disabled = false; btn.textContent = 'Aktar'; }

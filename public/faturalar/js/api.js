@@ -204,11 +204,11 @@ async function ensureProductCategoryLookupLoaded(force = false) {
     const rows = Array.isArray(json?.rows) ? json.rows : [];
     const categories = Array.isArray(json?.categories) ? json.categories : [];
     productCategoryByCodeMap = new Map(
-      rows
-        .map((r) => [normalizeProductCodeForMatch(r?.product_code), String(r?.category || '').trim()])
+      rows.map((r) => [normalizeProductCodeForMatch(r?.product_code), String(r?.category || '').trim()])
         .filter(([k]) => !!k)
     );
-    productCategoryOptionList = categories
+    // your products are is_internal=true, so their categories are in internal_categories
+    productCategoryOptionList = (Array.isArray(json?.internal_categories) ? json.internal_categories : [])
       .map((x) => String(x || '').trim())
       .filter(Boolean);
     productCategoryFetchedAt = Date.now();

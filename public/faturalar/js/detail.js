@@ -481,31 +481,35 @@ function _makeSearchableDropdown(wrapEl, {
     return wrapEl;
 }
 
-// ─── Category dropdown (with add new → saves to product) ─────────────────────
 function _makeCategoryDropdown(wrapEl, isInternal, initialValue, onChange, sku = '') {
     const getOptions = () => isInternal
-        ? (_internalCategoryOptions || [])
-        : (productCategoryOptionList || []);
+        ? (productCategoryOptionList || [])
+        : (_internalCategoryOptions || []);
 
     _makeSearchableDropdown(wrapEl, {
         getOptions,
         initialValue,
-        placeholder: isInternal ? 'Ofis içi kategorisi...' : 'Kategori ara...',
+        placeholder: isInternal ? 'Kategori ara...' : 'Ofis içi kategorisi...',
         onChange,
         onAddNew: async (newCat) => {
             if (isInternal) {
-                if (!_internalCategoryOptions.includes(newCat)) {
-                    _internalCategoryOptions.push(newCat);
-                    _internalCategoryOptions.sort((a, b) => a.localeCompare(b, 'tr'));
-                }
-            } else {
+                // Ürün → add to product category list + save to product
                 if (!productCategoryOptionList.includes(newCat)) {
                     productCategoryOptionList.push(newCat);
                     productCategoryOptionList.sort((a, b) => a.localeCompare(b, 'tr'));
                 }
-                const activeSku = sku || wrapEl.closest?.('.ue-acc-item')?.querySelector?.('.ue-code')?.value?.trim() || '';
+                const activeSku = sku
+                    || wrapEl.closest?.('.ue-card')?.querySelector?.('.ue-code')?.value?.trim()
+                    || wrapEl.closest?.('.ue-acc-item')?.querySelector?.('.ue-code')?.value?.trim()
+                    || '';
                 if (activeSku) {
-                    saveNewCategoryToProduct(activeSku, newCat).catch(() => { });
+                    saveNewCategoryToProduct(activeSku, newCat).catch(() => {});
+                }
+            } else {
+                // Gider → add to expense (non-internal) category list only
+                if (!_internalCategoryOptions.includes(newCat)) {
+                    _internalCategoryOptions.push(newCat);
+                    _internalCategoryOptions.sort((a, b) => a.localeCompare(b, 'tr'));
                 }
             }
         },
@@ -520,23 +524,6 @@ function _makeBrandDropdown(wrapEl, initialValue, onBrandChange) {
         initialValue,
         placeholder: 'Marka ara...',
         onChange: onBrandChange,
-    });
-}
-
-// ─── Model dropdown (filtered by brand) ──────────────────────────────────────
-function _makeModelDropdown(wrapEl, initialValue, getBrand) {
-    _makeSearchableDropdown(wrapEl, {
-        getOptions: () => {
-            const brand = getBrand();
-            if (brand && _modelsByBrand.has(brand)) return _modelsByBrand.get(brand);
-            // No brand selected → show all models
-            const all = new Set();
-            (_modelsByBrand || new Map()).forEach(models => models.forEach(m => all.add(m)));
-            return [...all].sort((a, b) => a.localeCompare(b, 'tr'));
-        },
-        initialValue,
-        placeholder: 'Model ara...',
-        onChange: () => { },
     });
 }
 
@@ -592,10 +579,10 @@ async function renderUrunlerView(id, body, inv, editable = false) {
     function bodyEditable(it, isInternal) {
         const v = fieldVals(it);
         if (!isInternal) {
+            // expense: category dropdown (non-internal options)
             return `
                 <label style="font-size:10px;font-weight:600;color:#94a3b8;text-transform:uppercase;letter-spacing:0.04em;display:block;margin-bottom:4px;">Gider Kategorisi</label>
-                <input type="text" class="ue-cat" value="${esc(v.category)}" placeholder="Kargo, Mutfak, Kira..."
-                    style="width:100%;box-sizing:border-box;font-size:12px;padding:7px 10px;border:1px solid #e2e8f0;border-radius:8px;outline:none;">`;
+                <div class="ue-cat-wrap" style="position:relative;"></div>`;
         }
         return `
             <div style="display:grid;grid-template-columns:140px 1fr;gap:8px;margin-bottom:8px;">
@@ -610,16 +597,14 @@ async function renderUrunlerView(id, body, inv, editable = false) {
                         style="width:100%;box-sizing:border-box;font-size:12px;font-weight:600;padding:7px 10px;border:1px solid #e2e8f0;border-radius:8px;outline:none;">
                 </div>
             </div>
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;align-items:start;">
                 <div>
                     <label style="font-size:10px;font-weight:600;color:#94a3b8;text-transform:uppercase;letter-spacing:0.04em;display:block;margin-bottom:4px;">Kategori</label>
-                    <input type="text" class="ue-cat" value="${esc(v.category)}" placeholder="Kategori"
-                        style="width:100%;box-sizing:border-box;font-size:12px;padding:7px 10px;border:1px solid #e2e8f0;border-radius:8px;outline:none;">
+                    <div class="ue-cat-wrap" style="position:relative;"></div>
                 </div>
                 <div>
                     <label style="font-size:10px;font-weight:600;color:#94a3b8;text-transform:uppercase;letter-spacing:0.04em;display:block;margin-bottom:4px;">Marka</label>
-                    <input type="text" class="ue-brand" value="${esc(v.brand)}" placeholder="Marka"
-                        style="width:100%;box-sizing:border-box;font-size:12px;padding:7px 10px;border:1px solid #e2e8f0;border-radius:8px;outline:none;">
+                    <div class="ue-brand-wrap" style="position:relative;"></div>
                 </div>
             </div>`;
     }
@@ -690,13 +675,32 @@ async function renderUrunlerView(id, body, inv, editable = false) {
         </div>
         ${actions}`;
 
-    // wire toggles ONLY in editable mode
     if (editable) {
         const listEl = document.getElementById(`ueList_${id}`);
         if (!listEl) return;
+
+        ensureBrandModelLoaded?.().catch(() => {});
+
         listEl.querySelectorAll('.ue-card').forEach(card => {
             const idx = parseInt(card.dataset.idx);
             const it = items[idx] || {};
+            const meta = it.product_meta || null;
+            const hasProduct = !!it.product_id;
+            const curCat   = hasProduct ? (meta?.category || '') : (it.item_category || '');
+            const curBrand = hasProduct ? (meta?.brand || '') : '';
+
+            const buildDropdowns = (isInternal) => {
+                const catWrap   = card.querySelector('.ue-cat-wrap');
+                const brandWrap = card.querySelector('.ue-brand-wrap');
+                const code = card.querySelector('.ue-code')?.value?.trim() || String(it.product_code || '').trim();
+
+                if (catWrap) _makeCategoryDropdown(catWrap, isInternal, curCat, () => {}, code);
+                if (isInternal && brandWrap) _makeBrandDropdown(brandWrap, curBrand, () => {});
+            };
+
+            buildDropdowns(it.is_internal === true);
+
+            // toggle wiring — rebuild body + dropdowns on flip
             const wire = () => {
                 const btn = card.querySelector('.ue-toggle');
                 if (!btn) return;
@@ -707,6 +711,7 @@ async function renderUrunlerView(id, body, inv, editable = false) {
                     const bodyEl = card.querySelector('.ue-body');
                     if (bodyEl) bodyEl.innerHTML = bodyEditable(it, nowInternal);
                     btn.outerHTML = toggleBtn(nowInternal);
+                    buildDropdowns(nowInternal);
                     wire();
                 });
             };
@@ -722,176 +727,6 @@ function enterUrunlerEditMode(id) {
     renderUrunlerView(id, body, inv, true);
 }
 
-// ─── 2. enterUrunlerEdit ──────────────────────────────────────────────────────
-function enterUrunlerEdit(id) {
-    const { inv, body } = _findInvAndBody(id);
-    if (!inv || !body) return;
-
-    const items = inv.invoice_items || [];
-    let _openIdx = null;
-
-    ensureBrandModelLoaded().catch(() => { });
-
-    const fmtP = n => (parseFloat(n) || 0).toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-
-    function buildItem(it, idx) {
-        const isInternal = it.is_internal === true;
-        const meta  = it.product_meta || null;
-        const code  = String(it.product_code || it.sku || '').trim();
-        const name  = String(meta?.product_name || it.product_name || '').replace(/</g, '&lt;');
-        const qty   = parseFloat(it.quantity) || 0;
-        const price = parseFloat(it.unit_price_cur) || 0;
-
-        // ── NON-INTERNAL: display-only (no product to edit) ──
-        if (!isInternal) {
-            return `<div class="ue-acc-item ue-noedit" data-idx="${idx}"
-                style="background:#fafafa;border:1px solid #e2e8f0;border-radius:10px;padding:10px 12px;opacity:0.85;">
-                <div style="display:flex;align-items:center;gap:8px;">
-                    <div style="flex:1;min-width:0;">
-                        <div style="font-size:13px;font-weight:700;color:#0f172a;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${name || '—'}</div>
-                        <div style="display:flex;gap:6px;margin-top:3px;align-items:center;">
-                            <span style="font-size:11px;color:#94a3b8;">× ${qty}</span>
-                            <span style="font-size:11px;color:#94a3b8;">${fmtP(price)} / adet</span>
-                            <span style="font-size:10px;color:#94a3b8;font-style:italic;">(düzenlenemez)</span>
-                        </div>
-                    </div>
-                    <span style="font-size:13px;font-weight:800;color:#2563eb;white-space:nowrap;flex-shrink:0;">${fmtP(qty * price)}</span>
-                </div>
-            </div>`;
-        }
-
-        // ── INTERNAL: editable product fields, read-only invoice facts ──
-        return `<div class="ue-acc-item" data-idx="${idx}"
-            style="background:#fff;border:1px solid #e2e8f0;border-radius:10px;overflow:visible;transition:border-color 0.15s;">
-
-            <div class="ue-acc-hdr" style="display:flex;align-items:center;gap:8px;padding:10px 12px;cursor:pointer;user-select:none;">
-                <i class="ti ti-chevron-right ue-chev" style="font-size:14px;color:#94a3b8;transition:transform 0.2s;flex-shrink:0;"></i>
-                <div style="flex:1;min-width:0;">
-                    <div class="ue-hdr-name" style="font-size:13px;font-weight:700;color:#0f172a;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${name || '—'}</div>
-                    <div style="display:flex;gap:6px;margin-top:3px;align-items:center;">
-                        ${code ? `<span style="font-size:11px;font-weight:700;color:#2563eb;font-family:'Geist Mono',monospace;">${code}</span>` : ''}
-                        <span style="font-size:11px;color:#94a3b8;">× ${qty}</span>
-                    </div>
-                </div>
-                <span class="ue-hdr-total" style="font-size:13px;font-weight:800;color:#2563eb;white-space:nowrap;flex-shrink:0;">${fmtP(qty * price)}</span>
-            </div>
-
-            <div class="ue-acc-body" style="display:none;padding:0 12px 14px;border-top:1px solid #f1f5f9;">
-
-                <!-- Read-only invoice facts -->
-                <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-top:12px;margin-bottom:8px;">
-                    <div>
-                        <label style="font-size:10px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:0.04em;display:block;margin-bottom:4px;">Miktar (fatura)</label>
-                        <div style="font-size:12px;text-align:right;padding:7px 10px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;color:#64748b;">${qty}</div>
-                    </div>
-                    <div>
-                        <label style="font-size:10px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:0.04em;display:block;margin-bottom:4px;">Birim Fiyat (fatura)</label>
-                        <div style="font-size:12px;text-align:right;padding:7px 10px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;color:#64748b;">${fmtP(price)}</div>
-                    </div>
-                    <div>
-                        <label style="font-size:10px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:0.04em;display:block;margin-bottom:4px;">Toplam</label>
-                        <div style="font-size:13px;font-weight:800;color:#2563eb;padding:7px 10px;background:#eff6ff;border-radius:8px;text-align:right;">${fmtP(qty * price)}</div>
-                    </div>
-                </div>
-
-                <!-- Editable product fields -->
-                <div style="display:grid;grid-template-columns:140px 1fr;gap:8px;margin-bottom:8px;">
-                    <div>
-                        <label style="font-size:10px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:0.04em;display:block;margin-bottom:4px;">Ürün Kodu (fatura)</label>
-                        <div style="font-family:'Geist Mono',monospace;font-size:12px;color:#64748b;padding:7px 10px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;">${code || '—'}</div>
-                    </div>
-                    <div>
-                        <label style="font-size:10px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:0.04em;display:block;margin-bottom:4px;">Ürün Adı</label>
-                        <input class="det-edit-input ue-name" value="${String(meta?.product_name || it.product_name || '').replace(/"/g, '&quot;')}" placeholder="Ürün adı"
-                            style="width:100%;font-size:12px;font-weight:600;padding:7px 10px;border:1px solid #e2e8f0;border-radius:8px;outline:none;box-sizing:border-box;">
-                    </div>
-                </div>
-
-                <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;align-items:start;">
-                    <div>
-                        <label style="font-size:10px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:0.04em;display:block;margin-bottom:4px;">Kategori</label>
-                        <div class="ue-cat-wrap" style="position:relative;"></div>
-                    </div>
-                    <div>
-                        <label style="font-size:10px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:0.04em;display:block;margin-bottom:4px;">Marka</label>
-                        <div class="ue-brand-wrap" style="position:relative;"></div>
-                    </div>
-                    <div>
-                        <label style="font-size:10px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:0.04em;display:block;margin-bottom:4px;">Model</label>
-                        <div class="ue-model-wrap" style="position:relative;"></div>
-                    </div>
-                </div>
-
-            </div>
-        </div>`;
-    }
-
-    body.innerHTML = `
-        <div class="ue-warn" style="margin:12px 12px 0;padding:9px 12px;background:#fffbeb;border:1px solid #fde68a;border-radius:8px;font-size:11px;color:#92400e;">
-            ⚠️ Buradaki düzenlemeler <strong>ürün kartını</strong> günceller ve bu ürünü kullanan <strong>tüm faturaları</strong> etkiler. Miktar ve fiyat fatura kaydıdır, değiştirilemez.
-        </div>
-        <div style="display:flex;flex-direction:column;gap:6px;padding:12px;" id="ueList_${id}">
-            ${items.length ? items.map((it, i) => buildItem(it, i)).join('') : '<div style="padding:20px;text-align:center;color:#94a3b8;font-size:13px;">Ürün bulunamadı</div>'}
-        </div>
-        <div class="det-actions" style="padding:0 12px 12px;justify-content:space-between;">
-            <button class="fatura-action-btn" onclick="switchFatDetailTab('${id}','urunler')">İptal</button>
-            <button class="fatura-action-btn fatura-action-btn--primary" onclick="saveUrunlerEdit('${id}')">💾 Kaydet</button>
-        </div>`;
-
-    const listEl = document.getElementById(`ueList_${id}`);
-    if (!listEl) return;
-
-    listEl.querySelectorAll('.ue-acc-item').forEach(item => {
-        if (item.classList.contains('ue-noedit')) return; // non-internal: no wiring
-
-        const idx = parseInt(item.dataset.idx);
-        const it = items[idx] || {};
-        const meta = it.product_meta || null;
-        const curCat   = meta?.category || '';   // general category from product
-        const curBrand = meta?.brand || '';
-        const curModel = meta?.model || '';
-
-        const hdr = item.querySelector('.ue-acc-hdr');
-        const bodyEl = item.querySelector('.ue-acc-body');
-        const chev = item.querySelector('.ue-chev');
-        const catWrap = item.querySelector('.ue-cat-wrap');
-        const brandWrap = item.querySelector('.ue-brand-wrap');
-        const modelWrap = item.querySelector('.ue-model-wrap');
-        const hdrName = item.querySelector('.ue-hdr-name');
-        const nameInp = item.querySelector('.ue-name');
-
-        hdr.addEventListener('click', () => {
-            const isOpen = bodyEl.style.display !== 'none';
-            if (isOpen) {
-                bodyEl.style.display = 'none'; chev.style.transform = ''; item.style.borderColor = '#e2e8f0'; _openIdx = null;
-            } else {
-                if (_openIdx !== null) {
-                    const prev = listEl.querySelector(`.ue-acc-item[data-idx="${_openIdx}"]`);
-                    if (prev && !prev.classList.contains('ue-noedit')) {
-                        prev.querySelector('.ue-acc-body').style.display = 'none';
-                        prev.querySelector('.ue-chev').style.transform = '';
-                        prev.style.borderColor = '#e2e8f0';
-                    }
-                }
-                bodyEl.style.display = 'block'; chev.style.transform = 'rotate(90deg)'; item.style.borderColor = '#2563eb'; _openIdx = idx;
-            }
-        });
-
-        // general category dropdown (internal products → true branch)
-        _makeCategoryDropdown(catWrap, true, curCat, () => { }, String(it.product_code || '').trim());
-        _makeBrandDropdown(brandWrap, curBrand, () => {
-            if (modelWrap._getValue) {
-                const cur = modelWrap._getValue();
-                _makeModelDropdown(modelWrap, cur, () => brandWrap._getValue?.() || '');
-            }
-        });
-        _makeModelDropdown(modelWrap, curModel, () => brandWrap._getValue?.() || '');
-
-        nameInp?.addEventListener('input', () => {
-            if (hdrName) hdrName.textContent = nameInp.value || '—';
-        });
-    });
-}
 // ─── 3. saveUrunlerEdit ───────────────────────────────────────────────────────
 async function saveUrunlerEdit(id) {
     const { inv } = _findInvAndBody(id);
@@ -924,7 +759,7 @@ async function saveUrunlerEdit(id) {
 
             // ── NON-INTERNAL: just save expense category on the line ──
             if (!isInternal) {
-                const cat = card.querySelector('.ue-cat')?.value?.trim() || null;
+                const cat = card.querySelector('.ue-cat-wrap')?._getValue?.() || null;
                 await patchItem(itemId, { is_internal: false, item_category: cat, product_id: null });
                 continue;
             }
@@ -932,8 +767,8 @@ async function saveUrunlerEdit(id) {
             // ── INTERNAL: gather manual fields ──
             const code  = card.querySelector('.ue-code')?.value?.trim() || '';
             const name  = card.querySelector('.ue-name')?.value?.trim() || '';
-            const cat   = card.querySelector('.ue-cat')?.value?.trim() || '';
-            const brand = card.querySelector('.ue-brand')?.value?.trim() || '';
+            const cat   = card.querySelector('.ue-cat-wrap')?._getValue?.() || '';
+            const brand = card.querySelector('.ue-brand-wrap')?._getValue?.() || '';
 
             if (!code || !name) {
                 throw new Error(`Ürün kodu ve adı zorunlu (kalem ${idx + 1}).`);
@@ -1051,71 +886,6 @@ async function renderXmlToPdfIframe(xmlString, iframe) {
 
 const _batchCatState = {};  // invoiceId → { itemId: category }
 
-function enterBatchCategoryMode(id, allItems) {
-    const { inv, body } = _findInvAndBody(id);
-    if (!inv || !body) return;
-
-    const internalItems = allItems
-        ? (inv.invoice_items || [])
-        : (inv.invoice_items || []).filter(it => !!it.is_internal);
-    if (!internalItems.length) return;
-
-    // Seed pending state from current values
-    _batchCatState[id] = {};
-    internalItems.forEach(it => { _batchCatState[id][it.id] = it.item_category || ''; });
-
-    function buildRows() {
-        return internalItems.map(it => {
-            const cat  = _batchCatState[id][it.id] || '';
-            const name = String(it.product_name || '').replace(/</g, '&lt;');
-            const code = String(it.product_code || it.sku || '').trim();
-            return `<label class="bcat-row" style="display:flex;align-items:center;gap:10px;padding:9px 12px;background:#fff;border:1px solid #e2e8f0;border-radius:10px;cursor:pointer;user-select:none;" onclick="event.preventDefault();this.querySelector('.bcat-chk').click();">
-                <input type="checkbox" class="bcat-chk" data-itemid="${it.id}"
-                    style="width:16px;height:16px;accent-color:#7c3aed;flex-shrink:0;cursor:pointer;" onclick="event.stopPropagation();">
-                <div style="flex:1;min-width:0;">
-                    <div style="font-size:13px;font-weight:700;color:#0f172a;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${name || '—'}</div>
-                    ${code ? `<div style="font-size:11px;font-weight:700;color:#2563eb;font-family:'Geist Mono',monospace;margin-top:2px;">${code}</div>` : ''}
-                </div>
-                <span class="bcat-cur" data-itemid="${it.id}"
-                    style="font-size:12px;font-weight:600;padding:3px 10px;border-radius:6px;white-space:nowrap;flex-shrink:0;${cat ? 'background:#eff6ff;color:#2563eb;' : 'background:#f1f5f9;color:#94a3b8;'}">
-                    ${cat ? cat.replace(/</g, '&lt;') : 'Kategori yok'}
-                </span>
-            </label>`;
-        }).join('');
-    }
-
-    const catOptions = (_internalCategoryOptions || []);
-    const optHtml = catOptions.map(o => `<option value="${o.replace(/"/g, '&quot;')}">${o}</option>`).join('');
-
-    body.innerHTML = `
-        <div style="padding:12px;display:flex;flex-direction:column;gap:10px;">
-            <div style="background:#f5f3ff;border:1px solid #ddd6fe;border-radius:10px;padding:10px 14px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
-                <span style="font-size:12px;font-weight:700;color:#7c3aed;white-space:nowrap;">Seçilenlere uygula:</span>
-                <select id="batchCatSelect_${id}" style="flex:1;min-width:140px;height:32px;padding:0 8px;border:1px solid #c4b5fd;border-radius:8px;background:#fff;color:#1e293b;font-size:12px;font-weight:600;font-family:inherit;outline:none;cursor:pointer;">
-                    <option value="">— Kategori seçin —</option>
-                    ${optHtml}
-                </select>
-                <button onclick="applyBatchCategory('${id}')"
-                    style="height:32px;padding:0 14px;background:#7c3aed;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;white-space:nowrap;">
-                    Seçilenlere Uygula
-                </button>
-                <button onclick="selectAllBatchItems('${id}')"
-                    style="height:32px;padding:0 12px;background:#f5f3ff;color:#7c3aed;border:1px solid #c4b5fd;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;white-space:nowrap;">
-                    Tümünü Seç
-                </button>
-            </div>
-            <div style="display:flex;flex-direction:column;gap:6px;" id="bcatList_${id}">
-                ${buildRows()}
-            </div>
-        </div>
-        <div class="det-actions" style="padding:0 12px 12px;justify-content:space-between;">
-            <div style="display:flex;gap:6px;">
-                <button class="fatura-action-btn" onclick="switchFatDetailTab('${id}','urunler')">İptal</button>
-                <button class="fatura-action-btn" onclick="enterUrunlerEdit('${id}')">✏️ Düzenle</button>
-            </div>
-            <button class="fatura-action-btn fatura-action-btn--primary" onclick="saveBatchCategoryAssignments('${id}')">💾 Kaydet</button>
-        </div>`;
-}
 
 function applyBatchCategory(id) {
     const sel = document.getElementById(`batchCatSelect_${id}`);

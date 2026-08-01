@@ -923,7 +923,7 @@ function selectCat(value) {
 
 async function _loadInternalCatOptions() {
   try {
-    const res = await fetch('/api/invoices/internal-categories');
+    const res = await fetch('/api/invoices/non-internal-categories');
     if (!res.ok) return;
     const data = await res.json();
     _internalCatOptions = (data || []).map(r => String(r.name || '').trim()).filter(Boolean);

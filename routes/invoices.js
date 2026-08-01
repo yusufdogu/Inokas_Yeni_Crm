@@ -1232,8 +1232,19 @@ router.get('/pending', async (req, res) => {
   }
 });
 
-// GET /api/invoices/ofis-ici
-
+// GET /api/invoices/non-internal-categories
+router.get('/non-internal-categories', async (req, res) => {
+  try {
+    const supabase = req.app.get('supabase');
+    const { data, error } = await supabase.from('invoice_items').select('item_category').eq('is_internal', false).not('item_category', 'is', null).neq('item_category', '');
+    if (error) throw error;
+    const countMap = {};
+    (data || []).forEach(r => { const c = r.item_category; if (c) countMap[c] = (countMap[c] || 0) + 1; });
+    res.json(Object.entries(countMap).map(([name, count]) => ({ name, count })).sort((a, b) => a.name.localeCompare(b.name, 'tr')));
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
 // GET /api/invoices/:id
 router.get('/:id([0-9a-fA-F-]{36})', async (req, res) => {
   try {
@@ -1433,6 +1444,67 @@ router.patch('/:id', async (req, res) => {
   }
 });
 
+// PATCH /api/invoice-items/:id/reassign-product
+// Re-points a single invoice line to a different product, moving only THIS
+// line's stock delta (if the invoice is approved). Does NOT merge or delete.
+router.patch('/:id/reassign-product', async (req, res) => {
+  try {
+    const supabase = req.app.get('supabase');
+    const tenantId = req.tenantId;
+    const { id } = req.params;                    // invoice_item id
+    const { new_product_id } = req.body || {};    // target product to point to
+    if (!new_product_id) return res.status(400).json({ error: 'new_product_id zorunlu.' });
+
+    // load the line + its invoice (need direction, approval, old product_id, qty)
+    const { data: line, error: lineErr } = await supabase
+      .from('invoice_items')
+      .select('id, product_id, quantity, is_internal, invoice_id, invoices!inner(direction, approval_status, tenant_id)')
+      .eq('id', id)
+      .single();
+    if (lineErr || !line) return res.status(404).json({ error: 'Kalem bulunamadı.' });
+
+    const oldProductId = line.product_id;
+    const newProductId = new_product_id;
+    if (oldProductId === newProductId) {
+      return res.json({ message: 'Değişiklik yok.' });
+    }
+
+    const inv = line.invoices;
+    const isApproved = inv?.approval_status === 'approved';
+    const qty = Number(line.quantity) || 0;
+    const dir = inv?.direction;
+
+    // 1) re-point the line (keep raw product_code as-is; only product_id changes)
+    const { error: repErr } = await supabase
+      .from('invoice_items')
+      .update({ product_id: newProductId })
+      .eq('id', id);
+    if (repErr) throw repErr;
+
+    // 2) if approved + internal, move THIS line's stock delta: old -= , new +=
+    if (isApproved && line.is_internal === true && qty && dir) {
+      const delta = dir === 'INCOMING' ? qty : -qty;   // this line's stock effect
+
+      // remove from old product
+      if (oldProductId) {
+        const { data: op } = await supabase.from('products').select('stock_on_hand').eq('id', oldProductId).single();
+        await supabase.from('products')
+          .update({ stock_on_hand: Number(op?.stock_on_hand || 0) - delta, updated_at: new Date().toISOString() })
+          .eq('id', oldProductId).eq('tenant_id', tenantId);
+      }
+      // add to new product
+      const { data: np } = await supabase.from('products').select('stock_on_hand').eq('id', newProductId).single();
+      await supabase.from('products')
+        .update({ stock_on_hand: Number(np?.stock_on_hand || 0) + delta, updated_at: new Date().toISOString() })
+        .eq('id', newProductId).eq('tenant_id', tenantId);
+    }
+
+    res.json({ message: 'Kalem yeniden atandı.', old_product_id: oldProductId, new_product_id: newProductId, stock_moved: isApproved });
+  } catch (err) {
+    console.error('reassign-product hatası:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
 
 // PUT /api/invoices/:id/approve
 router.put('/:id/approve', async (req, res) => {
@@ -1493,6 +1565,43 @@ router.put('/:id/approve', async (req, res) => {
     } catch (histErr) {
       // don't fail the approval if history writing hiccups — log and continue
       console.error('Fiyat geçmişi yazılamadı (onay):', histErr.message);
+    }
+
+    try {
+      const { data: invRow2 } = await supabase
+        .from('invoices')
+        .select('direction, tenant_id')
+        .eq('id', id)
+        .single();
+
+      if (invRow2 && invRow2.direction) {
+        const { data: stockLines } = await supabase
+          .from('invoice_items')
+          .select('product_id, quantity')
+          .eq('invoice_id', id)
+          .eq('is_internal', true)
+          .not('product_id', 'is', null);
+
+        // sum per product (an invoice could have multiple lines for one product)
+        const deltaByProduct = new Map();
+        for (const l of (stockLines || [])) {
+          const q = Number(l.quantity) || 0;
+          const delta = invRow2.direction === 'INCOMING' ? q : -q;
+          deltaByProduct.set(l.product_id, (deltaByProduct.get(l.product_id) || 0) + delta);
+        }
+
+        for (const [pid, delta] of deltaByProduct) {
+          if (!delta) continue;
+          const { data: prod } = await supabase
+            .from('products').select('stock_on_hand').eq('id', pid).single();
+          const newStock = Number(prod?.stock_on_hand || 0) + delta;
+          await supabase.from('products')
+            .update({ stock_on_hand: newStock, updated_at: new Date().toISOString() })
+            .eq('id', pid).eq('tenant_id', invRow2.tenant_id || tenantId);
+        }
+      }
+    } catch (stockErr) {
+      console.error('Stok güncellenemedi (onay):', stockErr.message);
     }
 
     res.json({ message: 'Fatura onaylandı' });
@@ -1676,24 +1785,10 @@ router.post('/items/normalize-sku', async (req, res) => {
   }
 });
 
-// GET /api/invoices/ofis-ici-categories
 
 
-// GET /api/invoices/internal-categories
-router.get('/internal-categories', async (req, res) => {
-  try {
-    const supabase = req.app.get('supabase');
-    const { data, error } = await supabase.from('invoice_items').select('item_category').eq('is_internal', false).not('item_category', 'is', null).neq('item_category', '');
-    if (error) throw error;
-    const countMap = {};
-    (data || []).forEach(r => { const c = r.item_category; if (c) countMap[c] = (countMap[c] || 0) + 1; });
-    res.json(Object.entries(countMap).map(([name, count]) => ({ name, count })).sort((a, b) => a.name.localeCompare(b.name, 'tr')));
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
 
-// PUT /api/invoices/internal-categories/rename
+// PUT /api/invoices/non-internal-categories/rename
 router.put('/internal-categories/rename', async (req, res) => {
   try {
     const supabase = req.app.get('supabase');
@@ -1707,7 +1802,7 @@ router.put('/internal-categories/rename', async (req, res) => {
   }
 });
 
-// DELETE /api/invoices/internal-categories/:name
+// DELETE /api/invoices/non-internal-categories/:name
 router.delete('/internal-categories/:name', async (req, res) => {
   try {
     const supabase = req.app.get('supabase');

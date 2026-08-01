@@ -195,9 +195,11 @@ if (typeof approveDetailInvoice === 'undefined') {
 // ─── Category select helpers (normally in main.js) ────────────────────────────
 async function loadInternalCategoryOptions() {
     try {
-        const res = await fetch('/api/invoices/ofis-ici-categories');
+        const res = await fetch('/api/invoices/non-internal-categories');
         if (!res.ok) return;
-        _internalCategoryOptions = await res.json();
+        const data = await res.json();
+        // endpoint returns [{name, count}] — dropdown needs strings
+        _internalCategoryOptions = (data || []).map(x => x.name).filter(Boolean);
     } catch (e) {
         console.warn('Ofis içi kategoriler alınamadı:', e.message);
     }

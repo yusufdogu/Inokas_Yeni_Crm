@@ -261,7 +261,7 @@ async function deleteAttr(attrId) {
 // ── OFİS İÇİ KATEGORİLER ─────────────────────────────────────────────────────
 async function loadInternalCats() {
     try {
-        const res = await fetch('/api/invoices/internal-categories');
+        const res = await fetch('/api/invoices/non-internal-categories');
         if (!res.ok) throw new Error(await res.text());
         _internalCats = await res.json();
         renderInternalCatList();
@@ -327,7 +327,7 @@ async function saveRenameIntCat(oldName) {
     if (!newName) { showToast('Kategori adı boş olamaz.', 'error'); return; }
     if (newName === oldName) return;
     try {
-        const res = await fetch('/api/invoices/internal-categories/rename', {
+        const res = await fetch('/api/invoices/non-internal-categories/rename', {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ from: oldName, to: newName })
@@ -345,7 +345,7 @@ async function saveRenameIntCat(oldName) {
 async function deleteInternalCat(name) {
     if (!confirm(`"${name}" kategorisi silinecek. Bu kategorideki faturalar kategorisiz kalacak. Emin misiniz?`)) return;
     try {
-        const res = await fetch(`/api/invoices/internal-categories/${encodeURIComponent(name)}`, { method: 'DELETE' });
+        const res = await fetch(`/api/invoices/non-internal-categories/${encodeURIComponent(name)}`, { method: 'DELETE' });
         if (!res.ok) throw new Error(await res.text());
         _activeIntCat = null;
         document.getElementById('ky-detail').innerHTML = `

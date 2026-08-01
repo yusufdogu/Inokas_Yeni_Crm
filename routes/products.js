@@ -4,6 +4,8 @@
 const express = require('express');
 const router  = express.Router();
 
+
+
 // GET /api/products
 router.get('/', async (req, res) => {
   try {
@@ -238,8 +240,7 @@ router.put('/:id([0-9a-fA-F-]{36})', async (req, res) => {
           ]);
 
           await supabase.from('product_attribute_values').delete().eq('product_id', id);
-          const { error: delErr } = await supabase.from('products').delete().eq('id', id).eq('tenant_id', tenantId);
-          if (delErr) throw delErr;
+
 
           const { data: merged } = await supabase.from('products').select('*').eq('id', targetId).single();
           return res.json({ message: 'Ürün birleştirildi.', merged: true, data: merged });

@@ -288,7 +288,7 @@ function invNonInternalPayableAmountSrc(inv) {
     const hasInternal = items.some(it => !it.is_internal);
     if (!hasInternal) return invPayableAmountSrc(inv);
     return items
-        .filter(it => !it.is_internal)
+        .filter(it => it.is_internal)
         .reduce((sum, it) => {
             const net     = parseFloat(it.total_price_cur) || 0;
             const taxRate = parseFloat(it.tax_rate) || 0;

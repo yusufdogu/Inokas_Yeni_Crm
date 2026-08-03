@@ -69,13 +69,14 @@ function renderHeader(inv) {
             html += `<button onclick="approveDetailInvoice('${inv.id}')" class="detay-approve-btn">Aktar</button>`;
         }
         html += `<button onclick="deleteDetailInvoice('${inv.id}')" class="detay-delete-btn" style="margin-left:8px;background:#b83232;color:#fff;border:none;padding:7px 14px;border-radius:8px;cursor:pointer;font-size:12px;">
-                   <i class="ti ti-trash" style="font-size:13px;"></i> Sil
+                   <i class="ti ti-trash" style="font-size:13px;"></i> Faturayı Sil
                  </button>`;
         actionsEl.innerHTML = html;
     }
 
     document.title = `${inv.invoice_no || 'Fatura'} — İnokas CRM`;
 }
+
 
 async function deleteDetailInvoice(id) {
     if (!confirm('Bu fatura ve tüm kalemleri silinecek. Stok geri alınacak. Devam edilsin mi?')) return;

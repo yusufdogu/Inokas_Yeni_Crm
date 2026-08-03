@@ -178,10 +178,7 @@ async function renderBilgilerView(id) {
         ${inv.notes ? `${section('Notlar')}<div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:12px 14px; font-size:12px; color:#475569; white-space:pre-wrap; line-height:1.5;">${String(inv.notes).replace(/</g, '&lt;')}</div>` : ''}
 
         <div style="display:flex; gap:8px; justify-content:flex-end; padding-top:8px; border-top:1px solid #f1f5f9; margin-top:4px;">
-            <button onclick="deleteInvoice('${id}')"
-                style="display:flex; align-items:center; gap:6px; background:#fee2e2; color:#ef4444; padding:7px 14px; border-radius:8px; border:none; font-weight:600; cursor:pointer; font-size:13px; font-family:inherit;">
-                <i class="ti ti-trash" style="font-size:14px;"></i>Sil
-            </button>
+            
             <button onclick="enterBilgilerEdit('${id}')"
                 style="display:flex; align-items:center; gap:6px; background:#2563eb; color:white; padding:7px 16px; border-radius:8px; border:none; font-weight:600; cursor:pointer; font-size:13px; font-family:inherit;">
                 <i class="ti ti-pencil" style="font-size:14px;"></i>Düzenlemeyi Aktifleştir

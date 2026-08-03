@@ -774,35 +774,36 @@ async function saveUrunlerEdit(id) {
                 throw new Error(`Ürün kodu ve adı zorunlu (kalem ${idx + 1}).`);
             }
 
-            let productId = it.product_id || null;
+            // Editing a line NEVER modifies the products table. We only:
+            //   1) save the line's own fields (code/name/brand/category)
+            //   2) if the typed SKU matches an existing product, link to it
+            //      (reassign-product also moves stock when the invoice is approved)
 
-            if (productId) {
-                // existing product → update it
-                await putProduct(productId, {product_code:code, product_name: name, brand: brand || null, category: cat || null });
-            } else {
-                // no product → try to create; on 409 link the existing one
-                const res = await fetch('/api/products', {
-                    method: 'POST',
+            // 1) always persist the line's descriptive fields + internal flag
+            await patchItem(itemId, {
+                is_internal:      true,
+                product_code:     code,
+                product_name:     name,
+                brand_name:       brand || null,
+                item_category:    cat || null,
+            });
+
+            // 2) resolve the SKU → product; if it exists and differs, reassign
+            const existing = await findProductByCode(code);
+            const targetId = existing?.id || null;
+
+            if (targetId && targetId !== it.product_id) {
+                // link the line to the matched product (moves stock if approved)
+                const rr = await fetch(`/api/invoice-items/${itemId}/reassign-product`, {
+                    method: 'PATCH',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ product_code: code, product_name: name, brand, category: cat, is_internal: true }),
+                    body: JSON.stringify({ new_product_id: targetId }),
                 });
-                if (res.status === 409) {
-                    const existing = await findProductByCode(code);
-                    if (!existing?.id) throw new Error(`"${code}" mevcut ama bulunamadı.`);
-                    productId = existing.id;
-                    // update its fields too
-                    await putProduct(productId, {product_code:code, product_name: name, brand: brand || null, category: cat || null });
-                } else if (!res.ok) {
-                    const e = await res.json().catch(() => ({}));
-                    throw new Error(e.error || `Ürün oluşturulamadı (kalem ${idx + 1}).`);
-                } else {
-                    const d = await res.json();
-                    productId = d.data?.id || d.id;
+                if (!rr.ok) {
+                    const e = await rr.json().catch(() => ({}));
+                    throw new Error(e.error || `Kalem ürüne bağlanamadı (kalem ${idx + 1}).`);
                 }
             }
-
-            // link the line: internal + category + product_id
-            await patchItem(itemId, { is_internal: true, item_category: cat || null, product_id: productId });
         }
 
         // reload to reflect changes

@@ -1714,6 +1714,7 @@ router.put('/:id/approve', async (req, res) => {
 });
 
 // DELETE /api/invoices/:id
+/*
 router.delete('/:id', async (req, res) => {
   try {
     const supabase = req.app.get('supabase');
@@ -1752,6 +1753,70 @@ router.delete('/:id', async (req, res) => {
   } catch (error) {
     console.error('Fatura silme hatası:', error);
     res.status(500).json({ error: 'Sunucu hatası oluştu' });
+  }
+});
+*/
+// DELETE /api/invoices/:id — reverse stock (if approved), delete items, delete invoice
+router.delete('/:id([0-9a-fA-F-]{36})', async (req, res) => {
+  try {
+    const supabase = req.app.get('supabase');
+    const tenantId = req.tenantId;
+    const id = String(req.params.id || '').trim();
+    if (!id) return res.status(400).json({ error: 'Fatura id zorunlu.' });
+
+    // load the invoice (need direction + approval to decide stock reversal)
+    const { data: inv, error: invErr } = await supabase
+      .from('invoices')
+      .select('id, direction, approval_status, tenant_id')
+      .eq('id', id)
+      .eq('tenant_id', tenantId)
+      .single();
+    if (invErr || !inv) return res.status(404).json({ error: 'Fatura bulunamadı.' });
+
+    // ── 1) reverse stock — ONLY if the invoice was approved ──
+    // (pending invoices never applied stock, so nothing to reverse)
+    if (inv.approval_status === 'approved' && inv.direction) {
+      const { data: items } = await supabase
+        .from('invoice_items')
+        .select('product_id, quantity, is_internal')
+        .eq('invoice_id', id)
+        .eq('is_internal', true)
+        .not('product_id', 'is', null);
+
+      // sum per product, REVERSED: incoming subtracts, outgoing adds back
+      const deltaByProduct = new Map();
+      for (const it of (items || [])) {
+        const q = Number(it.quantity) || 0;
+        // reverse of approval: INCOMING removed→ -q ; OUTGOING added→ +q
+        const reverse = inv.direction === 'INCOMING' ? -q : q;
+        deltaByProduct.set(it.product_id, (deltaByProduct.get(it.product_id) || 0) + reverse);
+      }
+
+      for (const [pid, delta] of deltaByProduct) {
+        if (!delta) continue;
+        const { data: prod } = await supabase
+          .from('products').select('stock_on_hand').eq('id', pid).single();
+        const newStock = Number(prod?.stock_on_hand || 0) + delta;
+        await supabase.from('products')
+          .update({ stock_on_hand: newStock, updated_at: new Date().toISOString() })
+          .eq('id', pid).eq('tenant_id', tenantId);
+      }
+    }
+
+    // ── 2) delete invoice_items ──
+    const { error: itemsErr } = await supabase
+      .from('invoice_items').delete().eq('invoice_id', id);
+    if (itemsErr) throw itemsErr;
+
+    // ── 3) delete the invoice ──
+    const { error: delErr } = await supabase
+      .from('invoices').delete().eq('id', id).eq('tenant_id', tenantId);
+    if (delErr) throw delErr;
+
+    res.json({ deleted: true });
+  } catch (err) {
+    console.error('DELETE /api/invoices/:id hatası:', err.message);
+    res.status(500).json({ error: err.message });
   }
 });
 

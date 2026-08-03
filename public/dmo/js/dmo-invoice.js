@@ -33,7 +33,6 @@ async function loadDetailView(orderId) {
         badgeEl.style.color       = sc.color;
     }
 
-
     const regularItems = (items || []).filter(i => !i.is_gift);
     const giftItems    = (items || []).filter(i =>  i.is_gift);
 
@@ -103,15 +102,7 @@ async function loadDetailView(orderId) {
                 </div>
             </td>
         </tr>`;
-    }
-    const giftRowHTML = (i) => `
-        <tr style="border-top:1px solid #e2e8f0; background:#fff7ed;">
-            <td style="padding:8px 8px; width:28px; text-align:center; color:#d97706; font-size:13px;">🎁</td>
-            <td style="padding:8px 8px; font-size:12px; color:#94a3b8; width:90px;"></td>
-            <td style="padding:8px 8px; font-size:12px; font-weight:600; color:#0f172a;">${i.dmo_products?.products?.product_name || i.katalog_kod || "—"}</td>
-            <td style="padding:8px 8px; text-align:right; font-size:12px; color:#64748b; width:50px;">${i.quantity}</td>
-            <td style="padding:8px 8px; width:110px;"></td>
-        </tr>`;
+    };
 
     const setEl = (id, val) => {
         const el = document.getElementById(id);
@@ -133,14 +124,28 @@ async function loadDetailView(orderId) {
         const tBody = document.getElementById("dv-t-items-body");
         if (tBody) tBody.innerHTML = regularItems.map((i, idx) => itemRowHTML(i, idx)).join("");
 
+        // NOTE: taslak gift rendering left to its own section IDs if present.
+        // Gift inline-editing is disabled on taslak (redirects to sepet), so
+        // taslak gifts render read-only via the taslak gift body below.
         const tGiftSection = document.getElementById("dv-t-gift-section");
         const tGiftBody    = document.getElementById("dv-t-gift-items-body");
         if (tGiftSection) tGiftSection.style.display = giftItems.length > 0 ? "block" : "none";
-        if (tGiftBody)    tGiftBody.innerHTML = giftItems.map(giftRowHTML).join("");
+        if (tGiftBody) {
+            tGiftBody.innerHTML = giftItems.map(i => {
+                const name = i.dmo_products?.products?.product_name || i.katalog_kod || "—";
+                return `
+                <tr style="border-top:1px solid #e2e8f0; background:#fff7ed;">
+                    <td style="padding:8px 8px; width:28px; text-align:center; color:#d97706; font-size:13px;">🎁</td>
+                    <td style="padding:8px 8px; font-size:12px; color:#94a3b8; width:90px;"></td>
+                    <td style="padding:8px 8px; font-size:12px; font-weight:600; color:#0f172a;">${escapeHtml(name)}</td>
+                    <td style="padding:8px 8px; text-align:right; font-size:12px; color:#64748b; width:50px;">${i.quantity}</td>
+                    <td style="padding:8px 8px; width:110px;"></td>
+                </tr>`;
+            }).join("");
+        }
 
         const tDelete = document.getElementById("dv-t-btn-delete");
         const tEdit   = document.getElementById("dv-t-btn-edit");
-        const tPdf    = document.getElementById("dv-t-btn-add-pdf");
         if (tDelete) tDelete.onclick = () => deleteOrder(orderId);
         if (tEdit)   tEdit.onclick   = () => {
             window.location.href = "/dmo/pages/sepet-hesapla.html?taslak=" + encodeURIComponent(orderId);
@@ -150,8 +155,10 @@ async function loadDetailView(orderId) {
         const statsContainer = document.getElementById("detail-right-stats");
         if (statsContainer) {
             statsContainer.innerHTML = buildStatsGridHTML();
-            fillDetailStats(order,regularItems);
         }
+
+        // Stash state (fills stats via fillDetailStats, wires gift button → sepet redirect)
+        dvStashState(order, regularItems, giftItems);
 
     } else {
         // ── HAS PDF LAYOUT ───────────────────────────────────────────────────
@@ -177,10 +184,9 @@ async function loadDetailView(orderId) {
         const body = document.getElementById("dv-items-body");
         if (body) body.innerHTML = regularItems.map((i, idx) => itemRowHTML(i, idx)).join("");
 
-        const giftSection = document.getElementById("dv-gift-section");
-        const giftBody    = document.getElementById("dv-gift-items-body");
-        if (giftSection) giftSection.style.display = giftItems.length > 0 ? "block" : "none";
-        if (giftBody)    giftBody.innerHTML = giftItems.map(giftRowHTML).join("");
+        // Gift rows are now rendered by renderGiftRows() via dvStashState — do NOT
+        // render them here (old giftRowHTML path removed to avoid double-render
+        // and to attach delete buttons).
 
         // Reset button bars to read mode
         document.getElementById("dv-btn-bar").style.display  = "flex";
@@ -197,10 +203,12 @@ async function loadDetailView(orderId) {
         const statsGrid = document.getElementById("dv-stats-grid");
         if (statsGrid) {
             statsGrid.innerHTML = buildStatsGridHTML();
-            fillDetailStats(order,regularItems);
         }
 
         switchDetailTab("bilgi");
+
+        // Stash state → fills stats, renders gift rows w/ delete buttons, wires picker
+        dvStashState(order, regularItems, giftItems);
     }
 }
 

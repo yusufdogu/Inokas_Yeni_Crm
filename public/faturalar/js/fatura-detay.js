@@ -62,21 +62,39 @@ function renderHeader(inv) {
         badgeEl.className   = `detay-dir-badge ${isIn ? 'detay-dir-in' : 'detay-dir-out'}`;
     }
 
-    // Approve button (shown only for pending invoices)
+    // in renderHeader, replace the actionsEl block:
     if (actionsEl) {
+        let html = '';
         if (inv.approval_status === 'pending') {
-            actionsEl.innerHTML = `
-                <button onclick="approveDetailInvoice('${inv.id}')" class="detay-approve-btn">
-                    Aktar
-                </button>`;
-        } else {
-            actionsEl.innerHTML = '';
+            html += `<button onclick="approveDetailInvoice('${inv.id}')" class="detay-approve-btn">Aktar</button>`;
         }
+        html += `<button onclick="deleteDetailInvoice('${inv.id}')" class="detay-delete-btn" style="margin-left:8px;background:#b83232;color:#fff;border:none;padding:7px 14px;border-radius:8px;cursor:pointer;font-size:12px;">
+                   <i class="ti ti-trash" style="font-size:13px;"></i> Sil
+                 </button>`;
+        actionsEl.innerHTML = html;
     }
 
     document.title = `${inv.invoice_no || 'Fatura'} — İnokas CRM`;
 }
 
+async function deleteDetailInvoice(id) {
+    if (!confirm('Bu fatura ve tüm kalemleri silinecek. Stok geri alınacak. Devam edilsin mi?')) return;
+
+    const btn = document.querySelector(`[onclick="deleteDetailInvoice('${id}')"]`);
+    if (btn) { btn.disabled = true; btn.textContent = 'Siliniyor...'; }
+
+    try {
+        const res = await fetch(`/api/invoices/${id}`, { method: 'DELETE' });
+        if (!res.ok) { const e = await res.json().catch(() => ({})); throw new Error(e.error || 'Silme başarısız'); }
+
+        alert('Fatura silindi.');
+        // go back to the list
+        goBack();
+    } catch (err) {
+        alert('Hata: ' + err.message);
+        if (btn) { btn.disabled = false; btn.innerHTML = '<i class="ti ti-trash"></i> Sil'; }
+    }
+}
 // ─── BACK BUTTON ─────────────────────────────────────────────────────────────
 function goBack() {
     const params = new URLSearchParams(location.search);

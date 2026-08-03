@@ -193,6 +193,7 @@ router.post('/preview-cost', async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
+
 // POST /api/dmo/parse-pdf
 router.post('/parse-pdf', (req, res) => {
   const proxyReq = http.request({
@@ -209,49 +210,123 @@ router.post('/parse-pdf', (req, res) => {
   });
   req.pipe(proxyReq);
 });
+
+
+// POST /api/dmo/orders/:id/gifts — add a single gift line to an existing order
+// Gift = cost-only (prices 0). Reserves stock if order is non-Taslak (Option A:
+// same reserve/settle lifecycle as regular items; the status trigger settles at Tamamlandı).
+router.post('/orders/:id/gifts', async (req, res) => {
+  try {
+    const supabase = req.app.get('supabase');
+    const tenantId = req.tenantId;
+    if (!tenantId) return res.status(401).json({ error: 'tenant yok' });
+
+    const orderId = req.params.id;
+    const { product_id, quantity } = req.body;
+    const qty = Math.floor(Number(quantity) || 0);          // gift_count is integer
+    if (!product_id) return res.status(400).json({ error: 'Ürün zorunlu' });
+    if (qty <= 0)     return res.status(400).json({ error: 'Miktar 1 veya daha fazla olmalı' });
+
+    // Order must exist + belong to tenant; need its status for stock rule
+    const { data: order, error: oErr } = await supabase.from('dmo_orders')
+      .select('id, status').eq('id', orderId).eq('tenant_id', tenantId).single();
+    if (oErr || !order) return res.status(404).json({ error: 'Sipariş bulunamadı' });
+
+    // Resolve product (cost is looked up server-side — never trust a client cost)
+    const { data: prod, error: pErr } = await supabase.from('products')
+      .select('id, product_name, last_purchase_price_tl, stock_on_hand, reserved_quantity, gift_count')
+      .eq('id', product_id).eq('tenant_id', tenantId).single();
+    if (pErr || !prod) return res.status(404).json({ error: 'Ürün bulunamadı' });
+
+    const unitCost = Number(prod.last_purchase_price_tl) || 0;
+    const lineCost = unitCost * qty;
+
+    // Does this product have a dmo_products row? If so link via dmo_product_id;
+    // otherwise link directly via the new product_id column (b-clean, no auto-catalog).
+    const { data: dp } = await supabase.from('dmo_products')
+      .select('id').eq('product_id', product_id).eq('tenant_id', tenantId).maybeSingle();
+
+    const { data: giftRow, error: giErr } = await supabase.from('dmo_order_items').insert({
+      order_id: orderId, tenant_id: tenantId,
+      dmo_product_id: dp?.id || null,
+      product_id:     dp?.id ? null : product_id,           // exactly one link is set
+      quantity: qty, is_gift: true,
+      unit_price_excl_vat: 0, line_total_excl_vat: 0,       // gifts have no revenue
+      maliyet_tl: lineCost, indirim_pct: 0,
+    }).select('id').single();
+    if (giErr) throw giErr;
+
+
+    const patch = {
+      gift_count: (Number(prod.gift_count) || 0) + qty,
+      updated_at: new Date().toISOString(),
+    };
+    if (order.status === 'Sipariş Alındı') {
+      patch.stock_on_hand     = (Number(prod.stock_on_hand)     || 0) - qty;
+      patch.reserved_quantity = (Number(prod.reserved_quantity) || 0) + qty;
+    } else if (order.status === 'Tamamlandı') {
+      patch.stock_on_hand     = (Number(prod.stock_on_hand)     || 0) - qty;
+    }
+    await supabase.from('products').update(patch)
+      .eq('id', product_id).eq('tenant_id', tenantId);
+
+    res.json({
+      ok: true,
+      gift: {
+        id: giftRow.id, product_id, product_name: prod.product_name,
+        quantity: qty, maliyet_tl: lineCost,
+      },
+    });
+  } catch (err) {
+    console.error('POST /orders/:id/gifts hatası:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+
 // POST /api/dmo/orders/received — create (or merge into a taslak) a received order + items
+// POST /api/dmo/orders/received — create a received order + items (fresh only, no merge)
 router.post('/orders/received', async (req, res) => {
   try {
     const supabase = req.app.get('supabase');
     const tenantId = req.tenantId;
     if (!tenantId) return res.status(401).json({ error: 'tenant yok' });
 
-    const { orderId, isMerge, order, items } = req.body;
+    const { order, items } = req.body;
     const orderRow = { ...order, tenant_id: tenantId, status: 'Sipariş Alındı' };
 
-    let savedId;
-    if (orderId && isMerge) {
-      // keep gift rows, replace the regular ones, update the order
-      await supabase.from('dmo_order_items').delete().eq('order_id', orderId).eq('is_gift', false);
-      const { error } = await supabase.from('dmo_orders').update(orderRow).eq('id', orderId).eq('tenant_id', tenantId);
-      if (error) throw error;
-      savedId = orderId;
-    } else {
-      if (order.sales_order_no) {
-        const { data: dup } = await supabase.from('dmo_orders')
-          .select('id').eq('sales_order_no', order.sales_order_no).eq('tenant_id', tenantId).maybeSingle();
-        if (dup) return res.status(409).json({ error: 'Bu sipariş zaten kayıtlı: ' + order.sales_order_no });
-      }
-      const { data, error } = await supabase.from('dmo_orders').insert(orderRow).select('id').single();
-      if (error) throw error;
-      savedId = data.id;
+    // Duplicate guard
+    if (order.sales_order_no) {
+      const { data: dup } = await supabase.from('dmo_orders')
+        .select('id').eq('sales_order_no', order.sales_order_no).eq('tenant_id', tenantId).maybeSingle();
+      if (dup) return res.status(409).json({ error: 'Bu sipariş zaten kayıtlı: ' + order.sales_order_no });
     }
 
-    let failed = 0, inokasTotal = 0, giftTotal = 0;
+    const { data: inserted, error: insErr } = await supabase
+      .from('dmo_orders').insert(orderRow).select('id').single();
+    if (insErr) throw insErr;
+    const savedId = inserted.id;
+
+    let failed = 0;
     const zeroCostCodes = [];
 
     for (const it of (items || [])) {
-      let dmoProductId = null, unitCost = 0;
+      let dmoProductId = null, productId = null, unitCost = 0;
+
       if (it.dmo_code) {
         const { data: dp } = await supabase.from('dmo_products')
-          .select('id, products(last_purchase_price_tl)')
+          .select('id, product_id, products(last_purchase_price_tl)')
           .eq('dmo_code', it.dmo_code).eq('tenant_id', tenantId).maybeSingle();
-        if (dp) { dmoProductId = dp.id; unitCost = Number(dp.products?.last_purchase_price_tl) || 0; }
+        if (dp) {
+          dmoProductId = dp.id;
+          productId    = dp.product_id;                              // for the stock decrement
+          unitCost     = Number(dp.products?.last_purchase_price_tl) || 0;
+        }
       }
-      const qty = Number(it.quantity) || 0;
+
+      const qty      = Number(it.quantity) || 0;
       const lineCost = unitCost * qty;
       if (it.dmo_code && unitCost === 0) zeroCostCodes.push(it.dmo_code);
-      if (it.is_gift) giftTotal += lineCost; else inokasTotal += lineCost;
 
       const { error: ie } = await supabase.from('dmo_order_items').insert({
         order_id: savedId, dmo_product_id: dmoProductId, tenant_id: tenantId,
@@ -259,9 +334,27 @@ router.post('/orders/received', async (req, res) => {
         is_gift: !!it.is_gift, katalog_kod: it.dmo_code || null,
         maliyet_tl: lineCost, indirim_pct: it.indirim_pct || 0,
       });
+
       if (ie) {
-        console.error('[received] item insert FAILED:', ie.message, '| details:', ie.details, '| hint:', ie.hint, '| code:', ie.code);
+        console.error('[received] item insert FAILED:', ie.message, '| code:', ie.code);
         failed++;
+        continue;                                                   // no stock move for a failed item
+      }
+
+      // Stock decrement — replaces the dropped handle_order_item_insert trigger.
+      // Order is Sipariş Alındı (non-Taslak) → reserve stock, mirroring old trigger.
+      // Gifts follow their own rule (decrement only when Tamamlandı) and are handled
+      // by the gift route / status trigger, so skip them here.
+      if (!it.is_gift && productId && qty > 0) {
+        const { data: prod, error: pErr } = await supabase.from('products')
+          .select('stock_on_hand, reserved_quantity').eq('id', productId).eq('tenant_id', tenantId).single();
+        if (!pErr && prod) {
+          await supabase.from('products').update({
+            stock_on_hand:     (Number(prod.stock_on_hand)     || 0) - qty,
+            reserved_quantity: (Number(prod.reserved_quantity) || 0) + qty,
+            updated_at:        new Date().toISOString(),
+          }).eq('id', productId).eq('tenant_id', tenantId);
+        }
       }
     }
 
@@ -275,6 +368,77 @@ router.post('/orders/received', async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
+
+// DELETE /api/dmo/orders/gifts/:itemId — remove a gift line, reverse its effects
+// DELETE /api/dmo/orders/gifts/:itemId — remove a gift line, reverse its stock effect
+// Reversal depends on the order's phase:
+//   Sipariş Alındı → gift was reserved: stock += qty, reserved -= qty
+//   Tamamlandı     → gift was consumed: stock += qty (no reserved)
+//   Taslak         → gift moved no stock: gift_count only
+router.delete('/orders/gifts/:itemId', async (req, res) => {
+  try {
+    const supabase = req.app.get('supabase');
+    const tenantId = req.tenantId;
+    if (!tenantId) return res.status(401).json({ error: 'tenant yok' });
+
+    const itemId = req.params.itemId;
+
+    const { data: row, error: rErr } = await supabase.from('dmo_order_items')
+      .select('id, order_id, quantity, is_gift, dmo_product_id, product_id, dmo_orders(status)')
+      .eq('id', itemId).eq('tenant_id', tenantId).single();
+    if (rErr || !row) return res.status(404).json({ error: 'Kalem bulunamadı' });
+    if (!row.is_gift) return res.status(400).json({ error: 'Bu bir hediye kalemi değil' });
+
+    const qty    = Number(row.quantity) || 0;
+    const status = row.dmo_orders?.status;
+
+    // Resolve underlying product (direct product_id, or via dmo_products bridge)
+    let productId = row.product_id;
+    if (!productId && row.dmo_product_id) {
+      const { data: dp } = await supabase.from('dmo_products')
+        .select('product_id').eq('id', row.dmo_product_id).maybeSingle();
+      productId = dp?.product_id || null;
+    }
+
+    // Delete the line first
+    const { error: dErr } = await supabase.from('dmo_order_items')
+      .delete().eq('id', itemId).eq('tenant_id', tenantId);
+    if (dErr) throw dErr;
+
+    // Reverse product effects per phase
+    if (productId && qty > 0) {
+      const { data: prod } = await supabase.from('products')
+        .select('stock_on_hand, reserved_quantity, gift_count')
+        .eq('id', productId).eq('tenant_id', tenantId).single();
+
+      if (prod) {
+        const patch = {
+          gift_count: Math.max(0, (Number(prod.gift_count) || 0) - qty),
+          updated_at: new Date().toISOString(),
+        };
+
+        if (status === 'Sipariş Alındı') {
+          // was reserved → release reservation and return stock
+          patch.stock_on_hand     = (Number(prod.stock_on_hand)     || 0) + qty;
+          patch.reserved_quantity = (Number(prod.reserved_quantity) || 0) - qty;
+        } else if (status === 'Tamamlandı') {
+          // was consumed directly → just add stock back
+          patch.stock_on_hand     = (Number(prod.stock_on_hand)     || 0) + qty;
+        }
+        // Taslak → no stock had moved; gift_count only
+
+        await supabase.from('products').update(patch)
+          .eq('id', productId).eq('tenant_id', tenantId);
+      }
+    }
+
+    res.json({ ok: true, removedId: itemId, order_id: row.order_id, status });
+  } catch (err) {
+    console.error('DELETE /orders/gifts/:itemId hatası:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // DELETE /api/dmo/orders/:id — reverse stock, restore gift stock, then delete (+ items via cascade)
 router.delete('/orders/:id', async (req, res) => {
   try {

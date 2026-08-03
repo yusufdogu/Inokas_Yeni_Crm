@@ -10,13 +10,15 @@
   </script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="/shared/supabase-client.js"></script>
-  <script src="/dmo/js/dmo-core.js"></script>
-  <script src="/dmo/js/dmo-invoice.js"></script>
+  <script src="/dmo/js/dmo-add-gift.js" defer></script>
+  <script src="/dmo/js/dmo-core.js" defer></script>
+  <script src="/dmo/js/dmo-invoice.js" defer></script>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.x/dist/tabler-icons.min.css">
   <link rel="stylesheet" href="/dmo/css/core.css">
   <link rel="stylesheet" href="/shared/sidebar.css">
   <link rel="stylesheet" href="/dmo/css/invoice.css">
+
 </head>
 
 <body>
@@ -150,6 +152,34 @@
               <button id="dv-btn-gift" style="display:flex; margin-top:12px; width:100%; align-items:center; justify-content:center; gap:6px; background:#faf3e8; color:#9a6318; border:1px dashed #f0c78a; border-radius:8px; padding:8px 16px; font-size:13px; font-weight:600; cursor:pointer; font-family:inherit;">
                 🎁 Hediye Ürün Ekle / Düzenle
               </button>
+
+              <!-- Inline gift picker — expands under the button, no redirect -->
+              <div id="dv-gift-picker" style="display:none; margin-top:12px; border:1px solid #f0c78a; border-radius:8px; padding:12px; background:#fffdf9;">
+                <div style="position:relative;">
+                  <input id="dv-gift-search" type="text" autocomplete="off"
+                    placeholder="Ürün ara (ad veya kod)..."
+                    style="width:100%; padding:8px 12px; border:1px solid #e4dfd4; border-radius:6px; font-size:13px; box-sizing:border-box; font-family:inherit; outline:none;">
+                  <div id="dv-gift-results" style="display:none; position:absolute; top:100%; left:0; right:0; z-index:20; background:#fff; border:1px solid #e4dfd4; border-radius:6px; margin-top:2px; max-height:220px; overflow-y:auto; box-shadow:0 4px 12px rgba(14,13,11,0.08);"></div>
+                </div>
+
+                <!-- Selected product + qty (hidden until a product is picked) -->
+                <div id="dv-gift-selected" style="display:none; margin-top:10px; align-items:center; gap:10px;">
+                  <div style="flex:1; min-width:0;">
+                    <div id="dv-gift-selected-name" style="font-size:13px; font-weight:600; color:#0e0d0b; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;"></div>
+                    <div id="dv-gift-selected-code" style="font-size:11px; color:#8a857c;"></div>
+                  </div>
+                  <input id="dv-gift-qty" type="number" min="1" step="1" value="1"
+                    style="width:64px; padding:6px 8px; border:1px solid #e4dfd4; border-radius:6px; font-size:13px; text-align:center; font-family:inherit;">
+                  <button id="dv-gift-add-confirm"
+                    style="background:#1a6b47; color:#fff; border:none; border-radius:6px; padding:7px 14px; font-size:13px; font-weight:600; cursor:pointer; font-family:inherit; white-space:nowrap;">
+                    Ekle
+                  </button>
+                  <button id="dv-gift-cancel"
+                    style="background:none; color:#8a857c; border:none; padding:7px 8px; font-size:13px; cursor:pointer; font-family:inherit;">
+                    İptal
+                  </button>
+                </div>
+              </div>
             </div>
 
           </div>

@@ -8,16 +8,18 @@
   <script>
     if (!sessionStorage.getItem('login_auth_token')) window.location.href = '/auth/login.html';
   </script>
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="/shared/supabase-client.js"></script>
-  <script src="/dmo/js/dmo-add-gift.js" defer></script>
-  <script src="/dmo/js/dmo-core.js" defer></script>
-  <script src="/dmo/js/dmo-invoice.js" defer></script>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.x/dist/tabler-icons.min.css">
   <link rel="stylesheet" href="/dmo/css/core.css">
   <link rel="stylesheet" href="/shared/sidebar.css">
   <link rel="stylesheet" href="/dmo/css/invoice.css">
+
+  <script src="/shared/auth-interceptor.js" defer></script>
+  <script src="/shared/sidebar.js" defer></script>
+  <script src="/dmo/js/dmo-core.js" defer></script>
+  <script src="/dmo/js/dmo-main.js" defer></script>
+  <script src="/dmo/js/dmo-invoice.js" defer></script>
+
 
 </head>
 
@@ -303,34 +305,8 @@
 </div>
 
 <div id="toast-container"></div>
-<script src="/shared/auth-interceptor.js"></script>  <!-- no defer -->
-<script src="/shared/sidebar.js" defer></script>      <!-- defer is fine -->
 
-<script>
-  document.addEventListener("DOMContentLoaded", async () => {
-    const params  = new URLSearchParams(window.location.search);
-    const orderId = params.get("id");
-    const editMode = params.get("edit") === "true";
 
-    if (!orderId) {
-      document.getElementById("invoice-loading").innerHTML = `
-        <i class="ti ti-alert-triangle" style="font-size:32px; color:#9a6318;"></i>
-        <span style="font-size:14px; font-weight:600; color:#b83232;">Sipariş ID bulunamadı.</span>
-        <a href="/dmo/pages/dmo.html?tab=bekleyen" style="font-size:13px; color:#0e0d0b; font-weight:600;">← Bekleyene dön</a>
-      `;
-      return;
-    }
-    await loadDetailView(orderId);
-    document.getElementById("invoice-loading").style.display = "none";
-
-    if (editMode) {
-      try {
-        const res = await fetch(`/api/dmo/orders/${encodeURIComponent(orderId)}`);
-        if (res.ok) { const { order } = await res.json(); if (order) activateInlineEdit(order); }
-      } catch (_) {}
-    }
-  });
-</script>
 
 </body>
 </html>

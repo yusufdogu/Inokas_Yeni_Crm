@@ -3,6 +3,8 @@ let _dvRegularItems = [];
 let _dvGiftItems    = [];
 let _dvGiftPick     = null;   // currently selected product in the picker
 let _dvGiftBusy     = false;  // guards double-submit
+/* ── Picker: search + select ── */
+let _dvSearchTimer = null;
 
 // ── LOAD DETAIL VIEW ──────────────────────────────────────────────────────────
 async function loadDetailView(orderId) {
@@ -219,56 +221,55 @@ async function loadDetailView(orderId) {
 }
 
 // ── FILL DETAIL STATS ─────────────────────────────────────────────────────────
-function fillDetailStats(order,regularItems) {
-    const dmoBasket    = order.total_amount_excl_vat || 0;
-    const inokasBasket = (regularItems || []).reduce((sum, i) => {
-        const unit = Number(i.dmo_products?.products?.last_purchase_price_tl) || 0;
-        return sum + unit * (Number(i.quantity) || 0);
-    }, 0);
-    const stampTax     = order.stamp_tax           || 0;
-    const tutarIndirimi    = order.tutar_indirimi      || 0;
-    const dmoDiscBasket = dmoBasket - tutarIndirimi;
-    const realDmoBasket    = dmoBasket - tutarIndirimi;
+// Now takes giftItems too — gift cost is summed from the gift line items
+// (gift_total column was dropped). Uses computeDmoFinancials for all tax logic.
+function fillDetailStats(order, regularItems, giftItems) {
+    // Cost helper: resolve last_purchase_price_tl via either embed path
+    // (direct product_id → i.products, or bridge → i.dmo_products.products).
+    const unitCost = i =>
+        Number(i.products?.last_purchase_price_tl) ||
+        Number(i.dmo_products?.products?.last_purchase_price_tl) || 0;
 
-    const kdv          = realDmoBasket * 0.20;
-    const tevkifat     = kdv * 0.20;
-    const gercekKdv    = kdv - tevkifat;
-    const risturn      = realDmoBasket * 0.01;
-    const damgaKarar   = realDmoBasket * 0.01517;
-    const vergilerTotal = tevkifat + risturn + damgaKarar;
-    const giftTotal    = order.gift_total || 0;
-    const toplamGelir  = realDmoBasket + gercekKdv;
-    const toplamGider  = inokasBasket + tutarIndirimi + vergilerTotal + giftTotal;
-    const netProfit    = toplamGelir - toplamGider;
-    const profitPct    = toplamGelir > 0 ? (netProfit / toplamGelir) * 100 : 0;
+    const inokasBasket = (regularItems || []).reduce(
+        (sum, i) => sum + unitCost(i) * (Number(i.quantity) || 0), 0);
+
+    const giftTotal = (giftItems || []).reduce(
+        (sum, i) => sum + unitCost(i) * (Number(i.quantity) || 0), 0);
+
+    const f = computeDmoFinancials({
+        basket:        order.total_amount_excl_vat,
+        tutarIndirimi: order.tutar_indirimi,
+        stampTax:      order.stamp_tax,          // ← read PDF value, not basket*0.01517
+        inokasBasket,
+        giftTotal,
+    });
 
     const fmt = v => formatAmount(v.toFixed(2)) + " ₺";
     const set = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
 
-    set("dv-dmo-basket",        fmt(dmoBasket));
-    set("dv-dmo-discount-basket",      fmt(dmoDiscBasket));
-    set("dv-inokas-basket",     fmt(inokasBasket));
-    set("dv-kdv",               fmt(kdv));
-    set("dv-gercek-kdv",        fmt(gercekKdv));
-    set("dv-tutar-indirimi",    fmt(tutarIndirimi));
-    set("dv-tevkifat",          fmt(tevkifat));
-    set("dv-risturn",           fmt(risturn));
-    set("dv-damga-karar",       fmt(damgaKarar));
-    set("dv-vergiler-total",    fmt(vergilerTotal));
-    set("dv-gift-total",        fmt(giftTotal));
-    set("dv-toplam-gelir",      fmt(toplamGelir));
-    set("dv-toplam-gider",      fmt(toplamGider));
-
+    set("dv-dmo-basket",           fmt(Number(order.total_amount_excl_vat) || 0));
+    set("dv-dmo-discount-basket",  fmt(f.realBasket));
+    set("dv-inokas-basket",        fmt(inokasBasket));
+    set("dv-kdv",                  fmt(f.kdv));
+    set("dv-gercek-kdv",           fmt(f.gercekKdv));
+    set("dv-tutar-indirimi",       fmt(Number(order.tutar_indirimi) || 0));
+    set("dv-tevkifat",             fmt(f.tevkifat));
+    set("dv-risturn",              fmt(f.risturn));
+    set("dv-damga-karar",          fmt(f.damga));
+    set("dv-vergiler-total",       fmt(f.vergiler));
+    set("dv-gift-total",           fmt(giftTotal));
+    set("dv-toplam-gelir",         fmt(f.toplamGelir));
+    set("dv-toplam-gider",         fmt(f.toplamGider));
 
     const profitEl  = document.getElementById("dv-profit");
     const percentEl = document.getElementById("dv-profit-pct");
     if (profitEl) {
-        profitEl.textContent = fmt(netProfit);
-        profitEl.style.color = netProfit >= 0 ? "#16a34a" : "#dc2626";
+        profitEl.textContent = fmt(f.netProfit);
+        profitEl.style.color = f.netProfit >= 0 ? "#16a34a" : "#dc2626";
     }
     if (percentEl) {
-        percentEl.textContent = profitPct.toFixed(2) + "%";
-        percentEl.style.color = profitPct >= 0 ? "#16a34a" : "#dc2626";
+        percentEl.textContent = f.profitPct.toFixed(2) + "%";
+        percentEl.style.color = f.profitPct >= 0 ? "#16a34a" : "#dc2626";
     }
 }
 // ── SWITCH DETAIL TAB ─────────────────────────────────────────────────────────
@@ -516,7 +517,7 @@ function dvStashState(order, regularItems, giftItems) {
     _dvOrder        = order;
     _dvRegularItems = regularItems || [];
     _dvGiftItems    = giftItems || [];
-    if (typeof fillDetailStats === "function") fillDetailStats(order, regularItems);
+    if (typeof fillDetailStats === "function") fillDetailStats(order, regularItems, _dvGiftItems);
     wireGiftButton();
     renderGiftRows();
 }
@@ -553,9 +554,6 @@ function wireGiftButton() {
 
     wireGiftPicker();
 }
-
-/* ── Picker: search + select ── */
-let _dvSearchTimer = null;
 
 function wireGiftPicker() {
     const search = document.getElementById("dv-gift-search");
@@ -709,7 +707,10 @@ function renderGiftRows() {
     if (section) section.style.display = _dvGiftItems.length > 0 ? "block" : "none";
 
     body.innerHTML = _dvGiftItems.map(i => {
-        const name = i.dmo_products?.products?.product_name || i.katalog_kod || "—";
+        const name = i.products?.product_name
+                  || i.dmo_products?.products?.product_name
+                  || i.katalog_kod
+                  || "—";
         const canDelete = giftEditingAllowed();
         return `
         <tr style="border-top:1px solid #e2e8f0; background:#fff7ed;">
@@ -732,7 +733,7 @@ function recomputeAfterGiftChange() {
     // from items. But our gift cost lives server-side; the client giftItems we appended
     // don't carry maliyet. See note below.
     if (typeof fillDetailStats === "function" && _dvOrder) {
-        fillDetailStats(_dvOrder, _dvRegularItems);
+        fillDetailStats(_dvOrder, _dvRegularItems, _dvGiftItems);
     }
 }
 

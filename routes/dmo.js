@@ -776,6 +776,9 @@ router.get('/orders/:id', async (req, res) => {
           id, dmo_code, dmo_fiyat_try, sozlesme_fiyat_eur,
           products ( id, product_name, product_code, last_purchase_price_tl, last_purchase_currency, last_purchase_rate, last_purchase_price_cur,
            maliyet_usd, stock_on_hand, model )
+        ),
+        products (
+          id, product_name, product_code, last_purchase_price_tl, maliyet_usd, stock_on_hand, model
         )
       `)
       .eq('order_id', req.params.id);

@@ -45,11 +45,8 @@ async function loadDetailView(orderId) {
     const giftItems    = (items || []).filter(i =>  i.is_gift);
 
     const itemRowHTML = (i, idx) => {
-        const indirimPct = i.indirim_pct > 0
-            ? i.indirim_pct
-            : (i.dmo_products?.dmo_fiyat_try && i.unit_price_excl_vat
-                ? ((1 - i.unit_price_excl_vat / i.dmo_products?.dmo_fiyat_try) * 100)
-                : 0);
+        const unit = Number(i.dmo_products?.products?.last_purchase_price_tl) || 0;
+        const line = unit * (Number(i.quantity) || 0);
         return `
         <tr style="border-top:1px solid #e4dfd4; cursor:pointer;"
             onclick="toggleInvoiceItemDetail('inv-detail-${idx}', 'inv-chevron-${idx}')">
@@ -81,11 +78,11 @@ async function loadDetailView(orderId) {
                     </div>
                     <div>
                         <div style="font-size:11px; color:#8a857c; margin-bottom:3px;">DMO Katalog Fiyat</div>
-                        <div style="font-size:13px; font-weight:500; color:#0e0d0b;">${i.dmo_products?.dmo_fiyat_try ? formatAmount(i.dmo_products?.dmo_fiyat_try) + " ₺" : "—"}</div>
+                        <div style="font-size:13px; font-weight:500; color:#0e0d0b;">${formatAmount(i.dmo_price_excl_vat)+ " ₺"}</div>
                     </div>
                     <div>
                         <div style="font-size:11px; color:#8a857c; margin-bottom:3px;">İndirim %</div>
-                        <div style="font-size:13px; font-weight:600; color:#b83232;">${indirimPct > 0 ? "%" + indirimPct.toFixed(2) : "—"}</div>
+                        <div style="font-size:13px; font-weight:600; color:#b83232;">${"%" + i.indirim_pct.toFixed(2) }</div>
                     </div>
                     <div>
                         <div style="font-size:11px; color:#8a857c; margin-bottom:3px;">İndirimli Birim</div>
@@ -97,12 +94,14 @@ async function loadDetailView(orderId) {
                     </div>
                     <div>
                         <div style="font-size:11px; color:#8a857c; margin-bottom:3px;">Maliyet TL</div>
-                        <div style="font-size:13px; font-weight:500; color:#0e0d0b;">${(() => {
-                            const unit = Number(i.dmo_products?.products?.last_purchase_price_tl) || 0;
-                            const line = unit * (Number(i.quantity) || 0);
-                            return line > 0 ? formatAmount(line) + " ₺" : "—";
-                        })()}</div>
+                        <div style="font-size:13px; font-weight:500; color:#0e0d0b;">${formatAmount(line)} ₺</div>                    
                     </div>
+                    
+                    <div>
+                        <div style="font-size:11px; color:#8a857c; margin-bottom:3px;">Kâr</div>
+                        <div style="font-size:13px; font-weight:600; color:#0e0d0b;">${formatAmount(i.line_total_excl_vat - line)} ₺</div>
+                    </div>
+                    
                     <div>
                         <div style="font-size:11px; color:#8a857c; margin-bottom:3px;">Toplam</div>
                         <div style="font-size:13px; font-weight:600; color:#0e0d0b;">${formatAmount(i.line_total_excl_vat)} ₺</div>
@@ -141,13 +140,14 @@ async function loadDetailView(orderId) {
         if (tGiftBody) {
             tGiftBody.innerHTML = giftItems.map(i => {
                 const name = i.dmo_products?.products?.product_name || i.katalog_kod || "—";
+                const maliyet_total = i.dmo_products?.products?.last_purchase_price_tl * i.quantity;
                 return `
                 <tr style="border-top:1px solid #e2e8f0; background:#fff7ed;">
                     <td style="padding:8px 8px; width:28px; text-align:center; color:#d97706; font-size:13px;">🎁</td>
                     <td style="padding:8px 8px; font-size:12px; color:#94a3b8; width:90px;"></td>
                     <td style="padding:8px 8px; font-size:12px; font-weight:600; color:#0f172a;">${escapeHtml(name)}</td>
                     <td style="padding:8px 8px; text-align:right; font-size:12px; color:#64748b; width:50px;">${i.quantity}</td>
-                    <td style="padding:8px 8px; width:110px;"></td>
+                    <td style="padding:8px 8px; width:110px;">${maliyet_total}</td>
                 </tr>`;
             }).join("");
         }
@@ -712,12 +712,14 @@ function renderGiftRows() {
                   || i.katalog_kod
                   || "—";
         const canDelete = giftEditingAllowed();
+        const maliyet_total = (i.products?.last_purchase_price_tl) * (i.quantity);
         return `
         <tr style="border-top:1px solid #e2e8f0; background:#fff7ed;">
             <td style="padding:8px 8px; width:28px; text-align:center; color:#d97706; font-size:13px;">🎁</td>
             <td style="padding:8px 8px; width:28px;"></td>
             <td style="padding:8px 8px; font-size:12px; font-weight:600; color:#0f172a;">${escapeHtml(name)}</td>
             <td style="padding:8px 8px; text-align:right; font-size:12px; color:#64748b; width:50px;">${i.quantity}</td>
+            <td style="padding:8px 8px; text-align:right; font-size:12px; color:#64748b; width:50px;">${maliyet_total}</td>
             <td style="padding:8px 8px; width:110px; text-align:right;">
                 ${canDelete ? `<button onclick="deleteGift('${i.id}')" title="Sil"
                     style="background:none; border:none; cursor:pointer; color:#b83232; padding:4px; font-size:14px; line-height:1;">

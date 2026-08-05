@@ -947,7 +947,12 @@ body {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  min-width: 0;
 }
+/* Let the name cell shrink so text-overflow:ellipsis actually fires */
+.dmo-gb-rankrow > div { min-width: 0; }
+
+
 .dmo-gb-rank-meta {
   font: 400 11px/1.2 var(--fat-sans);
   color: var(--fat-muted);
@@ -980,3 +985,8 @@ body {
   .dmo-gb-stats { grid-template-columns: 1fr; }
   .dmo-gb-cards { grid-template-columns: 1fr; }
 }
+
+.dmo-gb-pager { display:inline-flex; align-items:center; gap:6px; }
+.dmo-gb-pgbtn { background:var(--fat-bg3); border:none; border-radius:6px; width:22px; height:22px; display:grid; place-items:center; cursor:pointer; color:var(--fat-ink2); }
+.dmo-gb-pgbtn:disabled { opacity:0.35; cursor:default; }
+.dmo-gb-pginfo { font:600 11px/1 var(--fat-mono); color:var(--fat-muted); min-width:26px; text-align:center; }

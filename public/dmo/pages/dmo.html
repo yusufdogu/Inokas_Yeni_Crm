@@ -56,10 +56,10 @@
 
       <!-- Tab nav -->
       <nav class="dmo-nav">
-        <button class="dmo-navpill" id="nav-genel" onclick="switchMainTab('genel')">
+        <button class="dmo-navpill active" id="nav-genel" onclick="switchMainTab('genel')">
           <i class="ti ti-chart-pie"></i>Genel Bakış
         </button>
-        <button class="dmo-navpill active" id="nav-faturalar" onclick="switchMainTab('faturalar')">
+        <button class="dmo-navpill" id="nav-faturalar" onclick="switchMainTab('faturalar')">
           <i class="ti ti-file-invoice"></i>Faturalar
         </button>
         <button class="dmo-navpill" id="nav-sepet" onclick="switchMainTab('sepet')">
@@ -92,34 +92,33 @@
               <div class="dmo-gb-stat-body">
                 <div class="dmo-gb-stat-label">Fatura Adedi</div>
                 <div class="dmo-gb-stat-value" id="gb-inv-count">—</div>
-                <div class="dmo-gb-stat-sub" id="gb-inv-total">—</div>
               </div>
             </div>
 
-            <div class="dmo-gb-stat">
-              <div class="dmo-gb-stat-ico"><i class="ti ti-clock-check"></i></div>
-              <div class="dmo-gb-stat-body">
-                <div class="dmo-gb-stat-label">Sipariş Alındı</div>
-                <div class="dmo-gb-stat-value" id="gb-ord-count">—</div>
-                <div class="dmo-gb-stat-sub" id="gb-ord-total">—</div>
-              </div>
-            </div>
+
 
             <div class="dmo-gb-stat">
               <div class="dmo-gb-stat-ico"><i class="ti ti-building"></i></div>
               <div class="dmo-gb-stat-body">
                 <div class="dmo-gb-stat-label">Firma Adedi</div>
                 <div class="dmo-gb-stat-value" id="gb-company-count">—</div>
-                <div class="dmo-gb-stat-sub">faturalı firma</div>
               </div>
             </div>
 
-            <div class="dmo-gb-stat dmo-gb-stat--accent">
+            <div class="dmo-gb-stat ">
               <div class="dmo-gb-stat-ico"><i class="ti ti-cash"></i></div>
               <div class="dmo-gb-stat-body">
                 <div class="dmo-gb-stat-label">Toplam Ciro</div>
-                <div class="dmo-gb-stat-value" id="gb-grand-total">—</div>
-                <div class="dmo-gb-stat-sub">fatura + sipariş</div>
+                <div class="dmo-gb-stat-value" id="gb-inv-total">—</div>
+              </div>
+            </div>
+
+            <div class="dmo-gb-stat">
+              <div class="dmo-gb-stat-ico"><i class="ti ti-trending-up"></i></div>
+              <div class="dmo-gb-stat-body">
+                <div class="dmo-gb-stat-label">Net Kâr</div>
+                <div class="dmo-gb-stat-value" id="gb-net-profit">—</div>
+                <div class="dmo-gb-stat-sub" id="gb-net-profit-pct">—</div>
               </div>
             </div>
           </div>
@@ -132,7 +131,6 @@
               </div>
               <div class="dmo-gb-legend">
                 <span class="dmo-gb-legend-item"><i class="dmo-gb-dot dmo-gb-dot--inv"></i>Fatura</span>
-                <span class="dmo-gb-legend-item"><i class="dmo-gb-dot dmo-gb-dot--ord"></i>Sipariş Alındı</span>
               </div>
             </div>
             <div class="dmo-gb-chart-wrap">
@@ -146,7 +144,12 @@
 
             <div class="dmo-gb-card">
               <div class="dmo-gb-card-head">
-                <i class="ti ti-building-store"></i> En Çok Ciro — Firmalar
+                <span><i class="ti ti-building-store"></i> En Çok Ciro — Firmalar</span>
+                <span class="dmo-gb-pager" id="gb-companies-pager" hidden>
+                  <button class="dmo-gb-pgbtn" id="gb-companies-prev"><i class="ti ti-chevron-left"></i></button>
+                  <span class="dmo-gb-pginfo" id="gb-companies-pginfo">1/1</span>
+                  <button class="dmo-gb-pgbtn" id="gb-companies-next"><i class="ti ti-chevron-right"></i></button>
+                </span>
               </div>
               <div class="dmo-gb-ranklist" id="gb-top-companies"></div>
               <p class="dmo-empty" id="gb-companies-empty" hidden>Firma verisi yok</p>
@@ -154,8 +157,14 @@
 
             <div class="dmo-gb-card">
               <div class="dmo-gb-card-head">
-                <i class="ti ti-package"></i> En Çok Satan — Ürünler
+                <span><i class="ti ti-package"></i> En Çok Satan — Ürünler</span>
+                <span class="dmo-gb-pager" id="gb-products-pager" hidden>
+                  <button class="dmo-gb-pgbtn" id="gb-products-prev"><i class="ti ti-chevron-left"></i></button>
+                  <span class="dmo-gb-pginfo" id="gb-products-pginfo">1/1</span>
+                  <button class="dmo-gb-pgbtn" id="gb-products-next"><i class="ti ti-chevron-right"></i></button>
+                </span>
               </div>
+
               <div class="dmo-gb-ranklist" id="gb-top-products"></div>
               <p class="dmo-empty" id="gb-products-empty" hidden>Ürün verisi yok</p>
             </div>

@@ -283,8 +283,6 @@ router.post('/orders/:id/gifts', async (req, res) => {
   }
 });
 
-
-// POST /api/dmo/orders/received — create (or merge into a taslak) a received order + items
 // POST /api/dmo/orders/received — create a received order + items (fresh only, no merge)
 router.post('/orders/received', async (req, res) => {
   try {
@@ -331,6 +329,7 @@ router.post('/orders/received', async (req, res) => {
       const { error: ie } = await supabase.from('dmo_order_items').insert({
         order_id: savedId, dmo_product_id: dmoProductId, tenant_id: tenantId,
         quantity: qty, unit_price_excl_vat: it.unit_price_excl_vat, line_total_excl_vat: it.line_total_excl_vat,
+        dmo_price_excl_vat: it.dmo_price_excl_vat,
         is_gift: !!it.is_gift, katalog_kod: it.dmo_code || null,
         maliyet_tl: lineCost, indirim_pct: it.indirim_pct || 0,
       });
@@ -641,7 +640,7 @@ router.get('/overview', async (req, res) => {
     const tenantId = req.tenantId;
     if (!tenantId) return res.status(401).json({ error: 'tenant yok' });
 
-    // ── Invoices ──
+    // ── Invoices (for KPIs, chart invoice-line, top companies) ──
     const { data: invoices, error: ie } = await supabase
       .from('invoices')
       .select('id, invoice_date, payable_amount_tl, company_id, companies(name)')
@@ -649,27 +648,80 @@ router.get('/overview', async (req, res) => {
       .eq('tenant_id', tenantId);
     if (ie) throw ie;
 
-    // ── Orders (Sipariş Alındı only) ──
+    // ── Orders: TAMAMLANDI only (net profit, order chart-line, top products) ──
     const { data: orders, error: oe } = await supabase
       .from('dmo_orders')
-      .select('id, order_date, dmo_basket_total')
+      .select('id, order_date, total_amount_excl_vat, tutar_indirimi, stamp_tax, status')
       .eq('tenant_id', tenantId)
-      .eq('status', 'Sipariş Alındı');
+      .eq('status', 'Tamamlandı');
     if (oe) throw oe;
 
-    // ── Line items for completed invoices (top products) ──
-    const invIds = (invoices || []).map(i => i.id);
-    let items = [];
-    if (invIds.length) {
-      const { data: it, error: itErr } = await supabase
-        .from('invoice_items')
-        .select('invoice_id, product_name, quantity, total_price_cur')
-        .in('invoice_id', invIds);
-      if (itErr) throw itErr;
-      items = it || [];
+    // ── Order line items — ONE fetch, serves both cost-split and product ranking.
+    // Carries cost (both link paths) + product identity (dmo_code/code/name) + is_gift.
+    const orderIds = (orders || []).map(o => o.id);
+    let orderItems = [];
+    if (orderIds.length) {
+      const { data: oi, error: oiErr } = await supabase
+        .from('dmo_order_items')
+        .select(`
+          order_id, quantity, line_total_excl_vat, is_gift, katalog_kod,
+          products ( product_code, product_name, last_purchase_price_tl ),
+          dmo_products ( dmo_code, products ( product_code, product_name, last_purchase_price_tl ) )
+        `)
+        .in('order_id', orderIds);
+      if (oiErr) throw oiErr;
+      orderItems = oi || [];
     }
 
-    // ── Monthly buckets: { 'YYYY-MM': { invoice, order } } ──
+    // Resolve helpers (prefer direct product link, fall back to dmo_products bridge)
+    const unitCostOf = it =>
+      Number(it.products?.last_purchase_price_tl) ||
+      Number(it.dmo_products?.products?.last_purchase_price_tl) || 0;
+
+    // ── Cost per order (gift vs non-gift split) ──
+    const costByOrder = {};
+    for (const it of orderItems) {
+      const line = unitCostOf(it) * (Number(it.quantity) || 0);
+      const c = costByOrder[it.order_id] || (costByOrder[it.order_id] = { inokas: 0, gift: 0 });
+      if (it.is_gift) c.gift += line; else c.inokas += line;
+    }
+
+    // ── Net profit across Tamamlandı orders (shared formula) ──
+    let netProfitTotal = 0, gelirTotal = 0;
+    for (const o of (orders || [])) {
+      const c = costByOrder[o.id] || { inokas: 0, gift: 0 };
+      const f = computeDmoFinancials({
+        basket:        o.total_amount_excl_vat,
+        tutarIndirimi: o.tutar_indirimi,
+        stampTax:      o.stamp_tax,
+        inokasBasket:  c.inokas,
+        giftTotal:     c.gift,
+      });
+      netProfitTotal += f.netProfit;
+      gelirTotal     += f.toplamGelir;
+    }
+    const netProfitPct = gelirTotal > 0 ? (netProfitTotal / gelirTotal) * 100 : 0;
+
+    // ── Top products from the SAME Tamamlandı order items (gifts excluded) ──
+    const productMap = {};
+    for (const it of orderItems) {
+      if (it.is_gift) continue;                       // a gift isn't a sale
+      const dmoCode = it.dmo_products?.dmo_code || it.katalog_kod || '';
+      const pcode   = it.dmo_products?.products?.product_code || it.products?.product_code || '';
+      const pname   = it.dmo_products?.products?.product_name || it.products?.product_name || 'Bilinmeyen';
+      const key     = dmoCode || pcode || pname;      // stable grouping key
+
+      const p = productMap[key] || (productMap[key] = {
+        dmo_code: dmoCode, product_code: pcode, name: pname, qty: 0, revenue: 0,
+      });
+      p.qty     += Number(it.quantity) || 0;
+      p.revenue += Number(it.line_total_excl_vat) || 0;
+    }
+    const topProducts = Object.values(productMap)
+      .sort((a, b) => b.qty - a.qty)
+      .slice(0, 8);
+
+    // ── Monthly buckets (invoice line from invoices, order line from Tamamlandı) ──
     const monthly = {};
     const bucket = (key) => (monthly[key] || (monthly[key] = { invoice: 0, order: 0 }));
     for (const inv of (invoices || [])) {
@@ -678,13 +730,11 @@ router.get('/overview', async (req, res) => {
     }
     for (const ord of (orders || [])) {
       if (!ord.order_date) continue;
-      bucket(ord.order_date.slice(0, 7)).order += Number(ord.dmo_basket_total) || 0;
+      bucket(ord.order_date.slice(0, 7)).order += Number(ord.total_amount_excl_vat) || 0;
     }
     const months = Object.keys(monthly).sort();
     const series = months.map(m => ({
-      month: m,
-      invoice: monthly[m].invoice,
-      order: monthly[m].order,
+      month: m, invoice: monthly[m].invoice, order: monthly[m].order,
     }));
 
     // ── Top companies by invoice revenue ──
@@ -699,30 +749,18 @@ router.get('/overview', async (req, res) => {
       .sort((a, b) => b.total - a.total)
       .slice(0, 8);
 
-    // ── Top products by quantity (grouped by product_name) ──
-    const productMap = {};
-    for (const it of items) {
-      const name = (it.product_name || '').trim() || 'Bilinmeyen';
-      const p = productMap[name] || (productMap[name] = { name, qty: 0, revenue: 0 });
-      p.qty     += Number(it.quantity) || 0;
-      p.revenue += Number(it.total_price_cur) || 0;
-    }
-    const topProducts = Object.values(productMap)
-      .sort((a, b) => b.qty - a.qty)
-      .slice(0, 8);
-
     // ── Totals ──
     const invTotal = (invoices || []).reduce((s, i) => s + (Number(i.payable_amount_tl) || 0), 0);
-    const ordTotal = (orders   || []).reduce((s, o) => s + (Number(o.dmo_basket_total) || 0), 0);
+    const ordTotal = (orders   || []).reduce((s, o) => s + (Number(o.total_amount_excl_vat) || 0), 0);
 
     res.json({
       stats: {
         invoiceCount:  (invoices || []).length,
         invoiceTotal:  invTotal,
-        orderCount:    (orders || []).length,
-        orderTotal:    ordTotal,
         companyCount:  Object.keys(companyMap).length,
         grandTotal:    invTotal + ordTotal,
+        netProfit:     netProfitTotal,
+        netProfitPct:  netProfitPct,
       },
       series,
       topCompanies,

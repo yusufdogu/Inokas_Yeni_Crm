@@ -15,7 +15,7 @@ const AI_TABS = new Set(["genel", "faturalar"]);
 /* First-open guard so each tab initialises its data once */
 const _tabInit = { genel: false, faturalar: false, sepet: false, bekleyen: false };
 
-let _activeTab = "faturalar";
+let _activeTab = "genel";
 
 /* ── TAB SWITCHING ─────────────────────────────────────────────────────── */
 function switchMainTab(tab) {
@@ -38,6 +38,11 @@ function switchMainTab(tab) {
     /* Close any open filter popovers when leaving */
     closeAllPopovers();
 
+    if (tab === "genel" && !_tabInit.genel) {
+        _tabInit.genel = true;
+        if (typeof initGenel === "function") initGenel();
+    }
+
     /* Lazy init per tab */
     if (tab === "faturalar" && !_tabInit.faturalar) {
         _tabInit.faturalar = true;
@@ -49,10 +54,7 @@ function switchMainTab(tab) {
         if (typeof initBekleyen === "function") initBekleyen();
     }
 
-    if (tab === "genel" && !_tabInit.genel) {
-        _tabInit.genel = true;
-        if (typeof initGenel === "function") initGenel();
-    }
+
 }
 
 /* ── RATES ─────────────────────────────────────────────────────────────── */
@@ -410,6 +412,7 @@ function compactTRY(n) {
 
 /* ── INIT ──────────────────────────────────────────────────────────────── */
 document.addEventListener("DOMContentLoaded", async () => {
+    switchMainTab("genel");
     /* Rates into header */
     try { await fetchRatesFromDB(); await ensureRatesExist(); } catch (_) {}
     writeRatesToHeader();
@@ -436,12 +439,5 @@ document.addEventListener("DOMContentLoaded", async () => {
         });
     }
 
-    /* Open the requested tab (?tab=), default Faturalar */
-    const startTab = new URLSearchParams(location.search).get("tab");
-    if (startTab && startTab !== "faturalar" && startTab !== "sepet") {
-        switchMainTab(startTab);
-    } else {
-        _tabInit.faturalar = true;
-        if (typeof initFaturalar === "function") initFaturalar();
-    }
+
 });

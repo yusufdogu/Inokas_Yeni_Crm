@@ -643,10 +643,11 @@ function buildOrderItems(parsedItems) {
             product_name:        item["MALZEMENIN CINSI(VARSA MARKA VE MODELI)"] || null,
             dmo_code:            katalogKod ? katalogKod.toString() : null,
             quantity:            parseInt(item["MIKTAR"] || "0"),
+            dmo_price_excl_vat:  parseFloat(item["KAT.SÖZ.FIY.(TL)"] || "0") || 0,
             unit_price_excl_vat: parseFloat(item["ALIMA ESAS INDIRMLI BIRIM FIYAT"] || "0") || 0,
             line_total_excl_vat: parseFloat(item["TUTARI (TL)"]) || 0,
             is_gift:             !!item.is_gift,
-            indirim_pct:         parseFloat(item["TOPLAM INDIRIM"] || item["TOPLAM"] || "0") || 0,
+            indirim_pct:         parseFloat(item["INDIRIM ORANLARI TUTAR"] || item["TOPLAM"] || "0") || 0,
         };
     });
 }

@@ -42,7 +42,7 @@ function switchTab(tab) {
     if (typeof initBackorder === 'function') initBackorder();
   } else if (tab === 'kategori' && !_kategoriReady) {
     _kategoriReady = true;
-    if (typeof initKategori === 'function') initKategori();
+    if (typeof kbLoad === 'function') kbLoad();
   }
 }
 

@@ -373,11 +373,6 @@ async function syncGelenInvoices(startDate, tenantId, creds) {
                 const uuid = inv.uuId;
                 if (!uuid) { console.warn(`⚠️ Skipping ${inv.invoiceId || 'Unknown'}: No UUID.`); continue; }
 
-                const status = (inv.gib_status_description || "").trim().toUpperCase();
-                if (status === "WILL BE SENT TO GIB") {
-                    console.log("this is a draft invoice wont process", inv.gib_status_description);
-                    continue;
-                }
 
                 // Existing? Pull the fields the signature needs.
                 const { data: existing } = await supabase
@@ -420,6 +415,8 @@ async function syncGelenInvoices(startDate, tenantId, creds) {
                                     .catch(e => console.error('[pdf-service] arka plan hatası:', e.message));
                                 }
                             }
+                        } else {
+                            console.log(`⏩ Skipping ${inv.invoiceNumber}: Already in DB.`);
                         }
 
                         nSkipped++;

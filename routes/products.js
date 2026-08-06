@@ -4,6 +4,55 @@
 const express = require('express');
 const router  = express.Router();
 
+// which fields are relabelable (whitelist — never trust arbitrary column names)
+const RELABEL_FIELDS = ['brand', 'category', 'subcategory'];
+
+// Apply the active filters to a products query. `exclude` is the one column
+// we DON'T filter by (so that column still shows all its alternatives).
+function applyFilters(query, { brand, category, subcategory }, exclude) {
+    // Each filter: if provided, match it; the value '__NULL__' means "is null".
+    if (exclude !== 'brand' && brand !== undefined) {
+        query = brand === '__NULL__' ? query.is('brand', null) : query.eq('brand', brand);
+    }
+    if (exclude !== 'category' && category !== undefined) {
+        query = category === '__NULL__' ? query.is('category', null) : query.eq('category', category);
+    }
+    if (exclude !== 'subcategory' && subcategory !== undefined) {
+        query = subcategory === '__NULL__' ? query.is('subcategory', null) : query.eq('subcategory', subcategory);
+    }
+    return query;
+}
+
+// Build the distinct-value list for one column, given the OTHER columns' filters.
+// Returns [{ value, count }] where value can be null (passed through as-is).
+async function distinctColumn(supabase, tenantId, field, filters) {
+    let q = supabase
+        .from('products')
+        .select(field)
+        .eq('tenant_id', tenantId)
+        .or('is_hidden.is.null,is_hidden.eq.false');
+    q = applyFilters(q, filters, field);   // filter by the others, not by `field` itself
+
+    const { data, error } = await q;
+    if (error) throw error;
+
+    // tally distinct values (null included, kept as null)
+    const counts = new Map();
+    for (const row of (data || [])) {
+        const v = row[field];                     // may be null
+        const key = v === null ? null : v;
+        counts.set(key, (counts.get(key) || 0) + 1);
+    }
+
+    return [...counts.entries()]
+        .map(([value, count]) => ({ value, count }))
+        .sort((a, b) => {
+            // nulls last, then alphabetical
+            if (a.value === null) return 1;
+            if (b.value === null) return -1;
+            return String(a.value).localeCompare(String(b.value), 'tr');
+        });
+}
 
 
 // GET /api/products
@@ -208,6 +257,9 @@ router.put('/:id([0-9a-fA-F-]{36})', async (req, res) => {
     if (Object.keys(fields).length === 0) return res.status(400).json({ error: 'Güncellenecek alan bulunamadı.' });
 
     fields.updated_at = new Date().toISOString();
+    if (fields.brand != null && fields.brand !== '') {
+        fields.brand = String(fields.brand).trim().toUpperCase();
+    }
 
     if (fields.product_code) {
       const newCode = String(fields.product_code).trim();
@@ -380,6 +432,79 @@ router.get('/attribute-values', async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
+
+// ─── GET /facets ──────────────────────────────────────────────────────────────
+router.get('/facets', async (req, res) => {
+    try {
+        const supabase = req.app.get('supabase');
+        const tenantId = req.tenantId;
+
+        // read filters — only include a key if the param is actually present
+        const filters = {};
+        if ('brand' in req.query)       filters.brand       = req.query.brand;
+        if ('category' in req.query)    filters.category    = req.query.category;
+        if ('subcategory' in req.query) filters.subcategory = req.query.subcategory;
+
+        // three distinct columns (each filtered by the OTHER two)
+        const [brands, categories, subcategories] = await Promise.all([
+            distinctColumn(supabase, tenantId, 'brand', filters),
+            distinctColumn(supabase, tenantId, 'category', filters),
+            distinctColumn(supabase, tenantId, 'subcategory', filters),
+        ]);
+
+        // products matching ALL active filters
+        let pq = supabase
+            .from('products')
+            .select('id, product_code, product_name, brand, category, subcategory, stock_on_hand')
+            .eq('tenant_id', tenantId)
+            .or('is_hidden.is.null,is_hidden.eq.false');
+        pq = applyFilters(pq, filters, null);   // filter by everything
+        pq = pq.order('product_name', { ascending: true });
+
+        const { data: products, error: pErr } = await pq;
+        if (pErr) throw pErr;
+
+        res.json({ brands, categories, subcategories, products: products || [] });
+    } catch (err) {
+        console.error('GET /api/products/facets hatası:', err.message);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// ─── PATCH /relabel ───────────────────────────────────────────────────────────
+// Bulk-relabel one vocab value across all products. If `to` already exists,
+// this naturally folds them together (the "merge" — frontend confirms first).
+router.patch('/relabel', async (req, res) => {
+    try {
+        const supabase = req.app.get('supabase');
+        const tenantId = req.tenantId;
+        const { field, from, to } = req.body || {};
+
+        if (!RELABEL_FIELDS.includes(field)) {
+            return res.status(400).json({ error: 'Geçersiz alan (brand | category | subcategory).' });
+        }
+        const target = (to ?? '').toString().trim();
+        if (!target) return res.status(400).json({ error: 'Yeni değer boş olamaz.' });
+
+        // build the match for the OLD value (null-aware)
+        let q = supabase
+            .from('products')
+            .update({ [field]: target, updated_at: new Date().toISOString() })
+            .eq('tenant_id', tenantId);
+        q = (from === null || from === '__NULL__')
+            ? q.is(field, null)
+            : q.eq(field, from);
+
+        const { data, error } = await q.select('id');
+        if (error) throw error;
+
+        res.json({ updated: (data || []).length, field, from, to: target });
+    } catch (err) {
+        console.error('PATCH /api/products/relabel hatası:', err.message);
+        res.status(500).json({ error: err.message });
+    }
+});
+
 
 // ─── Category Templates (shared — no tenant_id needed) ────────────────────────
 

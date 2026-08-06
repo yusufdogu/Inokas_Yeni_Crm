@@ -88,11 +88,15 @@ async function upsertProduct(item, tenantId) {
     const code = item.product_code;
     if (!code) return null;
 
+    // canonical brand: uppercase + trimmed (official English form)
+    const rawBrand = item.brand || item.brand_name || null;
+    const brand = rawBrand ? rawBrand.trim().toUpperCase() : null;
+
     const record = {
         tenant_id:     tenantId,
         product_code:  code,
         product_name:  item.product_name || null,
-        brand:         item.brand || item.brand_name || null,
+        brand:         brand,
         category:      item.item_category    || null,   // general family
         subcategory:   item.item_subcategory || null,   // specific category
         specs:         item.specs || {},

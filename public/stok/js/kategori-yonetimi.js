@@ -1,376 +1,225 @@
-// ── STATE ─────────────────────────────────────────────────────────────────────
-let _categories    = [];
-let _activeCatId   = null;
-let _editingCatId  = null;
-let _editingAttrId = null;
+// ═══ KATEGORİ BROWSER — four-column faceted view ═════════════════════════════
+const _kbState = { brand: undefined, category: undefined, subcategory: undefined };
+let _kbData = { brands: [], categories: [], subcategories: [], products: [] };
 
-let _internalCats      = [];
-let _activeIntCat      = null;
-let _editingIntCatName = null;
+const KB_NULL = '__NULL__';   // sentinel for null-valued filter
 
-// ── INIT ──────────────────────────────────────────────────────────────────────
-function initKategori() { loadCategories(); loadInternalCats(); };
+// Entry point — call when the Kategori tab opens.
+async function kbLoad() {
+  await kbFetch();
+}
 
-async function loadCategories() {
-    try {
-        const res = await fetch('/api/products/category-templates');
-        if (!res.ok) throw new Error(await res.text());
-        _categories = await res.json();
-        renderCatList();
-        if (_activeCatId) {
-            const still = _categories.find(c => c.id === _activeCatId);
-            if (still) renderDetail(still); else clearDetail();
-        }
-    } catch (err) {
-        showToast('Kategoriler yüklenemedi: ' + err.message, 'error');
+async function kbFetch() {
+  const qs = new URLSearchParams();
+  if (_kbState.brand       !== undefined) qs.set('brand',       _kbState.brand ?? KB_NULL);
+  if (_kbState.category    !== undefined) qs.set('category',    _kbState.category ?? KB_NULL);
+  if (_kbState.subcategory !== undefined) qs.set('subcategory', _kbState.subcategory ?? KB_NULL);
+
+  try {
+    const res = await fetch(`/api/products/facets?${qs.toString()}`, { cache: 'no-store' });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    _kbData = await res.json();
+    kbRenderAll();
+  } catch (err) {
+    console.error('Kategori verileri yüklenemedi:', err);
+  }
+}
+
+function kbRenderAll() {
+  kbRenderColumn('brand',       _kbData.brands);
+  kbRenderColumn('category',    _kbData.categories);
+  kbRenderColumn('subcategory', _kbData.subcategories);
+  kbRenderProducts(_kbData.products);
+}
+
+function kbEsc(s) {
+  return String(s ?? '').replace(/[&<>"']/g, c =>
+    ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
+}
+
+// value can be null → rendered as "(boş)" italic, filter uses KB_NULL
+function kbRenderColumn(field, items) {
+  const listEl = document.getElementById(`kb-list-${field}`);
+  const countEl = document.getElementById(`kb-count-${field}`);
+  if (!listEl) return;
+
+  countEl.textContent = items.length ? `${items.length}` : '';
+
+  if (!items.length) {
+    listEl.innerHTML = `<div class="kb-empty">Sonuç yok</div>`;
+    return;
+  }
+
+  const selected = _kbState[field];   // undefined = none; null = the null bucket
+  listEl.innerHTML = items.map(it => {
+    const isNull = it.value === null;
+    const selKey = isNull ? null : it.value;
+    const isSel  = (field in _kbState) && selected !== undefined && selected === selKey;
+    const labelCls = isNull ? 'kb-item-label kb-item-label--null' : 'kb-item-label';
+    const label = isNull ? '(boş)' : kbEsc(it.value);
+    // data-value carries the real value ('' can't distinguish null, so store a flag)
+    return `<div class="kb-item ${isSel ? 'kb-selected' : ''}"
+                 data-field="${field}" data-null="${isNull ? '1' : '0'}"
+                 data-value="${isNull ? '' : kbEsc(it.value)}"
+                 onclick="kbSelect('${field}', this)">
+      <span class="${labelCls}">${label}</span>
+      <span class="kb-item-count">${it.count}</span>
+      <i class="ti ti-pencil kb-item-edit" onclick="event.stopPropagation(); kbStartEdit('${field}', this.closest('.kb-item'))"></i>
+    </div>`;
+  }).join('');
+}
+
+function kbRenderProducts(products) {
+  const listEl = document.getElementById('kb-list-products');
+  const countEl = document.getElementById('kb-count-products');
+  if (!listEl) return;
+
+  countEl.textContent = products.length ? `${products.length}` : '';
+
+  if (!products.length) {
+    listEl.innerHTML = `<div class="kb-empty">Ürün yok</div>`;
+    return;
+  }
+
+  listEl.innerHTML = products.map(p => `
+    <div class="kb-prod" onclick="kbOpenProduct('${p.id}', '${kbEsc(p.product_code || '')}')">
+      <div class="kb-prod-name">${kbEsc(p.product_name || '—')}</div>
+      <div class="kb-prod-meta">
+        ${p.product_code ? `<span class="kb-prod-code">${kbEsc(p.product_code)}</span>` : ''}
+        ${p.brand ? `<span>${kbEsc(p.brand)}</span>` : ''}
+        ${p.stock_on_hand != null ? `<span>· ${p.stock_on_hand} adet</span>` : ''}
+      </div>
+    </div>`).join('');
+}
+
+// ── selection (bidirectional; clicking selected item deselects) ──
+function kbSelect(field, el) {
+  const isNull = el.dataset.null === '1';
+  const value = isNull ? null : el.dataset.value;
+
+  // toggle: if already this selection, clear it
+  const current = (field in _kbState) ? _kbState[field] : undefined;
+  const same = current !== undefined && current === value;
+
+  if (same) {
+    delete _kbState[field];         // clear filter
+  } else {
+    _kbState[field] = value;        // set (null allowed for the boş bucket)
+  }
+  kbFetch();
+}
+
+// ── client-side search within a column ──
+function kbFilterCol(field) {
+  const term = (document.getElementById(`kb-search-${field}`)?.value || '').toLocaleLowerCase('tr');
+  const listEl = document.getElementById(`kb-list-${field}`);
+  if (!listEl) return;
+
+  if (field === 'products') {
+    listEl.querySelectorAll('.kb-prod').forEach(el => {
+      const txt = el.textContent.toLocaleLowerCase('tr');
+      el.style.display = txt.includes(term) ? '' : 'none';
+    });
+  } else {
+    listEl.querySelectorAll('.kb-item').forEach(el => {
+      const txt = el.querySelector('.kb-item-label')?.textContent.toLocaleLowerCase('tr') || '';
+      el.style.display = txt.includes(term) ? '' : 'none';
+    });
+  }
+}
+
+// ── inline edit + merge warning (vocab columns only) ──
+function kbStartEdit(field, itemEl) {
+  const isNull = itemEl.dataset.null === '1';
+  const oldValue = isNull ? null : itemEl.dataset.value;   // null for the boş bucket
+
+  const labelEl = itemEl.querySelector('.kb-item-label');
+  const original = labelEl.textContent;
+
+  const input = document.createElement('input');
+  input.className = 'kb-edit-input';
+  input.value = isNull ? '' : oldValue;    // empty input for boş (nothing to prefill)
+  input.placeholder = isNull ? 'Marka ata...' : '';
+  labelEl.replaceWith(input);
+  input.focus();
+  input.select();
+
+  input.addEventListener('click', (e) => e.stopPropagation());
+  input.addEventListener('mousedown', (e) => e.stopPropagation());
+
+  let _done = false;   // guard: finish runs only once
+
+  const finish = async (commit) => {
+    if (_done) return;      // already finished — ignore the second call
+    _done = true;
+
+    const newValue = input.value.trim();
+    const restore = document.createElement('span');
+    restore.className = isNull ? 'kb-item-label kb-item-label--null' : 'kb-item-label';
+    restore.textContent = original;
+    input.replaceWith(restore);
+
+    if (!commit || !newValue) return;
+    // for null bucket, oldValue is null; for a real value, skip if unchanged
+    if (!isNull && newValue === oldValue) return;
+
+    const listKey = field === 'brand' ? 'brands' : field === 'category' ? 'categories' : 'subcategories';
+    const existing = (_kbData[listKey] || []).some(x => x.value !== null && x.value === newValue);
+
+    if (isNull) {
+      // assigning a value to previously-empty products
+      const ok = confirm(
+        `Boş (değeri olmayan) tüm ürünlere "${newValue}" atanacak. Devam edilsin mi?`
+      );
+      if (!ok) return;
+    } else if (existing) {
+      const ok = confirm(
+        `"${newValue}" zaten mevcut.\n\n"${oldValue}" içindeki tüm ürünler "${newValue}" ile BİRLEŞTİRİLECEK. Devam edilsin mi?`
+      );
+      if (!ok) return;
+    } else {
+      const ok = confirm(
+        `"${oldValue}" → "${newValue}"\n\nBu değere sahip tüm ürünler güncellenecek. Devam edilsin mi?`
+      );
+      if (!ok) return;
     }
+
+    // pass null (not '') as `from` when editing the boş bucket
+    await kbRelabel(field, isNull ? null : oldValue, newValue);
+  };
+
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); finish(true); }
+    else if (e.key === 'Escape') { finish(false); }
+  });
+  input.addEventListener('blur', () => finish(false));   // blur cancels
 }
 
-// ── KATEGORİ LİSTESİ ─────────────────────────────────────────────────────────
-function renderCatList() {
-    const list  = document.getElementById('ky-cat-list');
-    const badge = document.getElementById('ky-cat-count');
-    if (badge) badge.textContent = _categories.length;
 
-    if (!_categories.length) {
-        list.innerHTML = '<div class="ky-empty">Henüz kategori yok.</div>';
-        return;
-    }
+async function kbRelabel(field, from, to) {
+  try {
+    const res = await fetch('/api/products/relabel', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ field, from, to }),
+    });
+    if (!res.ok) { const e = await res.json().catch(() => ({})); throw new Error(e.error || 'Güncellenemedi'); }
 
-    list.innerHTML = _categories.map(c => {
-        const attrCount = (c.attributes || []).length;
-        const active = c.id === _activeCatId ? ' active' : '';
-        return `
-<div class="ky-cat-item${active}" onclick="selectCategory('${c.id}')">
-  <span class="ky-cat-item-name">${esc(c.name)}</span>
-  <span class="ky-cat-attr-count">${attrCount} özellik</span>
-  <button class="ky-cat-rename-btn" onclick="event.stopPropagation(); openRenameCategoryModal('${c.id}')" title="Yeniden adlandır">
-    <i class="ti ti-pencil"></i>
-  </button>
-</div>`;
-    }).join('');
+    // if the renamed value was the active filter, update the filter to the new name
+    if (_kbState[field] === from) _kbState[field] = to;
+
+    await kbFetch();   // refresh everything
+  } catch (err) {
+    alert('Hata: ' + err.message);
+  }
 }
 
-function selectCategory(id) {
-    _activeCatId  = id;
-    _activeIntCat = null;
-    renderCatList();
-    renderInternalCatList();
-    const cat = _categories.find(c => c.id === id);
-    if (cat) renderDetail(cat);
-}
-
-// ── DETAY PANELİ ─────────────────────────────────────────────────────────────
-function renderDetail(cat) {
-    const panel = document.getElementById('ky-detail');
-    const attrs = cat.attributes || [];
-
-    const attrsHtml = attrs.length
-        ? attrs.map(a => attrRowHtml(a)).join('')
-        : `<div class="ky-attr-empty">
-             <i class="ti ti-playlist-x" style="font-size:28px;"></i>
-             <p>Bu kategoriye henüz özellik eklenmemiş.</p>
-           </div>`;
-
-    panel.innerHTML = `
-<div class="ky-detail-header">
-  <span class="ky-detail-title">${esc(cat.name)}</span>
-  <button class="btn-primary" onclick="openAddAttrModal()" style="display:flex; align-items:center; gap:6px; font-size:13px;">
-    <i class="ti ti-plus"></i> Özellik Ekle
-  </button>
-</div>
-<div class="ky-detail-body">${attrsHtml}</div>`;
-}
-
-function clearDetail() {
-    document.getElementById('ky-detail').innerHTML = `
-<div class="ky-detail-empty">
-  <i class="ti ti-category" style="font-size:32px; color:#94a3b8;"></i>
-  <p>Düzenlemek için sol taraftan bir kategori seçin.</p>
-</div>`;
-}
-
-function attrRowHtml(a) {
-    const typeLabel = { text: 'Metin', number: 'Sayı', select: 'Seçim' }[a.attr_type] || a.attr_type;
-    const typeCls   = { text: 'ky-type-text', number: 'ky-type-number', select: 'ky-type-select' }[a.attr_type] || '';
-    const optText   = a.attr_type === 'select' && a.attr_values?.length
-        ? 'Seçenekler: ' + a.attr_values.join(', ')
-        : '';
-
-    return `
-<div class="ky-attr-row">
-  <i class="ti ti-grip-vertical ky-attr-drag"></i>
-  <div class="ky-attr-info">
-    <div class="ky-attr-name">${esc(a.attr_name)}</div>
-    ${optText ? `<div class="ky-attr-meta">${esc(optText)}</div>` : ''}
-  </div>
-  <span class="ky-attr-type-badge ${typeCls}">${typeLabel}</span>
-  <div class="ky-attr-actions">
-    <button class="ky-attr-btn" onclick="openEditAttrModal('${a.id}')" title="Düzenle"><i class="ti ti-pencil"></i></button>
-    <button class="ky-attr-btn del" onclick="deleteAttr('${a.id}')" title="Sil"><i class="ti ti-trash"></i></button>
-  </div>
-</div>`;
-}
-
-// ── KATEGORİ MODAL (ekle / yeniden adlandır) ──────────────────────────────────
-function openAddCategoryModal() {
-    _editingCatId = null;
-    document.getElementById('ky-cat-modal-title').textContent = 'Yeni Kategori';
-    document.getElementById('ky-cat-name-input').value = '';
-    document.getElementById('ky-cat-modal-msg').textContent = '';
-    document.getElementById('ky-cat-modal').style.display = 'flex';
-    setTimeout(() => document.getElementById('ky-cat-name-input').focus(), 50);
-}
-
-function openRenameCategoryModal(id) {
-    const cat = _categories.find(c => c.id === id);
-    if (!cat) return;
-    _editingCatId = id;
-    document.getElementById('ky-cat-modal-title').textContent = 'Kategoriyi Yeniden Adlandır';
-    document.getElementById('ky-cat-name-input').value = cat.name;
-    document.getElementById('ky-cat-modal-msg').textContent = '';
-    document.getElementById('ky-cat-modal').style.display = 'flex';
-    setTimeout(() => document.getElementById('ky-cat-name-input').focus(), 50);
-}
-
-function closeAddCategoryModal() {
-    document.getElementById('ky-cat-modal').style.display = 'none';
-}
-
-async function saveCategoryModal() {
-    const name = document.getElementById('ky-cat-name-input').value.trim();
-    const msg  = document.getElementById('ky-cat-modal-msg');
-    if (!name) { msg.textContent = 'Kategori adı boş olamaz.'; return; }
-
-    try {
-        let res;
-        if (_editingCatId) {
-            res = await fetch(`/api/products/category-templates/${_editingCatId}`, {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ name })
-            });
-        } else {
-            res = await fetch('/api/products/category-templates', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ name })
-            });
-        }
-        if (!res.ok) throw new Error(await res.text());
-        closeAddCategoryModal();
-        await loadCategories();
-        showToast(_editingCatId ? 'Kategori adı güncellendi.' : 'Kategori oluşturuldu.', 'success');
-    } catch (err) {
-        msg.textContent = err.message;
-    }
-}
-
-// ── ÖZELLİK MODAL (ekle / düzenle) ───────────────────────────────────────────
-function openAddAttrModal() {
-    _editingAttrId = null;
-    document.getElementById('ky-attr-modal-title').textContent = 'Özellik Ekle';
-    document.getElementById('ky-attr-name').value = '';
-    document.getElementById('ky-attr-type').value = 'text';
-    document.getElementById('ky-attr-order').value = '0';
-    document.getElementById('ky-attr-options').value = '';
-    document.getElementById('ky-attr-modal-msg').textContent = '';
-    document.getElementById('ky-attr-options-wrap').style.display = 'none';
-    document.getElementById('ky-attr-modal').style.display = 'flex';
-    setTimeout(() => document.getElementById('ky-attr-name').focus(), 50);
-}
-
-function openEditAttrModal(attrId) {
-    const cat  = _categories.find(c => c.id === _activeCatId);
-    const attr = cat?.attributes.find(a => a.id === attrId);
-    if (!attr) return;
-
-    _editingAttrId = attrId;
-    document.getElementById('ky-attr-modal-title').textContent = 'Özelliği Düzenle';
-    document.getElementById('ky-attr-name').value    = attr.attr_name;
-    document.getElementById('ky-attr-type').value    = attr.attr_type;
-    document.getElementById('ky-attr-order').value   = attr.sort_order ?? 0;
-    document.getElementById('ky-attr-options').value = Array.isArray(attr.attr_values) ? attr.attr_values.join(', ') : '';
-    document.getElementById('ky-attr-modal-msg').textContent = '';
-    document.getElementById('ky-attr-options-wrap').style.display = attr.attr_type === 'select' ? 'block' : 'none';
-    document.getElementById('ky-attr-modal').style.display = 'flex';
-    setTimeout(() => document.getElementById('ky-attr-name').focus(), 50);
-}
-
-function closeAttrModal() {
-    document.getElementById('ky-attr-modal').style.display = 'none';
-}
-
-function onAttrTypeChange() {
-    const type = document.getElementById('ky-attr-type').value;
-    document.getElementById('ky-attr-options-wrap').style.display = type === 'select' ? 'block' : 'none';
-}
-
-async function saveAttrModal() {
-    const name  = document.getElementById('ky-attr-name').value.trim();
-    const type  = document.getElementById('ky-attr-type').value;
-    const order = parseInt(document.getElementById('ky-attr-order').value) || 0;
-    const optRaw = document.getElementById('ky-attr-options').value;
-    const attr_values = type === 'select'
-        ? optRaw.split(',').map(s => s.trim()).filter(Boolean)
-        : null;
-    const msg = document.getElementById('ky-attr-modal-msg');
-
-    if (!name) { msg.textContent = 'Özellik adı boş olamaz.'; return; }
-
-    try {
-        let res;
-        if (_editingAttrId) {
-            res = await fetch(`/api/products/category-attributes/${_editingAttrId}`, {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ attr_name: name, attr_type: type, attr_values, sort_order: order })
-            });
-        } else {
-            res = await fetch(`/api/products/category-templates/${_activeCatId}/attributes`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ attr_name: name, attr_type: type, attr_values, sort_order: order })
-            });
-        }
-        if (!res.ok) throw new Error(await res.text());
-        closeAttrModal();
-        await loadCategories();
-        const cat = _categories.find(c => c.id === _activeCatId);
-        if (cat) renderDetail(cat);
-        showToast(_editingAttrId ? 'Özellik güncellendi.' : 'Özellik eklendi.', 'success');
-    } catch (err) {
-        msg.textContent = err.message;
-    }
-}
-
-async function deleteAttr(attrId) {
-    if (!confirm('Bu özellik silinecek. Emin misiniz?')) return;
-    try {
-        const res = await fetch(`/api/products/category-attributes/${attrId}`, { method: 'DELETE' });
-        if (!res.ok) throw new Error(await res.text());
-        await loadCategories();
-        const cat = _categories.find(c => c.id === _activeCatId);
-        if (cat) renderDetail(cat);
-        showToast('Özellik silindi.', 'success');
-    } catch (err) {
-        showToast('Silinemedi: ' + err.message, 'error');
-    }
-}
-
-// ── OFİS İÇİ KATEGORİLER ─────────────────────────────────────────────────────
-async function loadInternalCats() {
-    try {
-        const res = await fetch('/api/invoices/non-internal-categories');
-        if (!res.ok) throw new Error(await res.text());
-        _internalCats = await res.json();
-        renderInternalCatList();
-    } catch (err) {
-        showToast('Ofis içi kategoriler yüklenemedi: ' + err.message, 'error');
-    }
-}
-
-function renderInternalCatList() {
-    const list  = document.getElementById('ky-int-list');
-    const badge = document.getElementById('ky-int-count');
-    if (badge) badge.textContent = _internalCats.length;
-    if (!_internalCats.length) {
-        list.innerHTML = '<div class="ky-empty">Kategori yok.</div>';
-        return;
-    }
-    list.innerHTML = _internalCats.map(c => {
-        const active = c.name === _activeIntCat ? ' active' : '';
-        return `
-<div class="ky-cat-item${active}" onclick="selectInternalCat('${esc(c.name)}')">
-  <span class="ky-cat-item-name">${esc(c.name)}</span>
-  <span class="ky-cat-attr-count">${c.count} fatura</span>
-  <button class="ky-cat-rename-btn" style="color:#ef4444;" onclick="event.stopPropagation(); deleteInternalCat('${esc(c.name)}')" title="Sil">
-    <i class="ti ti-trash"></i>
-  </button>
-</div>`;
-    }).join('');
-}
-
-function selectInternalCat(name) {
-    _activeIntCat = name;
-    _activeCatId  = null;
-    renderInternalCatList();
-    renderCatList();
-    const cat = _internalCats.find(c => c.name === name);
-    const panel = document.getElementById('ky-detail');
-    panel.innerHTML = `
-<div class="ky-detail-header">
-  <span class="ky-detail-title">${esc(name)}</span>
-  <button class="btn-danger" onclick="deleteInternalCat('${esc(name)}')" style="font-size:13px; display:flex; align-items:center; gap:6px;">
-    <i class="ti ti-trash"></i> Sil
-  </button>
-</div>
-<div class="ky-detail-body" style="padding:20px;">
-  <div style="max-width:360px;">
-    <label style="font-size:12px; font-weight:600; color:#64748b; display:block; margin-bottom:6px;">Yeni Kategori Adı</label>
-    <input type="text" id="int-rename-input" value="${esc(name)}" style="width:100%; border:1px solid #e2e8f0; border-radius:8px; padding:8px 12px; font-size:13px; font-family:inherit; outline:none;">
-    <button class="btn-primary" onclick="saveRenameIntCat('${esc(name)}')" style="margin-top:12px; font-size:13px; display:flex; align-items:center; gap:6px;">
-      <i class="ti ti-check"></i> Kaydet
-    </button>
-    <p style="margin-top:12px; font-size:11px; color:#94a3b8;">${cat?.count || 0} fatura bu kategoride. Yeniden adlandırılınca tüm faturalar güncellenir.</p>
-  </div>
-</div>`;
-}
-
-function openRenameIntModal(name) {
-    selectInternalCat(name);
-    setTimeout(() => document.getElementById('int-rename-input')?.focus(), 50);
-}
-
-async function saveRenameIntCat(oldName) {
-    const newName = document.getElementById('int-rename-input')?.value.trim();
-    if (!newName) { showToast('Kategori adı boş olamaz.', 'error'); return; }
-    if (newName === oldName) return;
-    try {
-        const res = await fetch('/api/invoices/non-internal-categories/rename', {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ from: oldName, to: newName })
-        });
-        if (!res.ok) throw new Error(await res.text());
-        _activeIntCat = newName;
-        await loadInternalCats();
-        selectInternalCat(newName);
-        showToast('Kategori yeniden adlandırıldı.', 'success');
-    } catch (err) {
-        showToast('Hata: ' + err.message, 'error');
-    }
-}
-
-async function deleteInternalCat(name) {
-    if (!confirm(`"${name}" kategorisi silinecek. Bu kategorideki faturalar kategorisiz kalacak. Emin misiniz?`)) return;
-    try {
-        const res = await fetch(`/api/invoices/non-internal-categories/${encodeURIComponent(name)}`, { method: 'DELETE' });
-        if (!res.ok) throw new Error(await res.text());
-        _activeIntCat = null;
-        document.getElementById('ky-detail').innerHTML = `
-<div class="ky-detail-empty">
-  <i class="ti ti-category" style="font-size:32px; color:#94a3b8;"></i>
-  <p>Düzenlemek için sol taraftan bir kategori seçin.</p>
-</div>`;
-        await loadInternalCats();
-        showToast('Kategori silindi.', 'success');
-    } catch (err) {
-        showToast('Silinemedi: ' + err.message, 'error');
-    }
-}
-
-// ── HELPERS ───────────────────────────────────────────────────────────────────
-function esc(str) {
-    return String(str || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-}
-
-function showToast(msg, type = 'info') {
-    const c = document.getElementById('toast-container');
-    if (!c) return;
-    const t = document.createElement('div');
-    t.className = 'toast toast-' + type;
-    t.textContent = msg;
-    c.appendChild(t);
-    setTimeout(() => t.remove(), 3500);
+// ── open the product detail panel (reuse existing modal) ──
+function kbOpenProduct(productId, code) {
+  // NOTE: adjust to your actual product-modal opener on this page.
+  if (typeof openUrunModal === 'function') {
+    openUrunModal(productId, code);
+  } else {
+    console.warn('openUrunModal bulunamadı — ürün paneli açılamadı.');
+  }
 }

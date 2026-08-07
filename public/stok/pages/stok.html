@@ -942,39 +942,23 @@
               </div>
             </div>
             <div class="stk-modal-field">
-              <label style="display:flex; align-items:center; justify-content:space-between;">
-                <span>Kategori</span>
-                <div style="display:flex; align-items:center; gap:10px;">
-                  <label style="display:flex; align-items:center; gap:4px; font-size:11px; color:var(--stk-ink3); cursor:pointer; text-transform:none; letter-spacing:0; font-weight:400;">
-                    <input type="checkbox" id="pf-is-internal" onchange="onInternalToggle(this.checked)" style="width:auto;">
-                    Ofis İçi
-                  </label>
-                  <label style="display:flex; align-items:center; gap:4px; font-size:11px; color:var(--stk-red); cursor:pointer; text-transform:none; letter-spacing:0; font-weight:400;">
-                    <input type="checkbox" id="pf-is-hidden" style="width:auto;">
-                    Gizle
-                  </label>
-                </div>
-              </label>
-
-
+              <label>Kategori</label>
               <div id="pf-cat-wrap" style="position:relative;">
                 <input type="text" id="pf-category" placeholder="Kategori yaz veya seç..." autocomplete="off" oninput="onCatInput(this.value)" onfocus="onCatInput(this.value)">
                 <div id="pf-cat-dropdown" class="stk-autocomplete-drop" style="display:none;"></div>
               </div>
-              <div id="pf-internal-cat-wrap" style="display:none; position:relative;">
-                <input type="text" id="pf-internal-cat-input" placeholder="Kategori yaz veya seç..." autocomplete="off" oninput="onInternalCatInput(this.value)" onfocus="onInternalCatInput(this.value)">
-                <div id="pf-internal-cat-dropdown" class="stk-autocomplete-drop" style="display:none;"></div>
-              </div>
-              <div class="stk-modal-field">
-                <label>Alt Kategori</label>
-                <div id="pf-subcategory-wrap" style="position:relative;">
-                  <input type="text" id="pf-subcategory" placeholder="Alt kategori yaz veya seç..." autocomplete="off"
-                         oninput="onSubcategoryInput(this.value)" onfocus="onSubcategoryInput(this.value)">
-                  <div id="pf-subcategory-dropdown" class="stk-autocomplete-drop" style="display:none;"></div>
-                </div>
+            </div>
+
+            <div class="stk-modal-field">
+              <label>Alt Kategori</label>
+              <div id="pf-subcategory-wrap" style="position:relative;">
+                <input type="text" id="pf-subcategory" placeholder="Alt kategori yaz veya seç..." autocomplete="off" oninput="onSubcategoryInput(this.value)" onfocus="onSubcategoryInput(this.value)">
+                <div id="pf-subcategory-dropdown" class="stk-autocomplete-drop" style="display:none;"></div>
               </div>
             </div>
+
           </div>
+
         </div>
 
         <div class="stk-modal-section" id="dynamic-attrs-section" style="display:none;">
@@ -1020,10 +1004,7 @@
           <i class="ti ti-trash" style="font-size:14px;"></i> Sil
         </button>
         <button class="stk-btn-primary" id="modalSaveBtn" onclick="saveProduct()">Kaydet</button>
-
       </div>
-
-    </div>
 
   </div>
 </div>

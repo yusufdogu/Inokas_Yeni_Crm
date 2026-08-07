@@ -61,7 +61,7 @@ router.get('/', async (req, res) => {
     const supabase = req.app.get('supabase');
     const { data, error } = await supabase
       .from('products')
-      .select('id, product_code, product_name, brand, category, model, maliyet_usd, last_purchase_price_cur, last_purchase_currency, last_purchase_rate, last_purchase_price_tl, avg_purchase_price_tl, stock_on_hand, reserved_quantity, gift_count, is_internal')
+      .select('id, product_code, product_name, brand, category, subcategory, model, maliyet_usd, last_purchase_price_cur, last_purchase_currency, last_purchase_rate, last_purchase_price_tl, avg_purchase_price_tl, stock_on_hand, reserved_quantity, gift_count, is_internal')
       .eq('tenant_id', req.tenantId)
       .eq('is_internal', true)
       .eq('is_hidden', false)

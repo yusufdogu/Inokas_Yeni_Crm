@@ -6,6 +6,7 @@ if (typeof allProducts === 'undefined') { var allProducts = []; }
 
 let brandOptions            = [];//to store brands we define here
 let productCategoryOptions  = [];//to store category options in filters
+let subcategoryOptions = [];
 let internalCategoryOptions = [];//
 let _categoryTemplates      = [];
 let _attrValues             = {};
@@ -17,7 +18,7 @@ let _internalCatOptions = [];
 let _editingId         = null;
 let _isAddMode         = false;
 let _isInternalMode    = false;
-let _urunSort          = { col: null, dir: 'desc' };
+let _urunSort = { col: 'total_stock_price', dir: 'desc' };
 let _advancedOpen      = false;
 
 let _skuFilter;
@@ -53,12 +54,13 @@ const _STOCK_TABS_KEY = 'inokas_urunler_tabs_v1';
 // ─── INIT ─────────────────────────────────────────────────────────────────────
 async function initUrunler() {
   await Promise.all([loadProducts(), loadCategoryOptions(), loadCategoryTemplates()]);
+  _buildOptionListsFromProducts();
   initFilters();
   _setupUrunRanges();
   renderUrunlerKpis();
+  updateUrunSortHeaders();   // reflect the initial total_stock_price sort in the header
   applyUrunlerFilters();
   _loadStockTabs();
-
 }
 
 // ─── DATA ─────────────────────────────────────────────────────────────────────
@@ -72,6 +74,18 @@ async function loadProducts() {
   } catch(e) {
     console.error('Ürünler yüklenemedi', e.message);
   }
+}
+
+// Build modal autocomplete options from already-loaded allProducts (no refetch).
+function _buildOptionListsFromProducts() {
+  const src = Array.isArray(allProducts) ? allProducts : [];
+  const distinct = (key) =>
+    [...new Set(src.map(p => String(p[key] || '').trim()).filter(Boolean))]
+      .sort((a, b) => a.localeCompare(b, 'tr'));
+
+  brandOptions           = distinct('brand');
+  productCategoryOptions = distinct('category');
+  subcategoryOptions     = distinct('subcategory');
 }
 
 async function loadCategoryTemplates() {
@@ -846,6 +860,8 @@ const _ALL_FIELDS = [
 const _JSON_FIELDS     = new Set(['specs']);
 const _CHECKBOX_FIELDS = new Set(['needs_review']);
 
+
+
 function _buildCategorySelect(selected = '') {
   const input = document.getElementById('pf-category');
   if (!input) return;
@@ -857,61 +873,75 @@ function onBrandInput(query) {
   if (!dropdown) return;
   const q = (query || '').toLocaleLowerCase('tr-TR');
   const matches = brandOptions.filter(o => !q || o.toLocaleLowerCase('tr-TR').startsWith(q));
-  if (!matches.length && !q) { dropdown.style.display = 'none'; return; }
-  dropdown.innerHTML = matches.map(o =>
-    `<div onclick="selectBrand('${esc(o)}')"
-      style="padding:8px 12px; font-size:12px; color:#374151; cursor:pointer;"
-      onmouseover="this.style.background='#f1f5f9'" onmouseout="this.style.background=''">${esc(o)}</div>`
-  ).join('');
-  dropdown.style.display = matches.length ? 'block' : 'none';
-}
-// ─── SUBCATEGORY AUTOCOMPLETE ──────────────────────────────────────────────────
-function onSubcategoryInput(value) {
-  const drop = document.getElementById('pf-subcategory-dropdown');
-  if (!drop) return;
-  const q = String(value || '').toLocaleLowerCase('tr').trim();
+  if (!matches.length) { dropdown.style.display = 'none'; return; }
 
-  // distinct subcategory values from loaded products
-  const opts = [...new Set(
-    (allProducts || []).map(p => String(p.subcategory || '').trim()).filter(Boolean)
-  )].sort((a, b) => a.localeCompare(b, 'tr'));
-
-  const matches = q ? opts.filter(o => o.toLocaleLowerCase('tr').includes(q)) : opts;
-  if (!matches.length) { drop.style.display = 'none'; return; }
-
-  drop.innerHTML = matches.slice(0, 50).map(o =>
-    `<div class="stk-autocomplete-item" onmousedown="event.preventDefault(); selectSubcategory('${esc(o).replace(/'/g, "\\'")}')">${esc(o)}</div>`
-  ).join('');
-  drop.style.display = 'block';
-}
-
-function selectSubcategory(val) {
-  const input = document.getElementById('pf-subcategory');
-  if (input) input.value = val;
-  const drop = document.getElementById('pf-subcategory-dropdown');
-  if (drop) drop.style.display = 'none';
-}
-function selectBrand(value) {
-  const input    = document.getElementById('pf-brand');
-  const dropdown = document.getElementById('pf-brand-dropdown');
-  if (input)    input.value = value;
-  if (dropdown) dropdown.style.display = 'none';
+  dropdown.innerHTML = '';
+  matches.forEach(o => {
+    const div = document.createElement('div');
+    div.className = 'stk-autocomplete-item';
+    div.textContent = o;                    // textContent — no escaping needed, no entities
+    div.style.cssText = 'padding:8px 12px; font-size:12px; color:#374151; cursor:pointer;';
+    div.onmouseover = () => { div.style.background = '#f1f5f9'; };
+    div.onmouseout  = () => { div.style.background = ''; };
+    div.onmousedown = (e) => { e.preventDefault(); selectBrand(o); };   // pass the real string
+    dropdown.appendChild(div);
+  });
+  dropdown.style.display = 'block';
 }
 
 function onCatInput(query) {
   const dropdown = document.getElementById('pf-cat-dropdown');
   if (!dropdown) return;
   const q       = (query || '').toLocaleLowerCase('tr-TR');
-  const opts    = productCategoryOptions;
-  const matches = opts.filter(o => !q || o.toLocaleLowerCase('tr-TR').startsWith(q));
-  const rows    = matches.map(o =>
-    `<div onclick="selectCat('${esc(o)}')"
-      style="padding:8px 12px; font-size:12px; color:#374151; cursor:pointer;"
-      onmouseover="this.style.background='#f1f5f9'" onmouseout="this.style.background=''">${esc(o)}</div>`
-  );
-  if (!rows.length && !q) { dropdown.style.display = 'none'; return; }
-  dropdown.innerHTML   = rows.join('');
-  dropdown.style.display = rows.length ? 'block' : 'none';
+  const matches = productCategoryOptions.filter(o => !q || o.toLocaleLowerCase('tr-TR').startsWith(q));
+  if (!matches.length) { dropdown.style.display = 'none'; return; }
+
+  dropdown.innerHTML = '';
+  matches.forEach(o => {
+    const div = document.createElement('div');
+    div.className = 'stk-autocomplete-item';
+    div.textContent = o;
+    div.style.cssText = 'padding:8px 12px; font-size:12px; color:#374151; cursor:pointer;';
+    div.onmouseover = () => { div.style.background = '#f1f5f9'; };
+    div.onmouseout  = () => { div.style.background = ''; };
+    div.onmousedown = (e) => { e.preventDefault(); selectCat(o); };
+    dropdown.appendChild(div);
+  });
+  dropdown.style.display = 'block';
+}
+function onSubcategoryInput(value) {
+  const drop = document.getElementById('pf-subcategory-dropdown');
+  if (!drop) return;
+  const q = String(value || '').toLocaleLowerCase('tr').trim();
+  const opts = subcategoryOptions || [];
+  const matches = q ? opts.filter(o => o.toLocaleLowerCase('tr').includes(q)) : opts;
+  if (!matches.length) { drop.style.display = 'none'; return; }
+
+  drop.innerHTML = '';
+  matches.forEach(o => {
+    const div = document.createElement('div');
+    div.className = 'stk-autocomplete-item';
+    div.style.cssText = 'padding:8px 12px; font-size:12px; color:#374151; cursor:pointer;';
+    div.textContent = o;
+    div.onmouseover = () => { div.style.background = '#f1f5f9'; };
+    div.onmouseout  = () => { div.style.background = ''; };
+    div.onmousedown = (e) => { e.preventDefault(); selectSubcategory(o); };
+    drop.appendChild(div);
+  });
+  drop.style.display = 'block';
+}
+
+function selectSubcategory(value) {
+  const input    = document.getElementById('pf-subcategory');
+  const dropdown = document.getElementById('pf-subcategory-dropdown');
+  if (input)    input.value = value;
+  if (dropdown) dropdown.style.display = 'none';
+}
+function selectBrand(value) {
+  const input    = document.getElementById('pf-brand');
+  const dropdown = document.getElementById('pf-brand-dropdown');
+  if (input)    input.value = value;
+  if (dropdown) dropdown.style.display = 'none';
 }
 
 function selectCat(value) {
@@ -921,57 +951,12 @@ function selectCat(value) {
   if (dropdown) dropdown.style.display = 'none';
 }
 
-async function _loadInternalCatOptions() {
-  try {
-    const res = await fetch('/api/invoices/non-internal-categories');
-    if (!res.ok) return;
-    const data = await res.json();
-    _internalCatOptions = (data || []).map(r => String(r.name || '').trim()).filter(Boolean);
-  } catch { }
-}
-
-function onInternalToggle(isInternal) {
-  _isInternalMode = isInternal;
-  const catWrap      = document.getElementById('pf-cat-wrap');
-  const internalWrap = document.getElementById('pf-internal-cat-wrap');
-  const attrSection  = document.getElementById('dynamic-attrs-section');
-  if (isInternal) {
-    catWrap.style.display      = 'none';
-    internalWrap.style.display = 'block';
-    if (attrSection) attrSection.style.display = 'none';
-  } else {
-    catWrap.style.display      = '';
-    internalWrap.style.display = 'none';
-    document.getElementById('pf-internal-cat-dropdown').style.display = 'none';
-  }
-}
-
-function onInternalCatInput(query) {
-  const dropdown = document.getElementById('pf-internal-cat-dropdown');
-  if (!dropdown) return;
-  const q       = (query || '').toLocaleLowerCase('tr-TR');
-  const matches = internalCategoryOptions.filter(o => !q || o.toLocaleLowerCase('tr-TR').startsWith(q));
-  if (!matches.length && !q) { dropdown.style.display = 'none'; return; }
-  dropdown.innerHTML = matches.map(o =>
-    `<div onclick="selectInternalCat('${esc(o)}')"
-      style="padding:8px 12px; font-size:12px; color:#374151; cursor:pointer;"
-      onmouseover="this.style.background='#f1f5f9'" onmouseout="this.style.background=''">${esc(o)}</div>`
-  ).join('');
-  dropdown.style.display = matches.length ? 'block' : 'none';
-}
-
-function selectInternalCat(value) {
-  const input    = document.getElementById('pf-internal-cat-input');
-  const dropdown = document.getElementById('pf-internal-cat-dropdown');
-  if (input)    input.value = value;
-  if (dropdown) dropdown.style.display = 'none';
-}
 
 document.addEventListener('click', e => {
   const pairs = [
-    ['pf-internal-cat-wrap', 'pf-internal-cat-dropdown'],
     ['pf-cat-wrap',          'pf-cat-dropdown'],
     ['pf-brand-wrap',        'pf-brand-dropdown'],
+    ['pf-subcategory-wrap',        'pf-subcategory-dropdown'],
   ];
   pairs.forEach(([wrapId, ddId]) => {
     const wrap = document.getElementById(wrapId);
@@ -980,30 +965,6 @@ document.addEventListener('click', e => {
   });
 });
 
-function openAddModal() {
-  switchUrunTab('det');
-  document.getElementById('urunTabHar').style.display = 'none';
-  _editingId      = null;
-  _isAddMode      = true;
-  _isInternalMode = false;
-  _ALL_FIELDS.forEach(key => {
-    const el = document.getElementById(`pf-${key}`);
-    if (!el) return;
-    if (_CHECKBOX_FIELDS.has(key)) el.checked = false;
-    else                            el.value   = '';
-  });
-  const toggle = document.getElementById('pf-is-internal');
-  if (toggle) toggle.checked = false;
-  onInternalToggle(false);
-  document.getElementById('pf-brand').value = '';
-  _buildCategorySelect();
-  document.getElementById('modalTitle').textContent    = 'Yeni Ürün Ekle';
-  document.getElementById('modalSubTitle').textContent = '';
-  document.getElementById('modalMsg').textContent      = '';
-  document.getElementById('modalMsg').className        = 'modal-msg';
-  document.getElementById('modalSaveBtn').disabled     = false;
-  document.getElementById('productModal').style.display = 'flex';
-}
 
 async function openUrunModal(productId, sku) {
   if (!productId) return;
@@ -1031,7 +992,7 @@ async function openUrunModal(productId, sku) {
   document.getElementById('productModal').style.display = 'flex';
 
   try {
-    if (!productCategoryOptions.length) await loadCategoryOptions();
+    _buildOptionListsFromProducts();   // reuse loaded data, no refetch
 
     const [productRes, movementsRes] = await Promise.all([
       fetch(`/api/products/${productId}`),
@@ -1075,21 +1036,9 @@ async function openUrunModal(productId, sku) {
       }
     });
 
-    const isInternal = !product.is_internal;
-    _isInternalMode  = isInternal;
-    const toggle     = document.getElementById('pf-is-internal');
-    if (toggle) toggle.checked = isInternal;
-    onInternalToggle(isInternal);
-
-    const hiddenToggle = document.getElementById('pf-is-hidden');
-    if (hiddenToggle) hiddenToggle.checked = !!product.is_hidden;
-
-    if (isInternal) {
-      const inp = document.getElementById('pf-internal-cat-input');
-      if (inp) inp.value = product.category || '';
-    }
     document.getElementById('pf-brand').value = product.brand || '';
-    _buildCategorySelect(isInternal ? '' : (product.category || ''));
+    _buildCategorySelect(product.category || '');
+
 
     const attrValues = {};
     try {
@@ -1424,6 +1373,29 @@ function collectAttrValues() {
   }));
 }
 
+
+function openAddModal() {
+  switchUrunTab('det');
+  document.getElementById('urunTabHar').style.display = 'none';
+  _editingId      = null;
+  _isAddMode      = true;
+  _isInternalMode = false;
+  _ALL_FIELDS.forEach(key => {
+    const el = document.getElementById(`pf-${key}`);
+    if (!el) return;
+    if (_CHECKBOX_FIELDS.has(key)) el.checked = false;
+    else                            el.value   = '';
+  });
+  document.getElementById('pf-brand').value = '';
+  _buildCategorySelect();
+  document.getElementById('modalTitle').textContent    = 'Yeni Ürün Ekle';
+  document.getElementById('modalSubTitle').textContent = '';
+  document.getElementById('modalMsg').textContent      = '';
+  document.getElementById('modalMsg').className        = 'modal-msg';
+  document.getElementById('modalSaveBtn').disabled     = false;
+  document.getElementById('productModal').style.display = 'flex';
+}
+
 // ─── SAVE ─────────────────────────────────────────────────────────────────────
 async function saveProduct() {
   const msgEl   = document.getElementById('modalMsg');
@@ -1472,12 +1444,6 @@ async function saveProduct() {
   // "Ofis İçi" unchecked → tradeable product        → our business     → true
   payload.is_internal = !_isInternalMode;
 
-  payload.is_hidden = !!(document.getElementById('pf-is-hidden')?.checked);
-
-  if (_isInternalMode) {
-    const internalCat = (document.getElementById('pf-internal-cat-input')?.value || '').trim();
-    payload.category  = internalCat || null;
-  }
 
   const name = String(document.getElementById('pf-product_name')?.value || '').trim();
   const code = String(document.getElementById('pf-product_code')?.value || '').trim();

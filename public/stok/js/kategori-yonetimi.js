@@ -6,6 +6,8 @@ const KB_NULL = '__NULL__';   // sentinel for null-valued filter
 
 // Entry point — call when the Kategori tab opens.
 async function kbLoad() {
+  await Promise.all([loadProducts(), loadCategoryOptions(), loadCategoryTemplates()]);
+  _buildOptionListsFromProducts();   // derive brand/category/subcategory from allProducts
   await kbFetch();
 }
 

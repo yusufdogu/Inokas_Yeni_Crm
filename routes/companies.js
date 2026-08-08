@@ -4,6 +4,22 @@
 const express = require('express');
 const router = express.Router();
 
+// GET /api/companies  → full list for client-side autocomplete
+router.get('/', async (req, res) => {
+  try {
+    const supabase = req.app.get('supabase');
+    const { data, error } = await supabase
+      .from('companies')
+      .select('id, name, vkn_tckn')
+      .eq('tenant_id', req.tenantId)
+      .order('name', { ascending: true });
+    if (error) throw error;
+    res.json(data || []);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // GET /api/companies/by-vkn?vkn=...
 router.get('/by-vkn', async (req, res) => {
   try {

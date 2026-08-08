@@ -264,8 +264,7 @@ router.get('/:id', async (req, res) => {
 router.post('/', async (req, res) => {
   try {
     const supabase = getSupabase(req);
-    const { company_id, company_name, job_name, quote_date, valid_until, currency, status, notes, terms, quote_type, extra_columns, items } = req.body;
-    const reference_no = await getNextRefNo(supabase);
+    const { company_id, reference_no, company_name, job_name, quote_date, valid_until, currency, status, notes, terms, quote_type, extra_columns, items } = req.body;
     const total_excl_tax = (items || []).reduce((s, it) => s + (parseFloat(it.total_price) || 0), 0);
 
     const { data: quote, error: qErr } = await supabase.from('quotes')
@@ -299,12 +298,12 @@ router.post('/', async (req, res) => {
 router.put('/:id', async (req, res) => {
   try {
     const supabase = getSupabase(req);
-    const { company_id, company_name, job_name, quote_date, valid_until, currency, status, notes, terms, quote_type, extra_columns, items } = req.body;
+    const { company_id, reference_no, company_name, job_name, quote_date, valid_until, currency, status, notes, terms, quote_type, extra_columns, items } = req.body;
     const id = req.params.id;
     const total_excl_tax = (items || []).reduce((s, it) => s + (parseFloat(it.total_price) || 0), 0);
 
     const { error: qErr } = await supabase.from('quotes')
-      .update({ company_id: company_id || null, company_name, job_name: job_name || null, quote_date, valid_until, currency, status, notes, terms: terms || [], extra_columns: extra_columns || [], total_excl_tax, pdf_url: null })
+      .update({ company_id: company_id || null, reference_no, company_name, job_name: job_name || null, quote_date, valid_until, currency, status, notes, terms: terms || [], extra_columns: extra_columns || [], total_excl_tax, pdf_url: null })
       .eq('id', id);
     if (qErr) throw qErr;
 

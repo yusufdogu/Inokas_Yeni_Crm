@@ -141,25 +141,15 @@
     <div class="sb-divider"></div>
     
     
-    <!-- Teklifler 
-    <button class="sb-item${isQuotes ? ' active' : ''}" id="quotes-toggle" onclick="toggleQuotes()">
-      <i class="ti ti-file-description"></i>
-      <span class="sb-label">Teklifler</span>
-      <i class="ti ti-chevron-down sb-chevron" id="quotes-chevron"></i>
-    </button>
-    <div class="sb-children" id="quotes-children">
-      <a href="/quotes/pages/teklifler.html" class="sb-child${path.includes('teklifler') ? ' active' : ''}">
-        <i class="ti ti-list"></i>
-        <span class="sb-label">Tekliflerim</span>
-      </a>
-      <a href="/quotes/pages/teklif-form.html" class="sb-child${path.includes('teklif-form') ? ' active' : ''}">
-        <i class="ti ti-plus"></i>
-        <span class="sb-label">Teklif Ekle</span>
-      </a>
-    </div>
+    <!-- Teklifler -->
+   
+    <a href="/offers/pages/teklifler.html" class="sb-item${path.includes('teklifler') ? ' active' : ''}">
+      <i class="ti ti-list"></i>
+      <span class="sb-label">Tekliflerim</span>
+    </a>
 
     <div class="sb-divider"></div>
-    -->
+
     
     <!-- Cari Analiz 
     <button class="sb-item${isCari ? ' active' : ''}" id="cari-toggle" onclick="toggleCari()">

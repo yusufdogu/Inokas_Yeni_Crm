@@ -6,7 +6,7 @@ const router = express.Router();
 const nodemailer = require('nodemailer');
 const path = require('path');
 const fs = require('fs');
-const puppeteer = require('puppeteer-core');
+const puppeteer = require('puppeteer');   // was: puppeteer-core
 
 const BUCKET = 'quotes-pdf';
 const LOGO_PATH = path.join(__dirname, '..', 'public', 'assests', 'inokas_bilgi_sistemleri_for_pdf.jpeg');
@@ -146,14 +146,17 @@ async function generateAndStorePdf(supabase, quoteId) {
 
   const html = buildPdfHtml(qt, logoBase64());
   const { execSync } = require('child_process');
+  // Prefer explicit env, else let puppeteer resolve the Chrome it installed
   let chromePath = process.env.PUPPETEER_EXECUTABLE_PATH;
   if (!chromePath) {
-    try { chromePath = execSync('which chromium 2>/dev/null || which chromium-browser 2>/dev/null', { encoding: 'utf8' }).trim(); } catch { }
+    try { chromePath = puppeteer.executablePath(); } catch {}
   }
   const browser = await puppeteer.launch({
-    executablePath: chromePath,
+    executablePath: chromePath || undefined,   // undefined → puppeteer's own default
+    headless: 'new',
     args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'],
   });
+
   const pg = await browser.newPage();
   await pg.setContent(html, { waitUntil: 'networkidle0' });
   const pdfBuf = await pg.pdf({ format: 'A4', printBackground: true });

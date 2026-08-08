@@ -145,36 +145,38 @@ async function generateAndStorePdf(supabase, quoteId) {
   qt.quote_items = (qt.quote_items || []).sort((a, b) => a.sort_order - b.sort_order);
 
   const html = buildPdfHtml(qt, logoBase64());
-  const { execSync } = require('child_process');
-  // Prefer explicit env, else let puppeteer resolve the Chrome it installed
-  let chromePath = process.env.PUPPETEER_EXECUTABLE_PATH;
-  if (!chromePath) {
-    try { chromePath = puppeteer.executablePath(); } catch {}
-  }
+
+  // Let puppeteer resolve the Chrome it installed (awaited — it returns a Promise in v25).
+  // Fall back to undefined so puppeteer's own launcher self-resolves; never pass a bad path.
+  let chromePath;
+  try { chromePath = await puppeteer.executablePath(); } catch {}
+
   const browser = await puppeteer.launch({
-    executablePath: chromePath || undefined,   // undefined → puppeteer's own default
+    executablePath: (typeof chromePath === 'string' && chromePath) ? chromePath : undefined,
     headless: 'new',
     args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'],
   });
 
-  const pg = await browser.newPage();
-  await pg.setContent(html, { waitUntil: 'networkidle0' });
-  const pdfBuf = await pg.pdf({ format: 'A4', printBackground: true });
-  await browser.close();
+  try {
+    const pg = await browser.newPage();
+    await pg.setContent(html, { waitUntil: 'networkidle0' });
+    const pdfBuf = await pg.pdf({ format: 'A4', printBackground: true });
 
-  const fileName = `teklif-${qt.reference_no || quoteId}.pdf`;
-  await supabase.storage.from(BUCKET).remove([fileName]);
-  const { error: upErr } = await supabase.storage.from(BUCKET)
-    .upload(fileName, pdfBuf, { contentType: 'application/pdf', upsert: true });
-  if (upErr) throw upErr;
+    const fileName = `teklif-${qt.reference_no || quoteId}.pdf`;
+    await supabase.storage.from(BUCKET).remove([fileName]);
+    const { error: upErr } = await supabase.storage.from(BUCKET)
+      .upload(fileName, pdfBuf, { contentType: 'application/pdf', upsert: true });
+    if (upErr) throw upErr;
 
-  const { data: urlData } = supabase.storage.from(BUCKET).getPublicUrl(fileName);
-  const pdfUrl = `${urlData.publicUrl}?v=${Date.now()}`;
+    const { data: urlData } = supabase.storage.from(BUCKET).getPublicUrl(fileName);
+    const pdfUrl = `${urlData.publicUrl}?v=${Date.now()}`;
 
-  await supabase.from('quotes').update({ pdf_url: pdfUrl }).eq('id', quoteId);
-  return pdfUrl;
+    await supabase.from('quotes').update({ pdf_url: pdfUrl }).eq('id', quoteId);
+    return pdfUrl;
+  } finally {
+    await browser.close();
+  }
 }
-
 // ─── GET /debug-chrome ───────────────────────────────────────────────────────
 router.get('/debug-chrome', (req, res) => {
   const { execSync } = require('child_process');
